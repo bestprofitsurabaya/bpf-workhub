@@ -49,6 +49,38 @@ _SUBMIT_MAX = 10
 _SUBMIT_WINDOW = 600
 _submit_log = {}
 
+# Upload directory for overtime photos
+import os
+_FOTO_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'uploads', 'overtime')
+os.makedirs(_FOTO_DIR, exist_ok=True)
+
+
+def _save_overtime_foto(b64_data, display_id, label):
+    """Save base64 photo to disk, return URL path.
+    b64_data: data URL string (e.g. 'data:image/jpeg;base64,...') or empty.
+    label: 'mulai' or 'selesai'.
+    Returns: relative URL path or empty string.
+    """
+    if not b64_data or not b64_data.startswith('data:image'):
+        return ''
+    try:
+        import base64
+        # Parse data URL: data:image/jpeg;base64,<data>
+        header, data = b64_data.split(',', 1)
+        ext = 'jpg'
+        if 'png' in header:
+            ext = 'png'
+        elif 'webp' in header:
+            ext = 'webp'
+        filename = f"{display_id}_{label}.{ext}"
+        filepath = os.path.join(_FOTO_DIR, filename)
+        with open(filepath, 'wb') as f:
+            f.write(base64.b64decode(data))
+        return f"/uploads/overtime/{filename}"
+    except Exception as e:
+        print(f"[overtime-foto] Error saving {label}: {e}")
+        return ''
+
 
 def _serialize(row):
     row = dict(row)
@@ -335,6 +367,10 @@ def register_overtime_routes(app):
             keterangan = clean(data.get('keterangan'))[:500]
             email = clean(data.get('email'))[:150]
 
+            # Foto bukti timestamp (base64 data URL dari frontend)
+            foto_mulai_b64 = data.get('foto_mulai', '')
+            foto_selesai_b64 = data.get('foto_selesai', '')
+
             if not nama:
                 return jsonify({'status': 'error', 'msg': 'Nama wajib diisi'}), 400
             if posisi not in POSITIONS:
@@ -356,15 +392,19 @@ def register_overtime_routes(app):
             display_id = generate_display_id('OTL', conn)
             source_uid = 'form-' + hashlib.md5(
                 (display_id + nama + posisi).encode('utf-8')).hexdigest()[:24]
+            # Simpan foto bukti jika ada
+            foto_mulai_url = _save_overtime_foto(foto_mulai_b64, display_id, 'mulai')
+            foto_selesai_url = _save_overtime_foto(foto_selesai_b64, display_id, 'selesai')
+
             cursor.execute(
                 """INSERT INTO overtime_ob_security
                    (display_id, nama, posisi, tanggal, waktu_mulai, waktu_selesai,
-                    keterangan, email, source, source_uid)
-                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,'form',%s)""",
+                    keterangan, foto_mulai, foto_selesai, email, source, source_uid)
+                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'form',%s)""",
                 (display_id, nama, posisi, tanggal_iso,
                  (parse_time_12h(waktu_mulai) or waktu_mulai)[:20],
                  (parse_time_12h(waktu_selesai) or waktu_selesai or '')[:20],
-                 keterangan, email, source_uid))
+                 keterangan, foto_mulai_url, foto_selesai_url, email, source_uid))
             conn.commit()
             log_activity_async(None, 'overtime_submit', 'public', nama,
                                new_data={'display_id': display_id, 'posisi': posisi},

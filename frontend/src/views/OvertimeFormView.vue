@@ -1,6 +1,7 @@
 <script setup>
 import { ref } from 'vue'
 import { api } from '../api'
+import { applyWatermark, fileToDataUrl } from '../utils/watermark'
 
 const brandIcon = '/static/icon-192.png'
 const form = ref({
@@ -11,6 +12,13 @@ const loading = ref(false)
 const done = ref(null) // { display_id, msg }
 const names = ref([])
 const keterangan = ref([])
+
+// --- Foto ---
+const fotoMulaiFile = ref(null)
+const fotoSelesaiFile = ref(null)
+const fotoMulaiPreview = ref(null)
+const fotoSelesaiPreview = ref(null)
+const uploading = ref(false)
 
 async function loadMeta() {
   try {
@@ -30,6 +38,49 @@ function today() {
   return `${d.getFullYear()}-${mm}-${dd}`
 }
 
+/** Get GPS text from browser */
+function getGpsText() {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) return resolve('GPS tidak tersedia')
+    navigator.geolocation.getCurrentPosition(
+      (pos) => resolve(`${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)}`),
+      () => resolve('GPS tidak tersedia'),
+      { timeout: 5000 }
+    )
+  })
+}
+
+/** Handle foto selection: apply watermark + generate preview */
+async function handleFoto(event, type) {
+  const file = event.target.files?.[0]
+  if (!file) return
+
+  const gpsText = await getGpsText()
+  const now = new Date().toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })
+
+  // Apply watermark
+  const watermarked = await applyWatermark(file, gpsText, now)
+  const blob = watermarked || file
+
+  // Store file for upload
+  if (type === 'mulai') {
+    fotoMulaiFile.value = blob
+    fotoMulaiPreview.value = await fileToDataUrl(blob)
+  } else {
+    fotoSelesaiFile.value = blob
+    fotoSelesaiPreview.value = await fileToDataUrl(blob)
+  }
+}
+
+/** Convert blob to base64 */
+function blobToBase64(blob) {
+  return new Promise((resolve) => {
+    const r = new FileReader()
+    r.onload = () => resolve(r.result)
+    r.readAsDataURL(blob)
+  })
+}
+
 async function submit() {
   error.value = ''
   if (!form.value.nama.trim() || !form.value.posisi || !form.value.tanggal || !form.value.waktu_mulai) {
@@ -38,7 +89,15 @@ async function submit() {
   }
   loading.value = true
   try {
-    const d = await api('/api/overtime', { method: 'POST', body: form.value })
+    // Convert foto to base64
+    const payload = { ...form.value }
+    if (fotoMulaiFile.value) {
+      payload.foto_mulai = await blobToBase64(fotoMulaiFile.value)
+    }
+    if (fotoSelesaiFile.value) {
+      payload.foto_selesai = await blobToBase64(fotoSelesaiFile.value)
+    }
+    const d = await api('/api/overtime', { method: 'POST', body: payload })
     done.value = { display_id: d.display_id, msg: d.msg }
   } catch (e) {
     error.value = e.message || 'Gagal mengirim. Coba lagi.'
@@ -50,6 +109,10 @@ async function submit() {
 function reset() {
   done.value = null
   form.value = { nama: '', posisi: '', tanggal: '', waktu_mulai: '', waktu_selesai: '', keterangan: '', email: '' }
+  fotoMulaiFile.value = null
+  fotoSelesaiFile.value = null
+  fotoMulaiPreview.value = null
+  fotoSelesaiPreview.value = null
   error.value = ''
 }
 
@@ -118,6 +181,46 @@ loadMeta()
           </div>
         </div>
 
+        <!-- FOTO BUKTI -->
+        <div class="foto-section">
+          <label class="foto-label">📷 Foto Bukti Timestamp</label>
+          <p class="muted" style="font-size:11px;margin:2px 0 10px;">Foto akan diberi watermark otomatis (nama perusahaan + tanggal + GPS)</p>
+
+          <div class="row" style="gap:10px;">
+            <!-- Foto Mulai -->
+            <div class="foto-box">
+              <label class="foto-input" :class="{ 'has-foto': fotoMulaiPreview }">
+                <input type="file" accept="image/*" capture="environment" @change="handleFoto($event, 'mulai')" hidden />
+                <template v-if="fotoMulaiPreview">
+                  <img :src="fotoMulaiPreview" class="foto-thumb" />
+                  <span class="foto-badge">✅ Mulai</span>
+                </template>
+                <template v-else>
+                  <span class="foto-icon">📷</span>
+                  <span class="foto-text">Foto Mulai</span>
+                  <span class="foto-hint">Tap untuk ambil foto</span>
+                </template>
+              </label>
+            </div>
+
+            <!-- Foto Selesai -->
+            <div class="foto-box">
+              <label class="foto-input" :class="{ 'has-foto': fotoSelesaiPreview }">
+                <input type="file" accept="image/*" capture="environment" @change="handleFoto($event, 'selesai')" hidden />
+                <template v-if="fotoSelesaiPreview">
+                  <img :src="fotoSelesaiPreview" class="foto-thumb" />
+                  <span class="foto-badge">✅ Selesai</span>
+                </template>
+                <template v-else>
+                  <span class="foto-icon">📷</span>
+                  <span class="foto-text">Foto Selesai</span>
+                  <span class="foto-hint">Tap untuk ambil foto</span>
+                </template>
+              </label>
+            </div>
+          </div>
+        </div>
+
         <div class="field">
           <label>Keterangan</label>
           <input class="input" v-model="form.keterangan" list="ket-options" placeholder="cth: OT malam / Keamanan kantor / Standby" />
@@ -167,4 +270,25 @@ loadMeta()
 .info-box span { display: block; font-size: 11px; color: var(--text-3); }
 .info-box b { font-size: 14px; }
 .apply-note { margin-top: 14px; font-size: 11px; color: var(--text-3); text-align: center; line-height: 1.5; }
+
+/* Foto section */
+.foto-section { margin: 16px 0; }
+.foto-label { font-size: 13px; font-weight: 600; }
+.foto-box { flex: 1; min-width: 130px; }
+.foto-input {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  min-height: 120px; border: 2px dashed var(--border); border-radius: 12px;
+  cursor: pointer; transition: all .2s; overflow: hidden; position: relative;
+}
+.foto-input:hover { border-color: var(--primary, #7c3aed); background: rgba(124,58,237,.04); }
+.foto-input.has-foto { border-style: solid; border-color: #22c55e; }
+.foto-icon { font-size: 28px; margin-bottom: 4px; }
+.foto-text { font-size: 12px; font-weight: 600; color: var(--text-2); }
+.foto-hint { font-size: 10px; color: var(--text-3); margin-top: 2px; }
+.foto-thumb { width: 100%; height: 120px; object-fit: cover; border-radius: 10px; }
+.foto-badge {
+  position: absolute; bottom: 6px; left: 50%; transform: translateX(-50%);
+  background: rgba(0,0,0,.6); color: #fff; font-size: 10px; font-weight: 600;
+  padding: 2px 10px; border-radius: 20px; white-space: nowrap;
+}
 </style>
