@@ -394,8 +394,67 @@ def _apply_backlinks(content, title, authority_sites, keyword_mapping, max_backl
     return content, used
 
 
+def _build_article_html(title, content, article, publish_date, publish_time):
+    """Build professional article HTML with proper structure."""
+    # Split content into paragraphs
+    paragraphs = content.split('\n') if content else []
+    paragraphs = [p.strip() for p in paragraphs if p.strip()]
+    if not paragraphs:
+        paragraphs = [content] if content else []
+
+    # Build article body with proper paragraph tags
+    body_paragraphs = ''
+    for i, para in enumerate(paragraphs):
+        # Add subheading every 3 paragraphs
+        if i > 0 and i % 3 == 0 and len(para) > 50:
+            words = para.split()[:6]
+            subheading = ' '.join(words)
+            if len(subheading) > 10:
+                body_paragraphs += f'<h2>{subheading}</h2>\n'
+        body_paragraphs += f'<p>{para}</p>\n'
+
+    # Category badge
+    category = article.get('category', '')
+    category_badge = ''
+    if category:
+        category_badge = f'<span style="display:inline-block;padding:4px 12px;background:#e0e7ff;color:#3730a3;border-radius:20px;font-size:12px;font-weight:600;margin-bottom:12px;">{category}</span>'
+
+    # Date & source info
+    source_name = article.get('source', 'Newsmaker.id')
+    source_url = article.get('link', '')
+    source_link = f'<a href="{source_url}" target="_blank" rel="nofollow noopener" style="color:#6b7280;">{source_name}</a>' if source_url else source_name
+
+    html = f'''
+<article style="font-family:Georgia,serif;line-height:1.8;color:#1f2937;">
+  <!-- Category Badge -->
+  <div style="margin-bottom:16px;">{category_badge}</div>
+
+  <!-- Title -->
+  <h1 style="font-size:28px;font-weight:700;line-height:1.3;margin:0 0 12px;color:#111827;">{title}</h1>
+
+  <!-- Meta Info -->
+  <div style="display:flex;align-items:center;gap:16px;padding:12px 0;border-top:1px solid #e5e7eb;border-bottom:1px solid #e5e7eb;margin-bottom:24px;font-size:13px;color:#6b7280;">
+    <span>📅 {publish_date}</span>
+    <span>🕐 {publish_time}</span>
+    <span>📰 Sumber: {source_link}</span>
+  </div>
+
+  <!-- Article Body -->
+  <div style="font-size:16px;">
+    {body_paragraphs}
+  </div>
+
+  <!-- Disclaimer -->
+  <div style="margin-top:24px;padding:16px;background:#f9fafb;border-left:4px solid #d1d5db;font-size:13px;color:#6b7280;font-style:italic;">
+    <strong>Disclaimer:</strong> Artikel ini dikutip dari sumber berita untuk tujuan informasi. Segala keputusan investasi harus berdasarkan pertimbangan matang dan berkonsultasi dengan penasihat keuangan yang kompeten.
+  </div>
+</article>
+'''
+    return html.strip()
+
+
 def _build_bpf_cta_widget():
-    """Build a CTA widget with links to all BPF sites."""
+    """Build a CTA widget with links to BPF sites + source attribution."""
     return '''
 <!-- BPF CTA Widget -->
 <div style="margin:30px 0;padding:24px;background:linear-gradient(135deg,#1a365d 0%,#2563eb 100%);border-radius:12px;color:#fff;font-family:sans-serif;">
@@ -406,6 +465,9 @@ def _build_bpf_cta_widget():
     <a href="https://etrade.bestprofit-futures.com/" target="_blank" rel="nofollow sponsored" style="display:inline-block;padding:10px 20px;background:rgba(255,255,255,0.2);color:#fff;border-radius:8px;text-decoration:none;font-size:14px;">E-Trade Online</a>
     <a href="https://demo.bestprofit-futures.com/" target="_blank" rel="nofollow sponsored" style="display:inline-block;padding:10px 20px;background:rgba(255,255,255,0.2);color:#fff;border-radius:8px;text-decoration:none;font-size:14px;">Coba Demo Gratis</a>
   </div>
+</div>
+<div style="margin-top:16px;padding:12px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;font-size:12px;color:#166534;text-align:center;">
+  📰 Artikel bersumber dari <a href="https://www.newsmaker.id/" target="_blank" rel="nofollow" style="color:#16a34a;font-weight:600;">Newsmaker.id</a> • Diterbitkan oleh <a href="https://bestprofit-futures.co.id/" target="_blank" rel="nofollow sponsored" style="color:#16a34a;font-weight:600;">PT Bestprofit Futures</a>
 </div>'''
 
 
@@ -1196,8 +1258,12 @@ def upload_articles():
             # Content Uniqueness (Algo 1): Parafrase konten SEBELUM diproses
             content = _rewrite_content(content, title)
 
-            # Build HTML content
-            html_content = f"<h1>{title}</h1>\n<p>{content}</p>"
+            # Get publish date/time early (needed for HTML + schema)
+            publish_date = article.get('publish_date', datetime.now().strftime("%Y-%m-%d"))
+            publish_time = article.get('publish_time', datetime.now().strftime("%H:%M"))
+
+            # Build professional HTML content
+            html_content = _build_article_html(title, content, article, publish_date, publish_time)
 
             # SEO optimization
             seo_score = 0
@@ -1233,8 +1299,6 @@ def upload_articles():
                     pass
 
             # Advanced Schema (Algo 4)
-            publish_date = article.get('publish_date', datetime.now().strftime("%Y-%m-%d"))
-            publish_time = article.get('publish_time', datetime.now().strftime("%H:%M"))
             schemas = _build_advanced_schema(title, content, publish_date, publish_time, article.get('image_url', ''))
             schema_tags = ''.join(f'<script type="application/ld+json">{json.dumps(s, ensure_ascii=False)}</script>\n' for s in schemas)
             html_content = schema_tags + html_content
