@@ -1,6 +1,6 @@
 /* BPF WorkHub SPA — Service Worker (scope /app/) */
-const CACHE = 'bpf-spa-20260811c';
-const SHELL = ['/app/', '/app/index.html'];
+const CACHE = 'bpf-spa-20260824';
+const SHELL = ['/app/index.html'];
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();
@@ -27,7 +27,8 @@ self.addEventListener('fetch', (event) => {
 
   if (request.mode === 'navigate') {
     event.respondWith(
-      fetch(request)
+      // redirect: 'follow' — ikuti redirect (mis. / → /app/login)
+      fetch(request, { redirect: 'follow' })
         .then((res) => { cachePut(request, res.clone()); return res; })
         .catch(() => caches.match('/app/index.html'))
     );
@@ -37,7 +38,7 @@ self.addEventListener('fetch', (event) => {
   // Asset Vite ber-hash: cache-first
   event.respondWith(
     caches.match(request).then((hit) => {
-      const network = fetch(request)
+      const network = fetch(request, { redirect: 'follow' })
         .then((res) => { if (res.ok) cachePut(request, res.clone()); return res; })
         .catch(() => hit);
       return hit || network;
