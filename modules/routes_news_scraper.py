@@ -343,62 +343,90 @@ def check_articles():
         pages = 1
 
     try:
-        scrape_url = "https://www.newsmaker.id/index.php/id/market-news/commodity"
-        articles_per_page = 12
+        scrape_url = "https://www.newsmaker.id/id/news/commodity"
         allowed_categories = [
-            "GOLD", "OIL", "SILVER",
+            "GOLD", "OIL", "SILVER", "Crude Oil",
             "USD/JPY", "US DOLLAR", "EUR/USD",
             "AUD/USD", "GBP/USD", "USD/CHF",
         ]
 
+        # Indonesian month mapping for date parsing (full + abbreviation)
+        _ID_MONTHS = {
+            'januari': '01', 'jan': '01',
+            'februari': '02', 'feb': '02',
+            'maret': '03', 'mar': '03',
+            'april': '04', 'apr': '04',
+            'mei': '05',
+            'juni': '06', 'jun': '06',
+            'juli': '07', 'jul': '07',
+            'agustus': '08', 'agu': '08',
+            'september': '09', 'sep': '09',
+            'oktober': '10', 'okt': '10',
+            'november': '11', 'nov': '11',
+            'desember': '12', 'des': '12',
+        }
+
         session_req = _get_wp_session()
         articles = []
+        seen_links = set()
 
-        for start in range(0, pages * articles_per_page, articles_per_page):
-            page_url = f"{scrape_url}?start={start}" if start > 0 else scrape_url
+        for page_num in range(1, pages + 1):
+            page_url = scrape_url if page_num == 1 else f"{scrape_url}?page={page_num}"
             try:
                 r = session_req.get(page_url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=30)
                 if r.status_code != 200:
                     continue
                 soup = BeautifulSoup(r.text, 'html.parser')
-                items = soup.find_all('div', class_='single-news-item')
-                for item in items:
+                # New structure: cards are divs with class containing 'rounded-xl'
+                cards = soup.find_all('div', class_=lambda c: c and 'rounded-xl' in str(c) and 'group' in str(c))
+                for card in cards:
                     try:
-                        link_tag = item.find('div', class_='news-image')
-                        if not link_tag:
-                            continue
-                        a_tag = link_tag.find('a')
-                        if not a_tag or not a_tag.get('href'):
-                            continue
-                        link = a_tag['href']
-                        if not link.startswith('http'):
-                            link = "https://www.newsmaker.id" + link
-
-                        cat_tag = item.find('span', class_='category-label')
-                        category = cat_tag.text.strip() if cat_tag else ""
-                        if category not in allowed_categories:
-                            continue
-
-                        title_tag = item.find('h5', class_='card-title')
+                        # Title from h3
+                        title_tag = card.find('h3')
                         if not title_tag:
                             continue
-                        a_title = title_tag.find('a')
-                        title = a_title.text.strip() if a_title else "Untitled"
+                        title = title_tag.text.strip()
+                        if not title:
+                            continue
 
-                        date_tag = item.find('p', class_='card-text m-date')
-                        date_text = date_tag.text.strip() if date_tag else ""
+                        # Link from 'BACA SELENGKAPNYA' button
+                        link_tag = card.find('a', href=lambda h: h and '/id/news/' in h)
+                        if not link_tag:
+                            continue
+                        link = link_tag['href']
+                        if not link.startswith('http'):
+                            link = "https://www.newsmaker.id" + link
+                        if link in seen_links:
+                            continue
+                        seen_links.add(link)
+
+                        # Category from badge
+                        cat_p = card.find('p', class_=lambda c: c and 'uppercase' in str(c))
+                        category = cat_p.text.strip().upper() if cat_p else ""
+
+                        # Date: '24 Agu 2026 - 08.18'
+                        date_p = card.find('p', class_=lambda c: c and 'text-slate-400' in str(c) and 'text-[10px]' in str(c))
+                        date_text = date_p.text.strip() if date_p else ""
                         publish_date = ""
                         publish_time = ""
                         try:
-                            dt = datetime.strptime(date_text, "%d %B %Y %H:%M")
-                            publish_date = dt.strftime("%Y-%m-%d")
-                            publish_time = dt.strftime("%H:%M")
-                        except ValueError:
+                            # Parse '24 Agu 2026 - 08.18'
+                            parts = date_text.split(' - ')
+                            if len(parts) == 2:
+                                date_part = parts[0].strip()  # '24 Agu 2026'
+                                publish_time = parts[1].strip()  # '08.18'
+                                dp = date_part.split()
+                                if len(dp) == 3:
+                                    day, mon_id, year = dp
+                                    month = _ID_MONTHS.get(mon_id.lower(), '01')
+                                    publish_date = f"{year}-{month}-{day.zfill(2)}"
+                                    publish_time = publish_time.replace('.', ':')
+                        except Exception:
                             publish_date = datetime.now().strftime("%Y-%m-%d")
                             publish_time = datetime.now().strftime("%H:%M")
 
-                        # Get image
-                        img_tag = item.find('img', class_='card-img')
+                        # Image
+                        img_tag = card.find('img')
                         image_url = ""
                         if img_tag and img_tag.get('src'):
                             img_src = img_tag['src']
@@ -427,6 +455,13 @@ def check_articles():
                 r = session_req.get(article['link'], headers={'User-Agent': 'Mozilla/5.0'}, timeout=30)
                 if r.status_code == 200:
                     soup = BeautifulSoup(r.text, 'html.parser')
+                    # New structure: content in div.prose.prose-slate
+                    content_div = soup.find('div', class_=lambda c: c and 'prose' in str(c))
+                    if content_div:
+                        paras = [p.text.strip() for p in content_div.find_all('p') if p.text.strip()]
+                        article['content'] = "\n".join(paras)
+                        return
+                    # Fallback: old structure
                     content_div = soup.find('div', class_='article-content')
                     if content_div:
                         paras = [p.text.strip() for p in content_div.find_all('p') if p.text.strip()]
