@@ -18,7 +18,7 @@ async function reverseGeocode(lat, lon) {
     if (a.house_number) parts.push('No. ' + a.house_number)
     if (a.hamlet || a.neighbourhood) parts.push(a.hamlet || a.neighbourhood)
     if (a.suburb || a.village || a.residential) parts.push(a.suburb || a.village || a.residential)
-    if (a.city_district || a.county) parts.push(a.city_district || a.county)
+    if (a.city_district || a.county || a.municipality) parts.push(a.city_district || a.county || a.municipality)
     if (a.city || a.town || a.municipality) parts.push(a.city || a.town || a.municipality)
     if (a.state) parts.push(a.state)
     if (a.postcode) parts.push('Kode Pos ' + a.postcode)
@@ -39,9 +39,9 @@ export async function detailedLocation(lat, lon) {
     jalan: d?.address?.road || d?.address?.pedestrian || '',
     nomor: d?.address?.house_number || '',
     gang: d?.address?.hamlet || d?.address?.neighbourhood || '',
-    kelurahan: d?.address?.suburb || d?.address?.village || d?.address?.residential || '',
-    kecamatan: d?.address?.city_district || d?.address?.county || '',
-    kota: d?.address?.city || d?.address?.town || d?.address?.municipality || '',
+    kelurahan: d?.address?.suburb || d?.address?.village || d?.address?.residential || d?.address?.neighbourhood || '',
+    kecamatan: d?.address?.city_district || d?.address?.county || d?.address?.municipality || '',
+    kota: d?.address?.city || d?.address?.town || '',
     provinsi: d?.address?.state || '',
     kode_pos: d?.address?.postcode || '',
     negara: d?.address?.country || '',
