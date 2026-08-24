@@ -27,6 +27,12 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 COPY static/ /app/static/
 
+# Fonts untuk PDF generator (DejaVuSans)
+COPY fonts/ /app/fonts/
+
+# Data directory untuk news_scraper (wp_sites.json, logs, dll)
+RUN mkdir -p /app/data/news_scraper
+
 # SPA bundle hasil build Vue (harus paling akhir agar tidak tertimpa COPY static/)
 COPY --from=frontend-build /build/dist/ /app/static/app/
 

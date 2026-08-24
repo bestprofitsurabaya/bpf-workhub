@@ -348,3 +348,353 @@ CREATE TABLE IF NOT EXISTS water_purchase_items (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 SELECT '✅ Clean database ready' AS result;
+-- ============================================================
+-- BPF WORKHUB — Additional Tables (v2.x)
+-- Tables ini di-auto-create oleh app.py saat startup,
+-- tapi disertakan di init.sql untuk fresh deploy yang lebih robust.
+-- Semua pakai CREATE TABLE IF NOT EXISTS (idempoten).
+-- ============================================================
+
+-- ============================================================
+-- BRANCHES (Multi-cabang)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS branches (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    code VARCHAR(20) NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    db_name VARCHAR(64) NOT NULL,
+    city VARCHAR(100) DEFAULT '',
+    address VARCHAR(255) DEFAULT '',
+    phone VARCHAR(30) DEFAULT '',
+    company_name VARCHAR(150) DEFAULT '',
+    company_subtitle VARCHAR(150) DEFAULT '',
+    system_name VARCHAR(100) DEFAULT '',
+    system_version VARCHAR(30) DEFAULT '',
+    is_active TINYINT(1) DEFAULT 1,
+    created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY code (code)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Default branch (Surabaya)
+INSERT IGNORE INTO branches (code, name, db_name, city, company_name, company_subtitle, system_name, system_version)
+VALUES ('SBY', 'Kantor Pusat Surabaya', 'bpf_asset_system', 'Surabaya',
+        'PT BESTPROFIT FUTURES', 'Cabang Surabaya', 'BPF WorkHub', 'v2.23.0');
+
+-- Add branch_code column to users if not exists
+SET @exists = (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'branch_code');
+SET @sql = IF(@exists = 0, 'ALTER TABLE users ADD COLUMN branch_code VARCHAR(20) DEFAULT NULL', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- ============================================================
+-- MARKETING MEMBERS
+-- ============================================================
+CREATE TABLE IF NOT EXISTS marketing_members (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    team_name VARCHAR(100) NOT NULL DEFAULT '',
+    member_name VARCHAR(100) NOT NULL,
+    is_active TINYINT(1) DEFAULT 1,
+    created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_team_member (team_name, member_name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ============================================================
+-- APPLICANTS (Pelamar Kerja)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS applicants (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    display_id VARCHAR(30) NOT NULL,
+    nama_lengkap VARCHAR(150) NOT NULL,
+    pendidikan VARCHAR(100) DEFAULT '',
+    no_hp VARCHAR(30) DEFAULT '',
+    upline VARCHAR(100) DEFAULT '',
+    user_field VARCHAR(100) DEFAULT '',
+    posisi VARCHAR(100) DEFAULT '',
+    interview_at DATETIME NOT NULL,
+    status ENUM('interview','training_1','training_2','training_3','training_4','lulus','resigned','rejected') DEFAULT 'interview',
+    resign_reason VARCHAR(500) DEFAULT '',
+    rejected_reason VARCHAR(500) DEFAULT '',
+    verified_by VARCHAR(100) DEFAULT '',
+    verified_at DATETIME DEFAULT NULL,
+    notes VARCHAR(500) DEFAULT '',
+    created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY display_id (display_id),
+    KEY idx_status (status),
+    KEY idx_upline (upline),
+    KEY idx_interview_at (interview_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS applicant_attendance (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    applicant_id INT NOT NULL,
+    stage ENUM('interview','training_1','training_2','training_3','training_4') NOT NULL,
+    attended_at DATETIME NOT NULL,
+    marked_by VARCHAR(100) DEFAULT '',
+    note VARCHAR(255) DEFAULT '',
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_applicant_stage (applicant_id, stage),
+    KEY idx_stage (stage),
+    CONSTRAINT fk_att_applicant FOREIGN KEY (applicant_id) REFERENCES applicants (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS applicant_user_options (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    is_active TINYINT(1) DEFAULT 1,
+    created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY name (name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ============================================================
+-- ASSET AC
+-- ============================================================
+CREATE TABLE IF NOT EXISTS asset_ac (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    asset_id VARCHAR(50) NOT NULL,
+    merk VARCHAR(50) NOT NULL,
+    tipe VARCHAR(50) NOT NULL,
+    kapasitas VARCHAR(50) NOT NULL,
+    lokasi VARCHAR(150) NOT NULL,
+    refrigerant VARCHAR(50) DEFAULT '',
+    installation_date DATE DEFAULT NULL,
+    warranty_until DATE DEFAULT NULL,
+    last_maintenance DATE DEFAULT NULL,
+    status ENUM('Aktif','Rusak','Maintenance','Nonaktif') DEFAULT 'Aktif',
+    created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY asset_id (asset_id),
+    KEY idx_ac_lokasi (lokasi),
+    KEY idx_ac_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS asset_ac_logs (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    asset_id VARCHAR(50) NOT NULL,
+    tanggal DATE NOT NULL,
+    teknisi VARCHAR(100) NOT NULL,
+    v_supply DECIMAL(8,2) DEFAULT NULL,
+    amp_kompresor DECIMAL(8,2) DEFAULT NULL,
+    low_p DECIMAL(8,2) DEFAULT NULL,
+    high_p DECIMAL(8,2) DEFAULT NULL,
+    temp_ret DECIMAL(8,2) DEFAULT NULL,
+    temp_sup DECIMAL(8,2) DEFAULT NULL,
+    temp_outdoor DECIMAL(8,2) DEFAULT NULL,
+    delta_t DECIMAL(8,2) DEFAULT NULL,
+    drainage VARCHAR(20) DEFAULT '',
+    test_run VARCHAR(20) DEFAULT '',
+    health_score INT DEFAULT NULL,
+    sparepart_cost DECIMAL(12,2) DEFAULT 0.00,
+    catatan VARCHAR(500) DEFAULT '',
+    next_service_date DATE DEFAULT NULL,
+    created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    KEY idx_aclog_asset (asset_id, tanggal),
+    KEY idx_aclog_health (health_score),
+    CONSTRAINT fk_aclog FOREIGN KEY (asset_id) REFERENCES asset_ac (asset_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ============================================================
+-- VEHICLE ASSETS & COMPONENTS
+-- ============================================================
+CREATE TABLE IF NOT EXISTS vehicle_assets (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    vehicle_id INT DEFAULT NULL,
+    nopol VARCHAR(20) NOT NULL,
+    vehicle_type VARCHAR(50) NOT NULL DEFAULT '',
+    brand VARCHAR(50) DEFAULT 'Toyota',
+    model VARCHAR(50) DEFAULT '',
+    year INT DEFAULT NULL,
+    color VARCHAR(30) DEFAULT '',
+    fuel_type VARCHAR(30) DEFAULT 'Bensin',
+    status ENUM('Aktif','Rusak','Nonaktif') DEFAULT 'Aktif',
+    purchase_date DATE DEFAULT NULL,
+    last_odometer INT DEFAULT 0,
+    insurance_until DATE DEFAULT NULL,
+    tax_until DATE DEFAULT NULL,
+    notes VARCHAR(500) DEFAULT '',
+    created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY nopol (nopol),
+    KEY idx_va_nopol (nopol),
+    KEY idx_va_status (status),
+    KEY fk_va_vehicle (vehicle_id),
+    CONSTRAINT fk_va_vehicle FOREIGN KEY (vehicle_id) REFERENCES vehicles (id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS vehicle_components (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    component_name VARCHAR(100) NOT NULL,
+    standard_life_km INT DEFAULT 0,
+    standard_life_months INT DEFAULT 0,
+    category VARCHAR(50) DEFAULT '',
+    priority INT DEFAULT 1,
+    estimated_cost DECIMAL(12,2) DEFAULT 0.00,
+    is_active TINYINT(1) DEFAULT 1,
+    notes VARCHAR(500) DEFAULT '',
+    created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY component_name (component_name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS vehicle_service_logs (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    vehicle_asset_id INT NOT NULL,
+    service_date DATE NOT NULL,
+    odometer INT NOT NULL DEFAULT 0,
+    service_type VARCHAR(50) NOT NULL,
+    component_name VARCHAR(100) NOT NULL,
+    component_life_km INT DEFAULT 0,
+    component_life_months INT DEFAULT 0,
+    current_usage_km INT DEFAULT 0,
+    current_usage_months INT DEFAULT 0,
+    next_service_km INT DEFAULT 0,
+    next_service_months INT DEFAULT 0,
+    cost DECIMAL(12,2) DEFAULT 0.00,
+    mechanic_name VARCHAR(100) DEFAULT '',
+    parts_replaced VARCHAR(500) DEFAULT '',
+    invoice_number VARCHAR(50) DEFAULT '',
+    notes VARCHAR(500) DEFAULT '',
+    created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    KEY idx_vslog_vehicle (vehicle_asset_id, service_date),
+    KEY idx_vslog_component (component_name),
+    CONSTRAINT fk_vslog FOREIGN KEY (vehicle_asset_id) REFERENCES vehicle_assets (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS maintenance_recommendations (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    asset_type ENUM('ac','vehicle') NOT NULL,
+    asset_ref VARCHAR(50) NOT NULL,
+    recommendation_date DATE NOT NULL,
+    priority ENUM('Kritis','Tinggi','Sedang','Rutin') NOT NULL DEFAULT 'Rutin',
+    urgency_days INT DEFAULT 0,
+    actions VARCHAR(500) NOT NULL,
+    estimated_cost DECIMAL(12,2) DEFAULT 0.00,
+    status ENUM('Pending','Selesai','Dibatalkan') DEFAULT 'Pending',
+    completed_date DATE DEFAULT NULL,
+    notes VARCHAR(500) DEFAULT '',
+    created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    KEY idx_rec_asset (asset_type, asset_ref, status),
+    KEY idx_rec_date (recommendation_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ============================================================
+-- OVERTIME
+-- ============================================================
+CREATE TABLE IF NOT EXISTS overtime_driver (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    sheet_row INT NOT NULL,
+    submitted_at DATETIME DEFAULT NULL,
+    email VARCHAR(150) DEFAULT '',
+    nama VARCHAR(150) NOT NULL,
+    tanggal DATE DEFAULT NULL,
+    waktu_mulai VARCHAR(20) DEFAULT '',
+    waktu_selesai VARCHAR(20) DEFAULT '',
+    keterangan VARCHAR(500) DEFAULT '',
+    foto_mulai VARCHAR(600) DEFAULT '',
+    foto_selesai VARCHAR(600) DEFAULT '',
+    notes VARCHAR(500) DEFAULT '',
+    created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    no_kendaraan VARCHAR(30) DEFAULT '',
+    broker VARCHAR(150) DEFAULT '',
+    manager VARCHAR(150) DEFAULT '',
+    doc_url VARCHAR(600) DEFAULT '',
+    UNIQUE KEY sheet_row (sheet_row),
+    KEY idx_otd_tanggal (tanggal),
+    KEY idx_otd_nama (nama)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS overtime_ob_security (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    display_id VARCHAR(30) NOT NULL,
+    nama VARCHAR(150) NOT NULL,
+    posisi ENUM('OB','Security') NOT NULL DEFAULT 'OB',
+    tanggal DATE DEFAULT NULL,
+    waktu_mulai VARCHAR(20) DEFAULT '',
+    waktu_selesai VARCHAR(20) DEFAULT '',
+    keterangan VARCHAR(500) DEFAULT '',
+    foto_mulai VARCHAR(600) DEFAULT '',
+    foto_selesai VARCHAR(600) DEFAULT '',
+    email VARCHAR(150) DEFAULT '',
+    source VARCHAR(20) DEFAULT 'form',
+    source_uid VARCHAR(64) DEFAULT '',
+    created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY display_id (display_id),
+    UNIQUE KEY uq_oto_source (source_uid),
+    KEY idx_oto_tanggal (tanggal),
+    KEY idx_oto_nama (nama),
+    KEY idx_oto_posisi (posisi)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ============================================================
+-- CASH / FUEL REQUESTS
+-- ============================================================
+CREATE TABLE IF NOT EXISTS fuel_cash_requests (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    display_id VARCHAR(30) DEFAULT NULL,
+    driver_name VARCHAR(100) NOT NULL,
+    nopol VARCHAR(20) DEFAULT NULL,
+    vehicle_type VARCHAR(50) DEFAULT NULL,
+    bbm_type VARCHAR(50) DEFAULT 'PERTALITE',
+    base_amount DECIMAL(12,2) NOT NULL,
+    unique_cents DECIMAL(12,2) NOT NULL,
+    total_amount DECIMAL(12,2) NOT NULL,
+    daily_code INT NOT NULL,
+    status ENUM('DRAFT','GA_APPROVED','FINANCE_APPROVED','FUNDS_WITH_DRIVER','LPJ_SUBMITTED','COMPLETED','REJECTED') DEFAULT 'DRAFT',
+    ga_approved_by VARCHAR(100) DEFAULT NULL,
+    ga_approved_at TIMESTAMP NULL DEFAULT NULL,
+    finance_approved_by VARCHAR(100) DEFAULT NULL,
+    finance_approved_at TIMESTAMP NULL DEFAULT NULL,
+    handover_by VARCHAR(100) DEFAULT NULL,
+    handover_at TIMESTAMP NULL DEFAULT NULL,
+    lpj_transaction_id INT DEFAULT NULL,
+    lpj_submitted_at TIMESTAMP NULL DEFAULT NULL,
+    rejection_reason TEXT DEFAULT NULL,
+    notes TEXT DEFAULT NULL,
+    created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY display_id (display_id),
+    KEY lpj_transaction_id (lpj_transaction_id),
+    CONSTRAINT fuel_cash_requests_ibfk_1 FOREIGN KEY (lpj_transaction_id) REFERENCES transactions (id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS daily_unique_codes (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    code_date DATE NOT NULL,
+    unique_code INT NOT NULL,
+    generated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY code_date (code_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS assignment_swaps (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    nopol VARCHAR(20) DEFAULT NULL,
+    old_driver VARCHAR(100) DEFAULT NULL,
+    new_driver VARCHAR(100) DEFAULT NULL,
+    category VARCHAR(30) DEFAULT NULL,
+    reason TEXT DEFAULT NULL,
+    ga_name VARCHAR(100) DEFAULT NULL,
+    created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ============================================================
+-- GEOCODE CACHE
+-- ============================================================
+CREATE TABLE IF NOT EXISTS geocode_cache (
+    address VARCHAR(500) NOT NULL,
+    lat DOUBLE DEFAULT NULL,
+    lng DOUBLE DEFAULT NULL,
+    display_name VARCHAR(500) DEFAULT '',
+    updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    found TINYINT(1) DEFAULT 1,
+    PRIMARY KEY (address(255))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+SELECT '✅ v2 tables ready' AS result;

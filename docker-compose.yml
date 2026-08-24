@@ -31,22 +31,18 @@ services:
     volumes:
       - ./uploads:/app/uploads
       - ./static:/app/static
+      - ./data/news_scraper:/app/data/news_scraper
+      - ./fonts:/app/fonts
     environment:
       - FLASK_DEBUG=0
       - TZ=Asia/Jakarta
       - DB_HOST=db
       - DB_USER=bpf_user
       - DB_PASSWORD=bpf_pass
-      # Akses HTTP polos (localhost/dev) di browser TIDAK mengirim cookie Secure.
-      # Hanya aktifkan baris di bawah saat mengakses via HTTP lokal saja —
-      # biarkan nonaktif di produksi (HTTPS) demi keamanan (ISO/IEC 27001).
-      # - SESSION_COOKIE_SECURE=false
       - DB_NAME=bpf_asset_system
       - DB_POOL_SIZE=15
       - SECRET_KEY=${SECRET_KEY:?SECRET_KEY wajib di .env}
       - REDIS_URL=redis://redis:6379/0
-      # Titik awal rute appointment (kantor): PT Bestprofit Futures Cab. Surabaya
-      # Graha Bukopin Lantai 11, Jl. Panglima Sudirman No. 10-18, Surabaya 60271
       - DEPOT_LAT=-7.2657205
       - DEPOT_LNG=112.7448072
     depends_on:
@@ -54,33 +50,28 @@ services:
         condition: service_healthy
     restart: unless-stopped
     networks:
-      - default            # Terhubung ke bbm_mariadb
-      - nextcloud_net      # Terhubung ke nextcloud_nginx
+      - default
 
   # ------------------------------------------------------------
-  # CLOUDFLARE TUNNEL (AKSES CADANGAN — NONAKTIF SEJAK v1.2.3)
+  # NGINX — Reverse proxy untuk HTTPS (port 5000)
   # ------------------------------------------------------------
-  # Produksi memakai DuckDNS + nginx (https://nasbpfsby.duckdns.org:5000),
-  # jadi service ini sengaja di-comment agar tidak boros resource.
-  # Untuk mengaktifkan kembali: hapus tanda # di bawah, lalu jalankan
-  #   docker compose up -d cloudflared
-  #
-  # MODE 1 — Quick Tunnel (trycloudflare.com): tanpa token, URL acak
-  #   https://xxx.trycloudflare.com, berubah tiap restart (cocok uji coba).
-  # MODE 2 — Named tunnel + domain sendiri (URL permanen):
-  #   1. Dashboard Cloudflare → Zero Trust → Networks → Tunnels → Create
-  #   2. Salin token eyJ... , lalu ubah command menjadi:
-  #      command: tunnel --no-autoupdate run --token PASTE_TOKEN_DI_SINI
-  #   3. Tambahkan route public (hostname → http://web:5000)
-  # cloudflared:
-  #   image: cloudflare/cloudflared:latest
-  #   container_name: bbm_cloudflared
-  #   command: tunnel --no-autoupdate --url http://web:5000
-  #   depends_on:
-  #     - web
-  #   restart: unless-stopped
-  #   networks:
-  #     - default
+  # Menggunakan self-signed certificate untuk development.
+  # Untuk production: ganti dengan certbot/Let's Encrypt.
+  # Lihat DEPLOY_FRESH.md untuk instruksi SSL setup.
+  nginx:
+    image: nginx:stable-alpine
+    container_name: bbm_nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./certs:/etc/nginx/certs:ro
+    depends_on:
+      - web
+    restart: unless-stopped
+    networks:
+      - default
 
   redis:
     image: redis:7-alpine
@@ -93,9 +84,6 @@ services:
   # ------------------------------------------------------------
   # BACKUP DB OTOMATIS (v2.21)
   # ------------------------------------------------------------
-  # mysqldump semua database (master + tiap cabang) setiap 03:00 WIB,
-  # retensi 30 hari. Log/status tersedia di volume bbm_backups.
-  # Restore manual: lihat DEPLOYMENT.md bagian Backup & Restore.
   backup:
     image: mariadb:10.11
     container_name: bbm_backup
@@ -110,7 +98,7 @@ services:
       - ./scripts/backup-db.sh:/usr/local/bin/backup-db.sh:ro
     entrypoint: |
       /bin/sh -c "chmod +x /usr/local/bin/backup-db.sh && \
-      echo \"$${BACKUP_CRON} /bin/sh /usr/local/bin/backup-db.sh >> /var/log/backup.log 2>&1\" > /etc/crontabs/root && \
+      echo "$${BACKUP_CRON} /bin/sh /usr/local/bin/backup-db.sh >> /var/log/backup.log 2>&1" > /etc/crontabs/root && \
       echo 'Backup service siap — cron:' && cat /etc/crontabs/root && \
       crond -f -l 2"
     depends_on:
@@ -127,6 +115,3 @@ volumes:
 
 networks:
   default:
-  nextcloud_net:
-    external: true
-    name: nextcloud_net

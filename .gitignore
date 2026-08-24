@@ -22,6 +22,11 @@ uploads/*
 backup/
 *.sql.gz
 
+# SSL Certs
+# certs/ (di-commit untuk self-signed, ignore untuk production)
+*.pem
+*.key
+
 # IDE
 .vscode/
 .idea/
