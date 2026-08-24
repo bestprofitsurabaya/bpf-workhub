@@ -4,7 +4,7 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 **Terakhir diperbarui:** 2026-08-24  
 **Branch:** `main`  
-**Versi terbaru:** v2.25.1
+**Versi terbaru:** v2.26.0
 
 ---
 
@@ -12,12 +12,13 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 | Aspek | Status |
 |-------|--------|
-| Versi | v2.25.1 (Rename it_ef → it_sby + URL Update) |
+| Versi | v2.26.0 (Detik Finance + Report + Settings + Fixes) |
 | Docker | `bbm_web` running on `nasbpfsby.duckdns.org:5000` |
 | Pytest | 223/243 passed (20 = integration tests butuh DB) |
 | Vitest | 82/82 ✅ |
 | App Running | `https://nasbpfsby.duckdns.org:5000` |
 | WordPress Posts | 10,239 articles on BPF Surabaya site |
+| Sources | Newsmaker.id + Detik Finance (64 articles/scrape) |
 
 ---
 
@@ -81,21 +82,58 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 - [x] Watermark foto (GPS + timestamp)
 - [x] Notifikasi real-time
 
-### News Scraper (IT — Multi-Cabang) ⭐ v2.25.1
+### News Scraper (IT — Multi-Cabang) ⭐ v2.26.0
+
+#### Scraping
 - [x] Scrape artikel dari newsmaker.id (struktur baru Tailwind)
-- [x] WordPress integration (multi-site, 10 cabang)
-- [x] SEO optimization + backlinks
+- [x] **Scrape Detik Finance** (finance.detik.com + keyword filter) ⭐ NEW
+- [x] **Scrape Detik Tag** (/tag/emas, /tag/komoditas) ⭐ NEW
+- [x] **Source selector** — Semua Sumber / Newsmaker / Detik ⭐ NEW
+- [x] Total 64 artikel unik per scrape (16 NM + 48 DT)
+- [x] Source backlink otomatis di setiap artikel
 - [x] Parser tanggal Indonesia (Agu/Agustus)
+
+#### WordPress Integration
+- [x] WordPress integration (multi-site, 10 cabang)
 - [x] Upload gambar ke WordPress (featured image + inline)
-- [x] Progress tracking (SSE polling)
-- [x] Upload history (filter tanggal/aksi)
+- [x] **Password view/hide toggle** di site card & form ⭐ NEW
+- [x] **Edit form tampilkan password tersimpan** ⭐ NEW
 - [x] Duplicate prevention (500 posts + fuzzy title match)
+- [x] User-friendly error messages (DNS/SSL/Timeout)
+
+#### SEO
 - [x] 7 Algoritma SEO
 - [x] SEO Backlinks (5 BPF sites + 23 authority + CTA widget)
+- [x] **Newsmaker.id backlink** di setiap artikel ⭐ NEW
+- [x] **Detik Finance backlink** di setiap artikel ⭐ NEW
+- [x] Content uniqueness (parafrase 25+ sinonim)
+- [x] Internal linking (keyword overlap)
+- [x] Advanced Schema (NewsArticle + Breadcrumb + Org + FAQ)
+- [x] Sitemap ping (Google + IndexNow)
+- [x] Smart scheduling
+
+#### UI/UX
+- [x] UI/UX Overhaul (10 upgrades: dashboard, tabs, cards, dark mode, FAB, onboarding)
+- [x] **Tab Report** — detail per-artikel + filter + export CSV ⭐ NEW
+- [x] **Settings panel** — daily limit configurable (1-100) ⭐ NEW
+- [x] **Badge dinamis** — limit tampilkan angka real-time ⭐ NEW
+- [x] **Password toggle** — 👁/🙈 di site card & form ⭐ NEW
+- [x] Progress tracking (SSE polling)
+- [x] Upload history (filter tanggal/aksi)
+
+#### Multi-Branch & Users
 - [x] Multi-Branch Users (10 cabang + access filtering)
-- [x] UI/UX Overhaul (10 upgrades)
 - [x] **Rename it_ef → it_sby** (URL: `/app/it`) ⭐ NEW
 - [x] **Role per cabang** (it_sby, it_hu, it_bdg, dll) ⭐ NEW
+- [x] **URL pattern** — best-profit-futures-<city>.com ⭐ NEW
+- [x] **WP URL fixed** — SBY, BDG, SMG, MLG, MDN, BJM, LPG active ⭐ NEW
+
+#### Reports & Analytics
+- [x] **Upload Report** — per-article detail (judul, status, SEO, site, source) ⭐ NEW
+- [x] **Filter report** — tanggal, site, status, source, search ⭐ NEW
+- [x] **Export CSV** — download laporan lengkap ⭐ NEW
+- [x] **Summary cards** — total, new, updated, error, avg SEO ⭐ NEW
+- [x] Performance analytics (by site, by date)
 
 ### Keamanan
 - [x] Login PIN + session-based
@@ -120,8 +158,8 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 - [x] GitHub Actions CI/CD
 
 ### Dokumentasi
-- [x] README.md v2.25.1
-- [x] CHANGELOG.md v2.25.1
+- [x] README.md v2.26.0
+- [x] CHANGELOG.md v2.26.0
 - [x] DEPLOY_FRESH.md
 - [x] SECURITY.md
 - [x] USER_GUIDE.md
@@ -147,9 +185,6 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 - [ ] Dashboard mobile khusus admin
 - [ ] Export PDF batch (multi-report)
 - [ ] Sistem absensi digital
-- [ ] Integrasi fingerprint / face recognition
-- [ ] Chat in-app antar role
-- [ ] Sistem ticketing / helpdesk
 
 ### Peningkatan
 - [ ] Optimasi performa query database
@@ -170,6 +205,11 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 - ✅ Fixed: WordPress image upload (featured + inline)
 - ✅ Fixed: upload history + progress tracking
 - ✅ Fixed: rename it_ef → it_sby + URL update
+- ✅ Fixed: password tidak tampil di site card & edit form
+- ✅ Fixed: edit form selalu reset password ke kosong
+- ✅ Fixed: error DNS/SSL/Timeout → pesan jelas untuk user
+- ✅ Fixed: daily limit hardcoded → configurable dari UI
+- ✅ Fixed: badge "🔴 Limit" → "⏸️ Jeda — X/10 hari ini"
 
 ---
 
@@ -180,8 +220,8 @@ Ketik di awal sesi:
 
 Setelah selesai kerja, update file ini dengan status terbaru.
 
-### Sesi 2026-08-24 — Sesi Besar (v2.25.1) ⭐⭐
-**19 commits dalam 1 sesi!**
+### Sesi 2026-08-24 — Sesi Besar (v2.26.0) ⭐⭐⭐
+**25+ commits dalam 1 sesi!**
 
 1. ✅ Fix error 500 `/api/scraper/check` — install bs4 di Docker container
 2. ✅ Update scraper parsing — struktur baru newsmaker.id (Tailwind CSS)
@@ -196,35 +236,20 @@ Setelah selesai kerja, update file ini dengan status terbaru.
 11. ✅ Progress tracking + upload history
 12. ✅ Upload gambar ke WordPress (featured + inline)
 13. ✅ SEO backlinks — 5 BPF sites + 23 authority + CTA widget
-14. ✅ 7 Algoritma SEO — content uniqueness, multi-source, internal linking, advanced schema, sitemap ping, smart scheduling, analytics
+14. ✅ 7 Algoritma SEO
 15. ✅ Multi-Branch — 10 cabang + user access filtering
 16. ✅ Duplicate prevention — paginate 500 + fuzzy title matching
-17. ✅ UI/UX Overhaul — 10 upgrades (dashboard, tabs, cards, dark mode, FAB, onboarding)
+17. ✅ UI/UX Overhaul — 10 upgrades
 18. ✅ Rename it_ef → it_sby (URL: `/app/it`)
-19. ✅ Role per cabang (it_sby, it_hu, it_bdg, it_smg, it_mlg, it_mdn, it_bjm, it_plm, it_lpg)
-
-**URL Pattern:**
-- `/app/it` → News Scraper (semua cabang)
-- `/app/it-ef` → ❌ DEPRECATED (redirect ke `/app/it`)
-
-**WordPress URL Pattern:**
-- SBY: `best-profit-futures-surabaya.com` (existing)
-- JKT HO: `bestprofit-futures-equitytower.com`
-- JKT2: `bestprofit-futures-pacificplace.com`
-- BDG: `bestprofit-futures-bandung.com`
-- SMG: `bestprofit-futures-semarang.com`
-- MLG: `bestprofit-futures-malang.com`
-- MDN: `bestprofit-futures-medan.com`
-- BJM: `bestprofit-futures-banjarmasin.com`
-- PLM: `bestprofit-futures-palembang.com`
-- LPG: `bestprofit-futures-lampung.com`
-
-### Sesi 2026-08-21 (v2.23.0)
-1. ✅ Tambah role `it_ef` (IT Surabaya) — backend + frontend
-2. ✅ Buat `routes_news_scraper.py` — 14 API endpoints
-3. ✅ Buat `ItEfView.vue` — UI News Scraper & Content Management
-4. ✅ Register module di `app.py`
-5. ✅ Update router, sidebar menu, ROLES list
+19. ✅ Role per cabang (10 users)
+20. ✅ Detik Finance scraping — 48 artikel/commodity keyword
+21. ✅ Source selector — Semua Sumber / Newsmaker / Detik
+22. ✅ Source backlink — Newsmaker + Detik di setiap artikel
+23. ✅ Password toggle — 👁/🙈 di site card & form
+24. ✅ WP URL fixed — pattern best-profit-futures-<city>.com
+25. ✅ Daily limit configurable — settings panel di Dashboard
+26. ✅ Tab Report — detail per-artikel + filter + export CSV
+27. ✅ Error handling — DNS/SSL/Timeout → pesan user-friendly
 
 ---
 
@@ -262,6 +287,27 @@ Setelah selesai kerja, update file ini dengan status terbaru.
 | IT Palembang | `it_plm` | `123456` | `/app/it` | PLM |
 | IT Lampung | `it_lpg` | `123456` | `/app/it` | LPG |
 
+### WordPress URL Pattern
+
+| Cabang | Domain | Status |
+|--------|--------|--------|
+| SBY | `best-profit-futures-surabaya.com` | ✅ Aktif |
+| JKT HO | `best-profit-futures-equitytower.com` | ⏳ Pending |
+| JKT2 | `best-profit-futures-pacificplace.com` | ⏳ Pending |
+| BDG | `best-profit-futures-bandung.com` | ✅ Resolve |
+| SMG | `best-profit-futures-semarang.com` | ✅ Resolve |
+| MLG | `best-profit-futures-malang.com` | ✅ Resolve |
+| MDN | `best-profit-futures-medan.com` | ✅ Resolve |
+| BJM | `best-profit-futures-banjarmasin.com` | ✅ Resolve |
+| PLM | `best-profit-futures-palembang.com` | ⏳ Pending |
+| LPG | `best-profit-futures-lampung.com` | ✅ Resolve |
+
+### Daily Limit Settings
+- Default: 10 artikel/hari
+- Configurable dari UI: Tab Dashboard → ⚙️ Pengaturan
+- Range: 1-100
+- Disimpan ke: `data/news_scraper/scraper_settings.json`
+
 ---
 
-*BPF WorkHub v2.25.1 · Progres Tracker*
+*BPF WorkHub v2.26.0 · Progres Tracker*

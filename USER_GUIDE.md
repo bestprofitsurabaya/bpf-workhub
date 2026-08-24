@@ -510,49 +510,64 @@ Angka "receh" yang ditambahkan ke nominal kasbon (mis. Rp 100.023, bukan Rp 100.
 
 ## 14. Untuk IT (Semua Cabang) — News Scraper & Content Management 📰
 
-> **Kamu adalah IT Cabang.** Halaman **📰 News Scraper** (`/app/it`) memungkinkanmu scrape artikel dari newsmaker.id, upload ke WordPress dengan SEO optimization, dan mengelola financial authority backlinks. Setiap cabang hanya melihat site WordPress milik cabang sendiri.
+> **Kamu adalah IT Cabang.** Halaman **📰 News Scraper** (`/app/it`) memungkinkanmu scrape artikel dari newsmaker.id DAN Detik Finance, upload ke WordPress dengan SEO optimization, dan mengelola financial authority backlinks. Setiap cabang hanya melihat site WordPress milik cabang sendiri.
 
 ### 14.1 Mengelola WordPress Sites
 
 1. Klik **➕ Add Site** untuk menambah WordPress site baru.
 2. Isi: **Site Name**, **API URL** (endpoint posts WP), **Username**, **App Password**.
 3. Klik **🔌 Test** untuk memverifikasi koneksi.
-4. Bisa menambah **multiple sites** dengan credentials berbeda.
+4. Password ditampilkan dengan tombol **👁/🙈** untuk show/hide.
+5. Bisa menambah **multiple sites** dengan credentials berbeda.
 
 ### 14.2 Scrape Artikel
 
-1. Pilih **Target Site** dari dropdown.
+1. Pilih **Sumber Berita**: Semua Sumber / Newsmaker.id / Detik Finance.
 2. Atur **jumlah halaman** (1-20).
-3. Klik **🔍 Check Articles** — artikel dari newsmaker.id akan di-scrape.
-4. Artikel muncul di tabel: judul, kategori (GOLD, OIL, SILVER, Forex), tanggal, konten.
+3. Klik **🔍 Check Articles** — artikel dari sumber terpilih akan di-scrape.
+4. Total ~64 artikel unik per scrape (16 NM + 48 DT).
+5. Artikel muncul sebagai kartu: judul, thumbnail, kategori, sumber.
 
 ### 14.3 Upload ke WordPress
 
-1. Setelah artikel di-scrape, klik **📤 Upload to WordPress**.
-2. **SEO Optimization** otomatis: schema markup, meta description, word count analysis.
-3. **Financial Authority Backlinks** otomatis ditambahkan berdasarkan keyword.
-4. **Tag otomatis** dibuat berdasarkan judul artikel.
-5. Hasil upload: jumlah baru, update, dan error.
+1. Pilih artikel yang mau diupload (checkbox per artikel).
+2. Pilih **target site** dari dropdown.
+3. Klik **📤 Upload to WordPress**.
+4. **SEO Optimization** otomatis: schema markup, meta description, word count.
+5. **Financial Authority Backlinks** otomatis berdasarkan keyword.
+6. **Source backlink** otomatis ke sumber asli (Newsmaker/Detik).
+7. **Tag otomatis** dibuat berdasarkan judul artikel.
+8. Hasil upload: jumlah baru, update, dan error.
 
-### 14.4 Financial Authority Backlinks
+### 14.4 Tab Report 📋
+
+1. Klik tab **📋 Report** untuk melihat detail per-artikel.
+2. Filter: tanggal, site, status, source, search judul.
+3. Summary: total, new, updated, error, avg SEO score.
+4. Klik **📥 Export CSV** untuk download laporan lengkap.
+
+### 14.5 Financial Authority Backlinks
 
 Klik **🔗 Backlinks** untuk melihat/mengelola:
 - **24+ authority sites**: OJK, BI, BEI, IMF, Bloomberg, Reuters, dll.
 - **Keyword mapping**: keyword dalam artikel otomatis di-link ke situs otoritas.
 - **Tambah keyword mapping** baru: pilih keyword + target authority site.
 
-### 14.5 Duplicate Checker
+### 14.6 Duplicate Checker
 
 1. Pilih site → klik **🔍 Check Duplicates**.
 2. Artikel duplikat terdeteksi: judul, jumlah duplikat, post IDs.
 3. Klik **🗑 Delete Duplicates** untuk menghapus (keep latest only).
 
-### 14.6 Settings SEO
+### 14.7 Settings SEO
 
 - **🔍 Auto-SEO**: aktifkan untuk optimasi otomatis.
 - **🔗 Authority Backlinks**: aktifkan untuk backlink otomatis.
 - **Max backlinks**: jumlah maksimal backlinks per artikel.
 - **Static Tags**: tag yang selalu ditambahkan (comma separated).
+- **⚙️ Daily Limit**: atur jumlah maksimal publish per hari (1-100).
+  - Default: 10/hari
+  - Bisa diubah dari Tab Dashboard → ⚙️ Pengaturan
 
 ---
 

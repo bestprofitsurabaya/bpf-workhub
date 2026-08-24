@@ -1,4 +1,4 @@
-# 📋 Changelog — BPF WorkHub v2.25.1
+# 📋 Changelog — BPF WorkHub v2.26.0
 
 Riwayat perubahan penting pada BPF WorkHub. Format mengikuti [Keep a Changelog](https://keepachangelog.com/id/ID/1.0.0/) dan versi mengikuti [Semantic Versioning](https://semver.org/lang/id/).
 
@@ -16,6 +16,48 @@ Telp: 031-5349888
 ---
 
 ## Versi Terbaru
+
+### [2.26.0] - 2026-08-24
+
+**Detik Finance + Report + Settings + Multiple Fixes**
+
+**Fitur Baru:**
+- **Detik Finance scraping** — 48 artikel/komoditas dari finance.detik.com
+- **Detik Tag scraping** — /tag/emas, /tag/komoditas (27-33 artikel)
+- **Source selector** — Semua Sumber / Newsmaker.id / Detik Finance
+- **Source backlink** — setiap artikel punya backlink ke sumber asli
+- **Tab Report** — tabel detail per-artikel (judul, status, SEO, site, source)
+- **Filter report** — tanggal, site, status, source, search
+- **Export CSV** — download laporan lengkap
+- **Settings panel** — daily limit configurable dari UI (1-100)
+- **Password toggle** — 👁/🙈 di site card & form edit
+- **User-friendly errors** — DNS/SSL/Timeout → pesan jelas
+
+**Perubahan:**
+- Daily limit: 5 → 10 (configurable)
+- Upload history sekarang simpan per-article detail (status, SEO, source, link)
+- Badge header: "🔴 Limit" → "⏸️ Jeda — X/10 hari ini"
+- Stat card: format "X/10" (dinamis)
+
+**Perbaikan Bug:**
+- Password tidak tampil di site card (backend tidak return app_password)
+- Edit form selalu reset password ke kosong (app_password: '')
+- showCardPassword tidak reaktif (pakai reactive() bukan ref({}))
+- WP URL salah pattern (bestprofit → best-profit)
+- Badge limit hardcoded '/10' → dinamis '/daily_limit'
+
+**URL Pattern (diperbaiki):**
+- Semua cabang: `best-profit-futures-<city>.com`
+- JKT HO: `best-profit-futures-equitytower.com`
+- JKT2: `best-profit-futures-pacificplace.com`
+
+**API Endpoints Baru:**
+- `GET /api/scraper/report` — upload report dengan filter
+- `GET /api/scraper/report/export` — export CSV
+- `GET /api/scraper/settings` — ambil settings
+- `POST /api/scraper/settings` — simpan settings
+
+---
 
 ### [2.25.1] - 2026-08-24
 

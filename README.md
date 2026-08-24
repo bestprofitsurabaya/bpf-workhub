@@ -1,4 +1,4 @@
-# 🏢 BPF WorkHub v2.25.1
+# 🏢 BPF WorkHub v2.26.0
 
 **Sistem Manajemen Armada, Klaim BBM, Kasbon, Log Perjalanan, Appointment & Air Minum**  
 **PT. Bestprofit Futures — Surabaya**
@@ -279,4 +279,4 @@ Telp: 031-5349888
 
 ---
 
-*BPF WorkHub v2.25.1 · Dikembangkan oleh Tim IT BPF Surabaya*
+*BPF WorkHub v2.26.0 · Dikembangkan oleh Tim IT BPF Surabaya*
