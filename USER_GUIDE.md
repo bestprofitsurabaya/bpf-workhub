@@ -137,8 +137,11 @@ Buka halaman Driver (bisa dipasang di HP). **Login dengan Username & PIN** yang 
 ### 4.2 Melaporkan Pembelian BBM (Bayar Dulu, Klaim Belakangan)
 
 1. Buka tab **⛽ BBM**.
-2. Isi data pembelian: **jenis BBM**, **liter**, **harga per liter**, **nominal**, **SPBU**, dan **foto struk/bukti**.
-3. Klik **Kirim**.
+2. **GPS otomatis aktif** — lokasi + alamat detail terdeteksi.
+3. Isi data pembelian: **jenis BBM**, **liter**, **harga per liter**, **nominal**, **SPBU**.
+4. **Ambil foto** — pilih **📷 Kamera** (ambil langsung) atau **🖼️ Galeri** (dari album foto).
+5. Foto otomatis diberi **watermark** (nama perusahaan + tanggal + lokasi GPS + koordinat).
+6. Klik **Kirim**.
 
 Klaimmu masuk antrean **GA** untuk disetujui, lalu **Finance** untuk dibayar. Statusnya bisa kamu pantau di daftar riwayat.
 

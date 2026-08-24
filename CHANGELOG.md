@@ -1,4 +1,4 @@
-# 📋 Changelog — BPF WorkHub v2.27.0
+# 📋 Changelog — BPF WorkHub v2.27.1
 
 Riwayat perubahan penting pada BPF WorkHub. Format mengikuti [Keep a Changelog](https://keepachangelog.com/id/ID/1.0.0/) dan versi mengikuti [Semantic Versioning](https://semver.org/lang/id/).
 
@@ -16,6 +16,33 @@ Telp: 031-5349888
 ---
 
 ## Versi Terbaru
+
+### [2.27.1] - 2026-08-24
+
+**GPS Detail + Watermark + Bug Fixes + Infrastructure**
+
+**Fix:**
+- **GPS kecamatan kosong** — tambah municipality, district, subdistrict sebagai fallback + parse display_name untuk Jakarta
+- **GPS detailedLocation ReferenceError** — variable `addr` belum didefinisikan sebelum dipakai
+- **GPS detail box tidak muncul** — tambah GPS box di TripTab + OvertimeDriverTab
+- **CSP blokir Nominatim** — tambah `https://nominatim.openstreetmap.org` ke `connect-src`
+- **Service Worker redirect error** — hapus `/app/` dari SHELL + tambah `redirect: 'follow'`
+- **Photo upload 1 tombol** — tambah 2 tombol: 📷 Kamera + 🖼️ Galeri
+- **GPS harus klik manual** — auto `store.locate()` saat DriverView mount
+- **Watermark font terlalu besar** — proporsional (width/45) + tambah baris koordinat
+
+**Fitur Baru:**
+- **GPS detail disimpan ke DB** — 3 tabel (transactions, trip_masters, overtime_driver) punya kolom kelurahan/kecamatan/kota/provinsi/kode_pos
+- **Backend terima GPS detail** — routes_driver.py, routes_overtime.py, routes_cash.py
+- **Watermark 4 baris** — perusahaan + tanggal + alamat + koordinat GPS
+- **Nginx cache-busting** — assets (1 tahun immutable), SPA routes (no-cache), static (30 hari)
+
+**Database Migration:**
+- `transactions` — tambah 5 kolom GPS detail
+- `trip_masters` — tambah 8 kolom GPS detail
+- `overtime_driver` — tambah 8 kolom GPS detail
+
+---
 
 ### [2.27.0] - 2026-08-24
 
