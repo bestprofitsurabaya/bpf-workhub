@@ -505,12 +505,17 @@ def register_cash_routes(app):
             gps_lat = request.form.get('gps_lat') or None
             gps_lon = request.form.get('gps_lon') or None
             gps_address = request.form.get('gps_address', '')
+            gps_kelurahan = request.form.get('gps_kelurahan', '')
+            gps_kecamatan = request.form.get('gps_kecamatan', '')
+            gps_kota = request.form.get('gps_kota', '')
+            gps_provinsi = request.form.get('gps_provinsi', '')
+            gps_kode_pos = request.form.get('gps_kode_pos', '')
             jumlah_appointment = int(request.form.get('jumlah_appointment', 0) or 0)
 
             display_id = generate_display_id('BPF', conn)
             cursor.execute(
-                "INSERT INTO transactions (display_id, transaction_type, cash_request_id, driver_name, nopol, vehicle_type, bbm_type, nominal, liter, price_per_liter, odo_km, spbu_type, foto_odo_sebelum, foto_nota_odo_sesudah, foto_struk, foto_struk_dispenser, status, km_per_liter, gps_latitude, gps_longitude, gps_address, jumlah_appointment) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
-                (display_id, 'CASH_LPJ', cash_id, driver_name, nopol, vehicle_type, bbm_type, nominal, liter, price_per_liter, odo_km, spbu_type, foto_odo, foto_nota, foto_struk, foto_dispenser, 'pending', 0, gps_lat, gps_lon, gps_address, jumlah_appointment)
+                "INSERT INTO transactions (display_id, transaction_type, cash_request_id, driver_name, nopol, vehicle_type, bbm_type, nominal, liter, price_per_liter, odo_km, spbu_type, foto_odo_sebelum, foto_nota_odo_sesudah, foto_struk, foto_struk_dispenser, status, km_per_liter, gps_latitude, gps_longitude, gps_address, gps_kelurahan, gps_kecamatan, gps_kota, gps_provinsi, gps_kode_pos, jumlah_appointment) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+                (display_id, 'CASH_LPJ', cash_id, driver_name, nopol, vehicle_type, bbm_type, nominal, liter, price_per_liter, odo_km, spbu_type, foto_odo, foto_nota, foto_struk, foto_dispenser, 'pending', 0, gps_lat, gps_lon, gps_address, gps_kelurahan, gps_kecamatan, gps_kota, gps_provinsi, gps_kode_pos, jumlah_appointment)
             )
             tx_id = cursor.lastrowid
 

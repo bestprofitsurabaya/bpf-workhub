@@ -443,6 +443,14 @@ def register_overtime_routes(app):
             manager = clean(data.get('manager'))[:150]
             foto_mulai_b64 = data.get('foto_mulai', '')
             foto_selesai_b64 = data.get('foto_selesai', '')
+            gps_lat = str(data.get('gps_lat', ''))[:20]
+            gps_lon = str(data.get('gps_lon', ''))[:20]
+            gps_address = str(data.get('gps_address', ''))[:500]
+            gps_kelurahan = str(data.get('gps_kelurahan', ''))[:100]
+            gps_kecamatan = str(data.get('gps_kecamatan', ''))[:100]
+            gps_kota = str(data.get('gps_kota', ''))[:100]
+            gps_provinsi = str(data.get('gps_provinsi', ''))[:100]
+            gps_kode_pos = str(data.get('gps_kode_pos', ''))[:10]
 
             if not nama:
                 return jsonify({'status': 'error', 'msg': 'Nama driver tidak ditemukan'}), 400
@@ -468,13 +476,16 @@ def register_overtime_routes(app):
                 """INSERT INTO overtime_driver
                    (display_id, sheet_row, nama, tanggal, waktu_mulai, waktu_selesai,
                     keterangan, no_kendaraan, broker, manager,
-                    foto_mulai, foto_selesai, source)
-                   VALUES (%s, 0, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'form')""",
+                    foto_mulai, foto_selesai, source,
+                    gps_lat, gps_lon, gps_address, gps_kelurahan, gps_kecamatan, gps_kota, gps_provinsi, gps_kode_pos)
+                   VALUES (%s, 0, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'form',
+                    %s, %s, %s, %s, %s, %s, %s, %s)""",
                 (display_id, nama, tanggal_iso,
                  (parse_time_12h(waktu_mulai) or waktu_mulai)[:20],
                  (parse_time_12h(waktu_selesai) or waktu_selesai or '')[:20],
                  keterangan, no_kendaraan, broker, manager,
-                 foto_mulai_url, foto_selesai_url))
+                 foto_mulai_url, foto_selesai_url,
+                 gps_lat, gps_lon, gps_address, gps_kelurahan, gps_kecamatan, gps_kota, gps_provinsi, gps_kode_pos))
             conn.commit()
             log_activity_async(None, 'overtime_driver_submit', 'driver', nama,
                                new_data={'display_id': display_id}, ip=request.remote_addr)

@@ -43,6 +43,11 @@ def register_driver_routes(app, socketio):
                 gps_lat = request.form.get('gps_lat')
                 gps_lon = request.form.get('gps_lon')
                 gps_address = request.form.get('gps_address', '')
+                gps_kelurahan = request.form.get('gps_kelurahan', '')
+                gps_kecamatan = request.form.get('gps_kecamatan', '')
+                gps_kota = request.form.get('gps_kota', '')
+                gps_provinsi = request.form.get('gps_provinsi', '')
+                gps_kode_pos = request.form.get('gps_kode_pos', '')
 
                 conn = get_db_connection()
                 if not conn:
@@ -107,11 +112,13 @@ def register_driver_routes(app, socketio):
                 cursor.execute("""
                     INSERT INTO transactions (display_id, transaction_type, driver_name, nopol, vehicle_type, bbm_type, nominal, liter, price_per_liter,
                     odo_km, spbu_type, foto_odo_sebelum, foto_nota_odo_sesudah, foto_struk, foto_struk_dispenser,
-                    status, ml_anomaly_flag, km_per_liter, gps_latitude, gps_longitude, gps_address, jumlah_appointment)
-                    VALUES (%s,'CLAIM',%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'pending',%s,%s,%s,%s,%s,%s)
+                    status, ml_anomaly_flag, km_per_liter, gps_latitude, gps_longitude, gps_address,
+                    gps_kelurahan, gps_kecamatan, gps_kota, gps_provinsi, gps_kode_pos, jumlah_appointment)
+                    VALUES (%s,'CLAIM',%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'pending',%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                 """, (display_id, driver_name, nopol, vehicle_type, bbm_type, nominal, liter, price_per_liter,
                       odo_km, spbu_type, foto_odo_sebelum, foto_nota_odo_sesudah, foto_struk, foto_struk_dispenser,
-                      analysis['is_anomaly'], km_per_liter, gps_lat, gps_lon, gps_address, jumlah_appointment))
+                      analysis['is_anomaly'], km_per_liter, gps_lat, gps_lon, gps_address,
+                      gps_kelurahan, gps_kecamatan, gps_kota, gps_provinsi, gps_kode_pos, jumlah_appointment))
 
                 tx_id = cursor.lastrowid
                 conn.commit()
@@ -187,11 +194,22 @@ def register_driver_routes(app, socketio):
             cursor = conn.cursor()
 
             trip_display_id = generate_trip_display_id(conn)
+            gps_lat = request.form.get('gps_lat', '')
+            gps_lon = request.form.get('gps_lon', '')
+            gps_address = request.form.get('gps_address', '')
+            gps_kelurahan = request.form.get('gps_kelurahan', '')
+            gps_kecamatan = request.form.get('gps_kecamatan', '')
+            gps_kota = request.form.get('gps_kota', '')
+            gps_provinsi = request.form.get('gps_provinsi', '')
+            gps_kode_pos = request.form.get('gps_kode_pos', '')
             cursor.execute("""
                 INSERT INTO trip_masters (display_id, driver_name, nopol, trip_date, jam_keberangkatan,
-                                         jam_tiba, km_awal, km_akhir, status)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'pending')
-            """, (trip_display_id, driver_name, nopol, trip_date, jam_berangkat, jam_tiba or None, km_awal, km_akhir or 0))
+                                         jam_tiba, km_awal, km_akhir, status,
+                                         gps_lat, gps_lon, gps_address, gps_kelurahan, gps_kecamatan, gps_kota, gps_provinsi, gps_kode_pos)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'pending',
+                        %s, %s, %s, %s, %s, %s, %s, %s)
+            """, (trip_display_id, driver_name, nopol, trip_date, jam_berangkat, jam_tiba or None, km_awal, km_akhir or 0,
+                    gps_lat, gps_lon, gps_address, gps_kelurahan, gps_kecamatan, gps_kota, gps_provinsi, gps_kode_pos))
             trip_id = cursor.lastrowid
 
             lokasi_berangkat_list = request.form.getlist('lokasi_berangkat[]')
