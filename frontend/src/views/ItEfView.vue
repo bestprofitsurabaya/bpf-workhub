@@ -22,6 +22,8 @@ const historyList = ref([])
 const sites = ref([])
 const showSiteForm = ref(false)
 const siteForm = ref({ name: '', wp_url: '', wp_media_url: '', username: '', app_password: '' })
+const showFormPassword = ref(false)
+const showCardPassword = ref({}) // {siteName: true/false}
 
 // Scraper
 const scrapePages = ref(2)
@@ -392,6 +394,12 @@ onMounted(() => { loadSites(); loadDashboard(); document.documentElement.classLi
                 <div class="site-name">{{ s.name }} <span v-if="!s.username || s.username === 'PENDING'" class="badge badge-yellow">⏳ Belum Diisi</span></div>
                 <div class="site-url">{{ s.wp_url }}</div>
                 <div class="site-user">👤 {{ s.username === 'PENDING' ? 'Belum diisi — klik ✏️ Edit' : s.username }}</div>
+                <div class="site-pass" v-if="s.username && s.username !== 'PENDING'">
+                  🔑 <span v-if="showCardPassword[s.name]">{{ s.app_password }}</span><span v-else>••••••••</span>
+                  <button class="btn-icon" @click="showCardPassword[s.name] = !showCardPassword[s.name]" style="background:none;border:none;cursor:pointer;font-size:14px;padding:2px 6px;">
+                    {{ showCardPassword[s.name] ? '🙈' : '👁' }}
+                  </button>
+                </div>
               </div>
               <div class="site-actions">
                 <button class="btn btn-sm" @click="openSiteForm(s)">✏️</button>
@@ -623,7 +631,13 @@ onMounted(() => { loadSites(); loadDashboard(); document.documentElement.classLi
         <div class="field"><label>Media URL</label><input class="input" v-model="siteForm.wp_media_url" /></div>
         <div class="field"><label>Username *</label><input class="input" v-model="siteForm.username" /></div>
         <div class="field"><label>Password {{ siteForm.name ? '(kosong = skip)' : '*' }}</label>
-          <input class="input" v-model="siteForm.app_password" type="password" /></div>
+          <div style="display:flex;gap:4px;align-items:center;">
+            <input class="input" v-model="siteForm.app_password" :type="showFormPassword ? 'text' : 'password'" style="flex:1;" />
+            <button class="btn-icon" @click="showFormPassword = !showFormPassword" style="background:none;border:1px solid var(--border,#e2e8f0);border-radius:6px;cursor:pointer;font-size:16px;padding:8px 10px;flex-shrink:0;">
+              {{ showFormPassword ? '🙈' : '👁' }}
+            </button>
+          </div>
+        </div>
       </div>
       <div class="modal-footer">
         <button class="btn" @click="showSiteForm = false">Batal</button>
@@ -776,6 +790,7 @@ onMounted(() => { loadSites(); loadDashboard(); document.documentElement.classLi
 .site-name { font-weight: 600; font-size: 14px; }
 .site-url { font-size: 11px; color: var(--muted, #64748b); max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .site-user { font-size: 12px; }
+.site-pass { font-size: 12px; font-family: monospace; display: flex; align-items: center; gap: 2px; }
 .site-actions { display: flex; gap: 4px; }
 
 /* === Scrape Controls === */
