@@ -111,6 +111,25 @@ function reset() {
 
 <template>
   <div class="ot-card">
+    <!-- GPS Box -->
+    <div class="gps-box" :class="{ ok: store.gps.addr }">
+      <div class="gps-title">
+        <template v-if="store.gps.locating">🔍 Mencari lokasi…</template>
+        <template v-else-if="store.gps.addr">📍 Lokasi Terdeteksi</template>
+        <template v-else>⚠ GPS Belum Aktif</template>
+      </div>
+      <div class="gps-addr">{{ store.gps.addr || 'GPS akan otomatis aktif saat mengambil foto.' }}</div>
+      <div v-if="store.gps.detail && store.gps.addr" class="gps-detail">
+        <div v-if="store.gps.detail.kelurahan" class="gps-detail-row"><span class="gps-label">Kelurahan</span><span>{{ store.gps.detail.kelurahan }}</span></div>
+        <div v-if="store.gps.detail.kecamatan" class="gps-detail-row"><span class="gps-label">Kecamatan</span><span>{{ store.gps.detail.kecamatan }}</span></div>
+        <div v-if="store.gps.detail.kota" class="gps-detail-row"><span class="gps-label">Kota/Kab</span><span>{{ store.gps.detail.kota }}</span></div>
+        <div v-if="store.gps.detail.provinsi" class="gps-detail-row"><span class="gps-label">Provinsi</span><span>{{ store.gps.detail.provinsi }}</span></div>
+        <div v-if="store.gps.detail.kode_pos" class="gps-detail-row"><span class="gps-label">Kode Pos</span><span>{{ store.gps.detail.kode_pos }}</span></div>
+        <div class="gps-detail-row" style="opacity:0.6;"><span class="gps-label">Koordinat</span><span>{{ store.gps.lat?.toFixed(6) }}, {{ store.gps.lon?.toFixed(6) }}</span></div>
+      </div>
+      <button class="btn btn-sm" :disabled="store.gps.locating" style="margin-top:6px;" @click="store.locate()">📍 Aktifkan Lokasi</button>
+    </div>
+
     <!-- SUCCESS -->
     <div v-if="done" class="ot-success">
       <div style="font-size:40px;">✅</div>
@@ -218,6 +237,13 @@ function reset() {
 </template>
 
 <style scoped>
+.gps-box { border: 1px dashed var(--border); border-radius: 10px; padding: 10px 12px; margin-bottom: 12px; background: var(--bg-2, #fef3c7); }
+.gps-box.ok { background: var(--bg-3, #f0fdf4); border-color: #059669; }
+.gps-title { font-size: 13px; font-weight: 700; }
+.gps-addr { font-size: 11px; opacity: .8; margin-top: 2px; }
+.gps-detail { margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(0,0,0,0.08); display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; font-size: 11px; }
+.gps-detail-row { display: contents; }
+.gps-label { font-weight: 600; opacity: 0.7; }
 .ot-card { padding: 0; }
 .ot-success { text-align: center; padding: 16px 0; }
 .info-box {
