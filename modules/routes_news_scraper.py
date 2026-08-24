@@ -155,6 +155,10 @@ def _check_bs4():
         raise RuntimeError('beautifulsoup4 belum terinstall. Jalankan: pip install beautifulsoup4')
 
 
+# Default server-level Basic Auth (shared hosting protection)
+_WP_SERVER_AUTH = ('human', 'password')
+
+
 def _get_wp_session():
     """Create requests session with retry strategy."""
     session = requests.Session()
@@ -169,6 +173,59 @@ def _wp_auth_headers(username, app_password):
     creds = f"{username}:{app_password}"
     token = base64.b64encode(creds.encode()).decode('utf-8')
     return {'Authorization': f'Basic {token}', 'User-Agent': 'BPFWorkHub-Scraper/2.0'}
+
+
+def _wp_login(session, wp_url, username, password):
+    """Login ke WordPress via wp-login.php dengan dual auth:
+    1. Basic Auth server (human:password) untuk bypass hosting protection
+    2. WordPress credentials untuk session login
+    Returns: (success, nonce_or_error)
+    """
+    try:
+        base_url = wp_url.split('/wp-json')[0]
+        login_url = f'{base_url}/wp-login.php'
+        admin_url = f'{base_url}/wp-admin/'
+
+        # Step 1: Set server Basic Auth
+        session.auth = _WP_SERVER_AUTH
+        session.headers.update({'User-Agent': 'BPFWorkHub-Scraper/2.0'})
+
+        # Step 2: GET login page
+        session.get(login_url, timeout=10)
+
+        # Step 3: POST WordPress login
+        r = session.post(login_url, data={
+            'log': username, 'pwd': password,
+            'wp-submit': 'Log In', 'redirect_to': '/wp-admin/', 'testcookie': '1',
+        }, timeout=10)
+
+        # Cookie name ada suffix hash (wordpress_logged_in_xxxxx)
+        has_cookie = any(c.name.startswith('wordpress_logged_in') for c in session.cookies)
+        if not has_cookie:
+            return False, 'Login WordPress gagal — periksa username & password'
+
+        # Step 4: Ambil WP REST nonce dari admin page
+        r2 = session.get(admin_url, timeout=10)
+        import re
+        m = re.search(r'wpApiSettings.*?"nonce":"([a-f0-9]+)"', r2.text)
+        nonce = m.group(1) if m else None
+
+        # Step 5: Hapus Basic Auth (REST API pakai cookie, bukan Basic Auth)
+        session.auth = None
+
+        return True, nonce
+    except Exception as e:
+        session.auth = None
+        return False, str(e)
+
+
+def _wp_request(session, method, url, nonce=None, **kwargs):
+    """Helper untuk REST API request dengan cookie + nonce."""
+    headers = kwargs.pop('headers', {})
+    if nonce:
+        headers['X-WP-Nonce'] = nonce
+    headers.setdefault('User-Agent', 'BPFWorkHub-Scraper/2.0')
+    return session.request(method, url, headers=headers, **kwargs)
 
 
 def _get_anchor_text(keyword):
@@ -312,9 +369,12 @@ def test_connection():
     if not all([wp_url, username, app_password]):
         return jsonify({'error': 'wp_url, username, app_password wajib'}), 400
 
-    headers = _wp_auth_headers(username, app_password)
     try:
-        r = requests.get(wp_url, headers=headers, timeout=10)
+        wp_session = _get_wp_session()
+        login_ok, nonce = _wp_login(wp_session, wp_url, username, app_password)
+        if not login_ok:
+            return jsonify({'ok': False, 'message': f'Login gagal: {nonce}'}), 200
+        r = _wp_request(wp_session, 'GET', wp_url, nonce=nonce, params={"per_page": 1}, timeout=10)
         if r.status_code == 200:
             data = r.json()
             post_count = len(data) if isinstance(data, list) else 1
@@ -502,9 +562,14 @@ def upload_articles():
             return jsonify({'error': f'Site "{site_name}" tidak ditemukan'}), 404
 
         site = sites[site_name]
-        headers = _wp_auth_headers(site['username'], site['app_password'])
         wp_url = site['wp_url']
         wp_media_url = site.get('wp_media_url', wp_url.replace('/posts', '/media'))
+
+        # Dual auth: Basic Auth server + WordPress login
+        wp_session = _get_wp_session()
+        login_ok, nonce = _wp_login(wp_session, wp_url, site['username'], site['app_password'])
+        if not login_ok:
+            return jsonify({'ok': False, 'error': f'WordPress login gagal: {nonce}', 'new_posts': 0, 'updated_posts': 0, 'errors': []}), 401
 
         enable_backlinks = settings.get('backlinks', True)
         max_backlinks = settings.get('max_backlinks', 3)
@@ -519,7 +584,7 @@ def upload_articles():
         # Get existing posts to avoid duplicates
         existing_titles = set()
         try:
-            r = requests.get(wp_url, headers=headers, params={"per_page": 100}, timeout=30)
+            r = _wp_request(wp_session, 'GET', wp_url, nonce=nonce, params={"per_page": 100}, timeout=30)
             if r.status_code == 200:
                 for post in r.json():
                     existing_titles.add(post.get('title', {}).get('rendered', ''))
@@ -563,11 +628,11 @@ def upload_articles():
             for tag_name in all_tags:
                 try:
                     tags_url = wp_url.replace('/posts', '/tags')
-                    r = requests.get(tags_url, headers=headers, params={"search": tag_name}, timeout=10)
+                    r = _wp_request(wp_session, 'GET', tags_url, nonce=nonce, params={"search": tag_name}, timeout=10)
                     if r.status_code == 200 and r.json():
                         tag_ids.append(r.json()[0]['id'])
                     else:
-                        r2 = requests.post(tags_url, headers=headers, json={"name": tag_name}, timeout=10)
+                        r2 = _wp_request(wp_session, 'POST', tags_url, nonce=nonce, json={"name": tag_name}, timeout=10)
                         if r2.status_code == 201:
                             tag_ids.append(r2.json()['id'])
                 except Exception:
@@ -596,12 +661,12 @@ def upload_articles():
             if title in existing_titles:
                 # Update existing
                 try:
-                    r = requests.get(wp_url, headers=headers, params={"per_page": 100, "search": title}, timeout=15)
+                    r = _wp_request(wp_session, 'GET', wp_url, nonce=nonce, params={"per_page": 100, "search": title}, timeout=15)
                     if r.status_code == 200:
                         for post in r.json():
                             if post.get('title', {}).get('rendered') == title:
-                                r2 = requests.post(f"{wp_url}/{post['id']}", headers=headers,
-                                                   json={'content': html_content, 'tags': tag_ids})
+                                r2 = _wp_request(wp_session, 'POST', f"{wp_url}/{post['id']}", nonce=nonce,
+                                                 json={'content': html_content, 'tags': tag_ids})
                                 if r2.status_code == 200:
                                     updated_count += 1
                                 break
@@ -610,7 +675,7 @@ def upload_articles():
             else:
                 # Create new
                 try:
-                    r = requests.post(wp_url, headers=headers, json=post_data, timeout=30)
+                    r = _wp_request(wp_session, 'POST', wp_url, nonce=nonce, json=post_data, timeout=30)
                     if r.status_code == 201:
                         new_count += 1
                     else:
@@ -649,16 +714,20 @@ def check_duplicates():
             return jsonify({'error': f'Site "{site_name}" tidak ditemukan'}), 404
 
         site = sites[site_name]
-        headers = _wp_auth_headers(site['username'], site['app_password'])
         wp_url = site['wp_url']
+
+        wp_session = _get_wp_session()
+        login_ok, nonce = _wp_login(wp_session, wp_url, site['username'], site['app_password'])
+        if not login_ok:
+            return jsonify({'ok': False, 'error': f'Login gagal: {nonce}', 'duplicates': [], 'total_posts': 0}), 401
 
         posts = []
         page = 1
         while True:
             try:
-                r = requests.get(wp_url, headers=headers,
-                                 params={'page': page, 'per_page': 100, 'orderby': 'date', 'order': 'desc'},
-                                 timeout=30)
+                r = _wp_request(wp_session, 'GET', wp_url, nonce=nonce,
+                                params={'page': page, 'per_page': 100, 'orderby': 'date', 'order': 'desc'},
+                                timeout=30)
                 if r.status_code != 200:
                     break
                 page_posts = r.json()
@@ -709,13 +778,17 @@ def delete_duplicates():
         return jsonify({'error': f'Site "{site_name}" tidak ditemukan'}), 404
 
     site = sites[site_name]
-    headers = _wp_auth_headers(site['username'], site['app_password'])
     wp_url = site['wp_url']
+
+    wp_session = _get_wp_session()
+    login_ok, nonce = _wp_login(wp_session, wp_url, site['username'], site['app_password'])
+    if not login_ok:
+        return jsonify({'ok': False, 'error': f'Login gagal: {nonce}', 'deleted': 0}), 401
 
     deleted = 0
     for pid in post_ids_to_delete:
         try:
-            r = requests.delete(f"{wp_url}/{pid}", headers=headers, params={'force': True}, timeout=15)
+            r = _wp_request(wp_session, 'DELETE', f"{wp_url}/{pid}", nonce=nonce, params={'force': True}, timeout=15)
             if r.status_code == 200:
                 deleted += 1
         except Exception:
