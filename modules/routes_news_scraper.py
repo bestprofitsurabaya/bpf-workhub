@@ -1195,7 +1195,19 @@ def test_connection():
         else:
             return jsonify({'ok': False, 'message': f'Gagal — status {r.status_code}'}), 200
     except Exception as e:
-        return jsonify({'ok': False, 'message': f'Error: {str(e)}'}), 200
+        err_msg = str(e)
+        # User-friendly error messages
+        if 'NameResolutionError' in err_msg or 'Failed to resolve' in err_msg:
+            domain = wp_url.replace('https://', '').replace('http://', '').split('/')[0]
+            return jsonify({'ok': False, 'message': f'🌐 Domain "{domain}" tidak dapat diakses. Pastikan DNS sudah dikonfigurasi dan server WordPress aktif.'}), 200
+        elif 'ConnectionRefused' in err_msg or 'Connection refused' in err_msg:
+            return jsonify({'ok': False, 'message': '🔌 Server WordPress menolak koneksi — pastikan port HTTPS aktif.'}), 200
+        elif 'SSLError' in err_msg or 'SSL' in err_msg:
+            return jsonify({'ok': False, 'message': '🔒 Error sertifikat SSL — periksa konfigurasi HTTPS server.'}), 200
+        elif 'Timeout' in err_msg or 'timed out' in err_msg:
+            return jsonify({'ok': False, 'message': '⏱️ Koneksi timeout — server WordPress lambat atau tidak merespon.'}), 200
+        else:
+            return jsonify({'ok': False, 'message': f'Error: {err_msg[:200]}'}), 200
 
 
 # ----- SCRAPE ARTICLES -----
