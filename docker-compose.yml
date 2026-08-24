@@ -43,6 +43,8 @@ services:
       - DB_POOL_SIZE=15
       - SECRET_KEY=${SECRET_KEY:?SECRET_KEY wajib di .env}
       - REDIS_URL=redis://redis:6379/0
+      # Titik awal rute appointment (kantor): PT Bestprofit Futures Cab. Surabaya
+      # Graha Bukopin Lantai 11, Jl. Panglima Sudirman No. 10-18, Surabaya 60271
       - DEPOT_LAT=-7.2657205
       - DEPOT_LNG=112.7448072
     depends_on:
@@ -50,28 +52,8 @@ services:
         condition: service_healthy
     restart: unless-stopped
     networks:
-      - default
-
-  # ------------------------------------------------------------
-  # NGINX — Reverse proxy untuk HTTPS (port 5000)
-  # ------------------------------------------------------------
-  # Menggunakan self-signed certificate untuk development.
-  # Untuk production: ganti dengan certbot/Let's Encrypt.
-  # Lihat DEPLOY_FRESH.md untuk instruksi SSL setup.
-  nginx:
-    image: nginx:stable-alpine
-    container_name: bbm_nginx
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./certs:/etc/nginx/certs:ro
-    depends_on:
-      - web
-    restart: unless-stopped
-    networks:
-      - default
+      - default            # Terhubung ke bbm_mariadb
+      - nextcloud_net      # Terhubung ke nextcloud_nginx (HTTPS proxy)
 
   redis:
     image: redis:7-alpine
@@ -115,3 +97,8 @@ volumes:
 
 networks:
   default:
+  # Network bersama dengan Nextcloud — biarkan aktif jika hybrid server.
+  # Untuk server dedicated BPF saja, hapus baris di bawah.
+  nextcloud_net:
+    external: true
+    name: nextcloud_net

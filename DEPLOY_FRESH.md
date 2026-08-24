@@ -63,74 +63,103 @@ echo "✅ .env created with SECRET_KEY"
 
 ---
 
-## 4. Generate SSL Certificate
+## 4. Pilih Skenario HTTPS
 
-### Option A: Self-Signed (Development)
+### Skenario A: Server Hybrid (Nextcloud + BPF) ⭐ RECOMMENDED
 
-```bash
-chmod +x scripts/gen-selfsigned-cert.sh
-bash scripts/gen-selfsigned-cert.sh
-```
-
-### Option B: Let's Encrypt (Production)
+Jika server juga menjalankan Nextcloud (sama seperti production saat ini):
 
 ```bash
-# Install certbot
-sudo apt install -y certbot
+# 1. Clone hybrid_nextcloud (jika belum ada)
+cd /home/$USER
+git clone https://github.com/bestprofitsurabaya/hybrid_nextcloud.git
+cd hybrid_nextcloud
 
-# Generate certificate (ganti domain.com dengan domain anda)
-sudo certbot certonly --standalone -d domain.com
-
-# Copy ke direktori certs/
-mkdir -p certs
-sudo cp /etc/letsencrypt/live/domain.com/fullchain.pem certs/server.crt
-sudo cp /etc/letsencrypt/live/domain.com/privkey.pem certs/server.key
-sudo chmod 600 certs/server.key
-```
-
----
-
-## 5. Build & Start
-
-```bash
-# Build image
-docker compose build
-
-# Start semua services
+# 2. Jalankan Nextcloud dulu
 docker compose up -d
 
-# Cek status
-docker compose ps
-docker compose logs -f web  # lihat log app
+# 3. Pastikan network nextcloud_net ada
+docker network ls | grep nextcloud_net
+
+# 4. Copy config nginx untuk BPF
+cp ~/bpf-workhub/nginx/bbm_system.conf ~/hybrid_nextcloud/nginx/conf.d/
+
+# 5. Restart nginx
+docker restart nextcloud_nginx
+
+# 6. Kembali ke bpf-workhub
+cd ~/bpf-workhub
+
+# 7. Build & Start
+docker compose build
+docker compose up -d
+```
+
+**Port mapping (Skenario A):**
+| Port | Service | Akses |
+|------|---------|-------|
+| 443 | Nextcloud HTTPS | nextcloud.domain.com |
+| 5000 | BPF via nextcloud_nginx | domain.com:5000 |
+| 3307 | MariaDB | Host only |
+
+### Skenario B: Server Dedicated (BPF saja)
+
+Jika server hanya untuk BPF WorkHub tanpa Nextcloud:
+
+```bash
+# 1. Generate SSL certificate
+# Self-signed (development):
+bash scripts/gen-selfsigned-cert.sh
+
+# Atau Let's Encrypt (production):
+sudo apt install -y certbot
+sudo certbot certonly --standalone -d your-domain.com
+mkdir -p certs
+sudo cp /etc/letsencrypt/live/your-domain.com/fullchain.pem certs/server.crt
+sudo cp /etc/letsencrypt/live/your-domain.com/privkey.pem certs/server.key
+sudo chmod 600 certs/server.key
+
+# 2. Build & Start (dengan nginx standalone)
+docker compose --profile standalone-nginx build
+docker compose --profile standalone-nginx up -d
+
+# Atau tanpa profile (hanya web + db + redis):
+docker compose build
+docker compose up -d
+# Akses via: http://your-server-ip:5001
 ```
 
 ---
 
-## 6. Verifikasi
+## 5. Verifikasi
 
 ```bash
 # Cek semua container running
 docker compose ps
 
-# Expected output:
+# Skenario A (hybrid):
+# bbm_mariadb    running (healthy)
+# bbm_web        running
+# bbm_redis      running
+# bbm_backup     running
+# (+ nextcloud_* containers dari hybrid_nextcloud)
+
+# Skenario B (dedicated):
 # bbm_mariadb    running (healthy)
 # bbm_web        running
 # bbm_nginx      running
 # bbm_redis      running
 # bbm_backup     running
 
-# Test HTTP → HTTPS redirect
-curl -I http://localhost
-
-# Test app
-curl -sk https://localhost/api/auth/login -X POST \
+# Test login
+curl -sk https://your-server:5000/api/auth/login -X POST \
   -H "Content-Type: application/json" \
   -d '{"username":"admin","pin":"123456"}'
 ```
 
 ---
 
-## 7. Migrate Data (Opsional)
+## 6. Migrate Data (Opsional)
 
 ### Migrate Overtime Driver dari Google Sheet
 ```bash
@@ -154,7 +183,7 @@ docker compose exec web python3 scripts/migrate_applicants_sheet.py /path/to/exp
 
 ---
 
-## 8. Backup & Restore
+## 7. Backup & Restore
 
 ### Backup sudah otomatis (cron 03:00 WIB)
 ```bash
@@ -167,7 +196,7 @@ docker compose exec -T db mysql -ubpf_user -pbpf_pass bpf_asset_system < backup.
 
 ---
 
-## 9. Update / Redeploy
+## 8. Update / Redeploy
 
 ```bash
 # Pull latest code
@@ -183,45 +212,40 @@ docker compose exec web pip install -r requirements.txt
 
 ---
 
-## 10. Troubleshooting
+## 9. Troubleshooting
 
 ### App tidak bisa connect ke DB
 ```bash
 docker compose logs db | tail -20
-# Pastikan healthcheck passing
 docker compose exec db mysqladmin ping -h localhost -u bpf_user -pbpf_pass
 ```
 
 ### Port 5000 sudah terpakai
 ```bash
-# Cek apa yang menggunakan port
 sudo lsof -i :5000
 # Ubah port di docker-compose.yml: "5002:5000"
 ```
 
 ### Font error di PDF
 ```bash
-# Pastikan fonts ada
 docker compose exec web ls -la /app/fonts/
-# Jika tidak ada, rebuild: docker compose build --no-cache
+# Jika tidak ada: docker compose build --no-cache
 ```
 
 ### WebSocket tidak connect
 ```bash
 # Pastikan nginx config support WebSocket
-# Cek /socket.io di nginx.conf sudah benar
+# Di bbm_system.conf harus ada:
+#   proxy_set_header Upgrade $http_upgrade;
+#   proxy_set_header Connection "upgrade";
 ```
 
----
-
-## Port Mapping
-
-| Port | Service | Akses |
-|------|---------|-------|
-| 80 | Nginx HTTP | Redirect ke HTTPS |
-| 443 | Nginx HTTPS | Akses utama |
-| 5001 | Flask direct | HTTP only (dev) |
-| 3307 | MariaDB | Host only (DB admin) |
+### nextcloud_net network not found (Skenario A)
+```bash
+# Pastikan Nextcloud sudah running
+cd ~/hybrid_nextcloud && docker compose up -d
+docker network ls | grep nextcloud_net
+```
 
 ---
 
