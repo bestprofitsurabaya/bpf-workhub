@@ -37,3 +37,5 @@ frontend/dist/
 frontend/.vite/
 # Hasil build SPA yang disalin ke static (bind-mount host → container)
 static/app/
+NewsScraper_V1.5.1.py
+scripts/.cleanup_done_*
