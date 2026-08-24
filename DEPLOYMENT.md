@@ -1,21 +1,19 @@
-# 🚀 Panduan Deployment — BPF WorkHub v1.0
+# 🚀 Panduan Deployment — BPF WorkHub v2.28.2
 
 Dokumen ini menjelaskan cara menginstal, mengkonfigurasi, dan menjaga aplikasi BPF WorkHub tetap berjalan.
 
-**PT. Bestprofit Futures — Surabaya**  
-Graha Bukopin Lantai 11, Jl. Panglima Sudirman No. 10-18, Surabaya 60271  
-Telp: 031-5349888
+**PT. Bestprofit Futures — Surabaya**
 
 ---
 
-## 📋 Daftar Isi
+## Daftar Isi
 
 1. [Arsitektur & Port](#1-arsitektur--port)
 2. [Prasyarat](#2-prasyarat)
 3. [Instalasi Pertama](#3-instalasi-pertama)
 4. [Variabel Lingkungan](#4-variabel-lingkungan)
 5. [Update ke Versi Baru](#5-update-ke-versi-baru)
-6. [Backup & Restore](#6-backup--restore)
+6. [Backup & Restore + Foto Cleanup](#6-backup--restore--foto-cleanup)
 7. [Monitoring & Log](#7-monitoring--log)
 8. [Reverse Proxy & HTTPS](#8-reverse-proxy--https)
 9. [Troubleshooting](#9-troubleshooting)
@@ -158,7 +156,7 @@ Service `backup` di docker-compose: **mysqldump semua database setiap 03:00 WIB*
 
 ### 6.2 Foto Overtime Cleanup (v2.28.2)
 
-Foto overtime yang tersimpan di `uploads/overtime/` dibatasi **maksimal 6 bulan (180 hari)**. Sistem三层 cleanup:
+Foto overtime yang tersimpan di `uploads/overtime/` dibatasi **maksimal 6 bulan (180 hari)**. Tiga mekanisme cleanup:
 
 | Mekanisme | Interval | Keterangan |
 |-----------|----------|------------|
@@ -194,7 +192,7 @@ docker exec bbm_backup ls -lh /backups/
 docker exec bbm_backup /bin/sh /usr/local/bin/backup-db.sh
 ```
 
-### 6.2 Backup Manual
+### 6.3 Backup Manual
 
 ```bash
 # Backup DB
@@ -205,7 +203,7 @@ docker exec bbm_web sh -c 'mysqldump -h db -u bpf_user -pbpf_pass bpf_asset_syst
 tar czf uploads_$(date +%Y%m%d).tar.gz uploads/
 ```
 
-### 6.3 Restore
+### 6.4 Restore
 
 ```bash
 # Stop web dulu
@@ -463,4 +461,4 @@ Telp: 031-5349888
 
 ---
 
-*BPF WorkHub v1.0 · Panduan Deployment*
+*BPF WorkHub v2.28.2 · Panduan Deployment*

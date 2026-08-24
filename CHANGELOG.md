@@ -1,14 +1,10 @@
 # 📋 Changelog — BPF WorkHub v2.28.2
 
-Riwayat perubahan penting pada BPF WorkHub. Format mengikuti [Keep a Changelog](https://keepachangelog.com/id/ID/1.0.0/) dan versi mengikuti [Semantic Versioning](https://semver.org/lang/id/).
-
-**PT. Bestprofit Futures — Surabaya**  
-Graha Bukopin Lantai 11, Jl. Panglima Sudirman No. 10-18, Surabaya 60271  
-Telp: 031-5349888
+Format: [Keep a Changelog](https://keepachangelog.com/id/ID/1.0.0/) · Versi: [Semantic Versioning](https://semver.org/lang/id/)
 
 ---
 
-## 📋 Daftar Isi
+## Daftar Isi
 
 - [Versi Terbaru](#versi-terbaru)
 - [Riwayat Lengkap](#riwayat-lengkap)
@@ -483,16 +479,8 @@ Versi stabil pertama dengan fitur lengkap: 10 role, 243 pytest, 82 Vitest, 10 vi
 | v2.18.0 | 160 | 82 | 8 | 250 |
 | v2.20.0 | 194 | 82 | 16 | 292 |
 | v2.22.0 | 243 | 82 | 16 | 341 |
-| **v1.0.0 (final)** | **243** | **82** | **16** | **341** |
+| v2.28.0 | 243 | 82 | 16 | 341 |
 
 ---
 
-## 📞 Kontak
-
-**PT. Bestprofit Futures — Surabaya**  
-Graha Bukopin Lantai 11, Jl. Panglima Sudirman No. 10-18, Surabaya 60271  
-Telp: 031-5349888
-
----
-
-*BPF WorkHub v1.0 · Changelog*
+*BPF WorkHub v2.28.2 · Changelog*

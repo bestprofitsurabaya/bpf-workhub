@@ -1,15 +1,13 @@
-# 📖 Panduan Pengguna BPF WorkHub v1.0
+# 📖 Panduan Pengguna BPF WorkHub v2.28.2
 
 > **Siapa pun kamu — sopir, OB, admin, atau pimpinan — panduan ini ditulis untuk kamu.**
 > Tidak perlu paham teknis. Cukup ikuti langkah-langkah sesuai bagianmu.
 >
 > **PT. Bestprofit Futures — Surabaya**
-> Graha Bukopin Lantai 11, Jl. Panglima Sudirman No. 10-18, Surabaya 60271
-> Telp: 031-5349888
 
 ---
 
-## 📑 Daftar Isi
+## Daftar Isi
 
 1. [Selamat Datang](#1-selamat-datang)
 2. [Cara Masuk (Login)](#2-cara-masuk-login)
@@ -22,9 +20,11 @@
 9. [Untuk Receptionist — Pelamar Kerja 🪪](#9-untuk-receptionist--pelamar-kerja)
 10. [Untuk Traineer / Upline — Pantau Rekrutan 🎯](#10-untuk-traineer--upline--pantau-rekrutan)
 11. [Untuk GA — Aset & Pemeliharaan 🔧](#11-untuk-ga--aset--pemeliharaan)
+    - [11.5 Untuk GA HR — Data Overtime ⏰](#115-untuk-ga-hr--data-overtime-)
+    - [11.6 Migrasi Data dari Google Sheet 📥](#116-untuk-ga-hr--migrasi-data-driver-dari-google-sheet-)
 12. [Untuk Admin — Pengaturan Sistem ⚙️](#12-untuk-admin--pengaturan-sistem)
 13. [Kasbon: Alur Lengkap dari A sampai Z](#13-kasbon-alur-lengkap-dari-a-sampai-z)
-14. [Untuk IT Surabaya — News Scraper](#14-untuk-it-surabaya--news-scraper--content-management-)
+14. [Untuk IT — News Scraper & Content Management 📰](#14-untuk-it-sebagai-cabang--news-scraper--content-management-)
 15. [Mengatasi Masalah (Troubleshooting)](#15-mengatasi-masalah-troubleshooting)
 16. [Istilah-istilah Penting](#16-istilah-istilah-penting)
 
@@ -406,7 +406,7 @@ Semua perubahan papan berjalan realtime — saat driver menyelesaikan tugas, sta
 
 ---
 
-## 11b. Untuk GA HR — Data Overtime ⏰
+## 11.5 Untuk GA HR — Data Overtime ⏰
 
 > **Kamu adalah GA HR.** Halaman **⏰ Overtime** (`/app/ga-hr`) menampilkan dua data overtime: **Driver** (dari Google Sheet) dan **OB/Security** (form publik).
 
@@ -460,7 +460,7 @@ Tiga format PDF tersedia (didukung untuk Driver DAN OB/Security):
 
 ---
 
-## 11c. Untuk GA HR — Migrasi Data Driver dari Google Sheet 📥
+## 11.6 Untuk GA HR — Migrasi Data Driver dari Google Sheet 📥
 
 > Kamu hanya punya akses **view (read-only)** ke sheet overtime Driver dan tidak punya akses ke akun pemilik. Tenang — tetap bisa sinkron.
 
@@ -481,7 +481,7 @@ Tiga format PDF tersedia (didukung untuk Driver DAN OB/Security):
 
 > **Kamu adalah Admin.** Kamu memegang kunci utama: membuat akun, mengatur nama untuk tanda terima, dan memantau jejak audit.
 
-### 11.1 Manajemen User (Halaman Users)
+### 12.1 Manajemen User (Halaman Users)
 
 - **Membuat akun baru** — pilih peran (Admin, GA, Finance, Marketing, Chief Driver, Driver, OB, **Receptionist**, **Traineer**, **GA HR**, **IT Surabaya**), isi nama & PIN.
 - **Mengganti nama** — misalnya mengganti nama placeholder OB dengan nama asli. Nama ini yang tampil di dokumen (mis. PDF tanda terima air minum).
@@ -489,18 +489,18 @@ Tiga format PDF tersedia (didukung untuk Driver DAN OB/Security):
 - **Nonaktifkan/Aktifkan** — akun yang dinonaktifkan **tidak bisa login** (tanpa harus dihapus, supaya jejak datanya tetap aman).
 - **Hapus** — hapus akun (jika memang tidak dipakai).
 
-### 11.2 Pengaturan (Settings)
+### 12.2 Pengaturan (Settings)
 
 - **Manajemen Driver** — tambah/hapus data driver.
 - **Manajemen Armada** — tambah kendaraan (nopol, jenis, dll).
 - **Nama untuk Tanda Terima Air Minum** — set **nama Finance** (yang menyerahkan) & **nama GA** (yang menerima). Nama ini otomatis tercetak di PDF tanda terima air minum.
 - Pengaturan lain sesuai kebutuhan kantor.
 
-### 11.3 Audit Log (Jejak Digital)
+### 12.3 Audit Log (Jejak Digital)
 
 Semua aksi penting tercatat di **Audit Log**: siapa, melakukan apa, kapan. Berguna saat ada selisih atau pertanyaan. Bisa difilter berdasarkan aksi & peran.
 
-### 11.4 Dark Mode 🌙
+### 12.4 Dark Mode 🌙
 
 Suka tampilan gelap? Klik tombol **🌙/☀️** di pojok kanan atas. Pilihanmu tersimpan otomatis.
 
@@ -644,4 +644,4 @@ Klik **🔗 Backlinks** untuk melihat/mengelola:
 
 Ada pertanyaan atau kendala? Hubungi **Admin** atau **tim IT** — mereka bisa melihat riwayat sistem (Audit Log) untuk membantu menyelesaikan masalahmu dengan cepat.
 
-*BPF WorkHub v1.0 · Panduan Pengguna*
+*BPF WorkHub v2.28.2 · Panduan Pengguna*
