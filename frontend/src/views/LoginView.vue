@@ -124,7 +124,7 @@ async function submit() {
   display: inline-flex; padding: 12px; background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
   border-radius: 16px; box-shadow: 0 8px 24px rgba(37, 99, 235, 0.3);
 }
-.brand-icon-wrap img { width: 44px; height: 44px; border-radius: 10px; filter: brightness(0) invert(1); }
+.brand-icon-wrap img { width: 44px; height: 44px; border-radius: 10px; }
 .login-brand h1 { font-size: 20px; font-weight: 800; margin-top: 14px; letter-spacing: -0.3px; }
 .brand-sub { font-size: 12px; color: var(--text-2); margin-top: 4px; font-weight: 500; }
 .brand-city { font-size: 11px; color: var(--text-3); margin-top: 2px; }
