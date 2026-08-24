@@ -7,7 +7,7 @@ const auth = useAuthStore()
 const router = useRouter()
 
 onMounted(() => {
-  router.replace(auth.role ? ROLE_META[auth.role].home : '/login')
+  router.replace(auth.role ? (ROLE_META[auth.role]?.home || '/dashboard') : '/login')
 })
 </script>
 
