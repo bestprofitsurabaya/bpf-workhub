@@ -753,6 +753,48 @@ def register_overtime_routes(app):
             return jsonify({'error': str(e)}), 500
 
     # ================================================================
+    # GA HR — Cetak Form Permohonan Overtime
+    # ================================================================
+    @app.route('/api/overtime/form-pdf')
+    @role_required(['ga_hr', 'admin'])
+    def api_overtime_form_pdf():
+        """Generate Formulir Permohonan Overtime PDF untuk satu record."""
+        try:
+            from modules.pdf_generator import OvertimeFormPDF
+
+            record_id = request.args.get('id')
+            display_id = request.args.get('display_id')
+            if not record_id and not display_id:
+                return jsonify({'error': 'Parameter id atau display_id wajib diisi'}), 400
+
+            conn = get_db_connection()
+            if not conn:
+                return jsonify({'error': 'DB error'}), 500
+            cursor = conn.cursor(dictionary=True)
+            if record_id:
+                cursor.execute('SELECT * FROM overtime_driver WHERE id = %s', (record_id,))
+            else:
+                cursor.execute('SELECT * FROM overtime_driver WHERE display_id = %s', (display_id,))
+            row = cursor.fetchone()
+            cursor.close(); conn.close()
+
+            if not row:
+                return jsonify({'error': 'Data overtime tidak ditemukan'}), 404
+
+            pdf = OvertimeFormPDF()
+            pdf.generate(row)
+            buf = io.BytesIO()
+            pdf.output(buf)
+            buf.seek(0)
+            fname = f'Form_OT_{row.get("display_id", row.get("id", "unknown"))}.pdf'
+            response = make_response(buf.read())
+            response.headers['Content-Type'] = 'application/pdf'
+            response.headers['Content-Disposition'] = f'attachment; filename={fname}'
+            return response
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+    # ================================================================
     # GA HR — ringkasan statistik kedua modul
     # ================================================================
     @app.route('/api/overtime/stats')

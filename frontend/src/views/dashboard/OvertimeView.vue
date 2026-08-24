@@ -162,6 +162,11 @@ function fmtWaktu(r) {
   return b ? `${a} – ${b}` : a
 }
 
+function cetakForm(r) {
+  const id = r.id || r.display_id
+  window.open(`/api/overtime/form-pdf?id=${id}`, '_blank')
+}
+
 function openEdit(r, modul) {
   editModul.value = modul
   editing.value = r
@@ -276,6 +281,7 @@ watch(tab, loadTab)
                   <td class="muted">{{ (r.broker || r.manager) ? (r.broker || '—') + ' / ' + (r.manager || '—') : '—' }}</td>
                   <td><span class="badge badge-gray">{{ r.source === 'sheet' ? '📥 Sheet' : '📝 App' }}</span></td>
                   <td class="row-actions">
+                    <button class="btn btn-xs" title="Cetak Form Permohonan" @click="cetakForm(r)">📄</button>
                     <button class="btn btn-xs" title="Edit" aria-label="Edit data" @click="openEdit(r, 'driver')">✏️</button>
                     <button class="btn btn-xs btn-danger" title="Hapus" aria-label="Hapus data" @click="askDelete(r, 'driver')">🗑️</button>
                   </td>

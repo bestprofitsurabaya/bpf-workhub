@@ -1283,3 +1283,176 @@ def _generate_overtime_detail_csv(rows, driver_name='', driver_role='DRIVER', da
     buf.write(output.getvalue().encode('utf-8-sig'))
     buf.seek(0)
     return buf
+
+
+class OvertimeFormPDF(BPFBasePDF):
+    """Formulir Permohonan Overtime — dicetak oleh GA HR setelah driver submit.
+
+    Format: Portrait A4
+    Isi: ID Form, Email, Nama Driver, No Kendaraan, Tanggal,
+          Detail OT (Tanggal, Jam S/D, Broker, Manager, Keterangan),
+          Kolom Rupiah, Blok TTD (Manager, Finance, GA HR, Chief Driver, Kepala Cabang),
+          Link Foto (di tujuan + selfie office), Footer ISO 27001.
+    """
+
+    def __init__(self):
+        super().__init__(orientation='P', unit='mm', format='A4')
+        self.set_auto_page_break(auto=True, margin=15)
+
+    def generate(self, row, photos=None):
+        """row: dict dari tabel overtime_driver.
+        photos: dict { 'foto_mulai': url, 'foto_selesai': url }
+        """
+        self.add_page()
+
+        # Header: ID Form + Email
+        self.set_font(self._font(), '', 9)
+        self.set_text_color(*INK)
+        display_id = row.get('display_id', '-')
+        email = row.get('email', '-')
+        self.cell(0, 5, f'ID FORM : {display_id} , USED EMAIL : {email}', new_x='LMARGIN', new_y='NEXT')
+        self.ln(4)
+
+        # Title
+        self.set_font(self._font(), 'B', 13)
+        self.cell(0, 8, 'FORMULIR PERMOHONAN OVERTIME – DRIVER', align='C', new_x='LMARGIN', new_y='NEXT')
+        self.ln(4)
+
+        # Driver info
+        self.set_font(self._font(), 'B', 10)
+        self.cell(45, 6, 'NAMA PENGEMUDI', new_x='RIGHT', new_y='TOP')
+        self.set_font(self._font(), '', 10)
+        self.cell(0, 6, f': {self.clean_text(row.get("nama", "-"))}', new_x='LMARGIN', new_y='NEXT')
+
+        self.set_font(self._font(), 'B', 10)
+        self.cell(45, 6, 'NO KENDARAAN', new_x='RIGHT', new_y='TOP')
+        self.set_font(self._font(), '', 10)
+        self.cell(0, 6, f': {self.clean_text(row.get("no_kendaraan", "-"))}', new_x='LMARGIN', new_y='NEXT')
+
+        self.set_font(self._font(), 'B', 10)
+        self.cell(45, 6, 'TANGGAL FORM', new_x='RIGHT', new_y='TOP')
+        self.set_font(self._font(), '', 10)
+        submitted = ''
+        if row.get('submitted_at'):
+            try:
+                dt = row['submitted_at'] if isinstance(row['submitted_at'], datetime) else datetime.strptime(str(row['submitted_at']), '%Y-%m-%d %H:%M:%S')
+                submitted = dt.strftime('%d/%m/%Y %H:%M:%S')
+            except Exception:
+                submitted = str(row['submitted_at'])[:19]
+        elif row.get('created_at'):
+            try:
+                dt = row['created_at'] if isinstance(row['created_at'], datetime) else datetime.strptime(str(row['created_at']), '%Y-%m-%d %H:%M:%S')
+                submitted = dt.strftime('%d/%m/%Y %H:%M:%S')
+            except Exception:
+                submitted = str(row['created_at'])[:19]
+        self.cell(0, 6, f': {submitted}', new_x='LMARGIN', new_y='NEXT')
+        self.ln(6)
+
+        # Detail Overtime
+        self.set_font(self._font(), 'B', 10)
+        self.cell(35, 6, 'TANGGAL', new_x='RIGHT', new_y='TOP')
+        self.set_font(self._font(), '', 10)
+        tanggal = ''
+        if row.get('tanggal'):
+            try:
+                if isinstance(row['tanggal'], date):
+                    tanggal = row['tanggal'].strftime('%d/%m/%Y')
+                else:
+                    tanggal = str(row['tanggal'])
+            except Exception:
+                tanggal = str(row['tanggal'])
+        self.cell(0, 6, f': {tanggal}', new_x='LMARGIN', new_y='NEXT')
+
+        self.set_font(self._font(), 'B', 10)
+        self.cell(35, 6, 'OVERTIME', new_x='RIGHT', new_y='TOP')
+        self.set_font(self._font(), '', 10)
+        waktu = f'{row.get("waktu_mulai", "-")} S/D {row.get("waktu_selesai", "-")}'
+        self.cell(0, 6, f': {waktu}', new_x='LMARGIN', new_y='NEXT')
+
+        self.set_font(self._font(), 'B', 10)
+        self.cell(35, 6, 'NAMA BROKER', new_x='RIGHT', new_y='TOP')
+        self.set_font(self._font(), '', 10)
+        self.cell(0, 6, f': {self.clean_text(row.get("broker", "-"))}', new_x='LMARGIN', new_y='NEXT')
+
+        self.set_font(self._font(), 'B', 10)
+        self.cell(35, 6, 'NAMA MANAGER', new_x='RIGHT', new_y='TOP')
+        self.set_font(self._font(), '', 10)
+        self.cell(0, 6, f': {self.clean_text(row.get("manager", "-"))}', new_x='LMARGIN', new_y='NEXT')
+
+        self.set_font(self._font(), 'B', 10)
+        self.cell(35, 6, 'KETERANGAN', new_x='RIGHT', new_y='TOP')
+        self.set_font(self._font(), '', 10)
+        self.cell(0, 6, f': {self.clean_text(row.get("keterangan", "-"))}', new_x='LMARGIN', new_y='NEXT')
+        self.ln(4)
+
+        # Kolom Rupiah
+        self.set_font(self._font(), 'B', 10)
+        self.cell(35, 6, 'RUPIAH', new_x='RIGHT', new_y='TOP')
+        self.set_font(self._font(), '', 10)
+        self.cell(0, 6, ': ', new_x='LMARGIN', new_y='NEXT')
+        self.ln(8)
+
+        # Blok TTD
+        self._signature_blocks()
+        self.ln(6)
+
+        # Foto links
+        self._photo_links(row, photos)
+        self.ln(6)
+
+        # Footer
+        self.set_font(self._font(), 'I', 7)
+        self.set_text_color(*GRAY_LABEL)
+        self.cell(0, 4, 'PENTING: Dokumen ini wajib disimpan dan dipelihara kerahasiaannya sesuai dengan Standar ISO 27001:2022', align='C', new_x='LMARGIN', new_y='NEXT')
+        self.set_text_color(*INK)
+
+    def _signature_blocks(self):
+        """Blok TTD: Manager, Finance, GA HR, Chief Driver, Kepala Cabang."""
+        labels = ['MANAGER', 'FINANCE', 'GA HR', 'Checked Chief Driver', 'KEPALA CABANG']
+        self.set_font(self._font(), 'B', 9)
+        self.set_text_color(*INK)
+        self.cell(0, 5, 'TANDA TANGAN', align='C', new_x='LMARGIN', new_y='NEXT')
+        self.ln(2)
+
+        col_w = 170 / len(labels)
+        for label in labels:
+            self.set_font(self._font(), '', 8)
+            self.cell(col_w, 5, label, align='C', new_x='RIGHT', new_y='TOP')
+        self.ln(12)
+        # Garis tanda tangan
+        x_start = self.l_margin
+        for i, label in enumerate(labels):
+            self.set_draw_color(*INK)
+            self.line(x_start + i * col_w + 5, self.get_y(), x_start + (i + 1) * col_w - 5, self.get_y())
+        self.ln(2)
+
+    def _photo_links(self, row, photos=None):
+        """Tampilkan link foto (bukan gambar) untuk hematsaat cetak."""
+        photos = photos or {}
+        foto_tujuan = photos.get('foto_selesai') or row.get('foto_selesai', '')
+        foto_selfie = photos.get('foto_mulai') or row.get('foto_mulai', '')
+
+        self.set_font(self._font(), 'B', 9)
+        self.set_text_color(*INK)
+
+        if foto_tujuan:
+            self.cell(0, 5, 'FOTO DI TUJUAN', new_x='LMARGIN', new_y='NEXT')
+            self.set_font(self._font(), '', 8)
+            self.set_text_color(0, 102, 204)
+            self.cell(0, 5, f'Klik untuk lihat foto: {foto_tujuan}', link=foto_tujuan, new_x='LMARGIN', new_y='NEXT')
+            self.set_text_color(*INK)
+        else:
+            self.cell(0, 5, 'FOTO DI TUJUAN: Tidak tersedia', new_x='LMARGIN', new_y='NEXT')
+
+        self.ln(2)
+
+        if foto_selfie:
+            self.set_font(self._font(), 'B', 9)
+            self.cell(0, 5, 'FOTO SELFIE @OFFICE', new_x='LMARGIN', new_y='NEXT')
+            self.set_font(self._font(), '', 8)
+            self.set_text_color(0, 102, 204)
+            self.cell(0, 5, f'Klik untuk lihat foto: {foto_selfie}', link=foto_selfie, new_x='LMARGIN', new_y='NEXT')
+            self.set_text_color(*INK)
+        else:
+            self.set_font(self._font(), 'B', 9)
+            self.cell(0, 5, 'FOTO SELFIE @OFFICE: Tidak tersedia', new_x='LMARGIN', new_y='NEXT')
