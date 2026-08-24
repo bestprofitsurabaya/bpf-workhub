@@ -324,7 +324,15 @@ onUnmounted(() => { if (saveTimer) clearTimeout(saveTimer) })
 .appt-time { font-size: 11px; font-weight: 700; opacity: .7; min-width: 60px; }
 .appt-body { font-size: 12px; flex: 1; }
 .trip-row { border: 1px solid var(--border); border-radius: 10px; padding: 8px; margin-bottom: 8px; display: flex; gap: 8px; }
-.trip-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; flex: 1; }
-.trip-grid .field { margin: 0; }
-.trip-grid label { font-size: 11px; }
+.trip-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; flex: 1; min-width: 0; }
+.trip-grid .field { margin: 0; min-width: 0; }
+.trip-grid label { font-size: 10px; }
+.trip-grid .input { font-size: 12px; padding: 6px 8px; }
+@media (max-width: 480px) {
+  .trip-row { flex-direction: column; }
+  .trip-grid { grid-template-columns: 1fr 1fr; }
+  .trip-grid .field:nth-child(1),
+  .trip-grid .field:nth-child(4) { grid-column: 1 / -1; }
+}
+.tab-page { padding-bottom: 0; }
 </style>
