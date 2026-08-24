@@ -171,7 +171,11 @@ async function submit() {
   }
 }
 
-onMounted(() => { if (store.profile) applyProfile() })
+onMounted(() => {
+  if (store.profile) applyProfile()
+  // Auto GPS saat pertama buka
+  if (!store.gps.lat && !store.gps.locating) store.locate().catch(() => {})
+})
 </script>
 
 <template>
@@ -255,8 +259,11 @@ onMounted(() => { if (store.profile) applyProfile() })
             <div v-else class="photo-empty">📷</div>
             <div class="photo-actions">
               <input type="file" accept="image/*" class="file-input"
-                     :id="'file_' + f.key" @change="onPhotoChange(f.key, $event)" />
-              <label class="btn btn-sm" :for="'file_' + f.key">📸 Ambil Foto</label>
+                     :id="'cam_' + f.key" capture="environment" @change="onPhotoChange(f.key, $event)" />
+              <label class="btn btn-sm" :for="'cam_' + f.key">📷 Kamera</label>
+              <input type="file" accept="image/*" class="file-input"
+                     :id="'gal_' + f.key" @change="onPhotoChange(f.key, $event)" />
+              <label class="btn btn-sm btn-outline" :for="'gal_' + f.key">🖼️ Galeri</label>
               <button v-if="photos[f.key]" type="button" class="btn btn-sm btn-danger" @click="removePhoto(f.key)">✕</button>
             </div>
             <div v-if="wmState[f.key]" class="wm-badge" :class="wmState[f.key]">
@@ -297,4 +304,6 @@ onMounted(() => { if (store.profile) applyProfile() })
 .wm-badge.processing { background: #fef3c7; color: #d97706; }
 .wm-badge.done { background: #d1fae5; color: #059669; }
 .wm-badge.error { background: #fee2e2; color: #dc2626; }
+.btn-outline { background: transparent; border: 1px solid var(--border, #d1d5db); color: var(--text, #374151); }
+.btn-outline:hover { background: var(--bg-2, #f1f5f9); }
 </style>

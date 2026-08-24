@@ -173,7 +173,6 @@ function reset() {
         <div class="row" style="gap:8px;">
           <div class="foto-box">
             <label class="foto-input" :class="{ 'has-foto': fotoMulaiPreview }">
-              <input type="file" accept="image/*" @change="handleFoto($event, 'mulai')" hidden />
               <template v-if="fotoMulaiPreview">
                 <img :src="fotoMulaiPreview" class="foto-thumb" />
                 <span class="foto-badge">✅ Mulai</span>
@@ -183,10 +182,15 @@ function reset() {
                 <span style="font-size:11px;font-weight:600;">Foto Mulai</span>
               </template>
             </label>
+            <div class="foto-btns">
+              <input type="file" accept="image/*" capture="environment" class="file-input-hidden" id="ot_cam_mulai" @change="handleFoto($event, 'mulai')" />
+              <label class="btn btn-xs" for="ot_cam_mulai">📷 Kamera</label>
+              <input type="file" accept="image/*" class="file-input-hidden" id="ot_gal_mulai" @change="handleFoto($event, 'mulai')" />
+              <label class="btn btn-xs btn-outline" for="ot_gal_mulai">🖼️ Galeri</label>
+            </div>
           </div>
           <div class="foto-box">
             <label class="foto-input" :class="{ 'has-foto': fotoSelesaiPreview }">
-              <input type="file" accept="image/*" @change="handleFoto($event, 'selesai')" hidden />
               <template v-if="fotoSelesaiPreview">
                 <img :src="fotoSelesaiPreview" class="foto-thumb" />
                 <span class="foto-badge">✅ Selesai</span>
@@ -196,6 +200,12 @@ function reset() {
                 <span style="font-size:11px;font-weight:600;">Foto Selesai</span>
               </template>
             </label>
+            <div class="foto-btns">
+              <input type="file" accept="image/*" capture="environment" class="file-input-hidden" id="ot_cam_selesai" @change="handleFoto($event, 'selesai')" />
+              <label class="btn btn-xs" for="ot_cam_selesai">📷 Kamera</label>
+              <input type="file" accept="image/*" class="file-input-hidden" id="ot_gal_selesai" @change="handleFoto($event, 'selesai')" />
+              <label class="btn btn-xs btn-outline" for="ot_gal_selesai">🖼️ Galeri</label>
+            </div>
           </div>
         </div>
       </div>
@@ -231,4 +241,6 @@ function reset() {
   background: rgba(0,0,0,.6); color: #fff; font-size: 9px; font-weight: 600;
   padding: 2px 8px; border-radius: 16px; white-space: nowrap;
 }
+.foto-btns { display: flex; gap: 4px; margin-top: 4px; justify-content: center; }
+.file-input-hidden { display: none; }
 </style>
