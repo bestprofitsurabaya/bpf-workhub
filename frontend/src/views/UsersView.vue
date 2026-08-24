@@ -61,6 +61,11 @@ const roleLabel = (r) => (ROLES.find((x) => x[0] === r) || [r, r])[1]
 const roleIcon = (r) => (ROLES.find((x) => x[0] === r) || ['', ''])[1].split(' ')[0]
 
 const branches = ref([])
+const branchName = (code) => {
+  if (!code) return '—'
+  const b = branches.value.find(x => x.code === code)
+  return b ? b.name : code
+}
 
 // Computed
 const filteredUsers = computed(() => {
@@ -352,7 +357,7 @@ onMounted(load)
               <td>{{ u.full_name }}</td>
               <td><span class="badge badge-purple">{{ roleLabel(u.role) }}</span></td>
               <td>{{ u.team_name || '—' }}</td>
-              <td><span class="badge badge-blue" v-if="u.branch_code">{{ u.branch_code }}</span><span v-else class="muted">—</span></td>
+              <td><span class="badge badge-blue" v-if="u.branch_code">{{ branchName(u.branch_code) }}</span><span v-else class="muted">—</span></td>
               <td><span class="badge" :class="u.is_active ? 'badge-green' : 'badge-red'">{{ u.is_active ? '🟢 Aktif' : '🔴 Nonaktif' }}</span></td>
               <td class="muted" style="font-size:12px;">{{ u.last_login ? new Date(u.last_login).toLocaleString('id-ID') : '—' }}</td>
               <td style="white-space:nowrap;">

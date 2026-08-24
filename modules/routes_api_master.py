@@ -136,7 +136,7 @@ def register_master_api(app):
     def api_users():
         try:
             conn = get_master_connection(); cursor = conn.cursor(dictionary=True)
-            cursor.execute("SELECT id, username, full_name, role, team_name, is_active, last_login FROM users ORDER BY role, username")
+            cursor.execute("SELECT id, username, full_name, role, team_name, branch_code, is_active, last_login FROM users ORDER BY role, username")
             data = cursor.fetchall(); cursor.close(); conn.close()
             return jsonify(data)
         except Exception as e:
