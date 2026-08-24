@@ -277,6 +277,60 @@ def _wp_request(session, method, url, nonce=None, **kwargs):
     return session.request(method, url, headers=headers, **kwargs)
 
 
+def _upload_image_to_wp(session, wp_url, nonce, image_url):
+    """Download image from source and upload to WordPress media library.
+    Returns: {'id': media_id, 'html': '<img ...>'} or None on failure.
+    """
+    try:
+        # Download image from source
+        r = session.get(image_url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=15, stream=True)
+        if r.status_code != 200:
+            return None
+
+        content_type = r.headers.get('Content-Type', 'image/jpeg')
+        if 'png' in image_url.lower():
+            ext = 'png'
+        elif 'gif' in image_url.lower():
+            ext = 'gif'
+        elif 'webp' in image_url.lower():
+            ext = 'webp'
+        else:
+            ext = 'jpg'
+
+        # Generate filename
+        slug = re.sub(r'[^a-z0-9]', '-', image_url.split('/')[-1].lower())[:50]
+        if not slug or slug == '-':
+            slug = f"article-{int(time.time())}"
+        filename = f"{slug}.{ext}"
+
+        # Upload to WordPress media library
+        media_url = wp_url.replace('/posts', '/media')
+        headers = {
+            'X-WP-Nonce': nonce,
+            'Content-Disposition': f'attachment; filename="{filename}"',
+            'Content-Type': content_type,
+            'User-Agent': 'BPFWorkHub-Scraper/2.0',
+        }
+        # Remove Basic Auth for REST API
+        session.auth = None
+        r2 = session.post(media_url, data=r.content, headers=headers, timeout=30)
+        session.auth = None  # Ensure stays clean
+
+        if r2.status_code in (200, 201):
+            media = r2.json()
+            media_id = media.get('id', 0)
+            # source_url = direct file URL, link = attachment page URL
+            media_link = media.get('source_url', '') or media.get('link', '')
+            return {
+                'id': media_id,
+                'html': f'<figure class="wp-block-image"><img src="{media_link}" alt="" class="wp-image-{media_id}" /></figure>\n',
+                'link': media_link,
+            }
+    except Exception:
+        pass
+    return None
+
+
 def _get_anchor_text(keyword):
     kw = keyword.lower()
     for base, variations in ANCHOR_TEXT_VARIATIONS.items():
@@ -567,17 +621,36 @@ def check_articles():
                 r = session_req.get(article['link'], headers={'User-Agent': 'Mozilla/5.0'}, timeout=30)
                 if r.status_code == 200:
                     soup = BeautifulSoup(r.text, 'html.parser')
+                    # Collect images from article page
+                    content_images = []
                     # New structure: content in div.prose.prose-slate
                     content_div = soup.find('div', class_=lambda c: c and 'prose' in str(c))
                     if content_div:
                         paras = [p.text.strip() for p in content_div.find_all('p') if p.text.strip()]
                         article['content'] = "\n".join(paras)
+                        # Extract images from content
+                        for img in content_div.find_all('img'):
+                            src = img.get('src', '') or img.get('data-src', '')
+                            if src and not src.startswith('data:'):
+                                if not src.startswith('http'):
+                                    src = "https://www.newsmaker.id" + src
+                                content_images.append(src)
+                        if not article.get('image_url') and content_images:
+                            article['image_url'] = content_images[0]
+                        article['content_images'] = content_images
                         return
                     # Fallback: old structure
                     content_div = soup.find('div', class_='article-content')
                     if content_div:
                         paras = [p.text.strip() for p in content_div.find_all('p') if p.text.strip()]
                         article['content'] = "\n".join(paras)
+                        for img in content_div.find_all('img'):
+                            src = img.get('src', '') or img.get('data-src', '')
+                            if src and not src.startswith('data:'):
+                                if not src.startswith('http'):
+                                    src = "https://www.newsmaker.id" + src
+                                content_images.append(src)
+                        article['content_images'] = content_images
                         return
                 article['content'] = "Content not found"
             except Exception:
@@ -727,12 +800,25 @@ def upload_articles():
             }
             html_content = f'<script type="application/ld+json">{json.dumps(schema, ensure_ascii=False)}</script>\n' + html_content
 
+            # Upload featured image to WordPress
+            featured_img_html = ''
+            featured_media_id = 0
+            image_url = article.get('image_url', '')
+            if image_url:
+                wp_media = _upload_image_to_wp(wp_session, wp_url, nonce, image_url)
+                if wp_media:
+                    featured_img_html = wp_media.get('html', '')
+                    featured_media_id = wp_media.get('id', 0)
+                    # Prepend featured image to content
+                    html_content = featured_img_html + html_content
+
             post_data = {
                 'title': title,
                 'content': html_content,
                 'status': 'publish',
                 'date': f"{publish_date}T{publish_time}:00",
                 'tags': tag_ids,
+                'featured_media': featured_media_id,
             }
 
             # Progress per article
@@ -749,8 +835,11 @@ def upload_articles():
                     if r.status_code == 200:
                         for post in r.json():
                             if post.get('title', {}).get('rendered') == title:
+                                update_data = {'content': html_content, 'tags': tag_ids}
+                                if featured_media_id:
+                                    update_data['featured_media'] = featured_media_id
                                 r2 = _wp_request(wp_session, 'POST', f"{wp_url}/{post['id']}", nonce=nonce,
-                                                 json={'content': html_content, 'tags': tag_ids})
+                                                 json=update_data)
                                 if r2.status_code == 200:
                                     updated_count += 1
                                     article_detail['status'] = 'updated'
