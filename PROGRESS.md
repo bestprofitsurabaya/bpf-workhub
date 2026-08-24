@@ -4,7 +4,7 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 **Terakhir diperbarui:** 2026-08-24  
 **Branch:** `main`  
-**Versi terbaru:** v2.25.0
+**Versi terbaru:** v2.25.1
 
 ---
 
@@ -12,7 +12,7 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 | Aspek | Status |
 |-------|--------|
-| Versi | v2.25.0 (UI/UX Overhaul + 7 SEO Algorithms + Multi-Branch) |
+| Versi | v2.25.1 (Rename it_ef → it_sby + URL Update) |
 | Docker | `bbm_web` running on `nasbpfsby.duckdns.org:5000` |
 | Pytest | 223/243 passed (20 = integration tests butuh DB) |
 | Vitest | 82/82 ✅ |
@@ -81,42 +81,26 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 - [x] Watermark foto (GPS + timestamp)
 - [x] Notifikasi real-time
 
-### News Scraper (IT EF — Multi-Cabang) ⭐ v2.25.0
+### News Scraper (IT — Multi-Cabang) ⭐ v2.25.1
 - [x] Scrape artikel dari newsmaker.id (struktur baru Tailwind)
 - [x] WordPress integration (multi-site, 10 cabang)
 - [x] SEO optimization + backlinks
 - [x] Parser tanggal Indonesia (Agu/Agustus)
-- [x] **Upload gambar ke WordPress** (featured image + inline) ⭐
-- [x] **Progress tracking** (SSE polling) ⭐
-- [x] **Upload history** (filter tanggal/aksi) ⭐
-- [x] **Duplicate prevention** (500 posts + fuzzy title match) ⭐
-- [x] **7 Algoritma SEO** ⭐⭐
-  1. Content Uniqueness (parafrase/sinonim)
-  2. Multi-Source Scraping (newsmaker + kontan + bisnis)
-  3. Internal Linking (keyword overlap)
-  4. Advanced Schema (NewsArticle + Breadcrumb + Org + FAQ)
-  5. Auto Sitemap Ping (Google + IndexNow)
-  6. Smart Scheduling (9-11AM, 7-9PM WIB)
-  7. Performance Analytics (track per site/date)
-- [x] **SEO Backlinks** — 5 BPF sites + 23 authority sites ⭐
-- [x] **CTA Widget** otomatis di akhir artikel ⭐
-- [x] **Multi-Branch Users** — 10 cabang + access filtering ⭐
-- [x] **UI/UX Overhaul** — 10 upgrades ⭐⭐
-  1. Dashboard Overview (stats + activity)
-  2. Tab-Based Layout (6 tabs)
-  3. Article Preview Cards (thumbnail + checkbox)
-  4. Upload Queue (select individual)
-  5. Real-Time Upload Log
-  6. Mobile-First Design
-  7. SEO Score Visual
-  8. Quick Actions FAB
-  9. Dark Mode Support
-  10. Onboarding Checklist
+- [x] Upload gambar ke WordPress (featured image + inline)
+- [x] Progress tracking (SSE polling)
+- [x] Upload history (filter tanggal/aksi)
+- [x] Duplicate prevention (500 posts + fuzzy title match)
+- [x] 7 Algoritma SEO
+- [x] SEO Backlinks (5 BPF sites + 23 authority + CTA widget)
+- [x] Multi-Branch Users (10 cabang + access filtering)
+- [x] UI/UX Overhaul (10 upgrades)
+- [x] **Rename it_ef → it_sby** (URL: `/app/it`) ⭐ NEW
+- [x] **Role per cabang** (it_sby, it_hu, it_bdg, dll) ⭐ NEW
 
 ### Keamanan
 - [x] Login PIN + session-based
 - [x] CSRF protection
-- [x] Role-based access (11 role)
+- [x] Role-based access (20 role)
 - [x] Audit trail (30+ action types)
 - [x] Security headers (CSP, X-Frame-Options)
 - [x] Rate limiting
@@ -136,8 +120,8 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 - [x] GitHub Actions CI/CD
 
 ### Dokumentasi
-- [x] README.md v2.25
-- [x] CHANGELOG.md v2.25
+- [x] README.md v2.25.1
+- [x] CHANGELOG.md v2.25.1
 - [x] DEPLOY_FRESH.md
 - [x] SECURITY.md
 - [x] USER_GUIDE.md
@@ -185,6 +169,7 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 - ✅ Fixed: duplicate prevention — paginate 500 + fuzzy matching
 - ✅ Fixed: WordPress image upload (featured + inline)
 - ✅ Fixed: upload history + progress tracking
+- ✅ Fixed: rename it_ef → it_sby + URL update
 
 ---
 
@@ -195,8 +180,8 @@ Ketik di awal sesi:
 
 Setelah selesai kerja, update file ini dengan status terbaru.
 
-### Sesi 2026-08-24 — Sesi Besar (v2.25.0) ⭐⭐
-**15 commits dalam 1 sesi!**
+### Sesi 2026-08-24 — Sesi Besar (v2.25.1) ⭐⭐
+**19 commits dalam 1 sesi!**
 
 1. ✅ Fix error 500 `/api/scraper/check` — install bs4 di Docker container
 2. ✅ Update scraper parsing — struktur baru newsmaker.id (Tailwind CSS)
@@ -215,18 +200,24 @@ Setelah selesai kerja, update file ini dengan status terbaru.
 15. ✅ Multi-Branch — 10 cabang + user access filtering
 16. ✅ Duplicate prevention — paginate 500 + fuzzy title matching
 17. ✅ UI/UX Overhaul — 10 upgrades (dashboard, tabs, cards, dark mode, FAB, onboarding)
+18. ✅ Rename it_ef → it_sby (URL: `/app/it`)
+19. ✅ Role per cabang (it_sby, it_hu, it_bdg, it_smg, it_mlg, it_mdn, it_bjm, it_plm, it_lpg)
 
-**WordPress Config:**
-- Basic Auth: `human:password` (sama semua cabang)
-- Surabaya: `it_bpf_surabaya` (active)
-- Cabang lain: `PENDING` (isi via UI masing-masing)
+**URL Pattern:**
+- `/app/it` → News Scraper (semua cabang)
+- `/app/it-ef` → ❌ DEPRECATED (redirect ke `/app/it`)
 
-**Users Created:**
-- `it_hu` → JKT (HO) → lihat semua site
-- `it_jkt2` → JKT2, `it_bdg` → BDG, `it_smg` → SMG
-- `it_mlg` → MLG, `it_mdn` → MDN, `it_bjm` → BJM
-- `it_plm` → PLM, `it_lpg` → LPG
-- Semua PIN: `123456`
+**WordPress URL Pattern:**
+- SBY: `best-profit-futures-surabaya.com` (existing)
+- JKT HO: `bestprofit-futures-equitytower.com`
+- JKT2: `bestprofit-futures-pacificplace.com`
+- BDG: `bestprofit-futures-bandung.com`
+- SMG: `bestprofit-futures-semarang.com`
+- MLG: `bestprofit-futures-malang.com`
+- MDN: `bestprofit-futures-medan.com`
+- BJM: `bestprofit-futures-banjarmasin.com`
+- PLM: `bestprofit-futures-palembang.com`
+- LPG: `bestprofit-futures-lampung.com`
 
 ### Sesi 2026-08-21 (v2.23.0)
 1. ✅ Tambah role `it_ef` (IT Surabaya) — backend + frontend
@@ -247,7 +238,7 @@ Setelah selesai kerja, update file ini dengan status terbaru.
 | Login | `https://nasbpfsby.duckdns.org:5000/app/login` |
 | Form OT OB/Security | `https://nasbpfsby.duckdns.org:5000/app/overtime-form` |
 | GA HR | `https://nasbpfsby.duckdns.org:5000/app/ga-hr` |
-| News Scraper (SBY) | `https://nasbpfsby.duckdns.org:5000/app/it-ef` |
+| News Scraper (semua) | `https://nasbpfsby.duckdns.org:5000/app/it` |
 
 ---
 
@@ -260,17 +251,17 @@ Setelah selesai kerja, update file ini dengan status terbaru.
 | Finance | `finance_officer` | `123456` | `/app/finance` | SBY |
 | Driver | `wicak` | `123456` | `/app/driver` | SBY |
 | GA HR | `ga_hr_officer` | `123456` | `/app/ga-hr` | SBY |
-| IT HO | `it_hu` | `123456` | `/app/it-ef` | JKT |
-| IT Surabaya | `it_ef` | `123456` | `/app/it-ef` | SBY |
-| IT Jakarta 2 | `it_jkt2` | `123456` | `/app/it-ef` | JKT2 |
-| IT Bandung | `it_bdg` | `123456` | `/app/it-ef` | BDG |
-| IT Semarang | `it_smg` | `123456` | `/app/it-ef` | SMG |
-| IT Malang | `it_mlg` | `123456` | `/app/it-ef` | MLG |
-| IT Medan | `it_mdn` | `123456` | `/app/it-ef` | MDN |
-| IT Banjarmasin | `it_bjm` | `123456` | `/app/it-ef` | BJM |
-| IT Palembang | `it_plm` | `123456` | `/app/it-ef` | PLM |
-| IT Lampung | `it_lpg` | `123456` | `/app/it-ef` | LPG |
+| IT HO | `it_hu` | `123456` | `/app/it` | JKT |
+| IT Surabaya | `it_sby` | `123456` | `/app/it` | SBY |
+| IT Jakarta 2 | `it_jkt2` | `123456` | `/app/it` | JKT2 |
+| IT Bandung | `it_bdg` | `123456` | `/app/it` | BDG |
+| IT Semarang | `it_smg` | `123456` | `/app/it` | SMG |
+| IT Malang | `it_mlg` | `123456` | `/app/it` | MLG |
+| IT Medan | `it_mdn` | `123456` | `/app/it` | MDN |
+| IT Banjarmasin | `it_bjm` | `123456` | `/app/it` | BJM |
+| IT Palembang | `it_plm` | `123456` | `/app/it` | PLM |
+| IT Lampung | `it_lpg` | `123456` | `/app/it` | LPG |
 
 ---
 
-*BPF WorkHub v2.25.0 · Progres Tracker*
+*BPF WorkHub v2.25.1 · Progres Tracker*

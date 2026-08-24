@@ -46,7 +46,16 @@ const ROLES = [
   ['marketing', '📣 Marketing'], ['chief_driver', '🚛 Chief Driver'], ['ob', '🚰 OB'],
   ['receptionist', '🪪 Receptionist'], ['traineer', '🎯 Traineer'], ['ga_hr', '⏰ GA HR'],
   ['driver', '🚗 Driver'],
-  ['it_ef', '📰 IT Surabaya'],
+  ['it_sby', '📰 IT Surabaya'],
+  ['it_hu', '📰 IT Jakarta HO'],
+  ['it_jkt2', '📰 IT Jakarta 2'],
+  ['it_bdg', '📰 IT Bandung'],
+  ['it_smg', '📰 IT Semarang'],
+  ['it_mlg', '📰 IT Malang'],
+  ['it_mdn', '📰 IT Medan'],
+  ['it_bjm', '📰 IT Banjarmasin'],
+  ['it_plm', '📰 IT Palembang'],
+  ['it_lpg', '📰 IT Lampung'],
 ]
 const roleLabel = (r) => (ROLES.find((x) => x[0] === r) || [r, r])[1]
 const roleIcon = (r) => (ROLES.find((x) => x[0] === r) || ['', ''])[1].split(' ')[0]

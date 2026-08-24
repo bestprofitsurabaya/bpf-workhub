@@ -129,7 +129,7 @@ ANCHOR_TEXT_VARIATIONS = {
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-SCRAPER_ROLES = ('it_ef', 'admin')
+SCRAPER_ROLES = ('it_sby', 'it_hu', 'it_jkt2', 'it_bdg', 'it_smg', 'it_mlg', 'it_mdn', 'it_bjm', 'it_plm', 'it_lpg', 'admin')
 
 
 def _load_json(path, default=None):

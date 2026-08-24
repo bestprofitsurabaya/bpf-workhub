@@ -13,7 +13,16 @@ export const ROLE_META = {
   receptionist: { label: 'Receptionist', home: '/receptionist', color: '#db2777', icon: '🪪' },
   traineer:     { label: 'Traineer',     home: '/traineer',     color: '#b45309', icon: '🎯' },
   ga_hr:        { label: 'GA HR',        home: '/ga-hr',        color: '#7e22ce', icon: '⏰' },
-  it_ef:        { label: 'IT Surabaya',   home: '/it-ef',         color: '#0891b2', icon: '📰' },
+  it_sby:       { label: 'IT Surabaya',  home: '/it',           color: '#0891b2', icon: '📰' },
+  it_hu:        { label: 'IT Jakarta HO', home: '/it',           color: '#0891b2', icon: '📰' },
+  it_jkt2:      { label: 'IT Jakarta 2', home: '/it',           color: '#0891b2', icon: '📰' },
+  it_bdg:       { label: 'IT Bandung',   home: '/it',           color: '#0891b2', icon: '📰' },
+  it_smg:       { label: 'IT Semarang',  home: '/it',           color: '#0891b2', icon: '📰' },
+  it_mlg:       { label: 'IT Malang',    home: '/it',           color: '#0891b2', icon: '📰' },
+  it_mdn:       { label: 'IT Medan',     home: '/it',           color: '#0891b2', icon: '📰' },
+  it_bjm:       { label: 'IT Banjarmasin', home: '/it',         color: '#0891b2', icon: '📰' },
+  it_plm:       { label: 'IT Palembang', home: '/it',           color: '#0891b2', icon: '📰' },
+  it_lpg:       { label: 'IT Lampung',   home: '/it',           color: '#0891b2', icon: '📰' },
 }
 
 export const useAuthStore = defineStore('auth', {
