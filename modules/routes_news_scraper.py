@@ -483,6 +483,14 @@ _SYNONYMS = {
 }
 
 
+def _normalize_title(title):
+    """Normalize title for fuzzy duplicate matching."""
+    t = title.lower().strip()
+    t = re.sub(r'[^a-z0-9\s]', '', t)  # Remove punctuation
+    t = re.sub(r'\s+', ' ', t)  # Normalize whitespace
+    return t
+
+
 def _rewrite_content(content, title=''):
     """Parafrase konten untuk hindari duplicate content."""
     if not content or len(content) < 100:
@@ -1129,13 +1137,24 @@ def upload_articles():
         authority_sites = bl_config.get('authority_sites', DEFAULT_AUTHORITY_SITES)
         keyword_mapping = bl_config.get('keyword_mapping', DEFAULT_KEYWORD_MAPPING)
 
-        # Get existing posts to avoid duplicates
+        # Get existing posts to avoid duplicates (check first 500 recent + search for each article)
         existing_titles = set()
+        existing_posts = {}  # title -> post_id mapping
         try:
-            r = _wp_request(wp_session, 'GET', wp_url, nonce=nonce, params={"per_page": 100}, timeout=30)
-            if r.status_code == 200:
+            # Fetch recent 500 posts (5 pages) for quick lookup
+            for page in range(1, 6):
+                r = _wp_request(wp_session, 'GET', wp_url, nonce=nonce,
+                                params={"per_page": 100, "page": page, "orderby": "date", "order": "desc"},
+                                timeout=30)
+                if r.status_code != 200 or not r.json():
+                    break
                 for post in r.json():
-                    existing_titles.add(post.get('title', {}).get('rendered', ''))
+                    t = post.get('title', {}).get('rendered', '')
+                    existing_titles.add(t)
+                    existing_posts[t] = post.get('id')
+                if len(r.json()) < 100:
+                    break
+                time.sleep(0.2)
         except Exception:
             pass
 
@@ -1218,25 +1237,54 @@ def upload_articles():
                 'featured_media': featured_media_id,
             }
 
+            # Check for duplicate (exact + fuzzy match)
+            is_duplicate = False
+            matched_post_id = None
+            norm_title = _normalize_title(title)
+            for et in existing_titles:
+                if title == et or norm_title == _normalize_title(et):
+                    is_duplicate = True
+                    matched_post_id = existing_posts.get(et)
+                    break
+
             # Progress per article
             progress_pct = 10 + int(((idx + 1) / len(articles)) * 85)
-            status_msg = '⏳ Upload' if title not in existing_titles else '🔄 Update'
+            status_msg = '🔄 Update' if is_duplicate else '⏳ Upload'
             _set_progress(task_id, {'stage': 'upload', 'progress': progress_pct, 'message': f'{status_msg} [{idx+1}/{len(articles)}] {title[:50]}...', 'total': len(articles), 'current': idx + 1})
 
             article_detail = {'title': title, 'category': article.get('category', ''), 'date': article.get('publish_date', ''), 'status': 'pending'}
 
-            if title in existing_titles:
-                # Update existing
+            if is_duplicate and matched_post_id:
+                # Update existing post (use cached post_id)
                 try:
-                    r = _wp_request(wp_session, 'GET', wp_url, nonce=nonce, params={"per_page": 100, "search": title}, timeout=15)
+                    update_data = {'content': html_content, 'tags': tag_ids}
+                    if featured_media_id:
+                        update_data['featured_media'] = featured_media_id
+                    r2 = _wp_request(wp_session, 'POST', f"{wp_url}/{matched_post_id}", nonce=nonce,
+                                     json=update_data)
+                    if r2.status_code == 200:
+                        updated_count += 1
+                        article_detail['status'] = 'updated'
+                        article_detail['post_id'] = matched_post_id
+                    else:
+                        errors.append(f"{title}: update HTTP {r2.status_code}")
+                        article_detail['status'] = 'error'
+                        article_detail['error'] = f'HTTP {r2.status_code}'
+                except Exception as e:
+                    errors.append(f"{title}: {str(e)}")
+                    article_detail['status'] = 'error'
+                    article_detail['error'] = str(e)
+            elif is_duplicate:
+                # Found by fuzzy but no post_id cached - search
+                try:
+                    r = _wp_request(wp_session, 'GET', wp_url, nonce=nonce, params={"per_page": 10, "search": title}, timeout=15)
                     if r.status_code == 200:
                         for post in r.json():
-                            if post.get('title', {}).get('rendered') == title:
+                            if _normalize_title(post.get('title', {}).get('rendered', '')) == norm_title:
                                 update_data = {'content': html_content, 'tags': tag_ids}
                                 if featured_media_id:
                                     update_data['featured_media'] = featured_media_id
-                                r2 = _wp_request(wp_session, 'POST', f"{wp_url}/{post['id']}", nonce=nonce,
-                                                 json=update_data)
+                                r2 = _wp_request(wp_session, 'POST', f"{wp_url}/{post['id']}", nonce=nonce, json=update_data)
                                 if r2.status_code == 200:
                                     updated_count += 1
                                     article_detail['status'] = 'updated'
@@ -1244,8 +1292,6 @@ def upload_articles():
                                 break
                 except Exception as e:
                     errors.append(f"{title}: {str(e)}")
-                    article_detail['status'] = 'error'
-                    article_detail['error'] = str(e)
             else:
                 # Create new
                 try:
