@@ -508,9 +508,9 @@ Angka "receh" yang ditambahkan ke nominal kasbon (mis. Rp 100.023, bukan Rp 100.
 
 ---
 
-## 14. Untuk IT Surabaya — News Scraper & Content Management 📰
+## 14. Untuk IT (Semua Cabang) — News Scraper & Content Management 📰
 
-> **Kamu adalah IT Surabaya.** Halaman **📰 News Scraper** (`/app/it-ef`) memungkinkanmu scrape artikel dari newsmaker.id, upload ke WordPress dengan SEO optimization, dan mengelola financial authority backlinks.
+> **Kamu adalah IT Cabang.** Halaman **📰 News Scraper** (`/app/it`) memungkinkanmu scrape artikel dari newsmaker.id, upload ke WordPress dengan SEO optimization, dan mengelola financial authority backlinks. Setiap cabang hanya melihat site WordPress milik cabang sendiri.
 
 ### 14.1 Mengelola WordPress Sites
 

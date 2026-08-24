@@ -256,8 +256,17 @@ docker network ls | grep nextcloud_net
 | Admin | admin | 123456 |
 | GA | ga_officer | 123456 |
 | Finance | finance_officer | 123456 |
-| IT Surabaya | it_ef | 123456 |
+| IT Surabaya | it_sby | 123456 |
+| IT Jakarta HO | it_hu | 123456 |
+| IT Jakarta 2 | it_jkt2 | 123456 |
+| IT Bandung | it_bdg | 123456 |
+| IT Semarang | it_smg | 123456 |
+| IT Malang | it_mlg | 123456 |
+| IT Medan | it_mdn | 123456 |
+| IT Banjarmasin | it_bjm | 123456 |
+| IT Palembang | it_plm | 123456 |
+| IT Lampung | it_lpg | 123456 |
 
 ---
 
-*BPF WorkHub v2.23.0 — Deployment Guide*
+*BPF WorkHub v2.25.1 — Deployment Guide*

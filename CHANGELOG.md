@@ -1,4 +1,4 @@
-# 📋 Changelog — BPF WorkHub v2.25.0
+# 📋 Changelog — BPF WorkHub v2.25.1
 
 Riwayat perubahan penting pada BPF WorkHub. Format mengikuti [Keep a Changelog](https://keepachangelog.com/id/ID/1.0.0/) dan versi mengikuti [Semantic Versioning](https://semver.org/lang/id/).
 
@@ -16,6 +16,29 @@ Telp: 031-5349888
 ---
 
 ## Versi Terbaru
+
+### [2.25.1] - 2026-08-24
+
+**Rename it_ef → it_sby + URL Update + Role per Cabang**
+
+**Breaking Changes:**
+- **Login**: `it_ef` → `it_sby` (PIN tetap `123456`)
+- **URL**: `/app/it-ef` → `/app/it`
+- **Role Enum**: ditambah 9 role baru (it_hu, it_jkt2, it_bdg, it_smg, it_mlg, it_mdn, it_bjm, it_plm, it_lpg)
+
+**Perubahan:**
+- Rename user `it_ef` → `it_sby` di database
+- Change URL `/app/it-ef` → `/app/it` (routing + sidebar + auth store)
+- Add role per cabang: `it_sby`, `it_hu`, `it_jkt2`, `it_bdg`, `it_smg`, `it_mlg`, `it_mdn`, `it_bjm`, `it_plm`, `it_lpg`
+- Update WordPress site URLs:
+  - JKT HO: `bestprofit-futures-equitytower.com`
+  - JKT2: `bestprofit-futures-pacificplace.com`
+  - Others: `bestprofit-futures-{kota}.com`
+- Update ROLE_HOME mapping untuk semua IT roles
+- Update frontend: router, auth store, sidebar, UsersView
+- Update backend: helpers.py, routes_api_master.py, routes_news_scraper.py
+
+---
 
 ### [2.25.0] - 2026-08-24
 

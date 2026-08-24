@@ -203,7 +203,7 @@ Telp: 031-5349888
 
 | Langkah | Layar | Yang Dilakukan | Yang Dibicarakan |
 |---------|-------|---------------|------------------|
-| 1 | Login `it_ef` / `123456` | Masuk News Scraper dashboard | "Role khusus IT cabang — semua terpusat di satu halaman." |
+| 1 | Login `it_sby` / `123456` | Masuk News Scraper dashboard | "Role IT cabang — semua terpusat di satu halaman, per-cabang access filtering." |
 | 2 | WordPress Sites | Klik 🔌 Test Connection | "Multi-site management — bisa kelola beberapa WP sekaligus." |
 | 3 | Scrape | Pilih site → Check Articles → 2 halaman | "Artikel dari newsmaker.id langsung di-scrape dengan konten lengkap." |
 | 4 | Upload | Klik Upload to WordPress | "Upload otomatis + SEO score + 24 authority backlinks." |

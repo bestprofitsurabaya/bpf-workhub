@@ -49,7 +49,16 @@ Sistem mendukung 11 role pengguna:
 | 8 | `receptionist` | 🪪 Receptionist | `/app/receptionist` | Verifikasi pelamar kerja & kehadiran |
 | 9 | `traineer` | 🎯 Traineer | `/app/traineer` | Pantau rekrutan (read-only) |
 | 10 | `ga_hr` | ⏰ GA HR | `/app/ga-hr` | Data overtime Driver & OB/Security |
-| 11 | `it_ef` | 📰 IT Surabaya | `/app/it-ef` | News Scraper & Content Management (WordPress + SEO) |
+| 11 | `it_sby` | 📰 IT Surabaya | `/app/it` | News Scraper (SBY) |
+| 12 | `it_hu` | 📰 IT Jakarta HO | `/app/it` | News Scraper (JKT) — lihat semua site |
+| 13 | `it_jkt2` | 📰 IT Jakarta 2 | `/app/it` | News Scraper (JKT2) |
+| 14 | `it_bdg` | 📰 IT Bandung | `/app/it` | News Scraper (BDG) |
+| 15 | `it_smg` | 📰 IT Semarang | `/app/it` | News Scraper (SMG) |
+| 16 | `it_mlg` | 📰 IT Malang | `/app/it` | News Scraper (MLG) |
+| 17 | `it_mdn` | 📰 IT Medan | `/app/it` | News Scraper (MDN) |
+| 18 | `it_bjm` | 📰 IT Banjarmasin | `/app/it` | News Scraper (BJM) |
+| 19 | `it_plm` | 📰 IT Palembang | `/app/it` | News Scraper (PLM) |
+| 20 | `it_lpg` | 📰 IT Lampung | `/app/it` | News Scraper (LPG) |
 
 ---
 
@@ -273,19 +282,26 @@ Sistem mendukung 11 role pengguna:
 
 ---
 
-### 📰 IT Surabaya (`it_ef`)
+### 📰 IT (Semua Cabang) — News Scraper
 
-**Akses:** News Scraper & Content Management
+**Roles:** `it_sby`, `it_hu`, `it_jkt2`, `it_bdg`, `it_smg`, `it_mlg`, `it_mdn`, `it_bjm`, `it_plm`, `it_lpg`
 
-**Fitur Khusus:
-- Scrape artikel dari newsmaker.id (market-news/commodity)
+**Akses:** News Scraper & Content Management (`/app/it`)
+
+**Fitur Khusus:**
+- Scrape artikel dari newsmaker.id + kontan + bisnis.com
 - Multi-WordPress site management (CRUD, test connection)
 - Upload artikel ke WordPress dengan SEO optimization
-- Financial Authority Backlinks otomatis (24+ situs otoritas)
-- Keyword → Backlink mapping otomatis
-- SEO Analyzer (word count, heading, link density, image → score 0-100)
+- Upload gambar (featured image + inline)
+- Financial Authority Backlinks otomatis (28+ situs otoritas)
+- SEO Backlinks ke situs BPF (5 target sites + CTA widget)
+- 7 Algoritma SEO (content uniqueness, multi-source, internal linking, schema, sitemap ping, scheduling, analytics)
+- Duplicate prevention (500 posts + fuzzy title match)
+- Progress tracking + upload history
 - Duplicate article checker + delete
 - Activity log
+- **Access filtering**: user hanya lihat site cabang sendiri
+- **it_hu** (HO) bisa lihat semua site
 
 **Halaman:** News Scraper (`/app/it-ef`)
 
