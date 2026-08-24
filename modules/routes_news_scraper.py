@@ -1101,7 +1101,7 @@ def list_wp_sites():
                 name_lower = name.lower()
                 if user_branch.lower() in name_lower:
                     site_branch = user_branch
-            if site_branch == user_branch or not site_branch:
+            if site_branch == user_branch:
                 result.append({
                     'name': name, 'wp_url': data.get('wp_url', ''),
                     'wp_media_url': data.get('wp_media_url', ''),
