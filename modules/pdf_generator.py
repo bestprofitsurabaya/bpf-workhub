@@ -1016,30 +1016,33 @@ class OvertimeReportPDF(BPFBasePDF):
         self.set_text_color(*INK)
 
     def _draw_driver(self, rows):
-        headers = ['NO', 'TANGGAL', 'NAMA', 'NO. KENDARAAN', 'WAKTU', 'KETERANGAN']
-        widths = [8, 26, 50, 34, 36, 113]
-        aligns = ['C', 'C', 'L', 'C', 'C', 'L']
+        headers = ['NO', 'TANGGAL', 'NAMA', 'NO. KENDARAAN', 'WAKTU', 'KETERANGAN', 'SUMBER']
+        widths = [8, 24, 45, 30, 34, 100, 25]
+        aligns = ['C', 'C', 'L', 'C', 'C', 'L', 'C']
         self._table_header(headers, widths)
         fill = False
         for idx, r in enumerate(rows, 1):
+            source_label = 'Sheet' if r.get('source') == 'sheet' else 'Aplikasi'
             self._table_row([
                 idx, self._fmt_dt(r.get('tanggal')), r.get('nama', '-'),
                 r.get('no_kendaraan', '-'), self._waktu(r),
-                r.get('keterangan', '-'),
+                r.get('keterangan', '-'), source_label,
             ], widths, aligns=aligns, fill=fill)
             fill = not fill
         self.ln(3)
 
     def _draw_ob_security(self, rows):
-        headers = ['NO', 'TANGGAL', 'NAMA', 'POSISI', 'WAKTU', 'KETERANGAN']
-        widths = [8, 28, 55, 30, 40, 125]
-        aligns = ['C', 'C', 'L', 'C', 'C', 'L']
+        headers = ['NO', 'TANGGAL', 'NAMA', 'POSISI', 'WAKTU', 'KETERANGAN', 'SUMBER']
+        widths = [8, 26, 50, 28, 36, 100, 28]
+        aligns = ['C', 'C', 'L', 'C', 'C', 'L', 'C']
         self._table_header(headers, widths)
         fill = False
         for idx, r in enumerate(rows, 1):
+            source_label = 'Sheet' if r.get('source') == 'sheet' else 'Aplikasi'
             self._table_row([
                 idx, self._fmt_dt(r.get('tanggal')), r.get('nama', '-'),
                 r.get('posisi', '-'), self._waktu(r), r.get('keterangan', '-'),
+                source_label,
             ], widths, aligns=aligns, fill=fill)
             fill = not fill
         self.ln(3)

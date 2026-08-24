@@ -425,7 +425,75 @@ def register_overtime_routes(app):
             return jsonify({'status': 'error', 'msg': str(e)}), 500
 
     # ================================================================
-    # GA HR — daftar overtime DRIVER (hasil sinkronisasi sheet)
+    # DRIVER — submit overtime dari PWA (login required)
+    # ================================================================
+    @app.route('/api/overtime/driver/submit', methods=['POST'])
+    @role_required(['driver'])
+    def api_overtime_driver_submit():
+        """Submit overtime Driver dari PWA (perlu login driver)."""
+        try:
+            data = request.get_json(silent=True) or {}
+            nama = clean(data.get('nama')) or session.get('full_name', '') or session.get('user_name', '')
+            tanggal = clean(data.get('tanggal'))
+            waktu_mulai = clean(data.get('waktu_mulai'))
+            waktu_selesai = clean(data.get('waktu_selesai'))
+            keterangan = clean(data.get('keterangan'))[:500]
+            no_kendaraan = clean(data.get('no_kendaraan'))[:30]
+            broker = clean(data.get('broker'))[:150]
+            manager = clean(data.get('manager'))[:150]
+            foto_mulai_b64 = data.get('foto_mulai', '')
+            foto_selesai_b64 = data.get('foto_selesai', '')
+
+            if not nama:
+                return jsonify({'status': 'error', 'msg': 'Nama driver tidak ditemukan'}), 400
+            if not tanggal:
+                return jsonify({'status': 'error', 'msg': 'Tanggal wajib diisi'}), 400
+            tanggal_iso = parse_date_mdy(tanggal) or tanggal
+            if len(tanggal_iso) != 10:
+                return jsonify({'status': 'error', 'msg': 'Format tanggal tidak valid'}), 400
+            if not waktu_mulai:
+                return jsonify({'status': 'error', 'msg': 'Waktu mulai wajib diisi'}), 400
+
+            conn = get_db_connection()
+            if not conn:
+                return jsonify({'status': 'error', 'msg': 'DB error'}), 500
+            cursor = conn.cursor(dictionary=True)
+            display_id = generate_display_id('OTD', conn)
+
+            # Simpan foto bukti
+            foto_mulai_url = _save_overtime_foto(foto_mulai_b64, display_id, 'mulai')
+            foto_selesai_url = _save_overtime_foto(foto_selesai_b64, display_id, 'selesai')
+
+            cursor.execute(
+                """INSERT INTO overtime_driver
+                   (display_id, sheet_row, nama, tanggal, waktu_mulai, waktu_selesai,
+                    keterangan, no_kendaraan, broker, manager,
+                    foto_mulai, foto_selesai, source)
+                   VALUES (%s, 0, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'form')""",
+                (display_id, nama, tanggal_iso,
+                 (parse_time_12h(waktu_mulai) or waktu_mulai)[:20],
+                 (parse_time_12h(waktu_selesai) or waktu_selesai or '')[:20],
+                 keterangan, no_kendaraan, broker, manager,
+                 foto_mulai_url, foto_selesai_url))
+            conn.commit()
+            log_activity_async(None, 'overtime_driver_submit', 'driver', nama,
+                               new_data={'display_id': display_id}, ip=request.remote_addr)
+            try:
+                from modules.notifications import push_overtime_notification
+                push_overtime_notification(
+                    'overtime_new', 'driver_form',
+                    f'Driver {nama} mengisi overtime — No. {display_id}',
+                    ref_id=display_id, count=1)
+            except Exception as ne:
+                print(f"[overtime-notif] {ne}")
+            cursor.close(); conn.close()
+            return jsonify({'status': 'success', 'display_id': display_id,
+                            'msg': f'Overtime Driver tercatat! No. {display_id}'})
+        except Exception as e:
+            return jsonify({'status': 'error', 'msg': str(e)}), 500
+
+    # ================================================================
+    # GA HR — daftar overtime DRIVER (sheet + form)
     # ================================================================
     @app.route('/api/overtime/driver')
     @role_required(['ga_hr', 'admin'])
@@ -435,6 +503,7 @@ def register_overtime_routes(app):
             d_to = _parse_date_filter(request.args.get('date_to'), 'Tanggal sampai')
             search = clean(request.args.get('search'))
             nama = clean(request.args.get('nama'))
+            source = clean(request.args.get('source'))  # 'sheet' or 'form'
             where, params = [], []
             if d_from:
                 where.append('tanggal >= %s'); params.append(d_from.isoformat())
@@ -447,6 +516,8 @@ def register_overtime_routes(app):
                 params += [like] * 6
             if nama:
                 where.append('nama LIKE %s'); params.append(f'%{nama}%')
+            if source in ('sheet', 'form'):
+                where.append('source = %s'); params.append(source)
 
             conn = get_db_connection()
             if not conn:
@@ -555,17 +626,24 @@ def register_overtime_routes(app):
                 d_to = d_from
             posisi = clean(request.args.get('posisi'))
             nama = clean(request.args.get('nama'))
+            source = clean(request.args.get('source'))  # 'sheet' or 'form'
+            display_id = clean(request.args.get('display_id'))  # single record
 
             table = 'overtime_driver' if modul == 'driver' else 'overtime_ob_security'
             where, params = [], []
-            if d_from:
-                where.append('tanggal >= %s'); params.append(d_from.isoformat())
-            if d_to:
-                where.append('tanggal <= %s'); params.append(d_to.isoformat())
-            if posisi in POSITIONS:
-                where.append('posisi = %s'); params.append(posisi)
-            if nama:
-                where.append('nama LIKE %s'); params.append(f'%{nama}%')
+            if display_id:
+                where.append('display_id = %s'); params.append(display_id)
+            else:
+                if d_from:
+                    where.append('tanggal >= %s'); params.append(d_from.isoformat())
+                if d_to:
+                    where.append('tanggal <= %s'); params.append(d_to.isoformat())
+                if posisi in POSITIONS:
+                    where.append('posisi = %s'); params.append(posisi)
+                if nama:
+                    where.append('nama LIKE %s'); params.append(f'%{nama}%')
+                if source in ('sheet', 'form'):
+                    where.append('source = %s'); params.append(source)
 
             conn = get_db_connection()
             if not conn:
@@ -580,11 +658,15 @@ def register_overtime_routes(app):
             cursor.close(); conn.close()
 
             date_label = f'{d_from or d_to} s/d {d_to}' if d_from else str(d_to or 'semua')
+            if display_id:
+                date_label = f'Record: {display_id}'
             filters = {}
             if posisi:
                 filters['Posisi'] = posisi
             if nama:
                 filters['Nama'] = nama
+            if source in ('sheet', 'form'):
+                filters['Sumber'] = 'Google Sheet' if source == 'sheet' else 'Aplikasi'
             user_info = _current_user()
             pdf = OvertimeReportPDF()
             pdf.generate(rows, modul=modul, date_label=date_label,

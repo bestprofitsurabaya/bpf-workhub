@@ -9,6 +9,7 @@ import BBMTab from './BBMTab.vue'
 import TripTab from './TripTab.vue'
 import KasbonTab from './KasbonTab.vue'
 import RaporTab from './RaporTab.vue'
+import OvertimeDriverTab from './OvertimeDriverTab.vue'
 
 const auth = useAuthStore()
 const store = useDriverStore()
@@ -24,6 +25,7 @@ const TABS = [
   { key: 'bbm', label: 'BBM', icon: '⛽' },
   { key: 'kasbon', label: 'Kasbon', icon: '💰' },
   { key: 'trip', label: 'Trip', icon: '🗺️' },
+  { key: 'overtime', label: 'OT', icon: '⏰' },
   { key: 'rapor', label: 'Rapor', icon: '📊' },
 ]
 
@@ -146,6 +148,7 @@ onBeforeUnmount(() => {
         <BBMTab v-show="tab === 'bbm'" @toast="toast" />
         <KasbonTab v-show="tab === 'kasbon'" @toast="toast" @switch-tab="switchTab" />
         <TripTab v-show="tab === 'trip'" @toast="toast" />
+        <OvertimeDriverTab v-show="tab === 'overtime'" />
         <RaporTab v-show="tab === 'rapor'" @toast="toast" />
       </main>
 
