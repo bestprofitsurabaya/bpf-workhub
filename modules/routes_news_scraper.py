@@ -420,7 +420,14 @@ def _build_article_html(title, content, article, publish_date, publish_time):
         category_badge = f'<span style="display:inline-block;padding:4px 12px;background:#e0e7ff;color:#3730a3;border-radius:20px;font-size:12px;font-weight:600;margin-bottom:12px;">{category}</span>'
 
     # Date & source info
-    source_name = article.get('source', 'Newsmaker.id')
+    raw_source = article.get('source', 'newsmaker')
+    source_map = {
+        'newsmaker': 'Newsmaker.id',
+        'detik': 'Detik Finance',
+        'detik_finance': 'Detik Finance',
+        'detik_tag': 'Detik Finance',
+    }
+    source_name = source_map.get(raw_source, raw_source.title())
     source_url = article.get('link', '')
     source_link = f'<a href="{source_url}" target="_blank" rel="nofollow noopener" style="color:#6b7280;">{source_name}</a>' if source_url else source_name
 
@@ -467,7 +474,7 @@ def _build_bpf_cta_widget():
   </div>
 </div>
 <div style="margin-top:16px;padding:12px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;font-size:12px;color:#166534;text-align:center;">
-  📰 Artikel bersumber dari <a href="https://www.newsmaker.id/" target="_blank" rel="nofollow" style="color:#16a34a;font-weight:600;">Newsmaker.id</a> • Diterbitkan oleh <a href="https://bestprofit-futures.co.id/" target="_blank" rel="nofollow sponsored" style="color:#16a34a;font-weight:600;">PT Bestprofit Futures</a>
+  📰 Artikel bersumber dari sumber berita terpercaya • Diterbitkan oleh <a href="https://bestprofit-futures.co.id/" target="_blank" rel="nofollow sponsored" style="color:#16a34a;font-weight:600;">PT Bestprofit Futures</a>
 </div>'''
 
 
@@ -758,6 +765,307 @@ def _get_analytics(date_from=None, date_to=None):
 
 
 # ===================================================================
+# MULTI-SOURCE SCRAPERS
+# ===================================================================
+
+# Commodity keywords for filtering
+_COMMODITY_KEYWORDS = [
+    'emas', 'gold', 'komoditas', 'komoditi', 'minyak', 'oil', 'crude',
+    'silver', 'perak', 'nickel', 'nikel', 'tembaga', 'copper',
+    'cpo', 'karet', 'palm oil', 'yield', 'suku bunga', 'interest rate',
+    'inflasi', 'inflation', 'dollar', 'rupiah', 'forex',
+]
+
+# Detik Finance tag URLs for commodity news
+_DETIK_TAG_URLS = [
+    'https://detik.com/tag/emas/',
+    'https://detik.com/tag/komoditas/',
+    'https://detik.com/tag/harga-emas/',
+]
+
+
+def _is_commodity_related(title):
+    """Check if article title is commodity-related."""
+    lower = title.lower()
+    return any(kw in lower for kw in _COMMODITY_KEYWORDS)
+
+
+def _parse_detik_date(date_text):
+    """Parse Detik date format like 'Kamis, 20 Agu 2026 11:04 WIB'."""
+    _ID_MONTHS_DETIK = {
+        'jan': '01', 'feb': '02', 'mar': '03', 'apr': '04',
+        'mei': '05', 'jun': '06', 'jul': '07', 'agu': '08',
+        'sep': '09', 'okt': '10', 'nov': '11', 'des': '12',
+    }
+    try:
+        # Remove day name prefix
+        text = date_text.strip()
+        if ',' in text:
+            text = text.split(',', 1)[1].strip()
+        # Remove timezone suffix
+        for tz in [' WIB', ' WITA', ' WIT', ' GMT+7']:
+            text = text.replace(tz, '')
+        parts = text.strip().split()
+        if len(parts) >= 3:
+            day = parts[0]
+            mon = _ID_MONTHS_DETIK.get(parts[1].lower(), '01')
+            year = parts[2]
+            time_str = parts[3].replace('.', ':') if len(parts) > 3 else '00:00'
+            return f"{year}-{mon}-{day.zfill(2)}", time_str
+    except Exception:
+        pass
+    return datetime.now().strftime('%Y-%m-%d'), '00:00'
+
+
+def _scrape_detik_finance(pages=1):
+    """Scrape Detik Finance main page with commodity keyword filtering."""
+    articles = []
+    seen = set()
+
+    # 1) Main finance page with keyword filter
+    try:
+        r = requests.get('https://finance.detik.com/', timeout=15,
+                         headers={'User-Agent': 'Mozilla/5.0'})
+        if r.status_code == 200:
+            soup = BeautifulSoup(r.text, 'html.parser')
+            for a_tag in soup.select('h2 a, h3 a'):
+                title = a_tag.get_text(strip=True)[:200]
+                url = a_tag.get('href', '')
+                if title and url and len(title) > 10 and _is_commodity_related(title):
+                    if url not in seen:
+                        seen.add(url)
+                        articles.append({
+                            'title': title, 'link': url,
+                            'category': '',
+                            'publish_date': datetime.now().strftime('%Y-%m-%d'),
+                            'publish_time': '',
+                            'image_url': '',
+                            'content': None,
+                            'source': 'detik_finance',
+                        })
+    except Exception:
+        pass
+
+    # 2) Tag pages for specific commodity terms
+    for tag_url in _DETIK_TAG_URLS:
+        try:
+            r = requests.get(tag_url, timeout=15,
+                             headers={'User-Agent': 'Mozilla/5.0'})
+            if r.status_code != 200:
+                continue
+            soup = BeautifulSoup(r.text, 'html.parser')
+            # Collect article links
+            for article_el in soup.select('article'):
+                a_tag = article_el.select_one('a')
+                title_el = article_el.select_one('h2, h3')
+                if not a_tag or not title_el:
+                    continue
+                title = title_el.get_text(strip=True)[:200]
+                url = a_tag.get('href', '')
+                if not title or not url or url in seen:
+                    continue
+                seen.add(url)
+                articles.append({
+                    'title': title, 'link': url,
+                    'category': '',
+                    'publish_date': datetime.now().strftime('%Y-%m-%d'),
+                    'publish_time': '',
+                    'image_url': '',
+                    'content': None,
+                    'source': 'detik_tag',
+                })
+        except Exception:
+            continue
+
+    return articles
+
+
+def _scrape_detik_article(article):
+    """Fetch full content from a Detik article URL."""
+    try:
+        r = requests.get(article['link'], timeout=15,
+                         headers={'User-Agent': 'Mozilla/5.0'})
+        if r.status_code != 200:
+            article['content'] = 'Content not found'
+            return
+        soup = BeautifulSoup(r.text, 'html.parser')
+
+        # Title (more accurate from article page)
+        title_el = soup.select_one('h1')
+        if title_el:
+            article['title'] = title_el.get_text(strip=True)
+
+        # Date
+        date_el = soup.select_one('time, .detail__date')
+        if date_el:
+            article['publish_date'], article['publish_time'] = _parse_detik_date(
+                date_el.get_text(strip=True))
+
+        # Image
+        img_el = soup.select_one('.detail__media img, .media__image img')
+        if img_el:
+            img_src = img_el.get('src', '') or img_el.get('data-src', '')
+            if img_src and not img_src.startswith('data:'):
+                article['image_url'] = img_src
+
+        # Content
+        content_el = soup.select_one('.detail__body-text, .detail_text')
+        if content_el:
+            paragraphs = [p.get_text(strip=True) for p in content_el.select('p')
+                          if p.get_text(strip=True)]
+            article['content'] = '\n'.join(paragraphs)
+            # Extract content images
+            content_images = []
+            for img in content_el.select('img'):
+                src = img.get('src', '') or img.get('data-src', '')
+                if src and not src.startswith('data:'):
+                    content_images.append(src)
+            article['content_images'] = content_images
+            if not article.get('image_url') and content_images:
+                article['image_url'] = content_images[0]
+            # Category from breadcrumb
+            breadcrumb = soup.select('.breadcrumb a, .detail__subtitle')
+            if breadcrumb:
+                article['category'] = breadcrumb[-1].get_text(strip=True).upper()
+            return
+
+        article['content'] = 'Content not found'
+    except Exception:
+        article['content'] = 'Content not found'
+
+
+def _scrape_newsmaker(pages=1, session_req=None):
+    """Scrape newsmaker.id commodity articles."""
+    if session_req is None:
+        session_req = _get_wp_session()
+
+    _ID_MONTHS = {
+        'januari': '01', 'jan': '01', 'februari': '02', 'feb': '02',
+        'maret': '03', 'mar': '03', 'april': '04', 'apr': '04',
+        'mei': '05', 'juni': '06', 'jun': '06', 'juli': '07', 'jul': '07',
+        'agustus': '08', 'agu': '08', 'september': '09', 'sep': '09',
+        'oktober': '10', 'okt': '10', 'november': '11', 'nov': '11',
+        'desember': '12', 'des': '12',
+    }
+
+    scrape_url = "https://www.newsmaker.id/id/news/commodity"
+    articles = []
+    seen_links = set()
+
+    for page_num in range(1, pages + 1):
+        page_url = scrape_url if page_num == 1 else f"{scrape_url}?page={page_num}"
+        try:
+            r = session_req.get(page_url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=30)
+            if r.status_code != 200:
+                continue
+            soup = BeautifulSoup(r.text, 'html.parser')
+            cards = soup.find_all('div', class_=lambda c: c and 'rounded-xl' in str(c) and 'group' in str(c))
+            for card in cards:
+                try:
+                    title_tag = card.find('h3')
+                    if not title_tag:
+                        continue
+                    title = title_tag.text.strip()
+                    if not title:
+                        continue
+                    link_tag = card.find('a', href=lambda h: h and '/id/news/' in h)
+                    if not link_tag:
+                        continue
+                    link = link_tag['href']
+                    if not link.startswith('http'):
+                        link = "https://www.newsmaker.id" + link
+                    if link in seen_links:
+                        continue
+                    seen_links.add(link)
+                    cat_p = card.find('p', class_=lambda c: c and 'uppercase' in str(c))
+                    category = cat_p.text.strip().upper() if cat_p else ""
+                    date_p = card.find('p', class_=lambda c: c and 'text-slate-400' in str(c) and 'text-[10px]' in str(c))
+                    date_text = date_p.text.strip() if date_p else ""
+                    publish_date = ""
+                    publish_time = ""
+                    try:
+                        parts = date_text.split(' - ')
+                        if len(parts) == 2:
+                            date_part = parts[0].strip()
+                            publish_time = parts[1].strip()
+                            dp = date_part.split()
+                            if len(dp) == 3:
+                                day, mon_id, year = dp
+                                month = _ID_MONTHS.get(mon_id.lower(), '01')
+                                publish_date = f"{year}-{month}-{day.zfill(2)}"
+                                publish_time = publish_time.replace('.', ':')
+                    except Exception:
+                        publish_date = datetime.now().strftime("%Y-%m-%d")
+                        publish_time = datetime.now().strftime("%H:%M")
+                    img_tag = card.find('img')
+                    image_url = ""
+                    if img_tag and img_tag.get('src'):
+                        img_src = img_tag['src']
+                        if not img_src.startswith('http'):
+                            img_src = "https://www.newsmaker.id" + img_src
+                        image_url = img_src
+                    articles.append({
+                        'title': title,
+                        'link': link,
+                        'category': category,
+                        'publish_date': publish_date,
+                        'publish_time': publish_time,
+                        'image_url': image_url,
+                        'content': None,
+                        'source': 'newsmaker',
+                    })
+                except Exception:
+                    continue
+        except Exception:
+            continue
+        time.sleep(1)
+
+    # Fetch content for each article
+    def fetch_content(article):
+        if article.get('content'):
+            return
+        try:
+            r = session_req.get(article['link'], headers={'User-Agent': 'Mozilla/5.0'}, timeout=30)
+            if r.status_code == 200:
+                soup = BeautifulSoup(r.text, 'html.parser')
+                content_images = []
+                content_div = soup.find('div', class_=lambda c: c and 'prose' in str(c))
+                if content_div:
+                    paras = [p.text.strip() for p in content_div.find_all('p') if p.text.strip()]
+                    article['content'] = "\n".join(paras)
+                    for img in content_div.find_all('img'):
+                        src = img.get('src', '') or img.get('data-src', '')
+                        if src and not src.startswith('data:'):
+                            if not src.startswith('http'):
+                                src = "https://www.newsmaker.id" + src
+                            content_images.append(src)
+                    if not article.get('image_url') and content_images:
+                        article['image_url'] = content_images[0]
+                    article['content_images'] = content_images
+                    return
+                content_div = soup.find('div', class_='article-content')
+                if content_div:
+                    paras = [p.text.strip() for p in content_div.find_all('p') if p.text.strip()]
+                    article['content'] = "\n".join(paras)
+                    for img in content_div.find_all('img'):
+                        src = img.get('src', '') or img.get('data-src', '')
+                        if src and not src.startswith('data:'):
+                            if not src.startswith('http'):
+                                src = "https://www.newsmaker.id" + src
+                            content_images.append(src)
+                    article['content_images'] = content_images
+                    return
+            article['content'] = "Content not found"
+        except Exception:
+            article['content'] = "Content not found"
+
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        list(pool.map(fetch_content, articles))
+
+    return articles
+
+
+# ===================================================================
 # ROUTES
 # ===================================================================
 
@@ -895,7 +1203,7 @@ def test_connection():
 @news_scraper_bp.route('/api/scraper/check', methods=['POST'])
 @role_required(SCRAPER_ROLES)
 def check_articles():
-    """Scrape articles from newsmaker.id."""
+    """Scrape articles from multiple sources."""
     try:
         check_bs4()
     except RuntimeError as e:
@@ -904,173 +1212,95 @@ def check_articles():
         d = request.get_json(force=True)
         pages = int(d.get('pages', 1))
         pages = max(1, min(pages, 20))
+        source = d.get('source', 'all')  # 'all', 'newsmaker', 'detik'
     except (ValueError, TypeError):
         pages = 1
+        source = 'all'
 
     try:
-        scrape_url = "https://www.newsmaker.id/id/news/commodity"
-        allowed_categories = [
-            "GOLD", "OIL", "SILVER", "Crude Oil",
-            "USD/JPY", "US DOLLAR", "EUR/USD",
-            "AUD/USD", "GBP/USD", "USD/CHF",
-        ]
-
-        # Indonesian month mapping for date parsing (full + abbreviation)
-        _ID_MONTHS = {
-            'januari': '01', 'jan': '01',
-            'februari': '02', 'feb': '02',
-            'maret': '03', 'mar': '03',
-            'april': '04', 'apr': '04',
-            'mei': '05',
-            'juni': '06', 'jun': '06',
-            'juli': '07', 'jul': '07',
-            'agustus': '08', 'agu': '08',
-            'september': '09', 'sep': '09',
-            'oktober': '10', 'okt': '10',
-            'november': '11', 'nov': '11',
-            'desember': '12', 'des': '12',
-        }
-
         session_req = _get_wp_session()
         articles = []
         seen_links = set()
         task_id = request.args.get('task_id') or f"scrape_{int(time.time())}"
         _set_progress(task_id, {'stage': 'scrape', 'progress': 0, 'message': 'Mulai scrape...', 'total': pages, 'current': 0})
 
-        for page_num in range(1, pages + 1):
-            _set_progress(task_id, {'stage': 'scrape', 'progress': int((page_num / pages) * 80), 'message': f'Scrape halaman {page_num}/{pages}...', 'total': pages, 'current': page_num})
-            page_url = scrape_url if page_num == 1 else f"{scrape_url}?page={page_num}"
+        # --- Source 1: Newsmaker.id ---
+        if source in ('all', 'newsmaker'):
+            _set_progress(task_id, {'stage': 'scrape', 'progress': 5, 'message': 'Scrape Newsmaker.id...', 'total': pages, 'current': 0})
             try:
-                r = session_req.get(page_url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=30)
-                if r.status_code != 200:
-                    continue
-                soup = BeautifulSoup(r.text, 'html.parser')
-                # New structure: cards are divs with class containing 'rounded-xl'
-                cards = soup.find_all('div', class_=lambda c: c and 'rounded-xl' in str(c) and 'group' in str(c))
-                for card in cards:
-                    try:
-                        # Title from h3
-                        title_tag = card.find('h3')
-                        if not title_tag:
-                            continue
-                        title = title_tag.text.strip()
-                        if not title:
-                            continue
-
-                        # Link from 'BACA SELENGKAPNYA' button
-                        link_tag = card.find('a', href=lambda h: h and '/id/news/' in h)
-                        if not link_tag:
-                            continue
-                        link = link_tag['href']
-                        if not link.startswith('http'):
-                            link = "https://www.newsmaker.id" + link
-                        if link in seen_links:
-                            continue
-                        seen_links.add(link)
-
-                        # Category from badge
-                        cat_p = card.find('p', class_=lambda c: c and 'uppercase' in str(c))
-                        category = cat_p.text.strip().upper() if cat_p else ""
-
-                        # Date: '24 Agu 2026 - 08.18'
-                        date_p = card.find('p', class_=lambda c: c and 'text-slate-400' in str(c) and 'text-[10px]' in str(c))
-                        date_text = date_p.text.strip() if date_p else ""
-                        publish_date = ""
-                        publish_time = ""
-                        try:
-                            # Parse '24 Agu 2026 - 08.18'
-                            parts = date_text.split(' - ')
-                            if len(parts) == 2:
-                                date_part = parts[0].strip()  # '24 Agu 2026'
-                                publish_time = parts[1].strip()  # '08.18'
-                                dp = date_part.split()
-                                if len(dp) == 3:
-                                    day, mon_id, year = dp
-                                    month = _ID_MONTHS.get(mon_id.lower(), '01')
-                                    publish_date = f"{year}-{month}-{day.zfill(2)}"
-                                    publish_time = publish_time.replace('.', ':')
-                        except Exception:
-                            publish_date = datetime.now().strftime("%Y-%m-%d")
-                            publish_time = datetime.now().strftime("%H:%M")
-
-                        # Image
-                        img_tag = card.find('img')
-                        image_url = ""
-                        if img_tag and img_tag.get('src'):
-                            img_src = img_tag['src']
-                            if not img_src.startswith('http'):
-                                img_src = "https://www.newsmaker.id" + img_src
-                            image_url = img_src
-
-                        articles.append({
-                            'title': title,
-                            'link': link,
-                            'category': category,
-                            'publish_date': publish_date,
-                            'publish_time': publish_time,
-                            'image_url': image_url,
-                            'content': None,
-                        })
-                    except Exception:
-                        continue
+                newsmaker_articles = _scrape_newsmaker(pages, session_req)
+                for a in newsmaker_articles:
+                    if a['link'] not in seen_links:
+                        seen_links.add(a['link'])
+                        articles.append(a)
             except Exception:
-                continue
-            time.sleep(1)
+                pass
 
-        # Fetch content for each article (parallel)
+        # --- Source 2: Detik Finance ---
+        if source in ('all', 'detik'):
+            _set_progress(task_id, {'stage': 'scrape', 'progress': 50, 'message': 'Scrape Detik Finance...', 'total': 1, 'current': 0})
+            try:
+                detik_articles = _scrape_detik_finance(pages)
+                for a in detik_articles:
+                    if a['link'] not in seen_links:
+                        seen_links.add(a['link'])
+                        articles.append(a)
+            except Exception:
+                pass
+
+        _set_progress(task_id, {'stage': 'scrape', 'progress': 70, 'message': f'Ditemukan {len(articles)} artikel dari {len(seen_links)} sumber...', 'total': len(articles), 'current': 0})
+
+        # Fetch content for articles that don't have it yet
         def fetch_content(article):
-            try:
-                r = session_req.get(article['link'], headers={'User-Agent': 'Mozilla/5.0'}, timeout=30)
-                if r.status_code == 200:
-                    soup = BeautifulSoup(r.text, 'html.parser')
-                    # Collect images from article page
-                    content_images = []
-                    # New structure: content in div.prose.prose-slate
-                    content_div = soup.find('div', class_=lambda c: c and 'prose' in str(c))
-                    if content_div:
-                        paras = [p.text.strip() for p in content_div.find_all('p') if p.text.strip()]
-                        article['content'] = "\n".join(paras)
-                        # Extract images from content
-                        for img in content_div.find_all('img'):
-                            src = img.get('src', '') or img.get('data-src', '')
-                            if src and not src.startswith('data:'):
-                                if not src.startswith('http'):
-                                    src = "https://www.newsmaker.id" + src
-                                content_images.append(src)
-                        if not article.get('image_url') and content_images:
-                            article['image_url'] = content_images[0]
-                        article['content_images'] = content_images
-                        return
-                    # Fallback: old structure
-                    content_div = soup.find('div', class_='article-content')
-                    if content_div:
-                        paras = [p.text.strip() for p in content_div.find_all('p') if p.text.strip()]
-                        article['content'] = "\n".join(paras)
-                        for img in content_div.find_all('img'):
-                            src = img.get('src', '') or img.get('data-src', '')
-                            if src and not src.startswith('data:'):
-                                if not src.startswith('http'):
-                                    src = "https://www.newsmaker.id" + src
-                                content_images.append(src)
-                        article['content_images'] = content_images
-                        return
-                article['content'] = "Content not found"
-            except Exception:
-                article['content'] = "Content not found"
+            if article.get('content') and article['content'] != 'Content not found':
+                return
+            source_type = article.get('source', 'newsmaker')
+            if source_type == 'newsmaker':
+                # Use newsmaker fetcher
+                try:
+                    r = session_req.get(article['link'], headers={'User-Agent': 'Mozilla/5.0'}, timeout=30)
+                    if r.status_code == 200:
+                        soup = BeautifulSoup(r.text, 'html.parser')
+                        content_images = []
+                        content_div = soup.find('div', class_=lambda c: c and 'prose' in str(c))
+                        if content_div:
+                            paras = [p.text.strip() for p in content_div.find_all('p') if p.text.strip()]
+                            article['content'] = "\n".join(paras)
+                            for img in content_div.find_all('img'):
+                                src = img.get('src', '') or img.get('data-src', '')
+                                if src and not src.startswith('data:'):
+                                    if not src.startswith('http'):
+                                        src = "https://www.newsmaker.id" + src
+                                    content_images.append(src)
+                            if not article.get('image_url') and content_images:
+                                article['image_url'] = content_images[0]
+                            article['content_images'] = content_images
+                            return
+                        content_div = soup.find('div', class_='article-content')
+                        if content_div:
+                            paras = [p.text.strip() for p in content_div.find_all('p') if p.text.strip()]
+                            article['content'] = "\n".join(paras)
+                            return
+                    article['content'] = "Content not found"
+                except Exception:
+                    article['content'] = "Content not found"
+            else:
+                # Use detik fetcher
+                _scrape_detik_article(article)
 
-        _set_progress(task_id, {'stage': 'content', 'progress': 85, 'message': f'Mengambil konten {len(articles)} artikel...', 'total': len(articles), 'current': 0})
+        _set_progress(task_id, {'stage': 'content', 'progress': 75, 'message': f'Mengambil konten {len(articles)} artikel...', 'total': len(articles), 'current': 0})
         done_count = [0]
         def fetch_with_progress(article):
             fetch_content(article)
             done_count[0] += 1
             if len(articles) > 0:
-                _set_progress(task_id, {'stage': 'content', 'progress': 85 + int((done_count[0] / len(articles)) * 15), 'message': f'Konten {done_count[0]}/{len(articles)}...', 'total': len(articles), 'current': done_count[0]})
+                _set_progress(task_id, {'stage': 'content', 'progress': 75 + int((done_count[0] / len(articles)) * 25), 'message': f'Konten {done_count[0]}/{len(articles)}...', 'total': len(articles), 'current': done_count[0]})
 
-        with ThreadPoolExecutor(max_workers=3) as pool:
+        with ThreadPoolExecutor(max_workers=5) as pool:
             list(pool.map(fetch_with_progress, articles))
 
         _set_progress(task_id, {'stage': 'done', 'progress': 100, 'message': f'{len(articles)} artikel siap diupload', 'total': len(articles), 'current': len(articles)})
-        _log_scraper(f"Scraped {len(articles)} articles ({pages} pages)", session.get('user_name', 'unknown'))
+        _log_scraper(f"Scraped {len(articles)} articles (source: {source})", session.get('user_name', 'unknown'))
 
         # Save to history
         _save_upload_history({
@@ -1079,8 +1309,10 @@ def check_articles():
             'action': 'scrape',
             'user': session.get('user_name', 'unknown'),
             'pages': pages,
+            'source': source,
             'articles_found': len(articles),
             'categories': list(set(a.get('category', '') for a in articles)),
+            'sources': list(set(a.get('source', '') for a in articles)),
         })
 
         return jsonify({'ok': True, 'articles': articles, 'count': len(articles), 'task_id': task_id})
@@ -1130,7 +1362,7 @@ def upload_articles():
         enable_backlinks = settings.get('backlinks', True)
         max_backlinks = settings.get('max_backlinks', 3)
         enable_seo = settings.get('seo_optimize', True)
-        static_tags = settings.get('static_tags', 'newsmaker.id, Market, Financial News')
+        static_tags = settings.get('static_tags', 'newsmaker.id, Detik Finance, Market, Financial News')
 
         # Load backlinks config
         bl_config = _load_json(BACKLINKS_FILE, {})
@@ -1192,6 +1424,19 @@ def upload_articles():
                 html_content, backlinks_used = _apply_backlinks(
                     html_content, title, authority_sites, keyword_mapping, max_backlinks
                 )
+
+            # Add source backlink (to original article)
+            source_url = article.get('link', '')
+            raw_source = article.get('source', 'newsmaker')
+            source_map = {'newsmaker': 'Newsmaker.id', 'detik_finance': 'Detik Finance', 'detik_tag': 'Detik Finance', 'detik': 'Detik Finance'}
+            source_name = source_map.get(raw_source, raw_source.title())
+            if source_url and 'Content not found' not in (article.get('content', '') or ''):
+                source_backlink = f'<p style="margin-top:20px;padding:12px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;font-size:13px;color:#0369a1;">📰 Sumber asli: <a href="{source_url}" target="_blank" rel="nofollow noopener" style="color:#0284c7;font-weight:600;">{source_name}</a></p>'
+                # Insert before CTA widget
+                if '<!-- BPF CTA Widget -->' in html_content:
+                    html_content = html_content.replace('<!-- BPF CTA Widget -->', source_backlink + '\n<!-- BPF CTA Widget -->')
+                else:
+                    html_content += source_backlink
 
             # Process tags
             tag_input = [t.strip().capitalize() for t in static_tags.split(',') if t.strip()]

@@ -25,7 +25,7 @@ const siteForm = ref({ name: '', wp_url: '', wp_media_url: '', username: '', app
 
 // Scraper
 const scrapePages = ref(2)
-const selectedSource = ref('newsmaker')
+const selectedSource = ref('all')
 const articles = ref([])
 const scrapeBusy = ref(false)
 const selectedArticles = ref(new Set())
@@ -184,7 +184,7 @@ async function scrapeArticles() {
   const taskId = `scrape_${Date.now()}`
   pollProgress(taskId)
   try {
-    const r = await api(`/api/scraper/check?task_id=${taskId}`, { method: 'POST', body: { pages: scrapePages.value } })
+    const r = await api(`/api/scraper/check?task_id=${taskId}`, { method: 'POST', body: { pages: scrapePages.value, source: selectedSource.value } })
     articles.value = r.articles || []
     // Auto-select all
     articles.value.forEach((_, i) => selectedArticles.value.add(i))
@@ -409,11 +409,12 @@ onMounted(() => { loadSites(); loadDashboard(); document.documentElement.classLi
           <h4>🔍 Scrape Articles</h4>
           <div class="scrape-controls">
             <div class="field">
-              <label>Sumber</label>
-              <select class="select" v-model="selectedSource" disabled>
+              <label>Sumber Berita</label>
+              <select class="select" v-model="selectedSource">
+                <option value="all">🌐 Semua Sumber</option>
                 <option value="newsmaker">📰 Newsmaker.id</option>
+                <option value="detik">📰 Detik Finance</option>
               </select>
-              <span style="font-size:11px;color:var(--muted,#64748b);">Source: Newsmaker.id</span>
             </div>
             <div class="field">
               <label>Halaman</label>
