@@ -583,96 +583,11 @@ def _rewrite_content(content, title=''):
 # ===================================================================
 # ALGORITHM 2: MULTI-SOURCE SCRAPING
 # ===================================================================
-
-NEWS_SOURCES = {
-    'newsmaker': {'name': 'Newsmaker.id', 'base_url': 'https://www.newsmaker.id/id/news/commodity', 'parser': 'newsmaker'},
-    'kontan': {'name': 'Kontan.co.id', 'base_url': 'https://investasi.kontan.co.id/news', 'parser': 'kontan'},
-    'bisnis': {'name': 'Bisnis.com', 'base_url': 'https://www.bisnis.com/index.php/ekonomi', 'parser': 'bisnis'},
-}
-
-
-def _scrape_kontan(session, pages=1):
-    """Scrape artikel dari kontan.co.id"""
-    articles = []
-    seen = set()
-    for page in range(1, pages + 1):
-        try:
-            url = NEWS_SOURCES['kontan']['base_url']
-            if page > 1:
-                url += f'?page={page}'
-            r = session.get(url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=20)
-            if r.status_code != 200:
-                continue
-            soup = BeautifulSoup(r.text, 'html.parser')
-            for card in soup.find_all(['article', 'div'], class_=lambda c: c and ('media' in str(c).lower() or 'news' in str(c).lower() or 'article' in str(c).lower())):
-                try:
-                    title_tag = card.find(['h3', 'h2', 'a'])
-                    if not title_tag:
-                        continue
-                    title = title_tag.text.strip()
-                    if not title or title in seen or len(title) < 15:
-                        continue
-                    seen.add(title)
-                    link_tag = card.find('a', href=True)
-                    link = link_tag['href'] if link_tag else ''
-                    if link and not link.startswith('http'):
-                        link = 'https://investasi.kontan.co.id' + link
-                    img_tag = card.find('img')
-                    image_url = img_tag.get('src', '') if img_tag else ''
-                    articles.append({
-                        'title': title, 'link': link, 'category': 'FINANCE',
-                        'publish_date': datetime.now().strftime('%Y-%m-%d'),
-                        'publish_time': datetime.now().strftime('%H:%M'),
-                        'image_url': image_url, 'content': None, 'source': 'kontan',
-                    })
-                except Exception:
-                    continue
-            time.sleep(1)
-        except Exception:
-            continue
-    return articles
-
-
-def _scrape_bisnis(session, pages=1):
-    """Scrape artikel dari bisnis.com"""
-    articles = []
-    seen = set()
-    for page in range(1, pages + 1):
-        try:
-            url = NEWS_SOURCES['bisnis']['base_url']
-            if page > 1:
-                url += f'?page={page}'
-            r = session.get(url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=20)
-            if r.status_code != 200:
-                continue
-            soup = BeautifulSoup(r.text, 'html.parser')
-            for card in soup.find_all(['div', 'article'], class_=lambda c: c and ('article' in str(c).lower() or 'news' in str(c).lower())):
-                try:
-                    title_tag = card.find(['h2', 'h3', 'a'])
-                    if not title_tag:
-                        continue
-                    title = title_tag.text.strip()
-                    if not title or title in seen or len(title) < 15:
-                        continue
-                    seen.add(title)
-                    link_tag = card.find('a', href=True)
-                    link = link_tag['href'] if link_tag else ''
-                    if link and not link.startswith('http'):
-                        link = 'https://www.bisnis.com' + link
-                    img_tag = card.find('img')
-                    image_url = img_tag.get('src', '') if img_tag else ''
-                    articles.append({
-                        'title': title, 'link': link, 'category': 'FINANCE',
-                        'publish_date': datetime.now().strftime('%Y-%m-%d'),
-                        'publish_time': datetime.now().strftime('%H:%M'),
-                        'image_url': image_url, 'content': None, 'source': 'bisnis',
-                    })
-                except Exception:
-                    continue
-            time.sleep(1)
-        except Exception:
-            continue
-    return articles
+# MULTI-SOURCE (Newsmaker.id only — kontan/bisnis removed: 404/403 blocked)
+# ===================================================================
+# kontan.co.id: JS-rendered, no static HTML to scrape
+# bisnis.com: 403 Forbidden, anti-bot protection
+# Only newsmaker.id works reliably for scraping
 
 
 # ===================================================================
@@ -1664,74 +1579,8 @@ def get_upload_history_route():
 def clear_upload_history():
     """Clear upload history."""
     _save_json(UPLOAD_HISTORY_FILE, [])
-    return jsonify({'ok': True, 'message': 'History cleared'})
-
-
-# ----- MULTI-SOURCE SCRAPE -----
-
-@news_scraper_bp.route('/api/scraper/scrape-multi', methods=['POST'])
-@role_required(SCRAPER_ROLES)
-def scrape_multi_source():
-    """Scrape dari multiple sumber (newsmaker + kontan + bisnis)."""
-    try:
-        d = request.get_json(force=True)
-        sources = d.get('sources', ['newsmaker'])
-        pages = min(int(d.get('pages', 1)), 10)
-        task_id = request.args.get('task_id') or f"multi_{int(time.time())}"
-
-        wp_session = _get_wp_session()
-        all_articles = []
-        seen_titles = set()
-
-        for source in sources:
-            _set_progress(task_id, {'stage': 'scrape', 'progress': 0, 'message': f'Scrape {source}...', 'total': len(sources), 'current': 0})
-            if source == 'newsmaker':
-                # Reuse existing newsmaker scraper
-                try:
-                    resp = scrape_articles.__wrapped__() if hasattr(scrape_articles, '__wrapped__') else []
-                except Exception:
-                    pass
-            elif source == 'kontan':
-                articles = _scrape_kontan(wp_session, pages)
-                for a in articles:
-                    if a['title'] not in seen_titles:
-                        seen_titles.add(a['title'])
-                        all_articles.append(a)
-            elif source == 'bisnis':
-                articles = _scrape_bisnis(wp_session, pages)
-                for a in articles:
-                    if a['title'] not in seen_titles:
-                        seen_titles.add(a['title'])
-                        all_articles.append(a)
-            time.sleep(1)
-
-        # Fetch content for articles that have links
-        def fetch_multi_content(article):
-            if article.get('content') or not article.get('link'):
-                return
-            try:
-                r = wp_session.get(article['link'], headers={'User-Agent': 'Mozilla/5.0'}, timeout=20)
-                if r.status_code == 200:
-                    soup = BeautifulSoup(r.text, 'html.parser')
-                    content_div = soup.find('div', class_=lambda c: c and ('prose' in str(c) or 'article' in str(c).lower()))
-                    if content_div:
-                        paras = [p.text.strip() for p in content_div.find_all('p') if p.text.strip()]
-                        article['content'] = '\n'.join(paras)
-                    else:
-                        article['content'] = 'Content not found'
-                else:
-                    article['content'] = 'Content not found'
-            except Exception:
-                article['content'] = 'Content not found'
-
-        with ThreadPoolExecutor(max_workers=3) as pool:
-            list(pool.map(fetch_multi_content, all_articles))
-
-        _set_progress(task_id, {'stage': 'done', 'progress': 100, 'message': f'{len(all_articles)} artikel dari {len(sources)} sumber', 'total': len(all_articles), 'current': len(all_articles)})
-
-        return jsonify({'ok': True, 'articles': all_articles, 'count': len(all_articles), 'sources': sources, 'task_id': task_id})
-    except Exception as e:
-        return jsonify({'ok': False, 'error': str(e), 'articles': [], 'count': 0}), 500
+    return jsonify({'ok': True, 'message': 'History cleared'})# Note: scrape-multi endpoint removed — kontan.co.id (404) and bisnis.com (403)
+# are not scrapable. Use /api/scraper/check for newsmaker.id only.
 
 
 # ----- ANALYTICS -----

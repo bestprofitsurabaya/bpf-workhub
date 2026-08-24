@@ -410,11 +410,10 @@ onMounted(() => { loadSites(); loadDashboard(); document.documentElement.classLi
           <div class="scrape-controls">
             <div class="field">
               <label>Sumber</label>
-              <select class="select" v-model="selectedSource">
+              <select class="select" v-model="selectedSource" disabled>
                 <option value="newsmaker">📰 Newsmaker.id</option>
-                <option value="kontan">📰 Kontan.co.id</option>
-                <option value="bisnis">📰 Bisnis.com</option>
               </select>
+              <span style="font-size:11px;color:var(--muted,#64748b);">Source: Newsmaker.id</span>
             </div>
             <div class="field">
               <label>Halaman</label>
