@@ -685,6 +685,74 @@ def register_overtime_routes(app):
             return jsonify({'error': str(e)}), 500
 
     # ================================================================
+    # GA HR — Report Detail per Driver (File 2 format)
+    # ================================================================
+    @app.route('/api/overtime/detail-report')
+    @role_required(['ga_hr', 'admin'])
+    def api_overtime_detail_report():
+        """Report detail per driver — PDF or Excel.
+        Params: nama, date_from, date_to, format (pdf/xlsx)
+        """
+        try:
+            from modules.pdf_generator import OvertimeDetailReportPDF, generate_overtime_detail_excel
+
+            nama = clean(request.args.get('nama'))
+            if not nama:
+                return jsonify({'error': 'Parameter nama wajib diisi'}), 400
+
+            d_from = _parse_date_filter(request.args.get('date_from'), 'Tanggal dari')
+            d_to = _parse_date_filter(request.args.get('date_to'), 'Tanggal sampai')
+            if not d_to and d_from:
+                d_to = d_from
+
+            conn = get_db_connection()
+            if not conn:
+                return jsonify({'error': 'DB error'}), 500
+            cursor = conn.cursor(dictionary=True)
+            where = ['nama LIKE %s']
+            params = [f'%{nama}%']
+            if d_from:
+                where.append('tanggal >= %s'); params.append(d_from.isoformat())
+            if d_to:
+                where.append('tanggal <= %s'); params.append(d_to.isoformat())
+            sql = f"SELECT * FROM overtime_driver WHERE {' AND '.join(where)} ORDER BY tanggal ASC, waktu_mulai ASC LIMIT 500"
+            cursor.execute(sql, params)
+            rows = cursor.fetchall()
+            cursor.close(); conn.close()
+
+            if not rows:
+                return jsonify({'error': f'Tidak ada data overtime untuk "{nama}"'}), 404
+
+            date_label = f'{d_from or "-"} s/d {d_to or "-"}' if d_from or d_to else 'Semua Periode'
+            export_format = request.args.get('format', 'pdf').lower()
+
+            if export_format == 'xlsx':
+                buf = generate_overtime_detail_excel(rows, driver_name=nama, driver_role='DRIVER', date_label=date_label)
+                buf.seek(0)
+                fname = f'Overtime_{nama.replace(" ", "_")}_{(d_to or date.today()).isoformat()}.xlsx'
+                response = make_response(buf.read())
+                response.headers['Content-Type'] = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+                response.headers['Content-Disposition'] = f'attachment; filename={fname}'
+                return response
+            else:
+                user_info = _current_user()
+                pdf = OvertimeDetailReportPDF()
+                pdf.generate(rows, driver_name=nama, driver_role='DRIVER',
+                             date_label=date_label, generated_by=user_info['full_name'])
+                buf = io.BytesIO()
+                pdf.output(buf)
+                buf.seek(0)
+                fname = f'Overtime_{nama.replace(" ", "_")}_{(d_to or date.today()).isoformat()}.pdf'
+                response = make_response(buf.read())
+                response.headers['Content-Type'] = 'application/pdf'
+                response.headers['Content-Disposition'] = f'attachment; filename={fname}'
+                return response
+        except ValueError as e:
+            return jsonify({'error': str(e)}), 400
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+    # ================================================================
     # GA HR — ringkasan statistik kedua modul
     # ================================================================
     @app.route('/api/overtime/stats')

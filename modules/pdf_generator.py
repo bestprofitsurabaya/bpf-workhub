@@ -1051,3 +1051,235 @@ class OvertimeReportPDF(BPFBasePDF):
         a = r.get('waktu_mulai') or '-'
         b = r.get('waktu_selesai') or ''
         return f'{a} – {b}' if b else a
+
+
+class OvertimeDetailReportPDF(BPFBasePDF):
+    """Report Detail Overtime per Driver — format File 2.
+
+    Satu halaman per driver, berisi:
+    - Info: Nama, Jabatan, Periode
+    - Tabel: Timestamp, No. Form, Nama, Plat, Tanggal, Jam In, Jam Out, Keterangan, Biaya
+    - Biaya kolom kosong (untuk diisi GA HR di Excel)
+    """
+
+    def __init__(self, title='LAPORAN OVERTIME'):
+        super().__init__(orientation='P', unit='mm', format='A4')
+        self._title = title
+        self.set_auto_page_break(auto=True, margin=15)
+
+    def header(self):
+        super().header()
+        self.set_font(self._font(), 'B', 12)
+        self.set_text_color(*INK)
+        self.cell(0, 7, self.clean_text(self._title), align='C', new_x='LMARGIN', new_y='NEXT')
+        self.ln(2)
+
+    def generate(self, rows, driver_name='', driver_role='DRIVER', date_label='', generated_by=''):
+        """rows: list of overtime records for ONE driver."""
+        self.add_page()
+
+        # Driver info block
+        self.set_font(self._font(), 'B', 9)
+        self.set_text_color(*INK)
+        self.cell(25, 6, 'NAMA :', new_x='RIGHT', new_y='TOP')
+        self.set_font(self._font(), '', 9)
+        self.cell(0, 6, self.clean_text(driver_name), new_x='LMARGIN', new_y='NEXT')
+
+        self.set_font(self._font(), 'B', 9)
+        self.cell(25, 6, 'JABATAN :', new_x='RIGHT', new_y='TOP')
+        self.set_font(self._font(), '', 9)
+        self.cell(0, 6, self.clean_text(driver_role), new_x='LMARGIN', new_y='NEXT')
+
+        self.set_font(self._font(), 'B', 9)
+        self.cell(25, 6, 'PERIODE :', new_x='RIGHT', new_y='TOP')
+        self.set_font(self._font(), '', 9)
+        self.cell(0, 6, self.clean_text(date_label), new_x='LMARGIN', new_y='NEXT')
+        self.ln(4)
+
+        # Table
+        headers = ['TANGGAL\nTIMESTAMP', 'NO.\nFORM', 'NAMA\nDRIVER', 'PLAT\nMOBIL', 'TANGGAL\nOVERTIME', 'JAM\nIN', 'JAM\nOUT', 'KETERANGAN', 'BIAYA']
+        widths = [30, 18, 30, 22, 22, 16, 16, 50, 28]
+        aligns = ['C', 'C', 'L', 'C', 'C', 'C', 'C', 'L', 'R']
+
+        self._table_header(headers, widths)
+        fill = False
+        for r in rows:
+            timestamp = ''
+            if r.get('submitted_at'):
+                try:
+                    dt = r['submitted_at'] if isinstance(r['submitted_at'], datetime) else datetime.strptime(str(r['submitted_at']), '%Y-%m-%d %H:%M:%S')
+                    timestamp = dt.strftime('%d/%m/%Y %H:%M:%S')
+                except Exception:
+                    timestamp = str(r['submitted_at'])[:19]
+
+            tanggal_ot = ''
+            if r.get('tanggal'):
+                try:
+                    if isinstance(r['tanggal'], date):
+                        tanggal_ot = r['tanggal'].strftime('%d/%m/%Y')
+                    else:
+                        tanggal_ot = str(r['tanggal'])
+                except Exception:
+                    tanggal_ot = str(r['tanggal'])
+
+            self._table_row([
+                timestamp,
+                r.get('display_id', '-'),
+                r.get('nama', '-'),
+                r.get('no_kendaraan', '-'),
+                tanggal_ot,
+                r.get('waktu_mulai', '-'),
+                r.get('waktu_selesai', '-'),
+                r.get('keterangan', '-'),
+                '',  # Biaya — kosong untuk diisi GA HR
+            ], widths, aligns=aligns, fill=fill)
+            fill = not fill
+
+        self.ln(3)
+        self.set_font(self._font(), '', 7)
+        self.set_text_color(*GRAY_LABEL)
+        self.cell(0, 4, '* Kolom Biaya diisi oleh GA HR setelah verifikasi', new_x='LMARGIN', new_y='NEXT')
+        self.ln(2)
+        self.set_text_color(*INK)
+        self.set_font(self._font(), '', 8)
+        self.cell(0, 5, f'Total catatan: {len(rows)}', new_x='LMARGIN', new_y='NEXT')
+        self.ln(8)
+        self._signature_block(generated_by, 'General Affairs HR', role='GA HR')
+        self.set_text_color(*INK)
+
+
+def generate_overtime_detail_excel(rows, driver_name='', driver_role='DRIVER', date_label=''):
+    """Generate Excel (.xlsx) for overtime detail report.
+    Biaya column is empty for GA HR to fill in."""
+    try:
+        import openpyxl
+        from openpyxl.styles import Font, Alignment, Border, Side, PatternFill, numbers
+    except ImportError:
+        # Fallback: simple CSV
+        return _generate_overtime_detail_csv(rows, driver_name, driver_role, date_label)
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = f'OT {driver_name[:20]}'
+
+    # Styles
+    header_font = Font(name='Calibri', bold=True, size=10)
+    title_font = Font(name='Calibri', bold=True, size=12)
+    normal_font = Font(name='Calibri', size=10)
+    header_fill = PatternFill(start_color='1F4E79', end_color='1F4E79', fill_type='solid')
+    header_font_white = Font(name='Calibri', bold=True, size=10, color='FFFFFF')
+    thin_border = Border(
+        left=Side(style='thin'), right=Side(style='thin'),
+        top=Side(style='thin'), bottom=Side(style='thin')
+    )
+    center_align = Alignment(horizontal='center', vertical='center')
+    left_align = Alignment(horizontal='left', vertical='center')
+    rupiah_format = '#,##0'
+
+    # Title
+    ws.merge_cells('A1:I1')
+    ws['A1'] = f'OVERTIME PERIODE {date_label}'
+    ws['A1'].font = title_font
+
+    # Driver info
+    ws['A3'] = 'NAMA :'
+    ws['A3'].font = header_font
+    ws['B3'] = driver_name
+    ws['B3'].font = normal_font
+
+    ws['A4'] = 'JABATAN :'
+    ws['A4'].font = header_font
+    ws['B4'] = driver_role
+    ws['B4'].font = normal_font
+
+    ws['A5'] = 'PERIODE :'
+    ws['A5'].font = header_font
+    ws['B5'] = date_label
+    ws['B5'].font = normal_font
+
+    # Headers
+    headers = ['TANGGAL TIMESTAMP', 'NO. FORM', 'NAMA DRIVER', 'PLAT MOBIL', 'TANGGAL OVERTIME', 'JAM IN', 'JAM OUT', 'KETERANGAN', 'BIAYA']
+    for col, h in enumerate(headers, 1):
+        cell = ws.cell(row=7, column=col, value=h)
+        cell.font = header_font_white
+        cell.fill = header_fill
+        cell.border = thin_border
+        cell.alignment = center_align
+
+    # Data rows
+    for idx, r in enumerate(rows, 8):
+        timestamp = ''
+        if r.get('submitted_at'):
+            try:
+                dt = r['submitted_at'] if isinstance(r['submitted_at'], datetime) else datetime.strptime(str(r['submitted_at']), '%Y-%m-%d %H:%M:%S')
+                timestamp = dt.strftime('%d/%m/%Y %H:%M:%S')
+            except Exception:
+                timestamp = str(r['submitted_at'])[:19]
+
+        tanggal_ot = ''
+        if r.get('tanggal'):
+            try:
+                if isinstance(r['tanggal'], date):
+                    tanggal_ot = r['tanggal'].strftime('%d/%m/%Y')
+                else:
+                    tanggal_ot = str(r['tanggal'])
+            except Exception:
+                tanggal_ot = str(r['tanggal'])
+
+        data = [
+            timestamp,
+            r.get('display_id', '-'),
+            r.get('nama', '-'),
+            r.get('no_kendaraan', '-'),
+            tanggal_ot,
+            r.get('waktu_mulai', '-'),
+            r.get('waktu_selesai', '-'),
+            r.get('keterangan', '-'),
+            None,  # Biaya — kosong
+        ]
+        for col, val in enumerate(data, 1):
+            cell = ws.cell(row=idx, column=col, value=val)
+            cell.font = normal_font
+            cell.border = thin_border
+            cell.alignment = center_align if col != 8 else left_align
+            if col == 9 and val is not None:  # Biaya column
+                cell.number_format = rupiah_format
+
+    # Column widths
+    col_widths = [22, 15, 20, 14, 16, 10, 10, 30, 15]
+    for i, w in enumerate(col_widths, 1):
+        ws.column_dimensions[chr(64 + i)].width = w
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return buf
+
+
+def _generate_overtime_detail_csv(rows, driver_name='', driver_role='DRIVER', date_label=''):
+    """Fallback CSV export if openpyxl not available."""
+    import csv
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([f'OVERTIME PERIODE {date_label}'])
+    writer.writerow([f'NAMA: {driver_name}', f'JABATAN: {driver_role}'])
+    writer.writerow([])
+    writer.writerow(['TANGGAL TIMESTAMP', 'NO. FORM', 'NAMA DRIVER', 'PLAT MOBIL', 'TANGGAL OVERTIME', 'JAM IN', 'JAM OUT', 'KETERANGAN', 'BIAYA'])
+    for r in rows:
+        timestamp = ''
+        if r.get('submitted_at'):
+            try:
+                dt = r['submitted_at'] if isinstance(r['submitted_at'], datetime) else datetime.strptime(str(r['submitted_at']), '%Y-%m-%d %H:%M:%S')
+                timestamp = dt.strftime('%d/%m/%Y %H:%M:%S')
+            except Exception:
+                timestamp = str(r['submitted_at'])[:19]
+        writer.writerow([
+            timestamp, r.get('display_id', '-'), r.get('nama', '-'),
+            r.get('no_kendaraan', '-'), str(r.get('tanggal', '-')),
+            r.get('waktu_mulai', '-'), r.get('waktu_selesai', '-'),
+            r.get('keterangan', '-'), '',  # Biaya kosong
+        ])
+    buf = io.BytesIO()
+    buf.write(output.getvalue().encode('utf-8-sig'))
+    buf.seek(0)
+    return buf

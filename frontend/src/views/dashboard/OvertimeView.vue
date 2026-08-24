@@ -126,6 +126,36 @@ async function downloadObPdf() {
   } catch (e) { err.value = '❌ Gagal unduh PDF: ' + e.message }
 }
 
+// === Detail Report per Driver (File 2 format) ===
+const detailDriver = ref('')
+const detailFrom = ref('')
+const detailTo = ref('')
+const showDetailModal = ref(false)
+
+async function downloadDetailPdf(nama) {
+  const driverName = nama || detailDriver.value
+  if (!driverName) { err.value = '⚠️ Pilih nama driver'; return }
+  try {
+    const blob = await api('/api/overtime/detail-report', {
+      raw: true,
+      params: { nama: driverName, date_from: detailFrom.value, date_to: detailTo.value, format: 'pdf' },
+    })
+    downloadBlob(blob, `Overtime_${driverName.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.pdf`)
+  } catch (e) { err.value = '❌ Gagal unduh PDF: ' + e.message }
+}
+
+async function downloadDetailExcel(nama) {
+  const driverName = nama || detailDriver.value
+  if (!driverName) { err.value = '⚠️ Pilih nama driver'; return }
+  try {
+    const blob = await api('/api/overtime/detail-report', {
+      raw: true,
+      params: { nama: driverName, date_from: detailFrom.value, date_to: detailTo.value, format: 'xlsx' },
+    })
+    downloadBlob(blob, `Overtime_${driverName.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.xlsx`)
+  } catch (e) { err.value = '❌ Gagal unduh Excel: ' + e.message }
+}
+
 function fmtWaktu(r) {
   const a = r.waktu_mulai || '—'
   const b = r.waktu_selesai || ''
@@ -227,6 +257,7 @@ watch(tab, loadTab)
           <button class="btn" :disabled="refreshing" @click="doRefresh">{{ refreshing ? '⏳ Menyinkronkan…' : '🔄 Refresh dari Google Sheet' }}</button>
           <button class="btn" @click="openConfig">⚙️ Sumber Data</button>
           <button class="btn" @click="downloadDriverPdf">📄 PDF</button>
+          <button class="btn" @click="showDetailModal = true">📋 Detail/Excel</button>
         </div>
 
         <div v-if="loading" class="empty skeleton">⏳ Memuat…</div>
@@ -375,6 +406,27 @@ watch(tab, loadTab)
       <div class="row" style="justify-content:flex-end;margin-top:12px;">
         <button class="btn" @click="showConfig = false">Batal</button>
         <button class="btn btn-primary" :disabled="cfgSaving" @click="saveConfig">💾 Simpan</button>
+      </div>
+    </Modal>
+
+    <!-- Modal: Detail Report per Driver -->
+    <Modal v-if="showDetailModal" title="📋 Detail Report per Driver" @close="showDetailModal = false">
+      <p style="font-size:13px;color:var(--text-2);margin-bottom:12px;">Generate report detail overtime per driver (PDF atau Excel). Kolom Biaya kosong untuk diisi GA HR.</p>
+      <div class="field">
+        <label>Nama Driver *</label>
+        <input class="input" v-model="detailDriver" placeholder="Cari nama driver..." list="driver-names" />
+        <datalist id="driver-names">
+          <option v-for="n in [...new Set(dList.map(r => r.nama))].sort()" :key="n" :value="n" />
+        </datalist>
+      </div>
+      <div class="row" style="gap:8px;">
+        <div class="field grow"><label>Dari</label><input class="input" type="date" v-model="detailFrom" /></div>
+        <div class="field grow"><label>Sampai</label><input class="input" type="date" v-model="detailTo" /></div>
+      </div>
+      <div class="row" style="justify-content:flex-end;margin-top:12px;gap:8px;">
+        <button class="btn" @click="showDetailModal = false">Batal</button>
+        <button class="btn" :disabled="!detailDriver" @click="downloadDetailPdf()">📄 PDF</button>
+        <button class="btn btn-primary" :disabled="!detailDriver" @click="downloadDetailExcel()">📊 Excel</button>
       </div>
     </Modal>
   </div>
