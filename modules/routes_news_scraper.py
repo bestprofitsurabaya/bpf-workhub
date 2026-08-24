@@ -870,14 +870,32 @@ def delete_wp_site(name):
 @news_scraper_bp.route('/api/scraper/test-connection', methods=['POST'])
 @role_required(SCRAPER_ROLES)
 def test_connection():
-    """Test WordPress API connection."""
+    """Test WordPress API connection.
+    Accepts either:
+    - {site_name: '...'} — test with saved credentials
+    - {wp_url, username, app_password} — test with provided credentials
+    """
     d = request.get_json(force=True)
+    site_name = (d.get('site_name') or '').strip()
     wp_url = (d.get('wp_url') or '').strip()
     username = (d.get('username') or '').strip()
     app_password = (d.get('app_password') or '').strip()
 
+    # If site_name provided, load saved credentials
+    if site_name:
+        sites = _load_json(WP_SITES_FILE, {})
+        if site_name not in sites:
+            return jsonify({'ok': False, 'message': f'Site "{site_name}" tidak ditemukan'}), 200
+        site = sites[site_name]
+        wp_url = site.get('wp_url', '')
+        username = site.get('username', '')
+        app_password = site.get('app_password', '')
+
     if not all([wp_url, username, app_password]):
-        return jsonify({'error': 'wp_url, username, app_password wajib'}), 400
+        return jsonify({'ok': False, 'message': 'Kredensial belum lengkap — isi username & password dulu'}), 200
+
+    if username in ('PENDING', '') or app_password in ('PENDING', ''):
+        return jsonify({'ok': False, 'message': 'Kredensial belum diisi — klik Edit dan isi username & password'}), 200
 
     try:
         wp_session = _get_wp_session()

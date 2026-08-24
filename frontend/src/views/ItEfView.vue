@@ -161,9 +161,21 @@ async function deleteSite(name) {
   finally { busy.value = false }
 }
 async function testConnection(site) {
-  msg.value = '⏳ Menguji...'
-  try { const r = await api('/api/scraper/test-connection', { method: 'POST', body: { wp_url: site.wp_url, username: site.username, app_password: '___test___' } }); msg.value = r.ok ? '✅ ' + r.message : '❌ ' + r.message }
-  catch (e) { msg.value = '❌ ' + e.message }
+  msg.value = '⏳ Menguji koneksi...'
+  try {
+    const r = await api('/api/scraper/test-connection', { method: 'POST', body: { site_name: site.name } })
+    msg.value = r.ok ? '✅ ' + r.message : '❌ ' + r.message
+  } catch (e) { msg.value = '❌ ' + e.message }
+}
+async function testFromForm() {
+  msg.value = '⏳ Menguji koneksi...'
+  try {
+    const r = await api('/api/scraper/test-connection', {
+      method: 'POST',
+      body: { wp_url: siteForm.value.wp_url, username: siteForm.value.username, app_password: siteForm.value.app_password }
+    })
+    msg.value = r.ok ? '✅ ' + r.message : '❌ ' + r.message
+  } catch (e) { msg.value = '❌ ' + e.message }
 }
 
 // --- Scrape ---
@@ -615,6 +627,7 @@ onMounted(() => { loadSites(); loadDashboard(); document.documentElement.classLi
       </div>
       <div class="modal-footer">
         <button class="btn" @click="showSiteForm = false">Batal</button>
+        <button class="btn" :disabled="!siteForm.wp_url || !siteForm.username || !siteForm.app_password" @click="testFromForm">🔌 Test</button>
         <button class="btn btn-primary" :disabled="busy || !siteForm.name || !siteForm.wp_url || !siteForm.username" @click="saveSite">💾 Simpan</button>
       </div>
     </Modal>
