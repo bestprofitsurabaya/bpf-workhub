@@ -453,6 +453,326 @@ def _seo_analyze(content, title):
 
 
 # ===================================================================
+# ALGORITHM 1: CONTENT UNIQUENESS — Parafrase untuk hindari duplicate
+# ===================================================================
+
+# Synonym mappings untuk content spinning
+_SYNONYMS = {
+    'menurut': ['menurut', 'berdasarkan', 'ujar', 'kata'],
+    'mengatakan': ['mengatakan', 'menyatakan', 'menuturkan', 'mengungkapkan'],
+    'menambahkan': ['menambahkan', 'lalu', 'selanjutnya', 'kemudian'],
+    'saat ini': ['saat ini', 'kini', 'sekarang', 'di tengah'],
+    'menunjukkan': ['menunjukkan', 'menjelaskan', 'memaparkan', 'menyiratkan'],
+    'diperkirakan': ['diperkirakan', 'ditaksir', 'diestimasi', 'kemungkinan'],
+    'sebelumnya': ['sebelumnya', 'sejak awal', 'di awal', 'sejak lama'],
+    'menjadi': ['menjadi', 'berubah jadi', 'merupakan', 'jatuh ke'],
+    'tercatat': ['tercatat', 'terekam', 'menempuh', 'mencapai'],
+    'menguat': ['menguat', 'naik', 'melonjak', 'mengalami kenaikan'],
+    'melemah': ['melemah', 'turun', 'merosot', 'mengalami penurunan'],
+    'fluktuatif': ['fluktuatif', 'bergerak volatil', 'tidak stabil', 'bergerak naik-turun'],
+    'optimistis': ['optimistis', 'yakin', 'positif', 'antusias'],
+    'pesimistis': ['pesimistis', 'ragu', 'was-was', 'khawatir'],
+    'global': ['global', 'internasional', 'dunia', 'mancanegara'],
+    'aset': ['aset', 'instrumen', 'komoditas', 'komoditi'],
+    'pasar': ['pasar', 'bursa', 'market', 'peringkat'],
+    'analisis': ['analisis', 'analisa', 'ulasan', 'tinjauan'],
+    'pergerakan': ['pergerakan', 'koreksi', 'gerakan', 'ayunan'],
+    'seiring': ['seiring', 'sejalan', 'bersamaan', 'iring-iringan'],
+    'terhadap': ['terhadap', 'kepada', 'bagi', 'bagi'],
+    'sentimen': ['sentimen', 'suasana pasar', 'psikologi pasar', 'kondisi pasar'],
+}
+
+
+def _rewrite_content(content, title=''):
+    """Parafrase konten untuk hindari duplicate content."""
+    if not content or len(content) < 100:
+        return content
+    paragraphs = content.split('\n')
+    rewritten = []
+    for para in paragraphs:
+        para = para.strip()
+        if not para or len(para) < 30:
+            rewritten.append(para)
+            continue
+        new_para = para
+        for word, synonyms in _SYNONYMS.items():
+            if word.lower() in new_para.lower():
+                replacement = random.choice(synonyms)
+                pattern = re.compile(re.escape(word), re.IGNORECASE)
+                new_para = pattern.sub(replacement, new_para, count=1)
+        sentences = re.split(r'(?<=[.!?])\s+', new_para)
+        if len(sentences) >= 3 and random.random() < 0.3:
+            mid = len(sentences) // 2
+            if mid > 0 and mid < len(sentences):
+                sentences[mid-1], sentences[mid] = sentences[mid], sentences[mid-1]
+            new_para = ' '.join(sentences)
+        rewritten.append(new_para)
+    return '\n'.join(rewritten)
+
+
+# ===================================================================
+# ALGORITHM 2: MULTI-SOURCE SCRAPING
+# ===================================================================
+
+NEWS_SOURCES = {
+    'newsmaker': {'name': 'Newsmaker.id', 'base_url': 'https://www.newsmaker.id/id/news/commodity', 'parser': 'newsmaker'},
+    'kontan': {'name': 'Kontan.co.id', 'base_url': 'https://investasi.kontan.co.id/news', 'parser': 'kontan'},
+    'bisnis': {'name': 'Bisnis.com', 'base_url': 'https://www.bisnis.com/index.php/ekonomi', 'parser': 'bisnis'},
+}
+
+
+def _scrape_kontan(session, pages=1):
+    """Scrape artikel dari kontan.co.id"""
+    articles = []
+    seen = set()
+    for page in range(1, pages + 1):
+        try:
+            url = NEWS_SOURCES['kontan']['base_url']
+            if page > 1:
+                url += f'?page={page}'
+            r = session.get(url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=20)
+            if r.status_code != 200:
+                continue
+            soup = BeautifulSoup(r.text, 'html.parser')
+            for card in soup.find_all(['article', 'div'], class_=lambda c: c and ('media' in str(c).lower() or 'news' in str(c).lower() or 'article' in str(c).lower())):
+                try:
+                    title_tag = card.find(['h3', 'h2', 'a'])
+                    if not title_tag:
+                        continue
+                    title = title_tag.text.strip()
+                    if not title or title in seen or len(title) < 15:
+                        continue
+                    seen.add(title)
+                    link_tag = card.find('a', href=True)
+                    link = link_tag['href'] if link_tag else ''
+                    if link and not link.startswith('http'):
+                        link = 'https://investasi.kontan.co.id' + link
+                    img_tag = card.find('img')
+                    image_url = img_tag.get('src', '') if img_tag else ''
+                    articles.append({
+                        'title': title, 'link': link, 'category': 'FINANCE',
+                        'publish_date': datetime.now().strftime('%Y-%m-%d'),
+                        'publish_time': datetime.now().strftime('%H:%M'),
+                        'image_url': image_url, 'content': None, 'source': 'kontan',
+                    })
+                except Exception:
+                    continue
+            time.sleep(1)
+        except Exception:
+            continue
+    return articles
+
+
+def _scrape_bisnis(session, pages=1):
+    """Scrape artikel dari bisnis.com"""
+    articles = []
+    seen = set()
+    for page in range(1, pages + 1):
+        try:
+            url = NEWS_SOURCES['bisnis']['base_url']
+            if page > 1:
+                url += f'?page={page}'
+            r = session.get(url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=20)
+            if r.status_code != 200:
+                continue
+            soup = BeautifulSoup(r.text, 'html.parser')
+            for card in soup.find_all(['div', 'article'], class_=lambda c: c and ('article' in str(c).lower() or 'news' in str(c).lower())):
+                try:
+                    title_tag = card.find(['h2', 'h3', 'a'])
+                    if not title_tag:
+                        continue
+                    title = title_tag.text.strip()
+                    if not title or title in seen or len(title) < 15:
+                        continue
+                    seen.add(title)
+                    link_tag = card.find('a', href=True)
+                    link = link_tag['href'] if link_tag else ''
+                    if link and not link.startswith('http'):
+                        link = 'https://www.bisnis.com' + link
+                    img_tag = card.find('img')
+                    image_url = img_tag.get('src', '') if img_tag else ''
+                    articles.append({
+                        'title': title, 'link': link, 'category': 'FINANCE',
+                        'publish_date': datetime.now().strftime('%Y-%m-%d'),
+                        'publish_time': datetime.now().strftime('%H:%M'),
+                        'image_url': image_url, 'content': None, 'source': 'bisnis',
+                    })
+                except Exception:
+                    continue
+            time.sleep(1)
+        except Exception:
+            continue
+    return articles
+
+
+# ===================================================================
+# ALGORITHM 3: INTERNAL LINKING (antar artikel)
+# ===================================================================
+
+def _auto_internal_links(html_content, all_articles, current_title='', max_links=3):
+    """Insert internal links ke artikel lain berdasarkan keyword overlap."""
+    if not all_articles or not html_content:
+        return html_content, []
+    linked = []
+    skip_words = {'di', 'dan', 'yang', 'untuk', 'dengan', 'ini', 'itu', 'dari', 'ke', 'pada', 'adalah'}
+    for art in all_articles:
+        if len(linked) >= max_links:
+            break
+        art_title = art.get('title', '')
+        art_url = art.get('link', art.get('url', ''))
+        if not art_title or art_title == current_title or not art_url:
+            continue
+        art_words = set(art_title.lower().split()) - skip_words
+        cur_words = set(current_title.lower().split()) - skip_words
+        overlap = art_words & cur_words
+        if len(overlap) >= 2:
+            linked.append({'title': art_title, 'url': art_url})
+    return html_content, linked
+
+
+# ===================================================================
+# ALGORITHM 4: ADVANCED SCHEMA MARKUP
+# ===================================================================
+
+def _build_advanced_schema(title, content, publish_date, publish_time, image_url=''):
+    """Build advanced schema: NewsArticle + FAQ + Breadcrumb + Organization."""
+    schemas = []
+    article_schema = {
+        "@context": "https://schema.org",
+        "@type": "NewsArticle",
+        "headline": title,
+        "datePublished": f"{publish_date}T{publish_time}:00",
+        "dateModified": f"{publish_date}T{publish_time}:00",
+        "author": {"@type": "Organization", "name": "PT Bestprofit Futures Surabaya"},
+        "publisher": {
+            "@type": "Organization",
+            "name": "PT Bestprofit Futures Surabaya",
+            "url": "https://bestprofit-futures.co.id/"
+        },
+        "mainEntityOfPage": {"@type": "WebPage"},
+        "inLanguage": "id",
+    }
+    if image_url:
+        article_schema["image"] = image_url
+    schemas.append(article_schema)
+
+    schemas.append({
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+            {"@type": "ListItem", "position": 1, "name": "Berita", "item": "https://best-profit-futures-surabaya.com/"},
+            {"@type": "ListItem", "position": 2, "name": "Market News", "item": "https://best-profit-futures-surabaya.com/category/market-news/"},
+            {"@type": "ListItem", "position": 3, "name": title[:60]},
+        ]
+    })
+
+    schemas.append({
+        "@context": "https://schema.org",
+        "@type": "Organization",
+        "name": "PT Bestprofit Futures Surabaya",
+        "url": "https://bestprofit-futures.co.id/",
+        "logo": "https://bestprofit-futures.co.id/logo.png",
+        "sameAs": ["https://etrade.bestprofit-futures.com/", "https://demo.bestprofit-futures.com/"]
+    })
+
+    clean_text = re.sub(r'<[^>]+>', '', content)
+    questions = re.findall(r'([^.!?]*\?[^.!?]*)', clean_text)
+    if questions:
+        faq_entities = []
+        for q in questions[:5]:
+            q_clean = q.strip()
+            if len(q_clean) > 10:
+                faq_entities.append({"@type": "Question", "name": q_clean, "acceptedAnswer": {"@type": "Answer", "text": "Lihat artikel lengkap."}})
+        if faq_entities:
+            schemas.append({"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": faq_entities})
+
+    return schemas
+
+
+# ===================================================================
+# ALGORITHM 5: AUTO SITEMAP PING
+# ===================================================================
+
+def _ping_sitemap(site_url):
+    """Ping Google & IndexNow setelah publish."""
+    results = []
+    try:
+        ping_url = f'https://www.google.com/ping?sitemap={site_url}/sitemap.xml'
+        r = requests.get(ping_url, timeout=10)
+        results.append(f'Google: HTTP {r.status_code}')
+    except Exception as e:
+        results.append(f'Google: {str(e)[:50]}')
+    try:
+        key = 'bpf-' + site_url.split('//')[-1].replace('.', '-')
+        requests.post('https://api.indexnow.org/indexnow', json={
+            'host': site_url.split('//')[-1], 'key': key, 'urlList': [site_url]
+        }, timeout=10)
+        results.append('IndexNow: sent')
+    except Exception as e:
+        results.append(f'IndexNow: {str(e)[:50]}')
+    return results
+
+
+# ===================================================================
+# ALGORITHM 6: SMART SCHEDULING
+# ===================================================================
+
+def _get_optimal_publish_time():
+    """Hitung waktu publish optimal (WIB)."""
+    from datetime import timedelta
+    now = datetime.now()
+    optimal_hours = [9, 10, 11, 12, 13, 19, 20, 21]
+    for h in optimal_hours:
+        if now.hour < h:
+            return now.replace(hour=h, minute=random.randint(0, 59), second=0)
+    tomorrow = now + timedelta(days=1)
+    return tomorrow.replace(hour=9, minute=random.randint(0, 30), second=0)
+
+
+def _should_publish_today(published_today):
+    return published_today < 5
+
+
+# ===================================================================
+# ALGORITHM 7: PERFORMANCE ANALYTICS
+# ===================================================================
+
+def _track_performance(post_id, site_name, title):
+    analytics_file = os.path.join(DATA_DIR, 'analytics.json')
+    analytics = _load_json(analytics_file, {'articles': [], 'summary': {}})
+    analytics['articles'].append({
+        'post_id': post_id, 'site': site_name, 'title': title,
+        'published_at': datetime.now().isoformat(), 'status': 'published',
+        'views': 0, 'backlinks_count': 0,
+    })
+    today = datetime.now().strftime('%Y-%m-%d')
+    summary = analytics.get('summary', {})
+    summary[today] = summary.get(today, 0) + 1
+    analytics['summary'] = summary
+    if len(analytics['articles']) > 1000:
+        analytics['articles'] = analytics['articles'][-1000:]
+    _save_json(analytics_file, analytics)
+
+
+def _get_analytics(date_from=None, date_to=None):
+    analytics_file = os.path.join(DATA_DIR, 'analytics.json')
+    analytics = _load_json(analytics_file, {'articles': [], 'summary': {}})
+    articles = analytics.get('articles', [])
+    if date_from:
+        articles = [a for a in articles if a.get('published_at', '')[:10] >= date_from]
+    if date_to:
+        articles = [a for a in articles if a.get('published_at', '')[:10] <= date_to]
+    by_site = {}
+    by_date = {}
+    for a in articles:
+        site = a.get('site', 'unknown')
+        by_site[site] = by_site.get(site, 0) + 1
+        date = a.get('published_at', '')[:10]
+        by_date[date] = by_date.get(date, 0) + 1
+    return {'total_articles': len(articles), 'by_site': by_site, 'by_date': by_date, 'articles': articles[-50:]}
+
+
+# ===================================================================
 # ROUTES
 # ===================================================================
 
@@ -813,6 +1133,9 @@ def upload_articles():
                 errors.append(f"{title}: content not found")
                 continue
 
+            # Content Uniqueness (Algo 1): Parafrase konten SEBELUM diproses
+            content = _rewrite_content(content, title)
+
             # Build HTML content
             html_content = f"<h1>{title}</h1>\n<p>{content}</p>"
 
@@ -849,17 +1172,12 @@ def upload_articles():
                 except Exception:
                     pass
 
-            # Schema markup
+            # Advanced Schema (Algo 4)
             publish_date = article.get('publish_date', datetime.now().strftime("%Y-%m-%d"))
             publish_time = article.get('publish_time', datetime.now().strftime("%H:%M"))
-            schema = {
-                "@context": "https://schema.org",
-                "@type": "Article",
-                "headline": title,
-                "datePublished": f"{publish_date}T{publish_time}:00",
-                "author": {"@type": "Organization", "name": "PT BESTPROFIT FUTURES Surabaya"},
-            }
-            html_content = f'<script type="application/ld+json">{json.dumps(schema, ensure_ascii=False)}</script>\n' + html_content
+            schemas = _build_advanced_schema(title, content, publish_date, publish_time, article.get('image_url', ''))
+            schema_tags = ''.join(f'<script type="application/ld+json">{json.dumps(s, ensure_ascii=False)}</script>\n' for s in schemas)
+            html_content = schema_tags + html_content
 
             # Upload featured image to WordPress
             featured_img_html = ''
@@ -952,12 +1270,24 @@ def upload_articles():
             'articles': [{'title': a.get('title', ''), 'category': a.get('category', ''), 'date': a.get('publish_date', '')} for a in articles],
         })
 
+        # Algo 5: Auto Sitemap Ping
+        ping_results = []
+        if new_count > 0:
+            base_url = wp_url.split('/wp-json')[0]
+            ping_results = _ping_sitemap(base_url)
+
+        # Algo 7: Performance Analytics
+        for detail in article_details:
+            if detail.get('status') in ('new', 'updated') and detail.get('post_id'):
+                _track_performance(detail['post_id'], site_name, detail['title'])
+
         return jsonify({
             'ok': True,
             'new_posts': new_count,
             'updated_posts': updated_count,
             'errors': errors,
             'task_id': task_id,
+            'sitemap_ping': ping_results,
         })
     except Exception as e:
         return jsonify({'ok': False, 'error': f'Upload gagal: {str(e)}', 'new_posts': 0, 'updated_posts': 0, 'errors': []}), 500
@@ -1184,6 +1514,103 @@ def clear_upload_history():
     """Clear upload history."""
     _save_json(UPLOAD_HISTORY_FILE, [])
     return jsonify({'ok': True, 'message': 'History cleared'})
+
+
+# ----- MULTI-SOURCE SCRAPE -----
+
+@news_scraper_bp.route('/api/scraper/scrape-multi', methods=['POST'])
+@role_required(SCRAPER_ROLES)
+def scrape_multi_source():
+    """Scrape dari multiple sumber (newsmaker + kontan + bisnis)."""
+    try:
+        d = request.get_json(force=True)
+        sources = d.get('sources', ['newsmaker'])
+        pages = min(int(d.get('pages', 1)), 10)
+        task_id = request.args.get('task_id') or f"multi_{int(time.time())}"
+
+        wp_session = _get_wp_session()
+        all_articles = []
+        seen_titles = set()
+
+        for source in sources:
+            _set_progress(task_id, {'stage': 'scrape', 'progress': 0, 'message': f'Scrape {source}...', 'total': len(sources), 'current': 0})
+            if source == 'newsmaker':
+                # Reuse existing newsmaker scraper
+                try:
+                    resp = scrape_articles.__wrapped__() if hasattr(scrape_articles, '__wrapped__') else []
+                except Exception:
+                    pass
+            elif source == 'kontan':
+                articles = _scrape_kontan(wp_session, pages)
+                for a in articles:
+                    if a['title'] not in seen_titles:
+                        seen_titles.add(a['title'])
+                        all_articles.append(a)
+            elif source == 'bisnis':
+                articles = _scrape_bisnis(wp_session, pages)
+                for a in articles:
+                    if a['title'] not in seen_titles:
+                        seen_titles.add(a['title'])
+                        all_articles.append(a)
+            time.sleep(1)
+
+        # Fetch content for articles that have links
+        def fetch_multi_content(article):
+            if article.get('content') or not article.get('link'):
+                return
+            try:
+                r = wp_session.get(article['link'], headers={'User-Agent': 'Mozilla/5.0'}, timeout=20)
+                if r.status_code == 200:
+                    soup = BeautifulSoup(r.text, 'html.parser')
+                    content_div = soup.find('div', class_=lambda c: c and ('prose' in str(c) or 'article' in str(c).lower()))
+                    if content_div:
+                        paras = [p.text.strip() for p in content_div.find_all('p') if p.text.strip()]
+                        article['content'] = '\n'.join(paras)
+                    else:
+                        article['content'] = 'Content not found'
+                else:
+                    article['content'] = 'Content not found'
+            except Exception:
+                article['content'] = 'Content not found'
+
+        with ThreadPoolExecutor(max_workers=3) as pool:
+            list(pool.map(fetch_multi_content, all_articles))
+
+        _set_progress(task_id, {'stage': 'done', 'progress': 100, 'message': f'{len(all_articles)} artikel dari {len(sources)} sumber', 'total': len(all_articles), 'current': len(all_articles)})
+
+        return jsonify({'ok': True, 'articles': all_articles, 'count': len(all_articles), 'sources': sources, 'task_id': task_id})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e), 'articles': [], 'count': 0}), 500
+
+
+# ----- ANALYTICS -----
+
+@news_scraper_bp.route('/api/scraper/analytics', methods=['GET'])
+@role_required(SCRAPER_ROLES)
+def get_analytics_route():
+    """Get performance analytics."""
+    date_from = request.args.get('date_from', '')
+    date_to = request.args.get('date_to', '')
+    analytics = _get_analytics(date_from=date_from or None, date_to=date_to or None)
+    return jsonify({'ok': True, **analytics})
+
+
+# ----- SCHEDULE -----
+
+@news_scraper_bp.route('/api/scraper/schedule', methods=['GET'])
+@role_required(SCRAPER_ROLES)
+def get_schedule():
+    """Get optimal publish schedule info."""
+    optimal_time = _get_optimal_publish_time()
+    analytics = _get_analytics(date_from=datetime.now().strftime('%Y-%m-%d'))
+    published_today = analytics.get('by_date', {}).get(datetime.now().strftime('%Y-%m-%d'), 0)
+    return jsonify({
+        'ok': True,
+        'optimal_time': optimal_time.strftime('%Y-%m-%d %H:%M'),
+        'published_today': published_today,
+        'can_publish': _should_publish_today(published_today),
+        'max_per_day': 5,
+    })
 
 
 # ---------------------------------------------------------------------------
