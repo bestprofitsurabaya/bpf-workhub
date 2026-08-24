@@ -23,7 +23,8 @@ const sites = ref([])
 const showSiteForm = ref(false)
 const siteForm = ref({ name: '', wp_url: '', wp_media_url: '', username: '', app_password: '' })
 const showFormPassword = ref(false)
-const showCardPassword = ref({}) // {siteName: true/false}
+import { reactive } from 'vue'
+const showCardPassword = reactive({}) // {siteName: true/false}
 
 // Scraper
 const scrapePages = ref(2)
@@ -285,7 +286,7 @@ onMounted(() => { loadSites(); loadDashboard(); document.documentElement.classLi
       <div class="header-left">
         <h3>📰 News Scraper</h3>
         <span class="header-badge" v-if="schedule.can_publish">🟢 Siap Publish</span>
-        <span class="header-badge warn" v-else>⏸️ Jeda — {{ schedule.published_today }}/5 hari ini</span>
+        <span class="header-badge warn" v-else>⏸️ Jeda — {{ schedule.published_today }}/10 hari ini</span>
       </div>
       <div class="header-right">
         <span class="optimal-time" v-if="schedule.optimal_time">⏰ {{ schedule.optimal_time }}</span>
@@ -339,7 +340,7 @@ onMounted(() => { loadSites(); loadDashboard(); document.documentElement.classLi
           </div>
           <div class="stat-card">
             <div class="stat-icon">📅</div>
-            <div class="stat-value">{{ schedule.published_today }}/5</div>
+            <div class="stat-value">{{ schedule.published_today }}/10</div>
             <div class="stat-label">Publish Hari Ini</div>
           </div>
           <div class="stat-card">
@@ -396,7 +397,7 @@ onMounted(() => { loadSites(); loadDashboard(); document.documentElement.classLi
                 <div class="site-user">👤 {{ s.username === 'PENDING' ? 'Belum diisi — klik ✏️ Edit' : s.username }}</div>
                 <div class="site-pass" v-if="s.username && s.username !== 'PENDING'">
                   🔑 <span v-if="showCardPassword[s.name]">{{ s.app_password }}</span><span v-else>••••••••</span>
-                  <button class="btn-icon" @click="showCardPassword[s.name] = !showCardPassword[s.name]" style="background:none;border:none;cursor:pointer;font-size:14px;padding:2px 6px;">
+                  <button class="btn-icon" @click.stop="showCardPassword[s.name] = !showCardPassword[s.name]" style="background:none;border:none;cursor:pointer;font-size:14px;padding:2px 6px;">
                     {{ showCardPassword[s.name] ? '🙈' : '👁' }}
                   </button>
                 </div>

@@ -722,7 +722,8 @@ def _get_optimal_publish_time():
 
 
 def _should_publish_today(published_today):
-    return published_today < 5
+    """Smart scheduling: max 10 articles per day per site."""
+    return published_today < 10
 
 
 # ===================================================================
@@ -1085,6 +1086,8 @@ def list_wp_sites():
                 'name': name, 'wp_url': data.get('wp_url', ''),
                 'wp_media_url': data.get('wp_media_url', ''),
                 'username': data.get('username', ''),
+                'app_password': data.get('app_password', ''),
+                'branch_code': data.get('branch_code', ''),
             })
         else:
             # Other users only see their branch's site
@@ -1100,6 +1103,8 @@ def list_wp_sites():
                     'name': name, 'wp_url': data.get('wp_url', ''),
                     'wp_media_url': data.get('wp_media_url', ''),
                     'username': data.get('username', ''),
+                    'app_password': data.get('app_password', ''),
+                    'branch_code': data.get('branch_code', ''),
                 })
     return jsonify(result)
 
