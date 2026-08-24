@@ -4,7 +4,7 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 **Terakhir diperbarui:** 2026-08-24  
 **Branch:** `main`  
-**Versi terbaru:** v2.27.1
+**Versi terbaru:** v2.28.0
 
 ---
 
@@ -12,16 +12,99 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 | Aspek | Status |
 |-------|--------|
-| Versi | v2.27.1 (GPS Detail + Watermark + Bug Fixes) |
+| Versi | v2.28.0 (Multi-Branch Database Terpisah) |
 | Docker | `bbm_web` running on `nasbpfsby.duckdns.org:5000` |
 | App Running | `https://nasbpfsby.duckdns.org:5000` |
-| WordPress Posts | 10,239+ articles on BPF Surabaya site |
-| Sources | Newsmaker.id + Detik Finance (64 articles/scrape) |
-| Backend Endpoints | Semua ✅ tested (13+ endpoints) |
-| GPS Detail | ✅ Nominatim reverse geocode — kecamatan via display_name fallback |
+| Databases | 10 DB terpisah (1 master + 9 cabang) |
+| GPS Detail | ✅ Nominatim reverse geocode + disimpan ke DB |
 | Watermark | ✅ 4 baris: perusahaan + tanggal + alamat + koordinat |
-| CSP | ✅ Nominatim diizinkan di connect-src |
-| SW | ✅ Tidak ada redirect error |
+
+---
+
+## 🗄️ Database Architecture
+
+### Arsitektur Multi-Branch DB
+
+```
+┌─────────────────────────────────────────────────────┐
+│                 MariaDB 10.11                        │
+├─────────────────────────────────────────────────────┤
+│                                                     │
+│  bpf_asset_system  ← Master DB (SBY + shared data) │
+│    ├── users (33)                                   │
+│    ├── branches (10)                                │
+│    ├── system_config                                │
+│    ├── transactions (135 — BBM SBY)                 │
+│    ├── overtime_driver (8,676 — OT SBY)             │
+│    ├── trip_masters (Trip SBY)                      │
+│    ├── appointments                                 │
+│    └── ...38 tables                                 │
+│                                                     │
+│  bpf_branch_jkt  ← Jakarta HO (Equity Tower)       │
+│    └── 38 tables (kosong, siap data baru)           │
+│                                                     │
+│  bpf_branch_jkt2 ← Jakarta 2 (Pacific Place)       │
+│    └── 38 tables                                    │
+│                                                     │
+│  bpf_branch_bdg  ← Bandung                         │
+│    └── 38 tables                                    │
+│                                                     │
+│  bpf_branch_smg  ← Semarang                        │
+│    └── 38 tables                                    │
+│                                                     │
+│  bpf_branch_malang ← Malang                        │
+│    └── 38 tables                                    │
+│                                                     │
+│  bpf_branch_mdn  ← Medan                           │
+│    └── 38 tables                                    │
+│                                                     │
+│  bpf_branch_bjm  ← Banjarmasin                     │
+│    └── 38 tables                                    │
+│                                                     │
+│  bpf_branch_plm  ← Palembang                       │
+│    └── 38 tables                                    │
+│                                                     │
+│  bpf_branch_lpg  ← Lampung                         │
+│    └── 38 tables                                    │
+│                                                     │
+└─────────────────────────────────────────────────────┘
+```
+
+### Branch → Database Mapping
+
+| Code | Nama Cabang | Database | Kota |
+|------|-------------|----------|------|
+| SBY | Kantor Pusat Surabaya | `bpf_asset_system` (master) | Surabaya |
+| JKT | Kantor Pusat Jakarta | `bpf_branch_jkt` | Jakarta |
+| JKT2 | Cabang Pacific Place | `bpf_branch_jkt2` | Jakarta |
+| BDG | Cabang Bandung | `bpf_branch_bdg` | Bandung |
+| SMG | Cabang Semarang | `bpf_branch_smg` | Semarang |
+| MLG | Cabang Malang | `bpf_branch_malang` | Malang |
+| MDN | Cabang Medan | `bpf_branch_mdn` | Medan |
+| BJM | Cabang Banjarmasin | `bpf_branch_bjm` | Banjarmasin |
+| PLM | Cabang Palembang | `bpf_branch_plm` | Palembang |
+| LPG | Cabang Lampung | `bpf_branch_lpg` | Lampung |
+
+### Keuntungan Multi-Branch DB
+
+| Aspek | Manfaat |
+|-------|---------|
+| **Isolasi Data** | Data BBM/OT/Trip satu cabang tidak tercampur cabang lain |
+| **Mirror Server** | Backup/restore per cabang — cukup copy 1 DB |
+| **Performance** | Query lebih cepat (data lebih sedikit per DB) |
+| **Security** | User cabang A tidak bisa akses data cabang B |
+| **Compliance** | Sesuai ISO 27001 — isolasi data per unit bisnis |
+| **Disaster Recovery** | Restore cabang tertentu tanpa ganggu cabang lain |
+
+### Cara Kerja
+
+```
+1. User login → session['branch_code'] = 'BDG'
+2. get_db_connection() → resolve_db_name('BDG') → 'bpf_branch_bdg'
+3. Semua query operasional → ke bpf_branch_bdg
+4. Query users/branches → selalu ke bpf_asset_system (master)
+5. Login/logout → garansi session bersih
+```
 
 ---
 
@@ -34,162 +117,90 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 - [x] Dashboard per role (Admin, GA, Finance)
 - [x] Dark mode + High contrast mode
 
+### Multi-Branch Database ⭐ v2.28.0
+- [x] **10 database terpisah** (1 master + 9 cabang)
+- [x] **Schema sync** — semua DB punya 38 tabel identik
+- [x] **Master data sync** — users, branches, config, drivers, vehicles disetiap DB
+- [x] **Auto-create** — `ensure_branch_database()` saat startup
+- [x] **Backward compatible** — SBY tetap di master DB
+
 ### Appointment & Rute
 - [x] Marketing Hub (input appointment)
 - [x] Chief Driver (board penugasan)
 - [x] Atur Rute Otomatis (VRPTW heuristic)
 - [x] Geocoding (Nominatim/OpenStreetMap)
-- [x] Estimasi penghematan BBM
 
 ### Air Minum
 - [x] Form pengajuan OB (foto before/after)
-- [x] Verifikasi Finance
-- [x] PDF tanda terima (Finance + GA)
+- [x] Verifikasi Finance + PDF tanda terima
 
 ### Pelamar Kerja
-- [x] Form publik `/app/apply`
-- [x] Dashboard Receptionist (verifikasi, kehadiran)
-- [x] Laporan PDF per tahap
+- [x] Form publik + Dashboard Receptionist + Laporan PDF
 
 ### Aset & Pemeliharaan
-- [x] 15 unit AC kantor + 8 kendaraan
-- [x] Health score otomatis 0–100
-- [x] Rekomendasi maintenance
+- [x] 15 unit AC + 8 kendaraan + Health score otomatis
 
-### Overtime ⭐ v2.27.0+
-- [x] Overtime Driver (8.665 baris dari Google Sheet)
-- [x] Overtime OB/Security (546 baris + form publik)
-- [x] Form Overtime Driver di PWA (foto + watermark + GPS)
-- [x] Laporan Overtime PDF (File 1) — tabel ringkas semua driver
-- [x] Report Detail Per Driver (File 2) — PDF + Excel
-- [x] Formulir Permohonan Overtime PDF — blok TTD + foto link
-- [x] **GPS detail disimpan ke DB** — kelurahan/kecamatan/kota/provinsi/kode_pos ⭐ NEW
+### Overtime
+- [x] Driver + OB/Security + Form PWA
+- [x] 3 format PDF + Excel export
+- [x] GPS detail disimpan ke DB
 
-### Multi-Cabang
-- [x] Isolasi data penuh per cabang
-- [x] 10 cabang (SBY, JKT, JKT2, BDG, SMG, MLG, MDN, BJM, PLM, LPG)
-- [x] Access filtering — user hanya lihat site cabang sendiri
-
-### PWA Driver ⭐ v2.27.0+
+### PWA Driver
 - [x] 5 tab: BBM, Kasbon, Trip, OT, Rapor
-- [x] Foto upload: **2 tombol (📷 Kamera + 🖼️ Galeri)** ⭐ FIXED
-- [x] Offline-first (IndexedDB)
-- [x] Auto-save trip draft ke IndexedDB ⭐ NEW
-- [x] **GPS detail box di semua tab** — BBM, Trip, OT ⭐ FIXED
-- [x] **GPS auto-detect saat mount** ⭐ FIXED
-- [x] **Watermark 4 baris** — perusahaan + tanggal + alamat + koordinat ⭐ FIXED
-- [x] **GPS detail disimpan ke DB** — BBM, Trip, OT ⭐ NEW
+- [x] Foto: 📷 Kamera + 🖼️ Galeri
+- [x] Auto-save trip draft (IndexedDB)
+- [x] GPS detail box + auto-detect
+- [x] Watermark 4 baris (proporsional)
 
-### News Scraper (IT — Multi-Cabang) ⭐ v2.26.0+
+### News Scraper (IT — Multi-Cabang)
+- [x] Newsmaker + Detik Finance (64 artikel/scrape)
+- [x] Multi-WordPress site (10 cabang)
+- [x] Tab Report + Settings + Daily Limit configurable
+- [x] SEO 7 Algoritma + Backlinks
 
-#### Scraping
-- [x] Scrape newsmaker.id + Detik Finance (64 artikel/scrape)
-- [x] Source selector — Semua Sumber / Newsmaker / Detik
-
-#### WordPress Integration
-- [x] Multi-site management (10 cabang)
-- [x] Upload gambar ke WordPress (featured image + inline)
-- [x] Password toggle 👁/🙈 di site card & form
-
-#### SEO
-- [x] 7 Algoritma SEO + Financial Authority Backlinks
-
-#### UI/UX
-- [x] Tab-Based Layout (7 tabs: Dashboard/Sites/Scrape/Upload/SEO/Analytics/Report)
-- [x] Tab Report — detail per-artikel + filter + export CSV
-- [x] Settings panel — daily limit configurable (1-100)
-
-### User Management ⭐ v2.27.0
-- [x] Branch assignment — semua user punya branch_code
-- [x] Branch name display — tabel tampilkan nama cabang
-
-### Login Page ⭐ v2.27.0
-- [x] UI Upgrade — gradient button, icon prefix, clean design
-
-### Security & Infrastructure ⭐ v2.27.1
-- [x] **CSP connect-src** — tambah nominatim.openstreetmap.org untuk GPS detail ⭐ FIXED
-- [x] **Service Worker** — hapus /app/ dari SHELL (redirect error) + redirect:'follow' ⭐ FIXED
-- [x] **Nginx cache-busting** — assets (1 tahun), SPA routes (no-cache), static (30 hari) ⭐ NEW
-- [x] **GPS kecamatan fallback** — municipality + district + subdistrict + display_name parse ⭐ FIXED
-
-### Keamanan
-- [x] Login PIN + session-based
-- [x] CSRF protection
-- [x] Role-based access (20 role)
-- [x] Audit trail (30+ action types)
-- [x] Security headers (CSP, X-Frame-Options)
-- [x] Rate limiting
-- [x] Backup DB otomatis
-
-### Deployment
-- [x] Docker Compose ready (db, web, redis, backup)
-- [x] nginx.conf untuk HTTPS (nextcloud_nginx)
-- [x] DEPLOY_FRESH.md — step-by-step guide
-
-### Database ⭐ v2.27.1
-- [x] **transactions** — tambah kolom GPS detail (kelurahan/kecamatan/kota/provinsi/kode_pos)
-- [x] **trip_masters** — tambah kolom GPS detail (8 kolom)
-- [x] **overtime_driver** — tambah kolom GPS detail (8 kolom)
+### Security & Infrastructure
+- [x] CSP connect-src — Nominatim diizinkan
+- [x] Service Worker — fix redirect error
+- [x] Nginx cache-busting
+- [x] GPS detail disimpan ke DB
 
 ---
 
 ## 🔄 Yang Sedang Dikerjakan
 
-- (kosong — semua fitur sudah selesai)
+- (kosong)
 
 ---
 
 ## 📋 Yang Belum Dikerjakan
 
-### Fitur Baru (Ide)
+### Fitur Baru
 - [ ] Laporan otomatis mingguan via email
 - [ ] Approval berjenjang (multi-level)
-- [ ] Integrasi payment gateway
 - [ ] Dashboard mobile khusus admin
-- [ ] Export PDF batch (multi-report)
-
-### Peningkatan
-- [ ] Optimasi performa query database
-- [ ] Multi-bahasa (Indonesia + English)
-- [ ] Aksesibilitas lebih baik (screen reader)
 
 ---
 
-## 🐛 Bug / Issue Terbuka
+## 🐛 Bug Terbuka
 
-### Fixed in v2.27.1
-- ✅ GPS detail kecamatan kosong — tambah municipality/district/subdistrict + display_name fallback
-- ✅ GPS detailedLocation ReferenceError — variable addr belum didefinisikan
-- ✅ GPS detail box tidak muncul di TripTab + OvertimeDriverTab
-- ✅ CSP memblokir Nominatim — tambah ke connect-src
-- ✅ Service Worker redirect error — hapus /app/ dari SHELL
-- ✅ Photo upload hanya 1 tombol — tambah 📷 Kamera + 🖼️ Galeri
-- ✅ GPS harus klik manual — auto locate saat mount
-- ✅ Watermark font terlalu besar — proporsional + tambah koordinat
-
-### Remaining
-- Backend tests: 20 test gagal di local = integration tests butuh DB (berjalan di CI Docker)
+### Fixed
+- ✅ GPS kecamatan kosong — municipality/district fallback
+- ✅ GPS ReferenceError — variable addr undefined
+- ✅ CSP blokir Nominatim
+- ✅ Service Worker redirect error
+- ✅ Photo upload 1 tombol → 2 tombol
+- ✅ Watermark font terlalu besar
 
 ---
 
 ## 📝 Catatan untuk Sesi Berikutnya
 
-Ketik di awal sesi:
 > "Baca `PROGRESS.md` dan `CHANGELOG.md`, lalu lanjutkan."
 
-### Sesi 2026-08-24 — Bug Fix & GPS Detail (v2.27.1)
-
-1. ✅ Fix GPS kecamatan kosong (Nominatim municipality/district)
-2. ✅ Fix GPS detailedLocation ReferenceError (addr undefined)
-3. ✅ GPS detail box di TripTab + OvertimeDriverTab
-4. ✅ CSP connect-src — tambah nominatim.openstreetmap.org
-5. ✅ Service Worker — fix redirect error + redirect:'follow'
-6. ✅ Photo upload 2 tombol (Kamera + Galeri)
-7. ✅ GPS auto-detect saat mount
-8. ✅ Watermark proporsional + koordinat
-9. ✅ Nginx cache-busting config
-10. ✅ GPS detail disimpan ke DB (3 tabel)
-11. ✅ Backend BBM/OT/Trip terima GPS detail
+### DB Architecture
+- Master: `bpf_asset_system` (SBY + shared)
+- Cabang: `bpf_branch_{code}` (terpisah)
+- Startup: `ensure_branch_database()` auto-create
 
 ---
 
@@ -197,61 +208,26 @@ Ketik di awal sesi:
 
 | Link | URL |
 |------|-----|
-| App (online) | `https://nasbpfsby.duckdns.org:5000` |
-| App (local) | `http://localhost:5001` |
+| App | `https://nasbpfsby.duckdns.org:5000` |
 | GitHub | `https://github.com/bestprofitsurabaya/bpf-workhub` |
-| Login | `https://nasbpfsby.duckdns.org:5000/app/login` |
-| News Scraper | `https://nasbpfsby.duckdns.org:5000/app/it` |
 
 ---
 
-## 👥 Akun Penting
+## 👥 Akun IT Cabang
 
-| Role | Username | PIN | Home | Branch |
-|------|----------|-----|------|--------|
-| Admin | `admin` | `123456` | `/app/dashboard` | All |
-| IT HO | `it_hu` | `123456` | `/app/it` | Kantor Pusat Jakarta |
-| IT Surabaya | `it_sby` | `123456` | `/app/it` | Cabang Surabaya |
-| IT Jakarta 2 | `it_jkt2` | `123456` | `/app/it` | Cabang Pacific Place |
-| IT Bandung | `it_bdg` | `123456` | `/app/it` | Cabang Bandung |
-| IT Semarang | `it_smg` | `123456` | `/app/it` | Cabang Semarang |
-| IT Malang | `it_mlg` | `123456` | `/app/it` | Cabang Malang |
-| IT Medan | `it_mdn` | `123456` | `/app/it` | Cabang Medan |
-| IT Banjarmasin | `it_bjm` | `123456` | `/app/it` | Cabang Banjarmasin |
-| IT Palembang | `it_plm` | `123456` | `/app/it` | Cabang Palembang |
-| IT Lampung | `it_lpg` | `123456` | `/app/it` | Cabang Lampung |
-
-### Backend API Endpoints (tested ✅)
-
-| Endpoint | Method | Fungsi |
-|----------|--------|--------|
-| `/api/auth/login` | POST | Login |
-| `/api/auth/me` | GET | Current user |
-| `/api/users` | GET | List users + branch_code |
-| `/api/branches` | GET | List branches |
-| `/api/scraper/sites` | GET | List WP sites (filtered by branch) |
-| `/api/scraper/settings` | GET/POST | Daily limit settings |
-| `/api/scraper/schedule` | GET | Optimal publish schedule |
-| `/api/scraper/analytics` | GET | Performance analytics |
-| `/api/scraper/report` | GET | Upload report per-article |
-| `/api/scraper/report/export` | GET | Export CSV |
-| `/api/overtime/report` | GET | Laporan OT ringkas (PDF) |
-| `/api/overtime/detail-report` | GET | Report detail per driver (PDF/Excel) |
-| `/api/overtime/form-pdf` | GET | Formulir Permohonan OT (PDF) |
-
-### GPS Detail Fields (disimpan ke DB)
-
-| Field | Tabel | Contoh |
-|-------|-------|--------|
-| `gps_lat` | transactions, trip_masters, overtime_driver | `-6.20800` |
-| `gps_lon` | transactions, trip_masters, overtime_driver | `106.83320` |
-| `gps_address` | transactions, trip_masters, overtime_driver | `Jl. Wilis, Guntur, Jakarta Selatan, 12980` |
-| `gps_kelurahan` | transactions, trip_masters, overtime_driver | `Guntur` |
-| `gps_kecamatan` | transactions, trip_masters, overtime_driver | `Setiabudi` |
-| `gps_kota` | transactions, trip_masters, overtime_driver | `Jakarta Selatan` |
-| `gps_provinsi` | transactions, trip_masters, overtime_driver | `DKI Jakarta` |
-| `gps_kode_pos` | transactions, trip_masters, overtime_driver | `12980` |
+| Role | Username | PIN | Branch | DB |
+|------|----------|-----|--------|-----|
+| IT HO | `it_hu` | `123456` | JKT | bpf_branch_jkt |
+| IT Surabaya | `it_sby` | `123456` | SBY | bpf_asset_system |
+| IT Bandung | `it_bdg` | `123456` | BDG | bpf_branch_bdg |
+| IT Semarang | `it_smg` | `123456` | SMG | bpf_branch_smg |
+| IT Malang | `it_mlg` | `123456` | MLG | bpf_branch_malang |
+| IT Medan | `it_mdn` | `123456` | MDN | bpf_branch_mdn |
+| IT Banjarmasin | `it_bjm` | `123456` | BJM | bpf_branch_bjm |
+| IT Palembang | `it_plm` | `123456` | PLM | bpf_branch_plm |
+| IT Lampung | `it_lpg` | `123456` | LPG | bpf_branch_lpg |
+| IT Jakarta 2 | `it_jkt2` | `123456` | JKT2 | bpf_branch_jkt2 |
 
 ---
 
-*BPF WorkHub v2.27.1 · Progres Tracker*
+*BPF WorkHub v2.28.0 · Progres Tracker*

@@ -1,4 +1,4 @@
-# 📋 Changelog — BPF WorkHub v2.27.1
+# 📋 Changelog — BPF WorkHub v2.28.0
 
 Riwayat perubahan penting pada BPF WorkHub. Format mengikuti [Keep a Changelog](https://keepachangelog.com/id/ID/1.0.0/) dan versi mengikuti [Semantic Versioning](https://semver.org/lang/id/).
 
@@ -16,6 +16,36 @@ Telp: 031-5349888
 ---
 
 ## Versi Terbaru
+
+### [2.28.0] - 2026-08-24
+
+**Multi-Branch Database Terpisah — 10 Database untuk 10 Cabang**
+
+**Fitur Baru:**
+- **10 database terpisah** — setiap cabang punya DB sendiri (38 tabel per DB)
+- **Auto-create DB** — `ensure_branch_database()` saat startup otomatis buat DB cabang
+- **Master data sync** — users, branches, config, drivers, vehicles dicopy ke semua DB cabang
+- **Mirror server ready** — backup/restore per cabang, tidak ganggu cabang lain
+
+**Database Architecture:**
+- Master: `bpf_asset_system` (SBY + shared data)
+- JKT: `bpf_branch_jkt` (Equity Tower)
+- JKT2: `bpf_branch_jkt2` (Pacific Place)
+- BDG: `bpf_branch_bdg`
+- SMG: `bpf_branch_smg`
+- MLG: `bpf_branch_malang`
+- MDN: `bpf_branch_mdn`
+- BJM: `bpf_branch_bjm`
+- PLM: `bpf_branch_plm`
+- LPG: `bpf_branch_lpg`
+
+**Keuntungan:**
+- Isolasi data penuh per cabang (ISO 27001)
+- Query lebih cepat (data lebih sedikit per DB)
+- Disaster recovery per cabang
+- User cabang A tidak bisa akses data cabang B
+
+---
 
 ### [2.27.1] - 2026-08-24
 
