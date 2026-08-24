@@ -4,7 +4,7 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 **Terakhir diperbarui:** 2026-08-24  
 **Branch:** `main`  
-**Versi terbaru:** v2.28.0
+**Versi terbaru:** v2.28.1
 
 ---
 
@@ -12,7 +12,7 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 | Aspek | Status |
 |-------|--------|
-| Versi | v2.28.0 (Multi-Branch Database Terpisah) |
+| Versi | v2.28.1 (OT Form Multi-Modul + H+1 + Nama Filter) |
 | Docker | `bbm_web` running on `nasbpfsby.duckdns.org:5000` |
 | App Running | `https://nasbpfsby.duckdns.org:5000` |
 | Databases | 10 DB terpisah (1 master + 9 cabang) |
@@ -144,6 +144,10 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 - [x] Driver + OB/Security + Form PWA
 - [x] 3 format PDF + Excel export
 - [x] GPS detail disimpan ke DB
+- [x] Form Permohonan untuk Driver & OB/Security (modul param)
+- [x] H+1 OT — maksimal terhitung dari jam terakhir selesai OT
+- [x] Filter nama autocomplete (searchable + selectable) di laporan
+- [x] Detail Report Landscape A4 + kolom Lokasi (GPS detail)
 
 ### PWA Driver
 - [x] 5 tab: BBM, Kasbon, Trip, OT, Rapor

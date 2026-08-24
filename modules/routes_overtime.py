@@ -769,23 +769,30 @@ def register_overtime_routes(app):
     @app.route('/api/overtime/form-pdf')
     @role_required(['ga_hr', 'admin'])
     def api_overtime_form_pdf():
-        """Generate Formulir Permohonan Overtime PDF untuk satu record."""
+        """Generate Formulir Permohonan Overtime PDF untuk satu record.
+        Params: id, display_id, modul (driver|ob, default=driver)
+        """
         try:
             from modules.pdf_generator import OvertimeFormPDF
+
+            modul = str(request.args.get('modul', 'driver') or '').strip()
+            if modul not in ('driver', 'ob'):
+                modul = 'driver'
 
             record_id = request.args.get('id')
             display_id = request.args.get('display_id')
             if not record_id and not display_id:
                 return jsonify({'error': 'Parameter id atau display_id wajib diisi'}), 400
 
+            table = 'overtime_driver' if modul == 'driver' else 'overtime_ob_security'
             conn = get_db_connection()
             if not conn:
                 return jsonify({'error': 'DB error'}), 500
             cursor = conn.cursor(dictionary=True)
             if record_id:
-                cursor.execute('SELECT * FROM overtime_driver WHERE id = %s', (record_id,))
+                cursor.execute(f'SELECT * FROM {table} WHERE id = %s', (record_id,))
             else:
-                cursor.execute('SELECT * FROM overtime_driver WHERE display_id = %s', (display_id,))
+                cursor.execute(f'SELECT * FROM {table} WHERE display_id = %s', (display_id,))
             row = cursor.fetchone()
             cursor.close(); conn.close()
 
@@ -793,15 +800,40 @@ def register_overtime_routes(app):
                 return jsonify({'error': 'Data overtime tidak ditemukan'}), 404
 
             pdf = OvertimeFormPDF()
-            pdf.generate(row)
+            pdf.generate(row, modul=modul)
             buf = io.BytesIO()
             pdf.output(buf)
             buf.seek(0)
-            fname = f'Form_OT_{row.get("display_id", row.get("id", "unknown"))}.pdf'
+            fname = f'Form_OT_{modul.upper()}_{row.get("display_id", row.get("id", "unknown"))}.pdf'
             response = make_response(buf.read())
             response.headers['Content-Type'] = 'application/pdf'
             response.headers['Content-Disposition'] = f'attachment; filename={fname}'
             return response
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+    # ================================================================
+    # GA HR — daftar nama unik untuk autocomplete filter
+    # ================================================================
+    @app.route('/api/overtime/names')
+    @role_required(['ga_hr', 'admin'])
+    def api_overtime_names():
+        """Return distinct names from both tables for autocomplete."""
+        try:
+            modul = str(request.args.get('modul', '') or '').strip()
+            conn = get_db_connection()
+            if not conn:
+                return jsonify({'error': 'DB error'}), 500
+            cursor = conn.cursor(dictionary=True)
+            names = set()
+            if modul in ('driver', ''):
+                cursor.execute('SELECT DISTINCT nama FROM overtime_driver WHERE nama<>\'\' ORDER BY nama')
+                names.update(r['nama'] for r in cursor.fetchall())
+            if modul in ('ob', ''):
+                cursor.execute('SELECT DISTINCT nama FROM overtime_ob_security WHERE nama<>\'\' ORDER BY nama')
+                names.update(r['nama'] for r in cursor.fetchall())
+            cursor.close(); conn.close()
+            return jsonify({'names': sorted(names)})
         except Exception as e:
             return jsonify({'error': str(e)}), 500
 

@@ -1056,61 +1056,68 @@ class OvertimeReportPDF(BPFBasePDF):
 class OvertimeDetailReportPDF(BPFBasePDF):
     """Report Detail Overtime per Driver — format File 2.
 
+    Landscape A4 — semua kolom lebar & profesional.
     Satu halaman per driver, berisi:
     - Info: Nama, Jabatan, Periode
-    - Tabel: Timestamp, No. Form, Nama, Plat, Tanggal, Jam In, Jam Out, Keterangan, Biaya
-    - Biaya kolom kosong (untuk diisi GA HR di Excel)
+    - Tabel: No, Timestamp, No. Form, Nama, Plat, Tanggal, Jam Mulai, Jam Selesai,
+             Keterangan, Lokasi, Biaya
+    - Biaya kolom kosong (untuk diisi GA HR)
     """
 
     def __init__(self, title='LAPORAN OVERTIME'):
-        super().__init__(orientation='P', unit='mm', format='A4')
+        super().__init__(orientation='L', unit='mm', format='A4')
         self._title = title
         self.set_auto_page_break(auto=True, margin=15)
 
     def header(self):
         super().header()
-        self.set_font(self._font(), 'B', 12)
+        self.set_font(self._font(), 'B', 13)
         self.set_text_color(*INK)
         self.cell(0, 7, self.clean_text(self._title), align='C', new_x='LMARGIN', new_y='NEXT')
         self.ln(2)
 
     def generate(self, rows, driver_name='', driver_role='DRIVER', date_label='', generated_by=''):
-        """rows: list of overtime records for ONE driver."""
+        """rows: list of overtime records for ONE driver.
+        Landscape A4: 297mm - 2*15mm margin = 267mm usable.
+        """
         self.add_page()
 
-        # Driver info block
+        # Driver info block — 3 kolom sejajar
         self.set_font(self._font(), 'B', 9)
         self.set_text_color(*INK)
-        self.cell(25, 6, 'NAMA :', new_x='RIGHT', new_y='TOP')
+        col_w = 80
+        x0 = self.l_margin
+        # Baris 1: NAMA + JABATAN
+        self.set_xy(x0, self.get_y())
+        self.cell(20, 6, 'NAMA :', new_x='RIGHT', new_y='TOP')
         self.set_font(self._font(), '', 9)
-        self.cell(0, 6, self.clean_text(driver_name), new_x='LMARGIN', new_y='NEXT')
-
+        self.cell(col_w - 20, 6, self.clean_text(driver_name), new_x='RIGHT', new_y='TOP')
         self.set_font(self._font(), 'B', 9)
-        self.cell(25, 6, 'JABATAN :', new_x='RIGHT', new_y='TOP')
+        self.cell(22, 6, 'JABATAN :', new_x='RIGHT', new_y='TOP')
         self.set_font(self._font(), '', 9)
-        self.cell(0, 6, self.clean_text(driver_role), new_x='LMARGIN', new_y='NEXT')
-
+        self.cell(col_w - 22, 6, self.clean_text(driver_role), new_x='RIGHT', new_y='TOP')
         self.set_font(self._font(), 'B', 9)
-        self.cell(25, 6, 'PERIODE :', new_x='RIGHT', new_y='TOP')
+        self.cell(22, 6, 'PERIODE :', new_x='RIGHT', new_y='TOP')
         self.set_font(self._font(), '', 9)
         self.cell(0, 6, self.clean_text(date_label), new_x='LMARGIN', new_y='NEXT')
         self.ln(4)
 
-        # Table
-        headers = ['TANGGAL\nTIMESTAMP', 'NO.\nFORM', 'NAMA\nDRIVER', 'PLAT\nMOBIL', 'TANGGAL\nOVERTIME', 'JAM\nIN', 'JAM\nOUT', 'KETERANGAN', 'BIAYA']
-        widths = [30, 18, 30, 22, 22, 16, 16, 50, 28]
-        aligns = ['C', 'C', 'L', 'C', 'C', 'C', 'C', 'L', 'R']
+        # Table — Landscape widths (total = 267mm)
+        # No(8) + Tgl(32) + NoForm(20) + Nama(32) + Plat(22) + TglOT(22) + JamMulai(18) + JamSelesai(18) + Ket(45) + Lokasi(30) + Biaya(20)
+        headers = ['NO', 'TANGGAL\nTIMESTAMP', 'NO.\nFORM', 'NAMA', 'PLAT\nKENDARAAN', 'TANGGAL\nOVERTIME', 'JAM\nMULAI', 'JAM\nSELESAI', 'KETERANGAN', 'LOKASI', 'BIAYA']
+        widths = [8, 32, 20, 32, 22, 22, 18, 18, 45, 30, 20]
+        aligns = ['C', 'C', 'C', 'L', 'C', 'C', 'C', 'C', 'L', 'L', 'R']
 
-        self._table_header(headers, widths)
+        self._table_header(headers, widths, font_size=7, row_h=8)
         fill = False
-        for r in rows:
+        for idx, r in enumerate(rows, 1):
             timestamp = ''
             if r.get('submitted_at'):
                 try:
                     dt = r['submitted_at'] if isinstance(r['submitted_at'], datetime) else datetime.strptime(str(r['submitted_at']), '%Y-%m-%d %H:%M:%S')
-                    timestamp = dt.strftime('%d/%m/%Y %H:%M:%S')
+                    timestamp = dt.strftime('%d/%m/%Y %H:%M')
                 except Exception:
-                    timestamp = str(r['submitted_at'])[:19]
+                    timestamp = str(r['submitted_at'])[:16]
 
             tanggal_ot = ''
             if r.get('tanggal'):
@@ -1122,7 +1129,18 @@ class OvertimeDetailReportPDF(BPFBasePDF):
                 except Exception:
                     tanggal_ot = str(r['tanggal'])
 
+            # Lokasi dari GPS detail
+            lokasi_parts = []
+            for field in ('gps_kelurahan', 'gps_kecamatan', 'gps_kota'):
+                val = r.get(field, '')
+                if val and val != '-':
+                    lokasi_parts.append(str(val))
+            lokasi = ', '.join(lokasi_parts) if lokasi_parts else (r.get('gps_address', '') or '-')
+            if len(lokasi) > 40:
+                lokasi = lokasi[:37] + '...'
+
             self._table_row([
+                str(idx),
                 timestamp,
                 r.get('display_id', '-'),
                 r.get('nama', '-'),
@@ -1131,6 +1149,7 @@ class OvertimeDetailReportPDF(BPFBasePDF):
                 r.get('waktu_mulai', '-'),
                 r.get('waktu_selesai', '-'),
                 r.get('keterangan', '-'),
+                lokasi,
                 '',  # Biaya — kosong untuk diisi GA HR
             ], widths, aligns=aligns, fill=fill)
             fill = not fill
@@ -1150,6 +1169,7 @@ class OvertimeDetailReportPDF(BPFBasePDF):
 
 def generate_overtime_detail_excel(rows, driver_name='', driver_role='DRIVER', date_label=''):
     """Generate Excel (.xlsx) for overtime detail report.
+    Landscape-style: 11 kolom (No, Tgl, NoForm, Nama, Plat, TglOT, JamMulai, JamSelesai, Ket, Lokasi, Biaya).
     Biaya column is empty for GA HR to fill in."""
     try:
         import openpyxl
@@ -1162,9 +1182,16 @@ def generate_overtime_detail_excel(rows, driver_name='', driver_role='DRIVER', d
     ws = wb.active
     ws.title = f'OT {driver_name[:20]}'
 
+    # Landscape orientation
+    ws.sheet_properties.pageSetUpPr = openpyxl.worksheet.properties.PageSetupProperties(fitToPage=True)
+    ws.page_setup.orientation = 'landscape'
+    ws.page_setup.paperSize = ws.PAPERSIZE_A4
+    ws.page_setup.fitToWidth = 1
+    ws.page_setup.fitToHeight = 0
+
     # Styles
     header_font = Font(name='Calibri', bold=True, size=10)
-    title_font = Font(name='Calibri', bold=True, size=12)
+    title_font = Font(name='Calibri', bold=True, size=13)
     normal_font = Font(name='Calibri', size=10)
     header_fill = PatternFill(start_color='1F4E79', end_color='1F4E79', fill_type='solid')
     header_font_white = Font(name='Calibri', bold=True, size=10, color='FFFFFF')
@@ -1172,49 +1199,52 @@ def generate_overtime_detail_excel(rows, driver_name='', driver_role='DRIVER', d
         left=Side(style='thin'), right=Side(style='thin'),
         top=Side(style='thin'), bottom=Side(style='thin')
     )
-    center_align = Alignment(horizontal='center', vertical='center')
-    left_align = Alignment(horizontal='left', vertical='center')
+    center_align = Alignment(horizontal='center', vertical='center', wrap_text=True)
+    left_align = Alignment(horizontal='left', vertical='center', wrap_text=True)
+    right_align = Alignment(horizontal='right', vertical='center')
     rupiah_format = '#,##0'
 
     # Title
-    ws.merge_cells('A1:I1')
+    ws.merge_cells('A1:K1')
     ws['A1'] = f'OVERTIME PERIODE {date_label}'
     ws['A1'].font = title_font
+    ws['A1'].alignment = Alignment(horizontal='center')
 
-    # Driver info
+    # Driver info — sejajar
     ws['A3'] = 'NAMA :'
     ws['A3'].font = header_font
     ws['B3'] = driver_name
     ws['B3'].font = normal_font
 
-    ws['A4'] = 'JABATAN :'
-    ws['A4'].font = header_font
-    ws['B4'] = driver_role
-    ws['B4'].font = normal_font
+    ws['D3'] = 'JABATAN :'
+    ws['D3'].font = header_font
+    ws['E3'] = driver_role
+    ws['E3'].font = normal_font
 
-    ws['A5'] = 'PERIODE :'
-    ws['A5'].font = header_font
-    ws['B5'] = date_label
-    ws['B5'].font = normal_font
+    ws['G3'] = 'PERIODE :'
+    ws['G3'].font = header_font
+    ws['H3'] = date_label
+    ws['H3'].font = normal_font
 
     # Headers
-    headers = ['TANGGAL TIMESTAMP', 'NO. FORM', 'NAMA DRIVER', 'PLAT MOBIL', 'TANGGAL OVERTIME', 'JAM IN', 'JAM OUT', 'KETERANGAN', 'BIAYA']
+    headers = ['NO', 'TANGGAL TIMESTAMP', 'NO. FORM', 'NAMA', 'PLAT KENDARAAN', 'TANGGAL OVERTIME', 'JAM MULAI', 'JAM SELESAI', 'KETERANGAN', 'LOKASI', 'BIAYA']
     for col, h in enumerate(headers, 1):
-        cell = ws.cell(row=7, column=col, value=h)
+        cell = ws.cell(row=5, column=col, value=h)
         cell.font = header_font_white
         cell.fill = header_fill
         cell.border = thin_border
         cell.alignment = center_align
 
     # Data rows
-    for idx, r in enumerate(rows, 8):
+    for idx, r in enumerate(rows):
+        row_num = idx + 6
         timestamp = ''
         if r.get('submitted_at'):
             try:
                 dt = r['submitted_at'] if isinstance(r['submitted_at'], datetime) else datetime.strptime(str(r['submitted_at']), '%Y-%m-%d %H:%M:%S')
-                timestamp = dt.strftime('%d/%m/%Y %H:%M:%S')
+                timestamp = dt.strftime('%d/%m/%Y %H:%M')
             except Exception:
-                timestamp = str(r['submitted_at'])[:19]
+                timestamp = str(r['submitted_at'])[:16]
 
         tanggal_ot = ''
         if r.get('tanggal'):
@@ -1226,7 +1256,16 @@ def generate_overtime_detail_excel(rows, driver_name='', driver_role='DRIVER', d
             except Exception:
                 tanggal_ot = str(r['tanggal'])
 
+        # Lokasi dari GPS detail
+        lokasi_parts = []
+        for field in ('gps_kelurahan', 'gps_kecamatan', 'gps_kota'):
+            val = r.get(field, '')
+            if val and val != '-':
+                lokasi_parts.append(str(val))
+        lokasi = ', '.join(lokasi_parts) if lokasi_parts else (r.get('gps_address', '') or '-')
+
         data = [
+            idx + 1,
             timestamp,
             r.get('display_id', '-'),
             r.get('nama', '-'),
@@ -1235,20 +1274,33 @@ def generate_overtime_detail_excel(rows, driver_name='', driver_role='DRIVER', d
             r.get('waktu_mulai', '-'),
             r.get('waktu_selesai', '-'),
             r.get('keterangan', '-'),
+            lokasi,
             None,  # Biaya — kosong
         ]
         for col, val in enumerate(data, 1):
-            cell = ws.cell(row=idx, column=col, value=val)
+            cell = ws.cell(row=row_num, column=col, value=val)
             cell.font = normal_font
             cell.border = thin_border
-            cell.alignment = center_align if col != 8 else left_align
-            if col == 9 and val is not None:  # Biaya column
-                cell.number_format = rupiah_format
+            if col in (1, 6, 7, 8):  # No, TglOT, JamMulai, JamSelesai
+                cell.alignment = center_align
+            elif col in (9, 10):  # Keterangan, Lokasi
+                cell.alignment = left_align
+            elif col == 11:  # Biaya
+                cell.alignment = right_align
+                if val is not None:
+                    cell.number_format = rupiah_format
+            else:
+                cell.alignment = center_align
 
-    # Column widths
-    col_widths = [22, 15, 20, 14, 16, 10, 10, 30, 15]
-    for i, w in enumerate(col_widths, 1):
-        ws.column_dimensions[chr(64 + i)].width = w
+    # Column widths — landscape (A-K)
+    col_widths = {'A': 5, 'B': 22, 'C': 14, 'D': 22, 'E': 16, 'F': 16, 'G': 12, 'H': 12, 'I': 28, 'J': 28, 'K': 14}
+    for col_letter, w in col_widths.items():
+        ws.column_dimensions[col_letter].width = w
+
+    # Footer note
+    footer_row = len(rows) + 7
+    ws.cell(row=footer_row, column=1, value='* Kolom Biaya diisi oleh GA HR setelah verifikasi').font = Font(name='Calibri', italic=True, size=9, color='888888')
+    ws.cell(row=footer_row + 1, column=1, value=f'Total catatan: {len(rows)}').font = normal_font
 
     buf = io.BytesIO()
     wb.save(buf)
@@ -1264,20 +1316,27 @@ def _generate_overtime_detail_csv(rows, driver_name='', driver_role='DRIVER', da
     writer.writerow([f'OVERTIME PERIODE {date_label}'])
     writer.writerow([f'NAMA: {driver_name}', f'JABATAN: {driver_role}'])
     writer.writerow([])
-    writer.writerow(['TANGGAL TIMESTAMP', 'NO. FORM', 'NAMA DRIVER', 'PLAT MOBIL', 'TANGGAL OVERTIME', 'JAM IN', 'JAM OUT', 'KETERANGAN', 'BIAYA'])
-    for r in rows:
+    writer.writerow(['NO', 'TANGGAL TIMESTAMP', 'NO. FORM', 'NAMA', 'PLAT KENDARAAN', 'TANGGAL OVERTIME', 'JAM MULAI', 'JAM SELESAI', 'KETERANGAN', 'LOKASI', 'BIAYA'])
+    for idx, r in enumerate(rows, 1):
         timestamp = ''
         if r.get('submitted_at'):
             try:
                 dt = r['submitted_at'] if isinstance(r['submitted_at'], datetime) else datetime.strptime(str(r['submitted_at']), '%Y-%m-%d %H:%M:%S')
-                timestamp = dt.strftime('%d/%m/%Y %H:%M:%S')
+                timestamp = dt.strftime('%d/%m/%Y %H:%M')
             except Exception:
-                timestamp = str(r['submitted_at'])[:19]
+                timestamp = str(r['submitted_at'])[:16]
+        # Lokasi dari GPS detail
+        lokasi_parts = []
+        for field in ('gps_kelurahan', 'gps_kecamatan', 'gps_kota'):
+            val = r.get(field, '')
+            if val and val != '-':
+                lokasi_parts.append(str(val))
+        lokasi = ', '.join(lokasi_parts) if lokasi_parts else (r.get('gps_address', '') or '-')
         writer.writerow([
-            timestamp, r.get('display_id', '-'), r.get('nama', '-'),
+            idx, timestamp, r.get('display_id', '-'), r.get('nama', '-'),
             r.get('no_kendaraan', '-'), str(r.get('tanggal', '-')),
             r.get('waktu_mulai', '-'), r.get('waktu_selesai', '-'),
-            r.get('keterangan', '-'), '',  # Biaya kosong
+            r.get('keterangan', '-'), lokasi, '',  # Biaya kosong
         ])
     buf = io.BytesIO()
     buf.write(output.getvalue().encode('utf-8-sig'))
@@ -1286,23 +1345,50 @@ def _generate_overtime_detail_csv(rows, driver_name='', driver_role='DRIVER', da
 
 
 class OvertimeFormPDF(BPFBasePDF):
-    """Formulir Permohonan Overtime — dicetak oleh GA HR setelah driver submit.
+    """Formulir Permohonan Overtime — dicetak oleh GA HR.
 
+    Mendukung modul driver dan ob/security (parameter modul).
     Format: Portrait A4
-    Isi: ID Form, Email, Nama Driver, No Kendaraan, Tanggal,
-          Detail OT (Tanggal, Jam S/D, Broker, Manager, Keterangan),
-          Kolom Rupiah, Blok TTD (Manager, Finance, GA HR, Chief Driver, Kepala Cabang),
-          Link Foto (di tujuan + selfie office), Footer ISO 27001.
+    Isi: ID Form, Email, Nama, Detail OT (Tanggal, Jam S/D, Keterangan),
+          H+1 (bila OT lewat tengah malam), Kolom Rupiah,
+          Blok TTD, Link Foto, Footer ISO 27001.
     """
 
     def __init__(self):
         super().__init__(orientation='P', unit='mm', format='A4')
         self.set_auto_page_break(auto=True, margin=15)
 
-    def generate(self, row, photos=None):
-        """row: dict dari tabel overtime_driver.
-        photos: dict { 'foto_mulai': url, 'foto_selesai': url }
+    def _calc_h1(self, row):
+        """Hitung durasi H+1 (jam lewat tengah malam) dari waktu_selesai.
+        Bila waktu_selesai < waktu_mulai → OT lewat tengah malam.
+        H+1 dihitung dari jam 00:00 s/d waktu_selesai.
         """
+        mulai = row.get('waktu_mulai', '')
+        selesai = row.get('waktu_selesai', '')
+        if not mulai or not selesai:
+            return None
+        try:
+            # Parse HH:MM atau HH:MM:SS
+            m_parts = str(mulai).split(':')
+            s_parts = str(selesai).split(':')
+            m_h, m_m = int(m_parts[0]), int(m_parts[1])
+            s_h, s_s = int(s_parts[0]), int(s_parts[1])
+            m_min = m_h * 60 + m_m
+            s_min = s_h * 60 + s_s
+            if s_min < m_min:
+                # Lewat tengah malam — H+1 dari 00:00 s/d waktu_selesai
+                h1_menit = s_min  # jam dari 00:00
+                return round(h1_menit / 60, 2)
+            return None  # Tidak lewat tengah malam
+        except (ValueError, IndexError):
+            return None
+
+    def generate(self, row, photos=None, modul='driver'):
+        """row: dict dari tabel overtime_driver / overtime_ob_security.
+        photos: dict { 'foto_mulai': url, 'foto_selesai': url }
+        modul: 'driver' atau 'ob'
+        """
+        is_driver = (modul == 'driver')
         self.add_page()
 
         # Header: ID Form + Email
@@ -1315,19 +1401,30 @@ class OvertimeFormPDF(BPFBasePDF):
 
         # Title
         self.set_font(self._font(), 'B', 13)
-        self.cell(0, 8, 'FORMULIR PERMOHONAN OVERTIME – DRIVER', align='C', new_x='LMARGIN', new_y='NEXT')
+        if is_driver:
+            self.cell(0, 8, 'FORMULIR PERMOHONAN OVERTIME – DRIVER', align='C', new_x='LMARGIN', new_y='NEXT')
+        else:
+            posisi = row.get('posisi', '-')
+            self.cell(0, 8, f'FORMULIR PERMOHONAN OVERTIME – {posisi.upper()}', align='C', new_x='LMARGIN', new_y='NEXT')
         self.ln(4)
 
-        # Driver info
+        # Info nama
         self.set_font(self._font(), 'B', 10)
-        self.cell(45, 6, 'NAMA PENGEMUDI', new_x='RIGHT', new_y='TOP')
+        label_nama = 'NAMA PENGEMUDI' if is_driver else 'NAMA KARYAWAN'
+        self.cell(45, 6, label_nama, new_x='RIGHT', new_y='TOP')
         self.set_font(self._font(), '', 10)
         self.cell(0, 6, f': {self.clean_text(row.get("nama", "-"))}', new_x='LMARGIN', new_y='NEXT')
 
-        self.set_font(self._font(), 'B', 10)
-        self.cell(45, 6, 'NO KENDARAAN', new_x='RIGHT', new_y='TOP')
-        self.set_font(self._font(), '', 10)
-        self.cell(0, 6, f': {self.clean_text(row.get("no_kendaraan", "-"))}', new_x='LMARGIN', new_y='NEXT')
+        if is_driver:
+            self.set_font(self._font(), 'B', 10)
+            self.cell(45, 6, 'NO KENDARAAN', new_x='RIGHT', new_y='TOP')
+            self.set_font(self._font(), '', 10)
+            self.cell(0, 6, f': {self.clean_text(row.get("no_kendaraan", "-"))}', new_x='LMARGIN', new_y='NEXT')
+        else:
+            self.set_font(self._font(), 'B', 10)
+            self.cell(45, 6, 'POSISI', new_x='RIGHT', new_y='TOP')
+            self.set_font(self._font(), '', 10)
+            self.cell(0, 6, f': {self.clean_text(row.get("posisi", "-"))}', new_x='LMARGIN', new_y='NEXT')
 
         self.set_font(self._font(), 'B', 10)
         self.cell(45, 6, 'TANGGAL FORM', new_x='RIGHT', new_y='TOP')
@@ -1369,15 +1466,30 @@ class OvertimeFormPDF(BPFBasePDF):
         waktu = f'{row.get("waktu_mulai", "-")} S/D {row.get("waktu_selesai", "-")}'
         self.cell(0, 6, f': {waktu}', new_x='LMARGIN', new_y='NEXT')
 
-        self.set_font(self._font(), 'B', 10)
-        self.cell(35, 6, 'NAMA BROKER', new_x='RIGHT', new_y='TOP')
-        self.set_font(self._font(), '', 10)
-        self.cell(0, 6, f': {self.clean_text(row.get("broker", "-"))}', new_x='LMARGIN', new_y='NEXT')
+        # H+1 — bila OT lewat tengah malam
+        h1 = self._calc_h1(row)
+        if h1 is not None and h1 > 0:
+            self.set_font(self._font(), 'B', 10)
+            self.set_text_color(180, 30, 30)
+            self.cell(35, 6, 'H+1', new_x='RIGHT', new_y='TOP')
+            self.set_font(self._font(), '', 10)
+            # Maksimal H+1 dihitung dari jam terakhir selesai OT
+            h1_jam = int(h1)
+            h1_menit = round((h1 - h1_jam) * 60)
+            h1_str = f'{h1_jam} jam {h1_menit} menit (maksimal s/d {row.get("waktu_selesai", "-")})'
+            self.cell(0, 6, f': {h1_str}', new_x='LMARGIN', new_y='NEXT')
+            self.set_text_color(*INK)
 
-        self.set_font(self._font(), 'B', 10)
-        self.cell(35, 6, 'NAMA MANAGER', new_x='RIGHT', new_y='TOP')
-        self.set_font(self._font(), '', 10)
-        self.cell(0, 6, f': {self.clean_text(row.get("manager", "-"))}', new_x='LMARGIN', new_y='NEXT')
+        if is_driver:
+            self.set_font(self._font(), 'B', 10)
+            self.cell(35, 6, 'NAMA BROKER', new_x='RIGHT', new_y='TOP')
+            self.set_font(self._font(), '', 10)
+            self.cell(0, 6, f': {self.clean_text(row.get("broker", "-"))}', new_x='LMARGIN', new_y='NEXT')
+
+            self.set_font(self._font(), 'B', 10)
+            self.cell(35, 6, 'NAMA MANAGER', new_x='RIGHT', new_y='TOP')
+            self.set_font(self._font(), '', 10)
+            self.cell(0, 6, f': {self.clean_text(row.get("manager", "-"))}', new_x='LMARGIN', new_y='NEXT')
 
         self.set_font(self._font(), 'B', 10)
         self.cell(35, 6, 'KETERANGAN', new_x='RIGHT', new_y='TOP')

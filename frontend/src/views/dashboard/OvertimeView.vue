@@ -36,6 +36,9 @@ const editForm = ref({})    // salinan utk diedit
 const savingEdit = ref(false)
 const confirmDel = ref(null) // { modul, id, nama } utk konfirmasi hapus
 
+// Nama autocomplete untuk filter & detail report
+const allNames = ref([])
+
 const formLink = window.location.origin + '/app/overtime-form'
 
 async function loadStats() {
@@ -162,9 +165,17 @@ function fmtWaktu(r) {
   return b ? `${a} – ${b}` : a
 }
 
-function cetakForm(r) {
+function cetakForm(r, modul) {
   const id = r.id || r.display_id
-  window.open(`/api/overtime/form-pdf?id=${id}`, '_blank')
+  const m = modul || 'driver'
+  window.open(`/api/overtime/form-pdf?id=${id}&modul=${m}`, '_blank')
+}
+
+async function loadNames() {
+  try {
+    const d = await api('/api/overtime/names')
+    allNames.value = d.names || []
+  } catch { allNames.value = [] }
 }
 
 function openEdit(r, modul) {
@@ -215,6 +226,7 @@ async function doDelete() {
 onMounted(() => {
   loadStats()
   loadTab()
+  loadNames()
 })
 
 watch(tab, loadTab)
@@ -281,7 +293,7 @@ watch(tab, loadTab)
                   <td class="muted">{{ (r.broker || r.manager) ? (r.broker || '—') + ' / ' + (r.manager || '—') : '—' }}</td>
                   <td><span class="badge badge-gray">{{ r.source === 'sheet' ? '📥 Sheet' : '📝 App' }}</span></td>
                   <td class="row-actions">
-                    <button class="btn btn-xs" title="Cetak Form Permohonan" @click="cetakForm(r)">📄</button>
+                    <button class="btn btn-xs" title="Cetak Form Permohonan" @click="cetakForm(r, 'driver')">📄</button>
                     <button class="btn btn-xs" title="Edit" aria-label="Edit data" @click="openEdit(r, 'driver')">✏️</button>
                     <button class="btn btn-xs btn-danger" title="Hapus" aria-label="Hapus data" @click="askDelete(r, 'driver')">🗑️</button>
                   </td>
@@ -304,7 +316,10 @@ watch(tab, loadTab)
           <input class="input" type="date" v-model="oFrom" @change="loadOb" />
           <span class="muted">s/d</span>
           <input class="input" type="date" v-model="oTo" @change="loadOb" />
-          <input class="input grow" v-model="oSearch" placeholder="🔍 Cari nama / keterangan / nomor…" @keyup.enter="loadOb" />
+          <input class="input grow" v-model="oSearch" placeholder="🔍 Cari nama / keterangan / nomor…" @keyup.enter="loadOb" list="ob-names" />
+          <datalist id="ob-names">
+            <option v-for="n in allNames" :key="n" :value="n" />
+          </datalist>
           <button class="btn" @click="loadOb">🔍 Cari</button>
           <button class="btn" @click="downloadObPdf">📄 PDF</button>
         </div>
@@ -325,6 +340,7 @@ watch(tab, loadTab)
                   <td class="muted">{{ r.keterangan || '—' }}</td>
                   <td><span class="badge badge-gray">{{ r.source === 'migrasi' ? '📥 Migrasi' : '📝 Form' }}</span></td>
                   <td class="row-actions">
+                    <button class="btn btn-xs" title="Cetak Form Permohonan" @click="cetakForm(r, 'ob')">📄</button>
                     <button class="btn btn-xs" title="Edit" aria-label="Edit data" @click="openEdit(r, 'ob')">✏️</button>
                     <button class="btn btn-xs btn-danger" title="Hapus" aria-label="Hapus data" @click="askDelete(r, 'ob')">🗑️</button>
                   </td>
@@ -420,9 +436,9 @@ watch(tab, loadTab)
       <p style="font-size:13px;color:var(--text-2);margin-bottom:12px;">Generate report detail overtime per driver (PDF atau Excel). Kolom Biaya kosong untuk diisi GA HR.</p>
       <div class="field">
         <label>Nama Driver *</label>
-        <input class="input" v-model="detailDriver" placeholder="Cari nama driver..." list="driver-names" />
-        <datalist id="driver-names">
-          <option v-for="n in [...new Set(dList.map(r => r.nama))].sort()" :key="n" :value="n" />
+        <input class="input" v-model="detailDriver" placeholder="Ketik nama untuk cari..." list="all-driver-names" />
+        <datalist id="all-driver-names">
+          <option v-for="n in allNames" :key="n" :value="n" />
         </datalist>
       </div>
       <div class="row" style="gap:8px;">

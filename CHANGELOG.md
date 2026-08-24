@@ -1,4 +1,4 @@
-# 📋 Changelog — BPF WorkHub v2.28.0
+# 📋 Changelog — BPF WorkHub v2.28.1
 
 Riwayat perubahan penting pada BPF WorkHub. Format mengikuti [Keep a Changelog](https://keepachangelog.com/id/ID/1.0.0/) dan versi mengikuti [Semantic Versioning](https://semver.org/lang/id/).
 
@@ -16,6 +16,27 @@ Telp: 031-5349888
 ---
 
 ## Versi Terbaru
+
+### [2.28.1] - 2026-08-24
+
+**OT Form Multi-Modul + H+1 + Nama Filter + Landscape Detail**
+
+**Perubahan:**
+- **Form Permohonan untuk Driver & OB/Security** — endpoint `/api/overtime/form-pdf` sekarang mendukung parameter `modul` (driver/ob), PDF otomatis menyesuaikan isi (No. Kendaraan vs Posisi, Broker/Manager hanya untuk driver)
+- **H+1 Overtime** — bila OT lewat tengah malam, form PDF menampilkan durasi H+1 yang dihitung dari jam 00:00 s/d waktu_selesai (maksimal terhitung dari jam terakhir selesai OT)
+- **Detail Report Landscape** — orientasi halaman diubah ke Landscape A4 (267mm usable), kolom lebih lebar & profesional: No, Timestamp, No. Form, Nama, Plat, Tanggal OT, Jam Mulai, Jam Selesai, Keterangan, Lokasi (GPS), Biaya
+- **Kolom Lokasi** — tambah kolom LOKASI di detail report (PDF & Excel) yang menampilkan data GPS detail (kelurahan/kecamatan/kota) atau alamat lengkap
+- **Filter nama autocomplete** — input nama di Detail Report modal dan tab OB/Security sekarang bisa dicari dan dipilih dari daftar nama yang tersedia (API `/api/overtime/names`)
+- **Tombol Cetak Form di tab OB/Security** — tombol 📄 Cetak Form Permohonan ditambahkan di tabel OB/Security (sebelumnya hanya ada di tab Driver)
+- **Excel Landscape** — export Excel juga pakai orientasi landscape dengan kolom yang sama
+
+**Backend:**
+- `GET /api/overtime/form-pdf?modul=ob&id=xxx` — support modul ob/security
+- `GET /api/overtime/names?modul=driver` — return nama unik dari tabel driver
+- `GET /api/overtime/names?modul=ob` — return nama unik dari tabel ob/security
+- `GET /api/overtime/names` — return nama unik dari kedua tabel
+
+---
 
 ### [2.28.0] - 2026-08-24
 
