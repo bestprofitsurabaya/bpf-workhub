@@ -46,7 +46,8 @@ async function handleFoto(event, type) {
   if (!file) return
   const addr = await gpsText()
   const now = new Date().toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })
-  const watermarked = await applyWatermark(file, addr, now)
+  const coords = store.gps.lat ? `${store.gps.lat.toFixed(5)}, ${store.gps.lon.toFixed(5)}` : null
+  const watermarked = await applyWatermark(file, addr, now, coords)
   const blob = watermarked || file
   if (type === 'mulai') {
     fotoMulaiFile.value = blob

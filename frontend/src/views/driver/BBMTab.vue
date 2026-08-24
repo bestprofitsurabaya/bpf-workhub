@@ -85,7 +85,8 @@ async function onPhotoChange(field, e) {
   previews.value[field] = await fileToDataUrl(f)
   wmState.value[field] = 'processing'
   const addr = await gpsText()
-  const blob = await applyWatermark(f, addr)
+  const coords = store.gps.lat ? `${store.gps.lat.toFixed(5)}, ${store.gps.lon.toFixed(5)}` : null
+  const blob = await applyWatermark(f, addr, null, coords)
   wmBlobs.value[field] = blob
   wmState.value[field] = blob ? 'done' : 'error'
 }
