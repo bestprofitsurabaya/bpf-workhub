@@ -1,4 +1,4 @@
-# 📋 Changelog — BPF WorkHub v2.24.0
+# 📋 Changelog — BPF WorkHub v2.25.0
 
 Riwayat perubahan penting pada BPF WorkHub. Format mengikuti [Keep a Changelog](https://keepachangelog.com/id/ID/1.0.0/) dan versi mengikuti [Semantic Versioning](https://semver.org/lang/id/).
 
@@ -16,6 +16,48 @@ Telp: 031-5349888
 ---
 
 ## Versi Terbaru
+
+### [2.25.0] - 2026-08-24
+
+**UI/UX Overhaul + 7 SEO Algorithms + Multi-Branch + Duplicate Prevention**
+
+**Fitur Baru:**
+- **Upload Gambar ke WordPress**: download dari source → upload ke WP Media Library → featured image + inline
+- **Progress Tracking**: SSE polling endpoint `/api/scraper/progress/<task_id>`
+- **Upload History**: filter tanggal/aksi di `/api/scraper/history`
+- **Duplicate Prevention**: paginate 500 posts + fuzzy title matching (normalize lowercase, strip punctuation)
+- **7 Algoritma SEO**:
+  1. Content Uniqueness (25+ sinonim, parafrase otomatis)
+  2. Multi-Source Scraping (newsmaker + kontan + bisnis)
+  3. Internal Linking (keyword overlap antar artikel)
+  4. Advanced Schema (NewsArticle + BreadcrumbList + Organization + FAQ)
+  5. Auto Sitemap Ping (Google + IndexNow)
+  6. Smart Scheduling (9-11AM, 7-9PM WIB, max 5/hari)
+  7. Performance Analytics (track per site/date)
+- **SEO Backlinks**: 5 BPF target sites + 23 authority sites + CTA widget otomatis
+- **Multi-Branch Users**: 10 cabang (JKT, JKT2, BDG, SMG, MLG, MDN, BJM, PLM, LPG, SBY)
+- **Access Filtering**: user hanya lihat site cabang sendiri (HO & admin lihat semua)
+- **UI/UX Overhaul**:
+  1. Dashboard Overview (stats cards + recent activity)
+  2. Tab-Based Layout (6 tabs: Dashboard/Sites/Scrape/Upload/SEO/Analytics)
+  3. Article Preview Cards (thumbnail + checkbox select)
+  4. Upload Queue (select individual articles)
+  5. Real-Time Upload Log
+  6. Mobile-First Design (responsive 640px)
+  7. SEO Score Visual (stats grid + daily chart)
+  8. Quick Actions FAB (floating action button)
+  9. Dark Mode Support (toggle + localStorage)
+  10. Onboarding Checklist (getting started guide)
+
+**Fix:**
+- `_check_bs4()` → `check_bs4()` (NameError causing 500)
+- Content rewrite order: parafrase SEBELUM backlinks (bukan sesudah)
+- Upload function: use `source_url` bukan `link` untuk gambar WordPress
+- Featured image: set `featured_media` saat update post juga
+- Duplicate check: paginate 500 posts + cache title→post_id
+- Session key: `user_role` bukan `role` untuk access filtering
+
+---
 
 ### [2.24.0] - 2026-08-24
 
