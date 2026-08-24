@@ -104,14 +104,25 @@ DEFAULT_KEYWORD_MAPPING = {
 }
 
 ANCHOR_TEXT_VARIATIONS = {
-    "emas": ["Harga Emas", "Pasar Emas", "Komoditas Emas", "Investasi Emas"],
+    # BPF internal (CTA-driven anchors)
+    "trading": ["Trading Sekarang", "Buka Akun Trading", "Platform Trading", "Trading Online"],
+    "investasi": ["Investasi Sekarang", "Mulai Investasi", "Strategi Investasi", "Instrumen Investasi"],
+    "forex": ["Trading Forex", "Pasar Forex", "Trading Valas", "Buka Akun Forex"],
+    "komoditas": ["Trading Komoditas", "Pasar Komoditas", "Commodity Trading"],
+    "emas": ["Trading Emas", "Harga Emas", "Investasi Emas", "Pasar Emas"],
+    "saham": ["Trading Saham", "Pasar Saham", "Buka Akun Saham"],
+    "broker": ["Broker Terpercaya", "Broker Resmi", "PT Bestprofit Futures"],
+    "futures": ["Perdagangan Berjangka", "Trading Futures", "Bestprofit Futures"],
+    "perdagangan berjangka": ["Perdagangan Berjangka", "Trading Berjangka"],
+    "akun trading": ["Buka Akun Trading", "Daftar Sekarang"],
+    "platform trading": ["Platform Trading Terbaik", "Platform Trading Online"],
+    "demo trading": ["Coba Demo Trading", "Akun Demo Gratis"],
+    "trading online": ["Trading Online Sekarang", "Platform Trading Online"],
+    "buka akun": ["Buka Akun Sekarang", "Daftar Trading"],
+    "simulasi trading": ["Simulasi Trading Gratis", "Coba Demo Trading"],
+    # External authority (SEO trust)
     "inflasi": ["Tingkat Inflasi", "Data Inflasi", "Kebijakan Inflasi"],
     "suku bunga": ["Suku Bunga BI", "Kebijakan Suku Bunga", "BI Rate"],
-    "trading": ["Platform Trading", "Analisis Trading"],
-    "investasi": ["Strategi Investasi", "Instrumen Investasi"],
-    "forex": ["Pasar Forex", "Trading Valas"],
-    "komoditas": ["Pasar Komoditas", "Commodity Trading"],
-    "saham": ["Pasar Saham", "Bursa Efek"],
     "minyak": ["Harga Minyak", "Crude Oil"],
 }
 
@@ -340,21 +351,71 @@ def _get_anchor_text(keyword):
 
 
 def _apply_backlinks(content, title, authority_sites, keyword_mapping, max_backlinks=3):
-    """Add financial authority backlinks to content."""
+    """Add financial authority backlinks + BPF CTA to content."""
     used = []
     combined = (title + " " + content).lower()
-    matched = [(kw, site) for kw, site in keyword_mapping.items() if kw.lower() in combined]
-    random.shuffle(matched)
-    matched = matched[:max_backlinks]
-    for kw, site_name in matched:
+
+    # Split: BPF internal keywords vs external authority keywords
+    bpf_sites = {'PT BESTPROFIT FUTURES', 'BESTPROFIT Trading', 'BESTPROFIT E-Trade',
+                  'BESTPROFIT Demo', 'BESTPROFIT Platform'}
+    matched_bpf = []
+    matched_ext = []
+    for kw, site_name in keyword_mapping.items():
+        if kw.lower() in combined:
+            if site_name in bpf_sites:
+                matched_bpf.append((kw, site_name))
+            else:
+                matched_ext.append((kw, site_name))
+
+    # Insert internal BPF backlinks (1-2 per article)
+    random.shuffle(matched_bpf)
+    for kw, site_name in matched_bpf[:2]:
         if site_name in authority_sites:
             url = authority_sites[site_name]
             anchor = _get_anchor_text(kw)
             pattern = r'\b' + re.escape(kw) + r'\b(?![^<]*>)'
-            replacement = f'<a href="{url}" target="_blank" rel="nofollow">{anchor}</a>'
-            content = re.sub(pattern, replacement, content, count=1, flags=re.IGNORECASE)
+            content = re.sub(pattern, f'<a href="{url}" target="_blank" rel="nofollow sponsored">{anchor}</a>', content, count=1, flags=re.IGNORECASE)
             used.append(f"{anchor} → {site_name}")
+
+    # Insert external authority backlinks (1 per article)
+    random.shuffle(matched_ext)
+    for kw, site_name in matched_ext[:1]:
+        if site_name in authority_sites:
+            url = authority_sites[site_name]
+            anchor = _get_anchor_text(kw)
+            pattern = r'\b' + re.escape(kw) + r'\b(?![^<]*>)'
+            content = re.sub(pattern, f'<a href="{url}" target="_blank" rel="nofollow">{anchor}</a>', content, count=1, flags=re.IGNORECASE)
+            used.append(f"{anchor} → {site_name}")
+
+    # Add BPF CTA sidebar widget at bottom of article
+    cta_html = _build_bpf_cta_widget()
+    content = content + cta_html
+
     return content, used
+
+
+def _build_bpf_cta_widget():
+    """Build a CTA widget with links to all BPF sites."""
+    return '''
+<!-- BPF CTA Widget -->
+<div style="margin:30px 0;padding:24px;background:linear-gradient(135deg,#1a365d 0%,#2563eb 100%);border-radius:12px;color:#fff;font-family:sans-serif;">
+  <h3 style="margin:0 0 12px;color:#fff;font-size:18px;">📈 Mulai Trading Sekarang</h3>
+  <p style="margin:0 0 16px;font-size:14px;opacity:0.9;">Bergabung dengan PT Bestprofit Futures — broker resmi Bappebti untuk perdagangan berjangka komoditi.</p>
+  <div style="display:flex;gap:10px;flex-wrap:wrap;">
+    <a href="https://bestprofit-futures.co.id/" target="_blank" rel="nofollow sponsored" style="display:inline-block;padding:10px 20px;background:#fff;color:#1a365d;border-radius:8px;text-decoration:none;font-weight:bold;font-size:14px;">Buka Akun Trading</a>
+    <a href="https://etrade.bestprofit-futures.com/" target="_blank" rel="nofollow sponsored" style="display:inline-block;padding:10px 20px;background:rgba(255,255,255,0.2);color:#fff;border-radius:8px;text-decoration:none;font-size:14px;">E-Trade Online</a>
+    <a href="https://demo.bestprofit-futures.com/" target="_blank" rel="nofollow sponsored" style="display:inline-block;padding:10px 20px;background:rgba(255,255,255,0.2);color:#fff;border-radius:8px;text-decoration:none;font-size:14px;">Coba Demo Gratis</a>
+  </div>
+</div>'''
+
+
+def _seo_analyze(content, title):
+    """Simple SEO analysis."""
+    text = re.sub(r'<[^>]+>', '', content)
+    word_count = len(text.split())
+    h2 = len(re.findall(r'<h2', content, re.IGNORECASE))
+    h3 = len(re.findall(r'<h3', content, re.IGNORECASE))
+    headings = h2 + h3
 
 
 def _seo_analyze(content, title):
