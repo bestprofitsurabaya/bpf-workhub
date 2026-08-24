@@ -36,6 +36,7 @@ export async function detailedLocation(lat, lon) {
   const d = await r.json()
   // Parse display_name sebagai fallback untuk kecamatan
   const parts = (d?.display_name || '').split(',').map(p => p.trim())
+  const addr = d?.address || {}
   const kotaVal = addr.city || addr.town || addr.municipality || ''
   let kecamatanFallback = ''
   if (kotaVal && parts.length > 2) {
