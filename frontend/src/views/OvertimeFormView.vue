@@ -18,7 +18,6 @@ const fotoMulaiFile = ref(null)
 const fotoSelesaiFile = ref(null)
 const fotoMulaiPreview = ref(null)
 const fotoSelesaiPreview = ref(null)
-const uploading = ref(false)
 
 async function loadMeta() {
   try {

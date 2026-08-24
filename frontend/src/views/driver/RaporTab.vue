@@ -1,11 +1,15 @@
 <script setup>
-import { ref, watch } from 'vue'
+import { ref, watch, onMounted } from 'vue'
 import { api } from '../../api'
+import { useDriverStore } from '../../stores/driverStore'
 
+const store = useDriverStore()
 const nopol = ref('')
 const result = ref(null)
 const loading = ref(false)
 
+// Pre-fill nopol dari profile
+watch(() => store.profile, (p) => { if (p && p.nopol && !nopol.value) nopol.value = p.nopol }, { immediate: true })
 watch(() => nopol.value, () => { result.value = null })
 
 async function check() {

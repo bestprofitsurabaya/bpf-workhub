@@ -110,6 +110,14 @@ export const useDriverStore = defineStore('driver', {
             if (ok && data?.status === 'success') { await deleteFromQueue('trip_queue', item.id); sent++ }
           } catch { /* retry nanti */ }
         }
+        // 4) Overtime Driver offline → POST /api/overtime/driver/submit
+        const overtimes = await getAllFromQueue('overtime_queue')
+        for (const item of overtimes) {
+          try {
+            const { ok, data } = await api('/api/overtime/driver/submit', { method: 'POST', body: item.data })
+            if (ok && data?.status === 'success') { await deleteFromQueue('overtime_queue', item.id); sent++ }
+          } catch { /* retry nanti */ }
+        }
         this.lastSync = new Date().toISOString()
       } finally {
         this.syncing = false

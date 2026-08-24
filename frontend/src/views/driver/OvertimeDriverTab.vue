@@ -1,11 +1,11 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { useDriverStore } from '../../stores/driverStore'
 import { api } from '../../api'
 import { applyWatermark, fileToDataUrl } from '../../utils/watermark'
 
 const store = useDriverStore()
-const brandIcon = '/static/icon-192.png'
+const emit = defineEmits(['toast'])
 
 const form = ref({
   tanggal: '', waktu_mulai: '', waktu_selesai: '', keterangan: '',
@@ -28,23 +28,25 @@ function today() {
   return `${d.getFullYear()}-${mm}-${dd}`
 }
 
-function getGpsText() {
-  return new Promise((resolve) => {
-    if (!navigator.geolocation) return resolve('GPS tidak tersedia')
-    navigator.geolocation.getCurrentPosition(
-      (pos) => resolve(`${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)}`),
-      () => resolve('GPS tidak tersedia'),
-      { timeout: 5000 }
-    )
-  })
+// Pre-fill no_kendaraan dari profile
+watch(() => store.profile, (p) => {
+  if (p) form.value.no_kendaraan = p.nopol || form.value.no_kendaraan
+}, { immediate: true })
+
+/** GPS shared dari store (konsisten dengan BBMTab) */
+async function gpsText() {
+  if (store.gps.addr) return store.gps.addr
+  if (store.gps.lat && store.gps.lon) return `${store.gps.lat.toFixed(5)}, ${store.gps.lon.toFixed(5)}`
+  try { await store.locate(); return store.gps.addr || 'GPS tidak tersedia' }
+  catch { return 'GPS tidak tersedia' }
 }
 
 async function handleFoto(event, type) {
   const file = event.target.files?.[0]
   if (!file) return
-  const gpsText = await getGpsText()
+  const addr = await gpsText()
   const now = new Date().toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })
-  const watermarked = await applyWatermark(file, gpsText, now)
+  const watermarked = await applyWatermark(file, addr, now)
   const blob = watermarked || file
   if (type === 'mulai') {
     fotoMulaiFile.value = blob
@@ -78,10 +80,19 @@ async function submit() {
     if (fotoMulaiFile.value) payload.foto_mulai = await blobToBase64(fotoMulaiFile.value)
     if (fotoSelesaiFile.value) payload.foto_selesai = await blobToBase64(fotoSelesaiFile.value)
 
-    const d = await api('/api/overtime/driver/submit', { method: 'POST', body: payload })
-    done.value = { display_id: d.display_id, msg: d.msg }
+    if (store.online) {
+      const d = await api('/api/overtime/driver/submit', { method: 'POST', body: payload })
+      done.value = { display_id: d.display_id, msg: d.msg }
+      emit('toast', `✅ Overtime tercatat: ${d.display_id}`, 'success')
+    } else {
+      // Offline: simpan ke antrean
+      await store.enqueue('overtime_queue', payload)
+      done.value = { display_id: '-', msg: 'Offline — akan dikirim saat online' }
+      emit('toast', '🟡 Offline — data disimpan lokal, akan dikirim otomatis', 'warning')
+    }
   } catch (e) {
     error.value = e.message || 'Gagal mengirim.'
+    emit('toast', '❌ ' + (e.message || 'Gagal mengirim overtime'), 'error')
   } finally {
     loading.value = false
   }
@@ -89,7 +100,7 @@ async function submit() {
 
 function reset() {
   done.value = null
-  form.value = { tanggal: '', waktu_mulai: '', waktu_selesai: '', keterangan: '', no_kendaraan: '', broker: '', manager: '' }
+  form.value = { tanggal: '', waktu_mulai: '', waktu_selesai: '', keterangan: '', no_kendaraan: store.profile?.nopol || '', broker: '', manager: '' }
   fotoMulaiFile.value = null
   fotoSelesaiFile.value = null
   fotoMulaiPreview.value = null

@@ -148,7 +148,7 @@ onBeforeUnmount(() => {
         <BBMTab v-show="tab === 'bbm'" @toast="toast" />
         <KasbonTab v-show="tab === 'kasbon'" @toast="toast" @switch-tab="switchTab" />
         <TripTab v-show="tab === 'trip'" @toast="toast" />
-        <OvertimeDriverTab v-show="tab === 'overtime'" />
+        <OvertimeDriverTab v-show="tab === 'overtime'" @toast="toast" />
         <RaporTab v-show="tab === 'rapor'" @toast="toast" />
       </main>
 

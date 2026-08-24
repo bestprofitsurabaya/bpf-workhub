@@ -13,6 +13,7 @@ const stats = ref(null)
 const dFrom = ref('')
 const dTo = ref('')
 const dSearch = ref('')
+const dSource = ref('')  // '' | 'sheet' | 'form'
 const dList = ref([])
 
 // Filter OB/Security
@@ -44,7 +45,7 @@ async function loadStats() {
 async function loadDriver() {
   loading.value = true
   try {
-    const d = await api('/api/overtime/driver', { params: { date_from: dFrom.value, date_to: dTo.value, search: dSearch.value } })
+    const d = await api('/api/overtime/driver', { params: { date_from: dFrom.value, date_to: dTo.value, search: dSearch.value, source: dSource.value } })
     dList.value = d.data || []
   } catch (e) { err.value = e.message } finally { loading.value = false }
 }
@@ -108,9 +109,10 @@ async function downloadDriverPdf() {
   try {
     const blob = await api('/api/overtime/report', {
       raw: true,
-      params: { modul: 'driver', date_from: dFrom.value, date_to: dTo.value, nama: dSearch.value },
+      params: { modul: 'driver', date_from: dFrom.value, date_to: dTo.value, nama: dSearch.value, source: dSource.value },
     })
-    downloadBlob(blob, `Laporan_Overtime_Driver_${new Date().toISOString().slice(0, 10)}.pdf`)
+    const suffix = dSource.value ? `_${dSource.value}` : ''
+    downloadBlob(blob, `Laporan_Overtime_Driver${suffix}_${new Date().toISOString().slice(0, 10)}.pdf`)
   } catch (e) { err.value = '❌ Gagal unduh PDF: ' + e.message }
 }
 
@@ -216,6 +218,11 @@ watch(tab, loadTab)
           <span class="muted">s/d</span>
           <input class="input" type="date" v-model="dTo" @change="loadDriver" />
           <input class="input grow" v-model="dSearch" placeholder="🔍 Cari nama / kendaraan / broker / keterangan…" @keyup.enter="loadDriver" />
+          <select class="select" v-model="dSource" @change="loadDriver" style="max-width:140px;">
+            <option value="">Semua Sumber</option>
+            <option value="sheet">📥 Google Sheet</option>
+            <option value="form">📝 Aplikasi</option>
+          </select>
           <button class="btn" @click="loadDriver">🔍 Cari</button>
           <button class="btn" :disabled="refreshing" @click="doRefresh">{{ refreshing ? '⏳ Menyinkronkan…' : '🔄 Refresh dari Google Sheet' }}</button>
           <button class="btn" @click="openConfig">⚙️ Sumber Data</button>
@@ -227,7 +234,7 @@ watch(tab, loadTab)
           <div class="muted" style="font-size:12px;margin:8px 0;">{{ dList.length }} catatan ditampilkan</div>
           <div class="table-wrap">
             <table class="tbl">
-              <thead><tr><th>Tanggal</th><th>Nama</th><th>No. Kendaraan</th><th>Waktu</th><th>Keterangan</th><th>Broker / Manager</th><th></th></tr></thead>
+              <thead><tr><th>Tanggal</th><th>Nama</th><th>No. Kendaraan</th><th>Waktu</th><th>Keterangan</th><th>Broker / Manager</th><th>Sumber</th><th></th></tr></thead>
               <tbody>
                 <tr v-for="r in dList" :key="r.id" :data-id="r.id">
                   <td>{{ r.tanggal || '—' }}</td>
@@ -236,12 +243,13 @@ watch(tab, loadTab)
                   <td>{{ fmtWaktu(r) }}</td>
                   <td class="muted">{{ r.keterangan || '—' }}</td>
                   <td class="muted">{{ (r.broker || r.manager) ? (r.broker || '—') + ' / ' + (r.manager || '—') : '—' }}</td>
+                  <td><span class="badge badge-gray">{{ r.source === 'sheet' ? '📥 Sheet' : '📝 App' }}</span></td>
                   <td class="row-actions">
                     <button class="btn btn-xs" title="Edit" aria-label="Edit data" @click="openEdit(r, 'driver')">✏️</button>
                     <button class="btn btn-xs btn-danger" title="Hapus" aria-label="Hapus data" @click="askDelete(r, 'driver')">🗑️</button>
                   </td>
                 </tr>
-                <tr v-if="!dList.length"><td colspan="7" class="empty">Belum ada data — klik 🔄 Refresh untuk menarik data dari Google Sheet.</td></tr>
+                <tr v-if="!dList.length"><td colspan="8" class="empty">Belum ada data — klik 🔄 Refresh untuk menarik data dari Google Sheet.</td></tr>
               </tbody>
             </table>
           </div>
