@@ -203,7 +203,7 @@ def add_security_headers(response):
             "style-src 'self' 'unsafe-inline'; "
             "font-src 'self' data:; "
             "img-src 'self' data: blob: https://*.tile.openstreetmap.org https://a.tile.openstreetmap.org; "
-            "connect-src 'self' ws: wss:; "
+            "connect-src 'self' ws: wss: https://nominatim.openstreetmap.org https://*.tile.openstreetmap.org; "
             "frame-ancestors 'none'")
     return response
 
