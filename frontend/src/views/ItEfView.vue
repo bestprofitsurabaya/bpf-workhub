@@ -15,7 +15,8 @@ const onboardingStep = ref(0)
 
 // Dashboard stats
 const analytics = ref({ total_articles: 0, by_site: {}, by_date: {} })
-const schedule = ref({ optimal_time: '', published_today: 0, can_publish: true })
+const schedule = ref({ optimal_time: '', published_today: 0, can_publish: true, daily_limit: 10 })
+const scraperSettings = ref({ daily_limit: 10 })
 const historyList = ref([])
 
 // Sites
@@ -114,15 +115,27 @@ async function loadSites() {
 
 async function loadDashboard() {
   try {
-    const [a, s, h] = await Promise.all([
+    const [a, s, h, st] = await Promise.all([
       api('/api/scraper/analytics'),
       api('/api/scraper/schedule'),
       api('/api/scraper/history?limit=10'),
+      api('/api/scraper/settings'),
     ])
     analytics.value = a
     schedule.value = s
     historyList.value = h.history || []
+    scraperSettings.value = st
   } catch { /* noop */ }
+}
+
+async function saveDailyLimit() {
+  try {
+    const r = await api('/api/scraper/settings', { method: 'POST', body: { daily_limit: scraperSettings.value.daily_limit } })
+    if (r.ok) {
+      schedule.value.daily_limit = r.settings.daily_limit
+      msg.value = `✅ Limit diubah ke ${r.settings.daily_limit}/hari`
+    }
+  } catch (e) { msg.value = '❌ ' + e.message }
 }
 
 // --- Progress ---
@@ -286,7 +299,7 @@ onMounted(() => { loadSites(); loadDashboard(); document.documentElement.classLi
       <div class="header-left">
         <h3>📰 News Scraper</h3>
         <span class="header-badge" v-if="schedule.can_publish">🟢 Siap Publish</span>
-        <span class="header-badge warn" v-else>⏸️ Jeda — {{ schedule.published_today }}/10 hari ini</span>
+        <span class="header-badge warn" v-else>⏸️ Jeda — {{ schedule.published_today }}/{{ schedule.daily_limit || 10 }} hari ini</span>
       </div>
       <div class="header-right">
         <span class="optimal-time" v-if="schedule.optimal_time">⏰ {{ schedule.optimal_time }}</span>
@@ -340,7 +353,7 @@ onMounted(() => { loadSites(); loadDashboard(); document.documentElement.classLi
           </div>
           <div class="stat-card">
             <div class="stat-icon">📅</div>
-            <div class="stat-value">{{ schedule.published_today }}/10</div>
+            <div class="stat-value">{{ schedule.published_today }}/{{ schedule.daily_limit || 10 }}</div>
             <div class="stat-label">Publish Hari Ini</div>
           </div>
           <div class="stat-card">
@@ -352,6 +365,21 @@ onMounted(() => { loadSites(); loadDashboard(); document.documentElement.classLi
             <div class="stat-icon">🔗</div>
             <div class="stat-value">{{ Object.keys(keywordMapping).length }}</div>
             <div class="stat-label">Keyword Mappings</div>
+          </div>
+        </div>
+
+        <!-- Settings -->
+        <div class="card card-pad">
+          <h4>⚙️ Pengaturan</h4>
+          <div class="scrape-controls" style="flex-wrap:wrap;gap:12px;align-items:end;">
+            <div class="field" style="min-width:140px;">
+              <label>📊 Limit Publish / Hari</label>
+              <div style="display:flex;gap:6px;align-items:center;">
+                <input class="input" type="number" v-model.number="scraperSettings.daily_limit" min="1" max="100" style="width:70px;" />
+                <button class="btn btn-sm btn-primary" @click="saveDailyLimit">💾 Simpan</button>
+              </div>
+              <span style="font-size:11px;color:var(--muted,#64748b);">1–100 artikel/hari. Atur sesuai kebutuhan SEO.</span>
+            </div>
           </div>
         </div>
 

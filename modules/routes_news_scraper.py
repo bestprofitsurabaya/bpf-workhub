@@ -47,6 +47,7 @@ BACKLINKS_FILE = os.path.join(DATA_DIR, 'financial_backlinks.json')
 HYPERLINKS_FILE = os.path.join(DATA_DIR, 'hyperlink_map.json')
 SCRAPER_LOG_FILE = os.path.join(DATA_DIR, 'scraper_log.json')
 UPLOAD_HISTORY_FILE = os.path.join(DATA_DIR, 'upload_history.json')
+SETTINGS_FILE = os.path.join(DATA_DIR, 'scraper_settings.json')
 
 # ---------------------------------------------------------------------------
 # Financial Authority Backlinks (default dataset)
@@ -722,8 +723,10 @@ def _get_optimal_publish_time():
 
 
 def _should_publish_today(published_today):
-    """Smart scheduling: max 10 articles per day per site."""
-    return published_today < 10
+    """Smart scheduling: configurable daily limit (default 10)."""
+    settings = _load_json(SETTINGS_FILE, {})
+    daily_limit = int(settings.get('daily_limit', 10))
+    return published_today < daily_limit
 
 
 # ===================================================================
@@ -1866,13 +1869,55 @@ def get_schedule():
     optimal_time = _get_optimal_publish_time()
     analytics = _get_analytics(date_from=datetime.now().strftime('%Y-%m-%d'))
     published_today = analytics.get('by_date', {}).get(datetime.now().strftime('%Y-%m-%d'), 0)
+    settings = _load_json(SETTINGS_FILE, {})
+    daily_limit = int(settings.get('daily_limit', 10))
     return jsonify({
         'ok': True,
         'optimal_time': optimal_time.strftime('%Y-%m-%d %H:%M'),
         'published_today': published_today,
         'can_publish': _should_publish_today(published_today),
-        'max_per_day': 5,
+        'daily_limit': daily_limit,
     })
+
+
+# ----- SETTINGS MANAGEMENT -----
+
+@news_scraper_bp.route('/api/scraper/settings', methods=['GET'])
+@role_required(SCRAPER_ROLES)
+def get_scraper_settings():
+    """Get scraper settings including daily_limit."""
+    settings = _load_json(SETTINGS_FILE, {})
+    return jsonify({
+        'daily_limit': int(settings.get('daily_limit', 10)),
+        'seo_optimize': settings.get('seo_optimize', True),
+        'backlinks': settings.get('backlinks', True),
+        'max_backlinks': settings.get('max_backlinks', 3),
+        'static_tags': settings.get('static_tags', 'newsmaker.id, Detik Finance, Market, Financial News'),
+    })
+
+
+@news_scraper_bp.route('/api/scraper/settings', methods=['POST'])
+@role_required(SCRAPER_ROLES)
+def save_scraper_settings():
+    """Save scraper settings."""
+    d = request.get_json(force=True)
+    settings = _load_json(SETTINGS_FILE, {})
+
+    if 'daily_limit' in d:
+        val = int(d['daily_limit'])
+        settings['daily_limit'] = max(1, min(val, 100))  # clamp 1-100
+    if 'seo_optimize' in d:
+        settings['seo_optimize'] = bool(d['seo_optimize'])
+    if 'backlinks' in d:
+        settings['backlinks'] = bool(d['backlinks'])
+    if 'max_backlinks' in d:
+        settings['max_backlinks'] = max(1, min(int(d['max_backlinks']), 10))
+    if 'static_tags' in d:
+        settings['static_tags'] = str(d['static_tags'])[:500]
+
+    _save_json(SETTINGS_FILE, settings)
+    _log_scraper(f'Settings updated: daily_limit={settings.get("daily_limit", 10)}', session.get('user_name', 'unknown'))
+    return jsonify({'ok': True, 'settings': settings})
 
 
 # ---------------------------------------------------------------------------
