@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { api } from '../api'
 import { addToQueue, getAllFromQueue, deleteFromQueue, countAllQueues } from '../utils/idb'
-import { locateWithAddress } from '../utils/gps'
+import { locateWithAddress, detailedLocation } from '../utils/gps'
 
 function csrfHeader() {
   const csrf = localStorage.getItem('bpf_csrf') || sessionStorage.getItem('bpf_csrf')
@@ -39,7 +39,7 @@ export const useDriverStore = defineStore('driver', {
     profile: null,
     profileErr: '',
     online: typeof navigator !== 'undefined' ? navigator.onLine : true,
-    gps: { lat: null, lon: null, addr: '', spbu: '', locating: false },
+    gps: { lat: null, lon: null, addr: '', spbu: '', locating: false, detail: null },
     queue: { fuel: 0, trip: 0, lpj: 0 },
     syncing: false,
     lastSync: null,
@@ -126,13 +126,18 @@ export const useDriverStore = defineStore('driver', {
       return sent
     },
 
-    /** Lokasi GPS + alamat + SPBU terdekat (one-shot). */
+    /** Lokasi GPS + alamat + SPBU terdekat + detail lokasi (one-shot). */
     async locate() {
       if (this.gps.locating) return
       this.gps.locating = true
       try {
         const res = await locateWithAddress()
-        this.gps = { ...this.gps, ...res, locating: false }
+        // Fetch detailed location (parallel)
+        let detail = null
+        try {
+          detail = await detailedLocation(res.lat, res.lon)
+        } catch { /* fallback */ }
+        this.gps = { ...this.gps, ...res, detail, locating: false }
       } catch (e) {
         this.gps.locating = false
         throw e
