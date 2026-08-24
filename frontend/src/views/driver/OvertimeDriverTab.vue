@@ -173,7 +173,7 @@ function reset() {
         <div class="row" style="gap:8px;">
           <div class="foto-box">
             <label class="foto-input" :class="{ 'has-foto': fotoMulaiPreview }">
-              <input type="file" accept="image/*" capture="environment" @change="handleFoto($event, 'mulai')" hidden />
+              <input type="file" accept="image/*" @change="handleFoto($event, 'mulai')" hidden />
               <template v-if="fotoMulaiPreview">
                 <img :src="fotoMulaiPreview" class="foto-thumb" />
                 <span class="foto-badge">✅ Mulai</span>
@@ -186,7 +186,7 @@ function reset() {
           </div>
           <div class="foto-box">
             <label class="foto-input" :class="{ 'has-foto': fotoSelesaiPreview }">
-              <input type="file" accept="image/*" capture="environment" @change="handleFoto($event, 'selesai')" hidden />
+              <input type="file" accept="image/*" @change="handleFoto($event, 'selesai')" hidden />
               <template v-if="fotoSelesaiPreview">
                 <img :src="fotoSelesaiPreview" class="foto-thumb" />
                 <span class="foto-badge">✅ Selesai</span>

@@ -245,7 +245,7 @@ onMounted(() => { if (store.profile) applyProfile() })
             <img v-if="previews[f.key]" :src="previews[f.key]" class="photo-preview" alt="preview" />
             <div v-else class="photo-empty">📷</div>
             <div class="photo-actions">
-              <input type="file" accept="image/*" capture="environment" class="file-input"
+              <input type="file" accept="image/*" class="file-input"
                      :id="'file_' + f.key" @change="onPhotoChange(f.key, $event)" />
               <label class="btn btn-sm" :for="'file_' + f.key">📸 Ambil Foto</label>
               <button v-if="photos[f.key]" type="button" class="btn btn-sm btn-danger" @click="removePhoto(f.key)">✕</button>
