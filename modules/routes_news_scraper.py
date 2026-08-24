@@ -46,6 +46,7 @@ WP_SITES_FILE = os.path.join(DATA_DIR, 'wp_sites.json')
 BACKLINKS_FILE = os.path.join(DATA_DIR, 'financial_backlinks.json')
 HYPERLINKS_FILE = os.path.join(DATA_DIR, 'hyperlink_map.json')
 SCRAPER_LOG_FILE = os.path.join(DATA_DIR, 'scraper_log.json')
+UPLOAD_HISTORY_FILE = os.path.join(DATA_DIR, 'upload_history.json')
 
 # ---------------------------------------------------------------------------
 # Financial Authority Backlinks (default dataset)
@@ -150,7 +151,55 @@ def _log_scraper(message, user='system'):
     _save_json(SCRAPER_LOG_FILE, logs)
 
 
-def _check_bs4():
+# ---------------------------------------------------------------------------
+# Upload History
+# ---------------------------------------------------------------------------
+def _save_upload_history(entry):
+    """Save upload/scrape history entry."""
+    history = _load_json(UPLOAD_HISTORY_FILE, [])
+    history.append(entry)
+    # Keep last 1000 entries
+    if len(history) > 1000:
+        history = history[-1000:]
+    _save_json(UPLOAD_HISTORY_FILE, history)
+
+
+def _get_upload_history(date_from=None, date_to=None, action=None):
+    """Get filtered upload history."""
+    history = _load_json(UPLOAD_HISTORY_FILE, [])
+    if date_from:
+        history = [h for h in history if h.get('date', '') >= date_from]
+    if date_to:
+        history = [h for h in history if h.get('date', '') <= date_to]
+    if action:
+        history = [h for h in history if h.get('action') == action]
+    return history
+
+
+# ---------------------------------------------------------------------------
+# SSE Progress Tracker
+# ---------------------------------------------------------------------------
+import threading
+_progress_store = {}
+_progress_lock = threading.Lock()
+
+
+def _set_progress(task_id, data):
+    with _progress_lock:
+        _progress_store[task_id] = data
+
+
+def _get_progress(task_id):
+    with _progress_lock:
+        return _progress_store.get(task_id, {})
+
+
+def _clear_progress(task_id):
+    with _progress_lock:
+        _progress_store.pop(task_id, None)
+
+
+def check_bs4():
     if BeautifulSoup is None:
         raise RuntimeError('beautifulsoup4 belum terinstall. Jalankan: pip install beautifulsoup4')
 
@@ -392,7 +441,7 @@ def test_connection():
 def check_articles():
     """Scrape articles from newsmaker.id."""
     try:
-        _check_bs4()
+        check_bs4()
     except RuntimeError as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
     try:
@@ -429,8 +478,11 @@ def check_articles():
         session_req = _get_wp_session()
         articles = []
         seen_links = set()
+        task_id = request.args.get('task_id') or f"scrape_{int(time.time())}"
+        _set_progress(task_id, {'stage': 'scrape', 'progress': 0, 'message': 'Mulai scrape...', 'total': pages, 'current': 0})
 
         for page_num in range(1, pages + 1):
+            _set_progress(task_id, {'stage': 'scrape', 'progress': int((page_num / pages) * 80), 'message': f'Scrape halaman {page_num}/{pages}...', 'total': pages, 'current': page_num})
             page_url = scrape_url if page_num == 1 else f"{scrape_url}?page={page_num}"
             try:
                 r = session_req.get(page_url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=30)
@@ -531,11 +583,32 @@ def check_articles():
             except Exception:
                 article['content'] = "Content not found"
 
-        with ThreadPoolExecutor(max_workers=3) as pool:
-            list(pool.map(fetch_content, articles))
+        _set_progress(task_id, {'stage': 'content', 'progress': 85, 'message': f'Mengambil konten {len(articles)} artikel...', 'total': len(articles), 'current': 0})
+        done_count = [0]
+        def fetch_with_progress(article):
+            fetch_content(article)
+            done_count[0] += 1
+            if len(articles) > 0:
+                _set_progress(task_id, {'stage': 'content', 'progress': 85 + int((done_count[0] / len(articles)) * 15), 'message': f'Konten {done_count[0]}/{len(articles)}...', 'total': len(articles), 'current': done_count[0]})
 
+        with ThreadPoolExecutor(max_workers=3) as pool:
+            list(pool.map(fetch_with_progress, articles))
+
+        _set_progress(task_id, {'stage': 'done', 'progress': 100, 'message': f'{len(articles)} artikel siap diupload', 'total': len(articles), 'current': len(articles)})
         _log_scraper(f"Scraped {len(articles)} articles ({pages} pages)", session.get('user_name', 'unknown'))
-        return jsonify({'ok': True, 'articles': articles, 'count': len(articles)})
+
+        # Save to history
+        _save_upload_history({
+            'date': datetime.now().strftime('%Y-%m-%d'),
+            'time': datetime.now().strftime('%H:%M'),
+            'action': 'scrape',
+            'user': session.get('user_name', 'unknown'),
+            'pages': pages,
+            'articles_found': len(articles),
+            'categories': list(set(a.get('category', '') for a in articles)),
+        })
+
+        return jsonify({'ok': True, 'articles': articles, 'count': len(articles), 'task_id': task_id})
     except Exception as e:
         return jsonify({'ok': False, 'error': f'Scrape gagal: {str(e)}', 'articles': [], 'count': 0}), 500
 
@@ -566,10 +639,13 @@ def upload_articles():
         wp_media_url = site.get('wp_media_url', wp_url.replace('/posts', '/media'))
 
         # Dual auth: Basic Auth server + WordPress login
+        task_id = request.args.get('task_id') or f"upload_{int(time.time())}"
+        _set_progress(task_id, {'stage': 'login', 'progress': 5, 'message': 'Login ke WordPress...', 'total': len(articles), 'current': 0})
         wp_session = _get_wp_session()
         login_ok, nonce = _wp_login(wp_session, wp_url, site['username'], site['app_password'])
         if not login_ok:
             return jsonify({'ok': False, 'error': f'WordPress login gagal: {nonce}', 'new_posts': 0, 'updated_posts': 0, 'errors': []}), 401
+        _set_progress(task_id, {'stage': 'login', 'progress': 10, 'message': 'Login berhasil! Memeriksa existing posts...', 'total': len(articles), 'current': 0})
 
         enable_backlinks = settings.get('backlinks', True)
         max_backlinks = settings.get('max_backlinks', 3)
@@ -594,8 +670,9 @@ def upload_articles():
         new_count = 0
         updated_count = 0
         errors = []
+        article_details = []
 
-        for article in articles:
+        for idx, article in enumerate(articles):
             title = article.get('title', '')
             content = article.get('content', '')
             if not content or content == "Content not found":
@@ -658,6 +735,13 @@ def upload_articles():
                 'tags': tag_ids,
             }
 
+            # Progress per article
+            progress_pct = 10 + int(((idx + 1) / len(articles)) * 85)
+            status_msg = '⏳ Upload' if title not in existing_titles else '🔄 Update'
+            _set_progress(task_id, {'stage': 'upload', 'progress': progress_pct, 'message': f'{status_msg} [{idx+1}/{len(articles)}] {title[:50]}...', 'total': len(articles), 'current': idx + 1})
+
+            article_detail = {'title': title, 'category': article.get('category', ''), 'date': article.get('publish_date', ''), 'status': 'pending'}
+
             if title in existing_titles:
                 # Update existing
                 try:
@@ -669,29 +753,61 @@ def upload_articles():
                                                  json={'content': html_content, 'tags': tag_ids})
                                 if r2.status_code == 200:
                                     updated_count += 1
+                                    article_detail['status'] = 'updated'
+                                    article_detail['post_id'] = post['id']
                                 break
                 except Exception as e:
                     errors.append(f"{title}: {str(e)}")
+                    article_detail['status'] = 'error'
+                    article_detail['error'] = str(e)
             else:
                 # Create new
                 try:
                     r = _wp_request(wp_session, 'POST', wp_url, nonce=nonce, json=post_data, timeout=30)
                     if r.status_code == 201:
                         new_count += 1
+                        article_detail['status'] = 'new'
+                        article_detail['post_id'] = r.json().get('id')
                     else:
                         errors.append(f"{title}: HTTP {r.status_code}")
+                        article_detail['status'] = 'error'
+                        article_detail['error'] = f'HTTP {r.status_code}'
                 except Exception as e:
                     errors.append(f"{title}: {str(e)}")
+                    article_detail['status'] = 'error'
+                    article_detail['error'] = str(e)
+
+            article_details.append(article_detail)
+
+        # Progress selesai
+        _set_progress(task_id, {'stage': 'done', 'progress': 100, 'message': f'Selesai! {new_count} baru, {updated_count} update, {len(errors)} error', 'total': len(articles), 'current': len(articles)})
 
         _log_scraper(
             f"Upload selesai: {new_count} baru, {updated_count} update, {len(errors)} error",
             session.get('user_name', 'unknown')
         )
+
+        # Save to history
+        _save_upload_history({
+            'date': datetime.now().strftime('%Y-%m-%d'),
+            'time': datetime.now().strftime('%H:%M'),
+            'action': 'upload',
+            'user': session.get('user_name', 'unknown'),
+            'site': site_name,
+            'total': len(articles),
+            'new_posts': new_count,
+            'updated_posts': updated_count,
+            'errors': len(errors),
+            'error_details': errors[:10],
+            'articles': [{'title': a.get('title', ''), 'category': a.get('category', ''), 'date': a.get('publish_date', '')} for a in articles],
+        })
+
         return jsonify({
             'ok': True,
             'new_posts': new_count,
             'updated_posts': updated_count,
             'errors': errors,
+            'task_id': task_id,
         })
     except Exception as e:
         return jsonify({'ok': False, 'error': f'Upload gagal: {str(e)}', 'new_posts': 0, 'updated_posts': 0, 'errors': []}), 500
@@ -877,6 +993,47 @@ def get_scraper_log():
 def clear_scraper_log():
     _save_json(SCRAPER_LOG_FILE, [])
     return jsonify({'ok': True, 'message': 'Log cleared'})
+
+
+# ----- PROGRESS SSE -----
+
+@news_scraper_bp.route('/api/scraper/progress/<task_id>', methods=['GET'])
+@role_required(SCRAPER_ROLES)
+def get_progress(task_id):
+    """Get progress for a scrape/upload task (polling)."""
+    data = _get_progress(task_id)
+    if not data:
+        return jsonify({'ok': False, 'error': 'Task tidak ditemukan'}), 404
+    return jsonify({'ok': True, **data})
+
+
+# ----- UPLOAD HISTORY -----
+
+@news_scraper_bp.route('/api/scraper/history', methods=['GET'])
+@role_required(SCRAPER_ROLES)
+def get_upload_history_route():
+    """Get upload/scrape history with filters."""
+    date_from = request.args.get('date_from', '')
+    date_to = request.args.get('date_to', '')
+    action = request.args.get('action', '')  # 'scrape' or 'upload'
+    limit = request.args.get('limit', 50, type=int)
+
+    history = _get_upload_history(
+        date_from=date_from or None,
+        date_to=date_to or None,
+        action=action or None,
+    )
+    # Return most recent first
+    history = list(reversed(history))[-limit:]
+    return jsonify({'ok': True, 'history': history, 'total': len(history)})
+
+
+@news_scraper_bp.route('/api/scraper/history', methods=['DELETE'])
+@role_required(SCRAPER_ROLES)
+def clear_upload_history():
+    """Clear upload history."""
+    _save_json(UPLOAD_HISTORY_FILE, [])
+    return jsonify({'ok': True, 'message': 'History cleared'})
 
 
 # ---------------------------------------------------------------------------

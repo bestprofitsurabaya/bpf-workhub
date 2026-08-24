@@ -103,12 +103,61 @@ async function testConnection(site) {
   } catch (e) { msg.value = '❌ ' + e.message }
 }
 
+// --- Progress ---
+const progress = ref(null)
+const progressInterval = ref(null)
+
+async function pollProgress(taskId) {
+  if (progressInterval.value) clearInterval(progressInterval.value)
+  progress.value = { stage: 'start', progress: 0, message: 'Memulai...', total: 0, current: 0 }
+  progressInterval.value = setInterval(async () => {
+    try {
+      const r = await api(`/api/scraper/progress/${taskId}`)
+      if (r.ok) {
+        progress.value = r
+        if (r.stage === 'done') {
+          clearInterval(progressInterval.value)
+          progressInterval.value = null
+        }
+      }
+    } catch { /* ignore */ }
+  }, 800)
+}
+
+function stopProgress() {
+  if (progressInterval.value) { clearInterval(progressInterval.value); progressInterval.value = null }
+  progress.value = null
+}
+
+// --- Upload History ---
+const showHistory = ref(false)
+const historyList = ref([])
+const historyFilter = ref({ date_from: '', date_to: '', action: '' })
+const historyBusy = ref(false)
+
+async function loadHistory() {
+  historyBusy.value = true
+  try {
+    const params = new URLSearchParams()
+    if (historyFilter.value.date_from) params.set('date_from', historyFilter.value.date_from)
+    if (historyFilter.value.date_to) params.set('date_to', historyFilter.value.date_to)
+    if (historyFilter.value.action) params.set('action', historyFilter.value.action)
+    const r = await api(`/api/scraper/history?${params}`)
+    historyList.value = r.history || []
+  } catch { historyList.value = [] }
+  finally { historyBusy.value = false }
+}
+
+function openHistory() { loadHistory(); showHistory.value = true }
+
 // --- Scrape ---
 async function scrapeArticles() {
   if (!selectedSite.value) { msg.value = '⚠️ Pilih WordPress site dulu'; return }
   scrapeBusy.value = true; msg.value = ''; articles.value = []
+  const taskId = `scrape_${Date.now()}`
+  pollProgress(taskId)
   try {
-    const r = await api('/api/scraper/check', { method: 'POST', body: { pages: scrapePages.value } })
+    const r = await api(`/api/scraper/check?task_id=${taskId}`, { method: 'POST', body: { pages: scrapePages.value } })
     articles.value = r.articles || []
     msg.value = r.ok ? `✅ Ditemukan ${r.count} artikel` : '⚠️ Tidak ada artikel ditemukan'
   } catch (e) { msg.value = '❌ ' + e.message }
@@ -120,8 +169,10 @@ async function uploadToWP() {
   if (!selectedSite.value) { msg.value = '⚠️ Pilih WordPress site'; return }
   if (!articles.value.length) { msg.value = '⚠️ Scrape artikel dulu'; return }
   uploadBusy.value = true; msg.value = ''; uploadResult.value = null
+  const taskId = `upload_${Date.now()}`
+  pollProgress(taskId)
   try {
-    const r = await api('/api/scraper/upload', {
+    const r = await api(`/api/scraper/upload?task_id=${taskId}`, {
       method: 'POST',
       body: {
         site_name: selectedSite.value,
@@ -222,8 +273,24 @@ onMounted(loadSites)
         <h3 style="margin:0;">📰 News Scraper & Content Management</h3>
         <p class="muted" style="font-size:11px;">Scrape artikel newsmaker.id → Upload ke WordPress dengan SEO optimization & financial backlinks</p>
       </div>
+      <button class="btn" @click="openHistory" title="📊 Upload History">📊 History</button>
       <button class="btn" @click="openLog" title="📝 Activity Log">📝 Log</button>
       <button class="btn" @click="openBacklinksModal" title="🔗 Manage Backlinks">🔗 Backlinks</button>
+    </div>
+
+    <!-- Progress Bar -->
+    <div v-if="progress && progress.stage !== 'done'" class="card card-pad" style="margin-bottom:16px;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+        <span style="font-size:13px;">⏳ {{ progress.message || 'Memproses...' }}</span>
+        <span style="font-size:12px;color:var(--muted,#64748b);">{{ progress.progress }}%</span>
+      </div>
+      <div style="width:100%;height:8px;background:var(--border,#e2e8f0);border-radius:4px;overflow:hidden;">
+        <div :style="{width: progress.progress + '%', height:'100%', background:'linear-gradient(90deg,#3b82f6,#10b981)', borderRadius:'4px', transition:'width 0.3s'}"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-top:4px;font-size:11px;color:var(--muted,#64748b);">
+        <span>Stage: {{ progress.stage }}</span>
+        <span v-if="progress.total">{{ progress.current }}/{{ progress.total }}</span>
+      </div>
     </div>
 
     <!-- Message -->
@@ -447,6 +514,58 @@ onMounted(loadSites)
           </div>
           <button class="btn btn-primary" :disabled="busy || !newKeyword || !newSiteName" @click="saveKeywordMapping">➕ Add</button>
         </div>
+      </div>
+    </Modal>
+
+    <!-- Modal: Upload History -->
+    <Modal v-if="showHistory" title="📊 Upload History" @close="showHistory = false" style="max-width:800px;">
+      <div class="row" style="gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:end;">
+        <div class="field">
+          <label style="font-size:11px;">Dari Tanggal</label>
+          <input class="input" type="date" v-model="historyFilter.date_from" style="font-size:12px;" />
+        </div>
+        <div class="field">
+          <label style="font-size:11px;">Sampai Tanggal</label>
+          <input class="input" type="date" v-model="historyFilter.date_to" style="font-size:12px;" />
+        </div>
+        <div class="field">
+          <label style="font-size:11px;">Aksi</label>
+          <select class="select" v-model="historyFilter.action" style="font-size:12px;">
+            <option value="">Semua</option>
+            <option value="scrape">🔍 Scrape</option>
+            <option value="upload">📤 Upload</option>
+          </select>
+        </div>
+        <button class="btn btn-primary btn-sm" @click="loadHistory" :disabled="historyBusy">
+          {{ historyBusy ? '⏳' : '🔍 Filter' }}
+        </button>
+      </div>
+      <div v-if="!historyList.length" class="empty" style="padding:16px;">Tidak ada riwayat.</div>
+      <div v-else class="table-wrap" style="max-height:400px;overflow-y:auto;">
+        <table class="tbl" style="font-size:12px;">
+          <thead><tr><th>Waktu</th><th>User</th><th>Aksi</th><th>Detail</th></tr></thead>
+          <tbody>
+            <tr v-for="(h, i) in historyList" :key="i">
+              <td style="white-space:nowrap;">{{ h.date }} {{ h.time }}</td>
+              <td>{{ h.user }}</td>
+              <td>
+                <span :class="h.action === 'upload' ? 'badge badge-blue' : 'badge badge-purple'">
+                  {{ h.action === 'upload' ? '📤 Upload' : '🔍 Scrape' }}
+                </span>
+              </td>
+              <td style="font-size:11px;">
+                <template v-if="h.action === 'upload'">
+                  {{ h.site }} — <span class="badge badge-green">{{ h.new_posts }} baru</span>
+                  <span class="badge badge-blue">{{ h.updated_posts }} update</span>
+                  <span v-if="h.errors" class="badge badge-red">{{ h.errors }} error</span>
+                </template>
+                <template v-else>
+                  {{ h.pages }} halaman — <span class="badge badge-purple">{{ h.articles_found }} artikel</span>
+                </template>
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </Modal>
 
