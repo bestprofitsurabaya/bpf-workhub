@@ -70,7 +70,7 @@ const showLog = ref(false)
 const showFab = ref(false)
 
 // --- Computed ---
-const siteNames = computed(() => sites.value.filter(s => s.username && s.username !== 'PENDING').map(s => s.name))
+const siteNames = computed(() => sites.value.map(s => s.name))
 const selectedCount = computed(() => selectedArticles.value.size)
 const tabList = [
   { key: 'dashboard', icon: '📊', label: 'Dashboard' },
@@ -375,11 +375,11 @@ onMounted(() => { loadSites(); loadDashboard(); document.documentElement.classLi
           </div>
           <div v-if="!sites.length" class="empty">Klik <b>Add Site</b> untuk menambah</div>
           <div v-else class="site-list">
-            <div v-for="s in sites" :key="s.name" class="site-card">
+            <div v-for="s in sites" :key="s.name" class="site-card" :class="{ pending: !s.username || s.username === 'PENDING' }">
               <div class="site-info">
-                <div class="site-name">{{ s.name }}</div>
+                <div class="site-name">{{ s.name }} <span v-if="!s.username || s.username === 'PENDING'" class="badge badge-yellow">⏳ Belum Diisi</span></div>
                 <div class="site-url">{{ s.wp_url }}</div>
-                <div class="site-user">👤 {{ s.username }}</div>
+                <div class="site-user">👤 {{ s.username === 'PENDING' ? 'Belum diisi — klik ✏️ Edit' : s.username }}</div>
               </div>
               <div class="site-actions">
                 <button class="btn btn-sm" @click="openSiteForm(s)">✏️</button>
@@ -759,6 +759,7 @@ onMounted(() => { loadSites(); loadDashboard(); document.documentElement.classLi
 /* === Site Cards === */
 .site-list { display: flex; flex-direction: column; gap: 8px; }
 .site-card { display: flex; align-items: center; justify-content: space-between; padding: 12px; border: 1px solid var(--border, #e2e8f0); border-radius: 10px; }
+.site-card.pending { border-color: #f59e0b; background: #fffbeb; }
 .site-name { font-weight: 600; font-size: 14px; }
 .site-url { font-size: 11px; color: var(--muted, #64748b); max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .site-user { font-size: 12px; }
@@ -853,6 +854,7 @@ onMounted(() => { loadSites(); loadDashboard(); document.documentElement.classLi
 .btn-lg { padding: 12px 20px; font-size: 15px; }
 .badge { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 500; }
 .badge-green { background: #d1fae5; color: #065f46; }
+.badge-yellow { background: #fef3c7; color: #92400e; }
 .badge-blue { background: #dbeafe; color: #1e40af; }
 .badge-red { background: #fee2e2; color: #991b1b; }
 .badge-purple { background: #ede9fe; color: #5b21b6; }
