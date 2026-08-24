@@ -4,7 +4,7 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 **Terakhir diperbarui:** 2026-08-24  
 **Branch:** `main`  
-**Versi terbaru:** v2.26.0
+**Versi terbaru:** v2.27.0
 
 ---
 
@@ -12,13 +12,14 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 | Aspek | Status |
 |-------|--------|
-| Versi | v2.26.0 (Detik Finance + Report + Settings + Fixes) |
+| Versi | v2.27.0 (Overtime Form + GPS Detail + Auto-Save + Mobile Fix) |
 | Docker | `bbm_web` running on `nasbpfsby.duckdns.org:5000` |
 | Pytest | 223/243 passed (20 = integration tests butuh DB) |
 | Vitest | 82/82 ✅ |
 | App Running | `https://nasbpfsby.duckdns.org:5000` |
 | WordPress Posts | 10,239 articles on BPF Surabaya site |
 | Sources | Newsmaker.id + Detik Finance (64 articles/scrape) |
+| Backend Endpoints | Semua ✅ tested (13 endpoints) |
 
 ---
 
@@ -27,7 +28,7 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 ### Core Features
 - [x] Sistem BBM (klaim, verifikasi, pencairan)
 - [x] Sistem Kasbon (kode unik, LPJ, alur relay)
-- [x] Log Perjalanan / Trip
+- [x] Log Perjalanan / Trip (auto-save ke IndexedDB)
 - [x] Dashboard per role (Admin, GA, Finance)
 - [x] Dark mode + High contrast mode
 
@@ -58,7 +59,7 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 - [x] Health score otomatis 0–100
 - [x] Rekomendasi maintenance
 
-### Overtime
+### Overtime ⭐ v2.27.0
 - [x] Overtime Driver (8.665 baris dari Google Sheet)
 - [x] Overtime OB/Security (546 baris + form publik)
 - [x] Form Overtime Driver di PWA (foto + watermark + GPS)
@@ -68,6 +69,11 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 - [x] Offline support untuk overtime driver (overtime_queue)
 - [x] Auto-refresh saat login/logout
 - [x] Notifikasi realtime
+- [x] **Laporan Overtime PDF (File 1)** — tabel ringkas semua driver ⭐ NEW
+- [x] **Report Detail Per Driver (File 2)** — timestamp, form no, plat, jam in/out ⭐ NEW
+- [x] **Excel Export** — kolom Biaya kosong untuk GA HR isi manual ⭐ NEW
+- [x] **Formulir Permohonan Overtime PDF** — ID form, detail OT, blok TTD, foto link ⭐ NEW
+- [x] **Endpoint 3 PDF**: `/api/overtime/report`, `/api/overtime/detail-report`, `/api/overtime/form-pdf` ⭐ NEW
 
 ### Multi-Cabang
 - [x] Isolasi data penuh per cabang
@@ -75,12 +81,16 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 - [x] Audit log bertanda cabang
 - [x] PDF konsolidasi lintas cabang
 
-### PWA Driver
+### PWA Driver ⭐ v2.27.0
 - [x] 5 tab: BBM, Kasbon, Trip, OT, Rapor
 - [x] Foto upload: kamera + galeri
 - [x] Offline-first (IndexedDB)
 - [x] Watermark foto (GPS + timestamp)
 - [x] Notifikasi real-time
+- [x] **Detail Lokasi GPS** — kelurahan, kecamatan, kota, provinsi, kode pos ⭐ NEW
+- [x] **Auto-Save Trip** — draft tersimpan otomatis di IndexedDB ⭐ NEW
+- [x] **Trip Tab Mobile Responsive** — 3 kolom → 2 kolom di bawah 480px ⭐ NEW
+- [x] **GPS Box** — tampilkan detail lokasi lengkap + SPBU terdekat ⭐ NEW
 
 ### News Scraper (IT — Multi-Cabang) ⭐ v2.26.0
 
@@ -104,8 +114,7 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 #### SEO
 - [x] 7 Algoritma SEO
 - [x] SEO Backlinks (5 BPF sites + 23 authority + CTA widget)
-- [x] **Newsmaker.id backlink** di setiap artikel ⭐ NEW
-- [x] **Detik Finance backlink** di setiap artikel ⭐ NEW
+- [x] Newsmaker.id + Detik Finance backlinks
 - [x] Content uniqueness (parafrase 25+ sinonim)
 - [x] Internal linking (keyword overlap)
 - [x] Advanced Schema (NewsArticle + Breadcrumb + Org + FAQ)
@@ -113,27 +122,32 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 - [x] Smart scheduling
 
 #### UI/UX
-- [x] UI/UX Overhaul (10 upgrades: dashboard, tabs, cards, dark mode, FAB, onboarding)
+- [x] Tab-Based Layout (6 tabs: Dashboard/Sites/Scrape/Upload/SEO/Analytics/Report)
+- [x] Article Preview Cards
+- [x] Upload Queue
+- [x] Real-Time Upload Log
 - [x] **Tab Report** — detail per-artikel + filter + export CSV ⭐ NEW
 - [x] **Settings panel** — daily limit configurable (1-100) ⭐ NEW
-- [x] **Badge dinamis** — limit tampilkan angka real-time ⭐ NEW
-- [x] **Password toggle** — 👁/🙈 di site card & form ⭐ NEW
 - [x] Progress tracking (SSE polling)
-- [x] Upload history (filter tanggal/aksi)
+- [x] Upload history
 
-#### Multi-Branch & Users
-- [x] Multi-Branch Users (10 cabang + access filtering)
-- [x] **Rename it_ef → it_sby** (URL: `/app/it`) ⭐ NEW
-- [x] **Role per cabang** (it_sby, it_hu, it_bdg, dll) ⭐ NEW
-- [x] **URL pattern** — best-profit-futures-<city>.com ⭐ NEW
-- [x] **WP URL fixed** — SBY, BDG, SMG, MLG, MDN, BJM, LPG active ⭐ NEW
-
-#### Reports & Analytics
+#### Reports
 - [x] **Upload Report** — per-article detail (judul, status, SEO, site, source) ⭐ NEW
 - [x] **Filter report** — tanggal, site, status, source, search ⭐ NEW
 - [x] **Export CSV** — download laporan lengkap ⭐ NEW
 - [x] **Summary cards** — total, new, updated, error, avg SEO ⭐ NEW
 - [x] Performance analytics (by site, by date)
+
+### User Management ⭐ v2.27.0
+- [x] **Branch assignment** — semua user punya branch_code ⭐ NEW
+- [x] **Branch name display** — tabel tampilkan nama cabang (bukan kode) ⭐ NEW
+- [x] **Access control** — user hanya lihat site cabang sendiri ⭐ NEW
+- [x] **Branch names** — Cabang Surabaya, Cabang Pacific Place, dll ⭐ NEW
+
+### Login Page ⭐ v2.27.0
+- [x] **UI Upgrade** — gradient button, icon prefix, clean design ⭐ NEW
+- [x] **Role badge removed** — lebih ringkas ⭐ NEW
+- [x] **Background orbs** — dekoratif ⭐ NEW
 
 ### Keamanan
 - [x] Login PIN + session-based
@@ -148,8 +162,8 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 - [x] Docker Compose ready (db, web, redis, backup)
 - [x] nginx.conf untuk HTTPS (nextcloud_nginx)
 - [x] DEPLOY_FRESH.md — step-by-step guide
-- [x] init.sql — 35 tabel (termasuk 16 tabel v2.x)
-- [x] requirements.txt — termasuk beautifulsoup4 + lxml
+- [x] init.sql — 35 tabel
+- [x] requirements.txt — termasuk beautifulsoup4 + lxml + openpyxl
 
 ### Testing & CI/CD
 - [x] 243 pytest (backend)
@@ -158,8 +172,8 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 - [x] GitHub Actions CI/CD
 
 ### Dokumentasi
-- [x] README.md v2.26.0
-- [x] CHANGELOG.md v2.26.0
+- [x] README.md v2.27.0
+- [x] CHANGELOG.md v2.27.0
 - [x] DEPLOY_FRESH.md
 - [x] SECURITY.md
 - [x] USER_GUIDE.md
@@ -189,7 +203,6 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 ### Peningkatan
 - [ ] Optimasi performa query database
 - [ ] Caching lebih agresif untuk data statis
-- [ ] PWA untuk semua role (bukan hanya driver)
 - [ ] Multi-bahasa (Indonesia + English)
 - [ ] Aksesibilitas lebih baik (screen reader)
 
@@ -203,13 +216,11 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 - ✅ Fixed: 10 anomaly PWA driver (audit menyeluruh)
 - ✅ Fixed: duplicate prevention — paginate 500 + fuzzy matching
 - ✅ Fixed: WordPress image upload (featured + inline)
-- ✅ Fixed: upload history + progress tracking
 - ✅ Fixed: rename it_ef → it_sby + URL update
 - ✅ Fixed: password tidak tampil di site card & edit form
-- ✅ Fixed: edit form selalu reset password ke kosong
-- ✅ Fixed: error DNS/SSL/Timeout → pesan jelas untuk user
-- ✅ Fixed: daily limit hardcoded → configurable dari UI
-- ✅ Fixed: badge "🔴 Limit" → "⏸️ Jeda — X/10 hari ini"
+- ✅ Fixed: access control — branch_code semua site
+- ✅ Fixed: branches API return {branches:[...]} — extract array
+- ✅ Fixed: TripTab mobile responsive — 3 kolom → 2 kolom
 
 ---
 
@@ -218,38 +229,43 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 Ketik di awal sesi:
 > "Baca `PROGRESS.md` dan `CHANGELOG.md`, lalu lanjutkan."
 
-Setelah selesai kerja, update file ini dengan status terbaru.
+### Sesi 2026-08-24 — Sesi Besar (v2.27.0) ⭐⭐⭐
+**30+ commits dalam 1 sesi!**
 
-### Sesi 2026-08-24 — Sesi Besar (v2.26.0) ⭐⭐⭐
-**25+ commits dalam 1 sesi!**
-
-1. ✅ Fix error 500 `/api/scraper/check` — install bs4 di Docker container
-2. ✅ Update scraper parsing — struktur baru newsmaker.id (Tailwind CSS)
-3. ✅ Deployment readiness — docker-compose, nginx, init.sql, DEPLOY_FRESH.md
-4. ✅ Foto bukti timestamp — form OB/Security + watermark otomatis
-5. ✅ Form Overtime Driver di PWA — tab baru ⏰ OT
-6. ✅ Source tracking — pisahkan data 'sheet' vs 'form'
-7. ✅ Filter source di dashboard GA HR & PDF report
-8. ✅ Audit PWA driver — 10 anomaly diperbaiki
-9. ✅ Foto upload support galeri + kamera
-10. ✅ Update semua .md files
+1. ✅ Fix error 500 `/api/scraper/check`
+2. ✅ Update scraper parsing newsmaker.id
+3. ✅ Deployment readiness
+4. ✅ Foto bukti timestamp form OT
+5. ✅ Form Overtime Driver di PWA
+6. ✅ Source tracking (sheet vs form)
+7. ✅ Filter source di dashboard GA HR
+8. ✅ Audit PWA driver — 10 anomaly
+9. ✅ Foto upload galeri + kamera
+10. ✅ Update .md files v2.24
 11. ✅ Progress tracking + upload history
-12. ✅ Upload gambar ke WordPress (featured + inline)
-13. ✅ SEO backlinks — 5 BPF sites + 23 authority + CTA widget
+12. ✅ Upload gambar artikel ke WordPress
+13. ✅ SEO backlinks + CTA widget
 14. ✅ 7 Algoritma SEO
-15. ✅ Multi-Branch — 10 cabang + user access filtering
-16. ✅ Duplicate prevention — paginate 500 + fuzzy title matching
+15. ✅ Multi-Branch — 10 cabang + access filtering
+16. ✅ Duplicate prevention — paginate 500 + fuzzy
 17. ✅ UI/UX Overhaul — 10 upgrades
 18. ✅ Rename it_ef → it_sby (URL: `/app/it`)
 19. ✅ Role per cabang (10 users)
-20. ✅ Detik Finance scraping — 48 artikel/commodity keyword
-21. ✅ Source selector — Semua Sumber / Newsmaker / Detik
-22. ✅ Source backlink — Newsmaker + Detik di setiap artikel
-23. ✅ Password toggle — 👁/🙈 di site card & form
-24. ✅ WP URL fixed — pattern best-profit-futures-<city>.com
-25. ✅ Daily limit configurable — settings panel di Dashboard
-26. ✅ Tab Report — detail per-artikel + filter + export CSV
-27. ✅ Error handling — DNS/SSL/Timeout → pesan user-friendly
+20. ✅ Detik Finance scraping — 48 artikel
+21. ✅ Source selector + backlink
+22. ✅ Password toggle 👁/🙈
+23. ✅ WP URL fixed — best-profit-futures-<city>.com
+24. ✅ Daily limit configurable — settings panel
+25. ✅ Tab Report — detail per-artikel + filter + CSV
+26. ✅ Error handling — DNS/SSL/Timeout
+27. ✅ Branch assignment — semua user punya branch_code
+28. ✅ Branch name update — Cabang Surabaya, Cabang Pacific Place
+29. ✅ Login page UI upgrade
+30. ✅ Overtime Report — 3 format PDF + Excel
+31. ✅ Detail Lokasi GPS — kelurahan, kecamatan, kota
+32. ✅ Auto-Save Trip — IndexedDB draft
+33. ✅ TripTab mobile responsive
+34. ✅ Sistem cleanup — hapus 536 file lama
 
 ---
 
@@ -272,42 +288,54 @@ Setelah selesai kerja, update file ini dengan status terbaru.
 | Role | Username | PIN | Home | Branch |
 |------|----------|-----|------|--------|
 | Admin | `admin` | `123456` | `/app/dashboard` | All |
-| GA | `ga_officer` | `123456` | `/app/ga` | SBY |
-| Finance | `finance_officer` | `123456` | `/app/finance` | SBY |
-| Driver | `wicak` | `123456` | `/app/driver` | SBY |
-| GA HR | `ga_hr_officer` | `123456` | `/app/ga-hr` | SBY |
-| IT HO | `it_hu` | `123456` | `/app/it` | JKT |
-| IT Surabaya | `it_sby` | `123456` | `/app/it` | SBY |
-| IT Jakarta 2 | `it_jkt2` | `123456` | `/app/it` | JKT2 |
-| IT Bandung | `it_bdg` | `123456` | `/app/it` | BDG |
-| IT Semarang | `it_smg` | `123456` | `/app/it` | SMG |
-| IT Malang | `it_mlg` | `123456` | `/app/it` | MLG |
-| IT Medan | `it_mdn` | `123456` | `/app/it` | MDN |
-| IT Banjarmasin | `it_bjm` | `123456` | `/app/it` | BJM |
-| IT Palembang | `it_plm` | `123456` | `/app/it` | PLM |
-| IT Lampung | `it_lpg` | `123456` | `/app/it` | LPG |
+| GA | `ga_officer` | `123456` | `/app/ga` | Cabang Surabaya |
+| Finance | `finance_officer` | `123456` | `/app/finance` | Cabang Surabaya |
+| Driver | `wicak` | `123456` | `/app/driver` | Cabang Surabaya |
+| GA HR | `ga_hr_officer` | `123456` | `/app/ga-hr` | Cabang Surabaya |
+| IT HO | `it_hu` | `123456` | `/app/it` | Kantor Pusat Jakarta |
+| IT Surabaya | `it_sby` | `123456` | `/app/it` | Cabang Surabaya |
+| IT Jakarta 2 | `it_jkt2` | `123456` | `/app/it` | Cabang Pacific Place |
+| IT Bandung | `it_bdg` | `123456` | `/app/it` | Cabang Bandung |
+| IT Semarang | `it_smg` | `123456` | `/app/it` | Cabang Semarang |
+| IT Malang | `it_mlg` | `123456` | `/app/it` | Cabang Malang |
+| IT Medan | `it_mdn` | `123456` | `/app/it` | Cabang Medan |
+| IT Banjarmasin | `it_bjm` | `123456` | `/app/it` | Cabang Banjarmasin |
+| IT Palembang | `it_plm` | `123456` | `/app/it` | Cabang Palembang |
+| IT Lampung | `it_lpg` | `123456` | `/app/it` | Cabang Lampung |
 
-### WordPress URL Pattern
+### Branch List
 
-| Cabang | Domain | Status |
-|--------|--------|--------|
-| SBY | `best-profit-futures-surabaya.com` | ✅ Aktif |
-| JKT HO | `best-profit-futures-equitytower.com` | ⏳ Pending |
-| JKT2 | `best-profit-futures-pacificplace.com` | ⏳ Pending |
-| BDG | `best-profit-futures-bandung.com` | ✅ Resolve |
-| SMG | `best-profit-futures-semarang.com` | ✅ Resolve |
-| MLG | `best-profit-futures-malang.com` | ✅ Resolve |
-| MDN | `best-profit-futures-medan.com` | ✅ Resolve |
-| BJM | `best-profit-futures-banjarmasin.com` | ✅ Resolve |
-| PLM | `best-profit-futures-palembang.com` | ⏳ Pending |
-| LPG | `best-profit-futures-lampung.com` | ✅ Resolve |
+| Code | Name | Domain WP |
+|------|------|-----------|
+| SBY | Cabang Surabaya | best-profit-futures-surabaya.com |
+| JKT | Kantor Pusat Jakarta | best-profit-futures-equitytower.com |
+| JKT2 | Cabang Pacific Place | best-profit-futures-pacificplace.com |
+| BDG | Cabang Bandung | best-profit-futures-bandung.com |
+| SMG | Cabang Semarang | best-profit-futures-semarang.com |
+| MLG | Cabang Malang | best-profit-futures-malang.com |
+| MDN | Cabang Medan | best-profit-futures-medan.com |
+| BJM | Cabang Banjarmasin | best-profit-futures-banjarmasin.com |
+| PLM | Cabang Palembang | best-profit-futures-palembang.com |
+| LPG | Cabang Lampung | best-profit-futures-lampung.com |
 
-### Daily Limit Settings
-- Default: 10 artikel/hari
-- Configurable dari UI: Tab Dashboard → ⚙️ Pengaturan
-- Range: 1-100
-- Disimpan ke: `data/news_scraper/scraper_settings.json`
+### Backend API Endpoints (13 endpoints tested ✅)
+
+| Endpoint | Method | Fungsi |
+|----------|--------|--------|
+| `/api/auth/login` | POST | Login |
+| `/api/auth/me` | GET | Current user |
+| `/api/users` | GET | List users + branch_code |
+| `/api/branches` | GET | List branches |
+| `/api/scraper/sites` | GET | List WP sites (filtered by branch) |
+| `/api/scraper/settings` | GET/POST | Daily limit settings |
+| `/api/scraper/schedule` | GET | Optimal publish schedule |
+| `/api/scraper/analytics` | GET | Performance analytics |
+| `/api/scraper/report` | GET | Upload report per-article |
+| `/api/scraper/report/export` | GET | Export CSV |
+| `/api/overtime/report` | GET | Laporan OT ringkas (PDF) |
+| `/api/overtime/detail-report` | GET | Report detail per driver (PDF/Excel) |
+| `/api/overtime/form-pdf` | GET | Formulir Permohonan OT (PDF) |
 
 ---
 
-*BPF WorkHub v2.26.0 · Progres Tracker*
+*BPF WorkHub v2.27.0 · Progres Tracker*

@@ -1,4 +1,4 @@
-# 📋 Daftar User & Role — BPF WorkHub v2.26.0
+# 📋 Daftar User & Role — BPF WorkHub v2.27.0
 
 Dokumen ini menjelaskan semua role yang didukung sistem, siapa yang memakainya, dan apa yang bisa dilakukan masing-masing.
 
@@ -289,11 +289,11 @@ Sistem mendukung 11 role pengguna:
 **Akses:** News Scraper & Content Management (`/app/it`)
 
 **Fitur Khusus:**
-- Scrape artikel dari newsmaker.id + kontan + bisnis.com
-- Multi-WordPress site management (CRUD, test connection)
+- Scrape artikel dari newsmaker.id + Detik Finance (64 artikel/scrape)
+- Multi-WordPress site management (10 cabang, CRUD, test connection)
 - Upload artikel ke WordPress dengan SEO optimization
 - Upload gambar (featured image + inline)
-- Financial Authority Backlinks otomatis (28+ situs otoritas)
+- Financial Authority Backlinks otomatis (24+ situs otoritas)
 - SEO Backlinks ke situs BPF (5 target sites + CTA widget)
 - 7 Algoritma SEO (content uniqueness, multi-source, internal linking, schema, sitemap ping, scheduling, analytics)
 - Duplicate prevention (500 posts + fuzzy title match)
@@ -302,11 +302,15 @@ Sistem mendukung 11 role pengguna:
 - Activity log
 - **Access filtering**: user hanya lihat site cabang sendiri
 - **it_hu** (HO) bisa lihat semua site
+- **Tab Report**: detail per-artikel + filter + export CSV
+- **Configurable daily limit** (1-100/hari dari UI)
+- **Password toggle** 👁/🙈 di site card & form
+- **User-friendly error messages** (DNS/SSL/Timeout)
 
-**Halaman:** News Scraper (`/app/it-ef`)
+**Halaman:** News Scraper (`/app/it`)
 
 **API Endpoint:**
-- `GET /api/scraper/sites` — list WordPress sites
+- `GET /api/scraper/sites` — list WordPress sites (filtered by branch)
 - `POST /api/scraper/sites` — tambah/edit site
 - `DELETE /api/scraper/sites/<name>` — hapus site
 - `POST /api/scraper/test-connection` — test koneksi WP
@@ -320,31 +324,37 @@ Sistem mendukung 11 role pengguna:
 - `GET /api/scraper/hyperlinks` — list hyperlinks
 - `POST /api/scraper/hyperlinks` — simpan hyperlinks
 - `GET /api/scraper/log` — activity log
+- `GET /api/scraper/schedule` — optimal publish schedule
+- `GET /api/scraper/analytics` — performance analytics
+- `GET /api/scraper/report` — upload report per-article
+- `GET /api/scraper/report/export` — export CSV
+- `GET /api/scraper/settings` — ambil settings
+- `POST /api/scraper/settings` — simpan settings
 
 ---
 
 ## 4. Ringkasan Akses
 
-| Menu | Admin | GA | Finance | Marketing | Chief Driver | Driver | OB | IT Surabaya |
-|------|:-----:|:--:|:-------:|:---------:|:------------:|:------:|:--:|:-----------:|
-| Dashboard Admin | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| Dashboard GA | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| Dashboard Finance | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| Log Perjalanan | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| Assignments | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| Rekap | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| Kasbon / BBM | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| Analytics | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| Marketing Hub | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ |
-| Chief Driver | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
-| Manajemen User | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| Pengaturan | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| Audit Log | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| Air Minum | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ |
-| Pelamar Kerja | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| Aset & Pemeliharaan | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| GA HR (Overtime) | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| News Scraper | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
+| Menu | Admin | GA | Finance | Marketing | Chief Driver | Driver | OB | Receptionist | Traineer | GA HR | IT |
+|------|:-----:|:--:|:-------:|:---------:|:------------:|:------:|:--:|:------------:|:--------:|:-----:|:--:|
+| Dashboard Admin | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Dashboard GA | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Dashboard Finance | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Log Perjalanan | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Assignments | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Rekap | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Kasbon / BBM | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Analytics | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Marketing Hub | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Chief Driver | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Manajemen User | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Pengaturan | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Audit Log | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Air Minum | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Pelamar Kerja | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
+| Aset & Pemeliharaan | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| GA HR (Overtime) | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ |
+| News Scraper | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
 
 ---
 

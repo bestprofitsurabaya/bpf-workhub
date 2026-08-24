@@ -1,4 +1,4 @@
-# 🏢 BPF WorkHub v2.26.0
+# 🏢 BPF WorkHub v2.27.0
 
 **Sistem Manajemen Armada, Klaim BBM, Kasbon, Log Perjalanan, Appointment & Air Minum**  
 **PT. Bestprofit Futures — Surabaya**
@@ -72,13 +72,15 @@ Semua tercatat, terverifikasi, dan bisa dipertanggungjawabkan — dengan satu ap
 - Auto-refresh saat login/logout
 - Edit & hapus data overtime
 
-### 📰 IT Surabaya (News Scraper)
-- Scrape artikel dari newsmaker.id (market-news/commodity)
-- Multi-WordPress site management (CRUD, test connection)
+### 📰 IT (News Scraper — Multi-Cabang)
+- Scrape artikel dari newsmaker.id + Detik Finance (64 artikel/scrape)
+- Multi-WordPress site management (10 cabang, CRUD, test connection)
 - Upload artikel ke WordPress dengan SEO optimization
 - Financial Authority Backlinks otomatis (24+ situs)
 - Duplicate article checker
-- Activity log
+- Tab Report: detail per-artikel + filter + export CSV
+- Configurable daily limit (1-100/hari)
+- Password toggle 👁/🙈 di site card & form
 
 ### ⚙️ Admin
 - Manajemen user: buat akun, reset PIN, aktifkan/nonaktifkan
@@ -162,7 +164,7 @@ Aplikasi tersedia di `http://localhost:5001`
 | Receptionist | `receptionis` | `123456` |
 | Traineer | `traineer_a` | `123456` |
 | GA HR | `ga_hr_officer` | `123456` |
-| IT Surabaya | `it_ef` | `123456` |
+| IT Surabaya | `it_sby` | `123456` |
 
 ---
 
@@ -247,12 +249,12 @@ bpf-workhub/
 | Finance | Payout, archive, rekap, verifikasi air minum |
 | Marketing | Input appointment kunjungan nasabah |
 | Chief Driver | Command center penugasan driver |
-| Driver | Submit BBM, trip log, kasbon, **overtime** (PWA offline-first) |
+| Driver | Submit BBM, trip log, kasbon, overtime (PWA offline-first, auto-save) |
 | OB | Pengajuan air minum |
 | Receptionist | Verifikasi pelamar kerja |
 | Traineer | Pantau kehadiran rekrutan |
-| GA HR | Kelola overtime Driver & OB/Security |
-| IT Surabaya | News Scraper & Content Management (WordPress + SEO) |
+| GA HR | Kelola overtime Driver & OB/Security + cetak form PDF |
+| IT Surabaya | News Scraper & Content Management (WordPress + SEO, 10 cabang) |
 
 ---
 
@@ -279,4 +281,4 @@ Telp: 031-5349888
 
 ---
 
-*BPF WorkHub v2.26.0 · Dikembangkan oleh Tim IT BPF Surabaya*
+*BPF WorkHub v2.27.0 · Dikembangkan oleh Tim IT BPF Surabaya*

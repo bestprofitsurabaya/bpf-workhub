@@ -156,6 +156,10 @@ Alur lengkapnya ada di [Bagian 10](#10-kasbon-alur-lengkap-dari-a-sampai-z).
 2. Isi **tujuan perjalanan, lokasi berangkat, lokasi tujuan, dan KM awal**.
 3. Saat sampai, catat **KM akhir** dan klik selesai.
 
+> 💡 **Auto-Save**: setiap perubahan di tab Trip tersimpan otomatis ke HP (IndexedDB). Jika app tertutup atau HP mati, data akan pulih saat dibuka lagi. Draft otomatis terhapus setelah submit berhasil.
+
+> 📍 **Detail GPS**: lokasi otomatis terdeteksi dengan detail lengkap — jalan, kelurahan, kecamatan, kota, provinsi, kode pos, dan SPBU terdekat.
+
 Laporan ini dipakai GA untuk meninjau dan menghitung efisiensi kendaraan.
 
 ### 4.5 Cek Performa Kendaraan (Rapor)
@@ -431,6 +435,14 @@ Semua perubahan papan berjalan realtime — saat driver menyelesaikan tugas, sta
 ### Kolom di Tab Driver
 
 - **Tanggal · Nama · No. Kendaraan · Waktu · Keterangan · Broker/Manager** — No. Kendaraan, broker (Nama Broker/Marketing), dan manager (Nama Manager/Team leader) ikut tampil di tabel, laporan PDF, dan pencarian.
+
+### 📄 Cetak Laporan & Form (v2.27.0)
+
+Tiga format PDF tersedia:
+
+1. **📄 PDF (Laporan Ringkas)** — tabel ringkas semua driver, ditandatangani GA HR. Klik tombol **📄 PDF** di toolbar.
+2. **📋 Detail/Excel (Report Per Driver)** — pilih nama driver + periode, lalu pilih **📄 PDF** atau **📊 Excel**. Kolom Biaya di Excel kosong untuk diisi manual oleh GA HR.
+3. **📄 Cetak Form (Formulir Permohonan)** — klik tombol **📄** pada baris data overtime. PDF berisi: ID form, detail OT, blok TTD (Manager/Finance/GA HR/Chief Driver/Kepala Cabang), dan link foto (bukan gambar langsung).
 
 ---
 

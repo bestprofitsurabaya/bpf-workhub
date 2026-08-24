@@ -1,4 +1,4 @@
-# 📋 Changelog — BPF WorkHub v2.26.0
+# 📋 Changelog — BPF WorkHub v2.27.0
 
 Riwayat perubahan penting pada BPF WorkHub. Format mengikuti [Keep a Changelog](https://keepachangelog.com/id/ID/1.0.0/) dan versi mengikuti [Semantic Versioning](https://semver.org/lang/id/).
 
@@ -16,6 +16,51 @@ Telp: 031-5349888
 ---
 
 ## Versi Terbaru
+
+### [2.27.0] - 2026-08-24
+
+**Overtime Form PDF + GPS Detail + Auto-Save + User Management + Login UI**
+
+**Fitur Baru:**
+- **Formulir Permohonan Overtime PDF** — dokumen cetak untuk GA HR: ID form, detail OT, blok TTD (Manager/Finance/GA HR/Chief Driver/Kepala Cabang), foto sebagai link
+- **Laporan Overtime PDF (File 1)** — tabel ringkas semua driver, ditandatangani GA HR
+- **Report Detail Per Driver (File 2)** — per driver: timestamp, form no, plat, jam in/out, keterangan, kolom Biaya kosong (GA HR isi manual di Excel)
+- **Excel Export** — download detail OT ke XLSX dengan kolom Biaya kosong
+- **Detail Lokasi GPS** — reverse geocode lengkap: jalan, kelurahan, kecamatan, kota, provinsi, kode pos + SPBU terdekat
+- **Auto-Save Trip Draft** — data tab Trip tersimpan otomatis ke IndexedDB, pulih saat buka lagi
+- **User Management + Branch** — semua user assign ke cabang, tabel tampilkan nama cabang
+- **Login Page UI Upgrade** — gradient button, icon prefix, clean design tanpa role badge list
+- **Password toggle** 👁/🙈 di site card & edit form (News Scraper)
+- **Configurable daily limit** — setting dari UI (1-100 artikel/hari)
+- **Tab Report** — detail per-artikel + filter + export CSV (News Scraper)
+
+**Perubahan:**
+- Rename user `it_ef` → `it_sby`, URL `/app/it-ef` → `/app/it`
+- Branch names: "Kantor Pusat Surabaya" → "Cabang Surabaya", "Jakarta 2" → "Cabang Pacific Place"
+- Daily limit default: 5 → 10 (configurable)
+- TripTab mobile: 3 kolom → 2 kolom di bawah 480px
+- GPS box: tampilkan detail lokasi lengkap (bukan hanya koordinat)
+- Site card: tampilkan password (hidden) + toggle show/hide
+
+**Perbaikan Bug:**
+- Password tidak tampil di site card (backend tidak return app_password)
+- Edit form selalu reset password ke kosong
+- showCardPassword tidak reaktif (pakai reactive() bukan ref({}))
+- WP URL salah pattern (bestprofit → best-profit)
+- branches API return object bukan array → .find() error
+- TripTab mobile tidak responsive (3 kolom sempit)
+- Access control loophole — site tanpa branch_code terlihat semua user
+
+**API Endpoints Baru:**
+- `GET /api/overtime/report` — laporan OT ringkas (PDF)
+- `GET /api/overtime/detail-report` — report detail per driver (PDF/Excel)
+- `GET /api/overtime/form-pdf?id=xxx` — Formulir Permohonan OT (PDF)
+- `GET /api/scraper/report` — upload report per-article
+- `GET /api/scraper/report/export` — export CSV
+- `GET /api/scraper/settings` — ambil settings
+- `POST /api/scraper/settings` — simpan settings
+
+---
 
 ### [2.26.0] - 2026-08-24
 
