@@ -127,6 +127,32 @@ register_news_scraper_routes(app)
 register_health_routes(app)
 
 # ================================================================
+# AUTO-CLEANUP: Hapus foto overtime > 6 bulan (180 hari)
+# Dijalankan di background thread saat startup & periodik tiap 30 menit.
+# ================================================================
+def _periodic_photo_cleanup():
+    """Hapus foto overtime yang lebih lama dari 180 hari. Dijalankan periodik."""
+    import threading
+    while True:
+        try:
+            from modules.routes_overtime import _cleanup_old_photos
+            result = _cleanup_old_photos(max_age_days=180)
+            if result.get('deleted', 0) > 0:
+                print(f'[overtime-cleanup] Auto-cleanup: {result["deleted"]} foto dihapus')
+        except Exception as e:
+            print(f'[overtime-cleanup] Error: {e}')
+        # Tidur 30 menit (1800 detik)
+        threading.Event().wait(1800)
+
+try:
+    import threading as _threading
+    _cleanup_thread = _threading.Thread(target=_periodic_photo_cleanup, daemon=True)
+    _cleanup_thread.start()
+    print('[overtime-cleanup] Background cleanup thread started (setiap 30 menit)')
+except Exception as _tc_err:
+    print(f'[overtime-cleanup] Gagal start thread: {_tc_err}')
+
+# ================================================================
 # CSRF PROTECTION (berlaku untuk sesi admin yang login)
 # Endpoint PWA driver (tanpa session) & socket.io dikecualikan.
 # ================================================================

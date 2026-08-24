@@ -1,4 +1,4 @@
-# 📋 Changelog — BPF WorkHub v2.28.1
+# 📋 Changelog — BPF WorkHub v2.28.2
 
 Riwayat perubahan penting pada BPF WorkHub. Format mengikuti [Keep a Changelog](https://keepachangelog.com/id/ID/1.0.0/) dan versi mengikuti [Semantic Versioning](https://semver.org/lang/id/).
 
@@ -16,6 +16,34 @@ Telp: 031-5349888
 ---
 
 ## Versi Terbaru
+
+### [2.28.2] - 2026-08-24
+
+**OT OB/Security Feature Parity + Foto Auto-Cleanup 6 Bulan + Cron di Container**
+
+**Fitur Baru:**
+- **OB/Security Refresh dari Google Sheet** — tombol 🔄 Refresh sekarang ada di tab OB/Security, bisa pull data dari Google Sheet langsung dari dashboard GA HR
+- **Detail Report untuk OB/Security** — modal 📋 Detail/Excel di tab OB sekarang mengirim `modul=ob`, label otomatis menyesuaikan ("Nama OB/Security"), file di-download dengan suffix `_OB`
+- **Kolom Posisi di Detail Report** — PDF & Excel Detail Report menampilkan kolom POSISI (bukan PLAT KENDARAAN) untuk modul OB/Security
+- **Config Sumber Data Dual-Panel** — modal ⚙️ Sumber Data sekarang menampilkan URL untuk Driver DAN OB/Security secara terpisah dengan tombol simpan masing-masing
+- **Foto OT Auto-Cleanup 6 Bulan** — foto overtime yang lebih lama dari 180 hari (6 bulan) otomatis dihapus dari server untuk menghemat storage
+- **Cron di Container Docker** — cleanup foto OT dijalankan otomatis tiap 30 menit via cron di dalam container `bbm_web`, bekerja langsung saat fresh deploy
+- **Manual Cleanup Endpoint** — `POST /api/overtime/cleanup-photos` (admin only) untuk trigger cleanup manual
+- **Background Thread Cleanup** — selain cron, Flask app juga punya background thread yang cleanup tiap 30 menit sebagai backup
+
+**Backend:**
+- `POST /api/overtime/cleanup-photos` — admin-only endpoint untuk trigger foto cleanup manual
+- `_cleanup_old_photos(max_age_days=180)` — fungsi reusable yang scan `uploads/overtime/` dan hapus file lama
+- `_periodic_photo_cleanup()` — background thread daemon di `app.py` yang cleanup tiap 30 menit
+- `scripts/overtime-cleanup.sh` — shell script untuk cron di container
+- Dockerfile: install `cron`, setup cron job, CMD jalankan cron + Flask
+
+**Frontend (OvertimeView.vue):**
+- OB tab: tambah tombol 🔄 Refresh, 📋 Detail/Excel
+- Detail Report modal: param `modul` sesuai tab aktif (driver/ob)
+- Config modal: dual-panel (Driver + OB/Security), masing-masing dengan input URL & tombol simpan terpisah
+
+---
 
 ### [2.28.1] - 2026-08-24
 

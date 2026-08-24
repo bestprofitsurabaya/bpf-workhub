@@ -185,13 +185,21 @@ docker compose exec web python3 scripts/migrate_applicants_sheet.py /path/to/exp
 
 ## 7. Backup & Restore
 
-### Backup sudah otomatis (cron 03:00 WIB)
+### Backup sudah otomatis (cron 03:00 WIB) + Foto Cleanup (tiap 30 menit)
+
+Foto overtime otomatis dibersihkan jika sudah lebih dari 6 bulan (180 hari). Cron sudah ter-setup di container `bbm_web` — langsung bekerja saat fresh deploy tanpa konfigurasi tambahan.
 ```bash
 # Manual backup
 docker compose exec web mysqldump -ubpf_user -pbpf_pass bpf_asset_system > backup_$(date +%Y%m%d).sql
 
 # Restore
 docker compose exec -T db mysql -ubpf_user -pbpf_pass bpf_asset_system < backup.sql
+
+# Cek log foto cleanup
+docker compose exec web cat /var/log/overtime-cleanup.log
+
+# Cleanup manual (jika perlu)
+docker compose exec web sh /app/scripts/overtime-cleanup.sh
 ```
 
 ---

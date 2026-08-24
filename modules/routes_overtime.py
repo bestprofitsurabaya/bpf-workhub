@@ -82,6 +82,36 @@ def _save_overtime_foto(b64_data, display_id, label):
         return ''
 
 
+def _cleanup_old_photos(max_age_days=180):
+    """Hapus foto overtime yang lebih lama dari max_age_days (default 180 hari = 6 bulan).
+    Return dict: {'deleted': int, 'errors': int}.
+    Bisa dipanggil dari cron, scheduler, atau endpoint manual.
+    """
+    deleted = errors = 0
+    if not os.path.isdir(_FOTO_DIR):
+        return {'deleted': 0, 'errors': 0}
+    cutoff = datetime.now() - timedelta(days=max_age_days)
+    try:
+        for fname in os.listdir(_FOTO_DIR):
+            fpath = os.path.join(_FOTO_DIR, fname)
+            if not os.path.isfile(fpath):
+                continue
+            try:
+                mtime = datetime.fromtimestamp(os.path.getmtime(fpath))
+                if mtime < cutoff:
+                    os.remove(fpath)
+                    deleted += 1
+            except Exception as e:
+                print(f"[overtime-cleanup] Error deleting {fpath}: {e}")
+                errors += 1
+    except Exception as e:
+        print(f"[overtime-cleanup] Error listing {_FOTO_DIR}: {e}")
+        errors += 1
+    if deleted > 0:
+        print(f"[overtime-cleanup] Deleted {deleted} old photos ({errors} errors)")
+    return {'deleted': deleted, 'errors': errors}
+
+
 def _serialize(row):
     row = dict(row)
     for k, v in row.items():
@@ -129,23 +159,25 @@ def _parse_date_filter(value, label):
         raise ValueError(f'{label} harus format YYYY-MM-DD')
 
 
-def _get_sheet_url(conn):
-    """URL sumber sheet Driver dari system_config (dengan default)."""
+def _get_sheet_url(conn, modul='driver'):
+    """URL sumber sheet dari system_config (driver atau ob)."""
+    key = 'overtime_driver_sheet_url' if modul == 'driver' else 'overtime_ob_sheet_url'
     cursor = conn.cursor(dictionary=True)
     cursor.execute("SELECT config_value FROM system_config "
-                   "WHERE config_key='overtime_driver_sheet_url'")
+                   f"WHERE config_key='{key}'")
     row = cursor.fetchone()
     cursor.close()
     return (row['config_value'] if row and row.get('config_value') else '').strip()
 
 
-def _set_refresh_meta(conn, summary):
+def _set_refresh_meta(conn, summary, modul='driver'):
     """Catat metadata refresh terakhir (waktu + ringkasan)."""
+    key = 'overtime_driver_last_refresh' if modul == 'driver' else 'overtime_ob_last_refresh'
     cursor = conn.cursor()
     cursor.execute(
         "INSERT INTO system_config (config_key, config_value) VALUES (%s, %s) "
         "ON DUPLICATE KEY UPDATE config_value=VALUES(config_value)",
-        ('overtime_driver_last_refresh',
+        (key,
          f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | {summary}"))
     conn.commit()
     cursor.close()
@@ -317,6 +349,152 @@ def _upsert_driver_rows(conn, rows):
     conn.commit()
     cursor.close()
     return {'added': added, 'updated': updated, 'skipped': skipped, 'total_rows': len(rows)}
+
+
+def _upsert_ob_rows(conn, rows):
+    """Upsert baris sheet ke overtime_ob_security (kunci: source_uid).
+
+    Kolom: nama, posisi, tanggal, waktu_mulai, waktu_selesai, keterangan,
+           foto_mulai, foto_selesai, email.
+    """
+    cursor = conn.cursor(dictionary=True)
+    added = updated = skipped = 0
+    if rows:
+        headers = list(rows[0].keys())
+        idx = map_headers(headers)
+        for n, r in enumerate(rows):
+            row = _normalize_ob_row(r, headers, idx, n)
+            if not row:
+                skipped += 1
+                continue
+            # source_uid = hash dari nama+posisi+tanggal untuk dedup
+            import hashlib
+            source_uid = 'sheet-' + hashlib.md5(
+                (row['nama'] + row.get('posisi', '') + row.get('tanggal', '')).encode('utf-8')
+            ).hexdigest()[:24]
+            cursor.execute(
+                """INSERT INTO overtime_ob_security
+                   (display_id, nama, posisi, tanggal, waktu_mulai, waktu_selesai,
+                    keterangan, foto_mulai, foto_selesai, email, source, source_uid)
+                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'sheet',%s)
+                   ON DUPLICATE KEY UPDATE
+                     nama=VALUES(nama), posisi=VALUES(posisi), tanggal=VALUES(tanggal),
+                     waktu_mulai=VALUES(waktu_mulai), waktu_selesai=VALUES(waktu_selesai),
+                     keterangan=VALUES(keterangan), foto_mulai=VALUES(foto_mulai),
+                     foto_selesai=VALUES(foto_selesai), email=VALUES(email)""",
+                (row.get('display_id', ''), row['nama'], row.get('posisi', 'OB'),
+                 row.get('tanggal', ''), row.get('waktu_mulai', ''),
+                 row.get('waktu_selesai', ''), row.get('keterangan', ''),
+                 row.get('foto_mulai', ''), row.get('foto_selesai', ''),
+                 row.get('email', ''), source_uid))
+            if cursor.rowcount == 1:
+                added += 1
+            elif cursor.rowcount == 2:
+                updated += 1
+            else:
+                skipped += 1
+    conn.commit()
+    cursor.close()
+    return {'added': added, 'updated': updated, 'skipped': skipped, 'total_rows': len(rows)}
+
+
+def _normalize_ob_row(r, headers, idx, n):
+    """Normalize satu baris sheet OB/Security ke dict untuk DB.
+    Return dict atau None bila data tidak valid.
+    """
+    def _col(field):
+        i = idx.get(field)
+        if i is None or i >= len(headers):
+            return ''
+        val = r.get(headers[i], '') if isinstance(r, dict) else ''
+        return clean(str(val)) if val else ''
+
+    nama = _col('nama')
+    if not nama:
+        return None
+
+    posisi = _col('posisi')
+    if posisi not in ('OB', 'Security'):
+        # Try to guess
+        posisi = guess_position(nama) or 'OB'
+
+    tanggal = _col('tanggal')
+    if tanggal:
+        tanggal = parse_date_any(tanggal) or parse_date_mdy(tanggal) or tanggal
+    # Remove time part if present (e.g. '2026-08-20 00:00:00' → '2026-08-20')
+    if tanggal and ' ' in str(tanggal):
+        tanggal = str(tanggal).split(' ')[0]
+
+    waktu_mulai = _col('waktu_mulai')
+    if waktu_mulai:
+        waktu_mulai = (parse_time_12h(waktu_mulai) or parse_time_any(waktu_mulai) or waktu_mulai)[:20]
+    waktu_selesai = _col('waktu_selesai')
+    if waktu_selesai:
+        waktu_selesai = (parse_time_12h(waktu_selesai) or parse_time_any(waktu_selesai) or waktu_selesai)[:20]
+
+    return {
+        'nama': nama,
+        'posisi': posisi,
+        'tanggal': tanggal,
+        'waktu_mulai': waktu_mulai,
+        'waktu_selesai': waktu_selesai,
+        'keterangan': _col('keterangan'),
+        'foto_mulai': _col('foto_mulai'),
+        'foto_selesai': _col('foto_selesai'),
+        'email': _col('email'),
+        'display_id': '',
+    }
+
+
+def _do_refresh_ob(full_sync=False):
+    """Sinkronisasi sheet OB/Security. Raise bila gagal.
+    Return dict: {'added', 'updated', 'skipped', 'total_rows', 'summary', 'mode'}.
+    """
+    conn = get_db_connection()
+    if not conn:
+        raise RuntimeError('DB error')
+    try:
+        url = _get_sheet_url(conn, modul='ob')
+        if not url:
+            raise ValueError('URL sumber sheet OB/Security belum diatur. Set di Pengaturan Sumber Data.')
+
+        since = None
+        mode = 'incremental'
+        if not full_sync:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute("SELECT config_value FROM system_config "
+                           "WHERE config_key='overtime_ob_last_refresh'")
+            row = cursor.fetchone()
+            cursor.close()
+            if row and row.get('config_value'):
+                try:
+                    last_ts = row['config_value'].split('|')[0].strip()
+                    last_dt = datetime.strptime(last_ts, '%Y-%m-%d %H:%M:%S')
+                    since = (last_dt - timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%S')
+                except (ValueError, IndexError):
+                    pass
+
+        if not since:
+            mode = 'full'
+
+        rows = _fetch_sheet_rows(url, since=since)
+        result = _upsert_ob_rows(conn, rows)
+        result['mode'] = mode
+        summary = (f"{mode}: {result['added']} baru, {result['updated']} diperbarui, "
+                   f"{result['skipped']} dilewati (dari {result['total_rows']} baris)")
+        _set_refresh_meta(conn, summary, modul='ob')
+        if result.get('added', 0) > 0:
+            try:
+                from modules.notifications import push_overtime_notification
+                push_overtime_notification(
+                    'overtime_new', 'ob_sync',
+                    f'{result["added"]} data overtime OB/Security baru dari Google Sheet',
+                    ref_id=None, count=result['added'])
+            except Exception as ne:
+                print(f"[overtime-notif] {ne}")
+        return {'status': 'success', **result, 'summary': summary}
+    finally:
+        conn.close()
 
 
 def register_overtime_routes(app):
@@ -577,6 +755,33 @@ def register_overtime_routes(app):
             return jsonify({'status': 'error', 'msg': str(e)}), 500
 
     # ================================================================
+    # GA HR — refresh sinkronisasi sheet OB/SECURITY
+    # ================================================================
+    @app.route('/api/overtime/ob/refresh', methods=['POST'])
+    @role_required(['ga_hr', 'admin'])
+    def api_overtime_ob_refresh():
+        try:
+            full = request.args.get('full', '0') == '1' or request.json and request.json.get('full') if request.is_json else False
+            try:
+                result = _do_refresh_ob(full_sync=full)
+            except ValueError as ve:
+                return jsonify({'status': 'error', 'msg': str(ve)}), 400
+            except Exception as fe:
+                return jsonify({
+                    'status': 'error',
+                    'msg': 'Gagal mengambil data dari Google Sheet OB/Security. '
+                           'Pastikan sheet di-share "Anyone with the link" ATAU '
+                           'URL memakai Google Apps Script Web App.',
+                    'detail': str(fe)[:300],
+                }), 502
+            user = _current_user()
+            log_activity_async(None, 'overtime_ob_refresh', user['role'],
+                               user['full_name'], new_data=result, ip=request.remote_addr)
+            return jsonify(result)
+        except Exception as e:
+            return jsonify({'status': 'error', 'msg': str(e)}), 500
+
+    # ================================================================
     # GA HR — daftar overtime OB/SECURITY (migrasi + form publik)
     # ================================================================
     @app.route('/api/overtime/ob-security')
@@ -701,11 +906,15 @@ def register_overtime_routes(app):
     @app.route('/api/overtime/detail-report')
     @role_required(['ga_hr', 'admin'])
     def api_overtime_detail_report():
-        """Report detail per driver — PDF or Excel.
-        Params: nama, date_from, date_to, format (pdf/xlsx)
+        """Report detail per driver/OB — PDF or Excel.
+        Params: nama, date_from, date_to, format (pdf/xlsx), modul (driver|ob)
         """
         try:
             from modules.pdf_generator import OvertimeDetailReportPDF, generate_overtime_detail_excel
+
+            modul = str(request.args.get('modul', 'driver') or '').strip()
+            if modul not in ('driver', 'ob'):
+                modul = 'driver'
 
             nama = clean(request.args.get('nama'))
             if not nama:
@@ -716,6 +925,7 @@ def register_overtime_routes(app):
             if not d_to and d_from:
                 d_to = d_from
 
+            table = _OT_TABLES[modul]
             conn = get_db_connection()
             if not conn:
                 return jsonify({'error': 'DB error'}), 500
@@ -726,7 +936,7 @@ def register_overtime_routes(app):
                 where.append('tanggal >= %s'); params.append(d_from.isoformat())
             if d_to:
                 where.append('tanggal <= %s'); params.append(d_to.isoformat())
-            sql = f"SELECT * FROM overtime_driver WHERE {' AND '.join(where)} ORDER BY tanggal ASC, waktu_mulai ASC LIMIT 500"
+            sql = f"SELECT * FROM {table} WHERE {' AND '.join(where)} ORDER BY tanggal ASC, waktu_mulai ASC LIMIT 500"
             cursor.execute(sql, params)
             rows = cursor.fetchall()
             cursor.close(); conn.close()
@@ -736,9 +946,10 @@ def register_overtime_routes(app):
 
             date_label = f'{d_from or "-"} s/d {d_to or "-"}' if d_from or d_to else 'Semua Periode'
             export_format = request.args.get('format', 'pdf').lower()
+            driver_role = 'DRIVER' if modul == 'driver' else (rows[0].get('posisi', 'OB/SECURITY').upper() if rows else 'OB/SECURITY')
 
             if export_format == 'xlsx':
-                buf = generate_overtime_detail_excel(rows, driver_name=nama, driver_role='DRIVER', date_label=date_label)
+                buf = generate_overtime_detail_excel(rows, driver_name=nama, driver_role=driver_role, date_label=date_label, modul=modul)
                 buf.seek(0)
                 fname = f'Overtime_{nama.replace(" ", "_")}_{(d_to or date.today()).isoformat()}.xlsx'
                 response = make_response(buf.read())
@@ -748,8 +959,8 @@ def register_overtime_routes(app):
             else:
                 user_info = _current_user()
                 pdf = OvertimeDetailReportPDF()
-                pdf.generate(rows, driver_name=nama, driver_role='DRIVER',
-                             date_label=date_label, generated_by=user_info['full_name'])
+                pdf.generate(rows, driver_name=nama, driver_role=driver_role,
+                             date_label=date_label, generated_by=user_info['full_name'], modul=modul)
                 buf = io.BytesIO()
                 pdf.output(buf)
                 buf.seek(0)
@@ -857,17 +1068,21 @@ def register_overtime_routes(app):
             cursor.execute("SELECT config_value FROM system_config "
                            "WHERE config_key='overtime_driver_last_refresh'")
             lr = cursor.fetchone()
+            cursor.execute("SELECT config_value FROM system_config "
+                           "WHERE config_key='overtime_ob_last_refresh'")
+            ob_lr = cursor.fetchone()
             cursor.close(); conn.close()
             return jsonify({
                 'driver': {'total': driver_total,
                            'last_refresh': (lr['config_value'] if lr else 'Belum pernah refresh')},
-                'ob_security': {'total': ob_total, 'by_position': by_pos},
+                'ob_security': {'total': ob_total, 'by_position': by_pos,
+                                'last_refresh': (ob_lr['config_value'] if ob_lr else 'Belum pernah refresh')},
             })
         except Exception as e:
             return jsonify({'error': str(e)}), 500
 
     # ================================================================
-    # GA HR — konfigurasi sumber data sheet Driver
+    # GA HR — konfigurasi sumber data sheet (Driver + OB/Security)
     # ================================================================
     @app.route('/api/overtime/config')
     @role_required(['ga_hr', 'admin'])
@@ -878,12 +1093,14 @@ def register_overtime_routes(app):
                 return jsonify({'error': 'DB error'}), 500
             cursor = conn.cursor(dictionary=True)
             cursor.execute("SELECT config_key, config_value FROM system_config "
-                           "WHERE config_key LIKE 'overtime_driver_%'")
+                           "WHERE config_key LIKE 'overtime_%'")
             cfg = {r['config_key']: r['config_value'] for r in cursor.fetchall()}
             cursor.close(); conn.close()
             return jsonify({
                 'sheet_url': cfg.get('overtime_driver_sheet_url', ''),
                 'last_refresh': cfg.get('overtime_driver_last_refresh', 'Belum pernah refresh'),
+                'ob_sheet_url': cfg.get('overtime_ob_sheet_url', ''),
+                'ob_last_refresh': cfg.get('overtime_ob_last_refresh', 'Belum pernah refresh'),
             })
         except Exception as e:
             return jsonify({'error': str(e)}), 500
@@ -893,11 +1110,15 @@ def register_overtime_routes(app):
     def api_overtime_config_set():
         try:
             data = request.get_json(silent=True) or {}
+            modul = clean(data.get('modul', 'driver'))
+            if modul not in ('driver', 'ob'):
+                modul = 'driver'
             url = clean(data.get('sheet_url'))
             if not url:
                 return jsonify({'status': 'error', 'msg': 'URL tidak boleh kosong'}), 400
             if not url.startswith('http://') and not url.startswith('https://'):
                 return jsonify({'status': 'error', 'msg': 'URL harus diawali http(s)://'}), 400
+            config_key = 'overtime_driver_sheet_url' if modul == 'driver' else 'overtime_ob_sheet_url'
             conn = get_db_connection()
             if not conn:
                 return jsonify({'status': 'error', 'msg': 'DB error'}), 500
@@ -905,13 +1126,14 @@ def register_overtime_routes(app):
             cursor.execute(
                 "INSERT INTO system_config (config_key, config_value) VALUES (%s,%s) "
                 "ON DUPLICATE KEY UPDATE config_value=VALUES(config_value)",
-                ('overtime_driver_sheet_url', url[:600]))
+                (config_key, url[:600]))
             conn.commit()
             user = _current_user()
             log_activity_async(None, 'overtime_config', user['role'], user['full_name'],
-                               new_data={'sheet_url': url[:120]}, ip=request.remote_addr)
+                               new_data={'modul': modul, 'sheet_url': url[:120]}, ip=request.remote_addr)
             cursor.close(); conn.close()
-            return jsonify({'status': 'success', 'msg': 'URL sumber data diperbarui'})
+            label = 'Driver' if modul == 'driver' else 'OB/Security'
+            return jsonify({'status': 'success', 'msg': f'URL sumber data {label} diperbarui'})
         except Exception as e:
             return jsonify({'status': 'error', 'msg': str(e)}), 500
 
@@ -1006,5 +1228,23 @@ def register_overtime_routes(app):
                                ip=request.remote_addr)
             cursor.close(); conn.close()
             return jsonify({'status': 'success', 'msg': 'Data overtime dihapus'})
+        except Exception as e:
+            return jsonify({'status': 'error', 'msg': str(e)}), 500
+
+    # ================================================================
+    # Admin — cleanup foto overtime (> 6 bulan)
+    # ================================================================
+    @app.route('/api/overtime/cleanup-photos', methods=['POST'])
+    @role_required(['admin'])
+    def api_overtime_cleanup_photos():
+        """Hapus foto overtime yang lebih lama dari 180 hari (6 bulan).
+        Bisa dipanggil manual atau oleh cron job.
+        """
+        try:
+            result = _cleanup_old_photos(max_age_days=180)
+            user = _current_user()
+            log_activity_async(None, 'overtime_photo_cleanup', user['role'],
+                               user['full_name'], new_data=result, ip=request.remote_addr)
+            return jsonify({'status': 'success', 'msg': f"{result['deleted']} foto dihapus, {result['errors']} error", **result})
         except Exception as e:
             return jsonify({'status': 'error', 'msg': str(e)}), 500

@@ -27,6 +27,7 @@ const refreshing = ref(false)
 const refreshMsg = ref('')
 const showConfig = ref(false)
 const cfgUrl = ref('')
+const cfgObUrl = ref('')
 const cfgSaving = ref(false)
 
 // Edit & hapus data overtime
@@ -71,9 +72,10 @@ async function doRefresh() {
   refreshing.value = true
   refreshMsg.value = ''
   try {
-    const d = await api('/api/overtime/driver/refresh', { method: 'POST' })
+    const endpoint = tab.value === 'ob' ? '/api/overtime/ob/refresh' : '/api/overtime/driver/refresh'
+    const d = await api(endpoint, { method: 'POST' })
     refreshMsg.value = d.summary
-    await Promise.all([loadDriver(), loadStats()])
+    await Promise.all([loadTab(), loadStats()])
   } catch (e) {
     refreshMsg.value = ''
     err.value = e.message
@@ -88,13 +90,22 @@ async function openConfig() {
   try {
     const d = await api('/api/overtime/config')
     cfgUrl.value = d.sheet_url || ''
-  } catch { cfgUrl.value = '' }
+    cfgObUrl.value = d.ob_sheet_url || ''
+  } catch { cfgUrl.value = ''; cfgObUrl.value = '' }
 }
 
-async function saveConfig() {
+async function saveConfigDriver() {
   cfgSaving.value = true
   try {
-    await api('/api/overtime/config', { method: 'PATCH', body: { sheet_url: cfgUrl.value } })
+    await api('/api/overtime/config', { method: 'PATCH', body: { sheet_url: cfgUrl.value, modul: 'driver' } })
+    showConfig.value = false
+  } catch (e) { alert('❌ ' + e.message) } finally { cfgSaving.value = false }
+}
+
+async function saveConfigOb() {
+  cfgSaving.value = true
+  try {
+    await api('/api/overtime/config', { method: 'PATCH', body: { sheet_url: cfgObUrl.value, modul: 'ob' } })
     showConfig.value = false
   } catch (e) { alert('❌ ' + e.message) } finally { cfgSaving.value = false }
 }
@@ -129,33 +140,42 @@ async function downloadObPdf() {
   } catch (e) { err.value = '❌ Gagal unduh PDF: ' + e.message }
 }
 
-// === Detail Report per Driver (File 2 format) ===
+// === Detail Report per Driver/OB (File 2 format) ===
+const detailModul = ref('driver')
 const detailDriver = ref('')
 const detailFrom = ref('')
 const detailTo = ref('')
 const showDetailModal = ref(false)
 
+function openDetailModal(modul) {
+  detailModul.value = modul || tab.value || 'driver'
+  detailDriver.value = ''
+  showDetailModal.value = true
+}
+
 async function downloadDetailPdf(nama) {
   const driverName = nama || detailDriver.value
-  if (!driverName) { err.value = '⚠️ Pilih nama driver'; return }
+  if (!driverName) { err.value = detailModul.value === 'ob' ? '⚠️ Pilih nama OB/Security' : '⚠️ Pilih nama driver'; return }
   try {
     const blob = await api('/api/overtime/detail-report', {
       raw: true,
-      params: { nama: driverName, date_from: detailFrom.value, date_to: detailTo.value, format: 'pdf' },
+      params: { nama: driverName, date_from: detailFrom.value, date_to: detailTo.value, format: 'pdf', modul: detailModul.value },
     })
-    downloadBlob(blob, `Overtime_${driverName.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.pdf`)
+    const suffix = detailModul.value === 'ob' ? '_OB' : ''
+    downloadBlob(blob, `Overtime${suffix}_${driverName.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.pdf`)
   } catch (e) { err.value = '❌ Gagal unduh PDF: ' + e.message }
 }
 
 async function downloadDetailExcel(nama) {
   const driverName = nama || detailDriver.value
-  if (!driverName) { err.value = '⚠️ Pilih nama driver'; return }
+  if (!driverName) { err.value = detailModul.value === 'ob' ? '⚠️ Pilih nama OB/Security' : '⚠️ Pilih nama driver'; return }
   try {
     const blob = await api('/api/overtime/detail-report', {
       raw: true,
-      params: { nama: driverName, date_from: detailFrom.value, date_to: detailTo.value, format: 'xlsx' },
+      params: { nama: driverName, date_from: detailFrom.value, date_to: detailTo.value, format: 'xlsx', modul: detailModul.value },
     })
-    downloadBlob(blob, `Overtime_${driverName.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.xlsx`)
+    const suffix = detailModul.value === 'ob' ? '_OB' : ''
+    downloadBlob(blob, `Overtime${suffix}_${driverName.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.xlsx`)
   } catch (e) { err.value = '❌ Gagal unduh Excel: ' + e.message }
 }
 
@@ -274,7 +294,7 @@ watch(tab, loadTab)
           <button class="btn" :disabled="refreshing" @click="doRefresh">{{ refreshing ? '⏳ Menyinkronkan…' : '🔄 Refresh dari Google Sheet' }}</button>
           <button class="btn" @click="openConfig">⚙️ Sumber Data</button>
           <button class="btn" @click="downloadDriverPdf">📄 PDF</button>
-          <button class="btn" @click="showDetailModal = true">📋 Detail/Excel</button>
+          <button class="btn" @click="openDetailModal('driver')">📋 Detail/Excel</button>
         </div>
 
         <div v-if="loading" class="empty skeleton">⏳ Memuat…</div>
@@ -321,7 +341,10 @@ watch(tab, loadTab)
             <option v-for="n in allNames" :key="n" :value="n" />
           </datalist>
           <button class="btn" @click="loadOb">🔍 Cari</button>
+          <button class="btn" :disabled="refreshing" @click="doRefresh">{{ refreshing ? '⏳ Menyinkronkan…' : '🔄 Refresh' }}</button>
+          <button class="btn" @click="openConfig">⚙️ Sumber Data</button>
           <button class="btn" @click="downloadObPdf">📄 PDF</button>
+          <button class="btn" @click="openDetailModal('ob')">📋 Detail/Excel</button>
         </div>
 
         <div v-if="loading" class="empty skeleton">⏳ Memuat…</div>
@@ -413,7 +436,7 @@ watch(tab, loadTab)
       </div>
     </Modal>
 
-    <Modal v-if="showConfig" title="⚙️ Sumber Data Overtime Driver" @close="showConfig = false">
+    <Modal v-if="showConfig" title="⚙️ Sumber Data Overtime" @close="showConfig = false">
       <p class="muted" style="font-size:12px;margin-bottom:10px;">
         URL yang dibaca server saat tombol <b>Refresh</b> ditekan. Mendukung:
       </p>
@@ -421,22 +444,39 @@ watch(tab, loadTab)
         <li><b>CSV publik</b> — sheet di-share "Anyone with the link" → pakai URL <code>…/gviz/tq?tqx=out:csv</code></li>
         <li><b>Google Apps Script Web App</b> — sheet tetap private; cukup akun Google mana pun yang SUDAH punya akses ke sheet (termasuk view/read-only) membuat script standalone (<code>scripts/apps_script_overtime_driver.gs</code>) dan mengembalikan <code>{"rows":[…]}</code> — tidak perlu akses pemilik</li>
       </ul>
-      <div class="field">
-        <label>URL sumber data</label>
-        <input class="input" v-model="cfgUrl" placeholder="https://…" />
+      <!-- Driver -->
+      <div class="cfg-section">
+        <label style="font-weight:700;font-size:13px;">🚗 Driver</label>
+        <div class="field" style="margin-top:4px;">
+          <label style="font-size:11px;">URL sumber data Driver</label>
+          <input class="input" v-model="cfgUrl" placeholder="https://…" />
+        </div>
+        <div class="row" style="justify-content:flex-end;margin-top:6px;">
+          <button class="btn btn-primary" :disabled="cfgSaving" @click="saveConfigDriver">💾 Simpan Driver</button>
+        </div>
       </div>
-      <div class="row" style="justify-content:flex-end;margin-top:12px;">
-        <button class="btn" @click="showConfig = false">Batal</button>
-        <button class="btn btn-primary" :disabled="cfgSaving" @click="saveConfig">💾 Simpan</button>
+      <!-- OB/Security -->
+      <div class="cfg-section" style="margin-top:16px;border-top:1px solid var(--border);padding-top:14px;">
+        <label style="font-weight:700;font-size:13px;">🧑‍🔧 OB &amp; Security</label>
+        <div class="field" style="margin-top:4px;">
+          <label style="font-size:11px;">URL sumber data OB/Security</label>
+          <input class="input" v-model="cfgObUrl" placeholder="https://…" />
+        </div>
+        <div class="row" style="justify-content:flex-end;margin-top:6px;">
+          <button class="btn btn-primary" :disabled="cfgSaving" @click="saveConfigOb">💾 Simpan OB/Security</button>
+        </div>
+      </div>
+      <div class="row" style="justify-content:flex-end;margin-top:16px;">
+        <button class="btn" @click="showConfig = false">Tutup</button>
       </div>
     </Modal>
 
-    <!-- Modal: Detail Report per Driver -->
-    <Modal v-if="showDetailModal" title="📋 Detail Report per Driver" @close="showDetailModal = false">
-      <p style="font-size:13px;color:var(--text-2);margin-bottom:12px;">Generate report detail overtime per driver (PDF atau Excel). Kolom Biaya kosong untuk diisi GA HR.</p>
+    <!-- Modal: Detail Report per Driver/OB -->
+    <Modal v-if="showDetailModal" :title="detailModul === 'ob' ? '📋 Detail Report OB/Security' : '📋 Detail Report Driver'" @close="showDetailModal = false">
+      <p style="font-size:13px;color:var(--text-2);margin-bottom:12px;">Generate report detail overtime per {{ detailModul === 'ob' ? 'OB/Security' : 'driver' }} (PDF atau Excel). Kolom Biaya kosong untuk diisi GA HR.</p>
       <div class="field">
-        <label>Nama Driver *</label>
-        <input class="input" v-model="detailDriver" placeholder="Ketik nama untuk cari..." list="all-driver-names" />
+        <label>{{ detailModul === 'ob' ? 'Nama OB/Security' : 'Nama Driver' }} *</label>
+        <input class="input" v-model="detailDriver" :placeholder="detailModul === 'ob' ? 'Ketik nama OB/Security...' : 'Ketik nama untuk cari...'" list="all-driver-names" />
         <datalist id="all-driver-names">
           <option v-for="n in allNames" :key="n" :value="n" />
         </datalist>

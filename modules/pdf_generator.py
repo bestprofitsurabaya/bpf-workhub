@@ -1076,9 +1076,10 @@ class OvertimeDetailReportPDF(BPFBasePDF):
         self.cell(0, 7, self.clean_text(self._title), align='C', new_x='LMARGIN', new_y='NEXT')
         self.ln(2)
 
-    def generate(self, rows, driver_name='', driver_role='DRIVER', date_label='', generated_by=''):
-        """rows: list of overtime records for ONE driver.
+    def generate(self, rows, driver_name='', driver_role='DRIVER', date_label='', generated_by='', modul='driver'):
+        """rows: list of overtime records for ONE driver/OB.
         Landscape A4: 297mm - 2*15mm margin = 267mm usable.
+        modul: 'driver' or 'ob' — affects column layout (Plat vs Posisi).
         """
         self.add_page()
 
@@ -1103,10 +1104,15 @@ class OvertimeDetailReportPDF(BPFBasePDF):
         self.ln(4)
 
         # Table — Landscape widths (total = 267mm)
-        # No(8) + Tgl(32) + NoForm(20) + Nama(32) + Plat(22) + TglOT(22) + JamMulai(18) + JamSelesai(18) + Ket(45) + Lokasi(30) + Biaya(20)
-        headers = ['NO', 'TANGGAL\nTIMESTAMP', 'NO.\nFORM', 'NAMA', 'PLAT\nKENDARAAN', 'TANGGAL\nOVERTIME', 'JAM\nMULAI', 'JAM\nSELESAI', 'KETERANGAN', 'LOKASI', 'BIAYA']
-        widths = [8, 32, 20, 32, 22, 22, 18, 18, 45, 30, 20]
-        aligns = ['C', 'C', 'C', 'L', 'C', 'C', 'C', 'C', 'L', 'L', 'R']
+        if modul == 'ob':
+            # OB/Security: ganti PLAT KENDARAAN → POSISI
+            headers = ['NO', 'TANGGAL\nTIMESTAMP', 'NO.\nFORM', 'NAMA', 'POSISI', 'TANGGAL\nOVERTIME', 'JAM\nMULAI', 'JAM\nSELESAI', 'KETERANGAN', 'LOKASI', 'BIAYA']
+            widths = [8, 32, 20, 35, 22, 22, 18, 18, 45, 30, 17]
+            aligns = ['C', 'C', 'C', 'L', 'C', 'C', 'C', 'C', 'L', 'L', 'R']
+        else:
+            headers = ['NO', 'TANGGAL\nTIMESTAMP', 'NO.\nFORM', 'NAMA', 'PLAT\nKENDARAAN', 'TANGGAL\nOVERTIME', 'JAM\nMULAI', 'JAM\nSELESAI', 'KETERANGAN', 'LOKASI', 'BIAYA']
+            widths = [8, 32, 20, 32, 22, 22, 18, 18, 45, 30, 20]
+            aligns = ['C', 'C', 'C', 'L', 'C', 'C', 'C', 'C', 'L', 'L', 'R']
 
         self._table_header(headers, widths, font_size=7, row_h=8)
         fill = False
@@ -1139,12 +1145,13 @@ class OvertimeDetailReportPDF(BPFBasePDF):
             if len(lokasi) > 40:
                 lokasi = lokasi[:37] + '...'
 
+            col5 = r.get('posisi', '-') if modul == 'ob' else r.get('no_kendaraan', '-')
             self._table_row([
                 str(idx),
                 timestamp,
                 r.get('display_id', '-'),
                 r.get('nama', '-'),
-                r.get('no_kendaraan', '-'),
+                col5,
                 tanggal_ot,
                 r.get('waktu_mulai', '-'),
                 r.get('waktu_selesai', '-'),
@@ -1167,9 +1174,10 @@ class OvertimeDetailReportPDF(BPFBasePDF):
         self.set_text_color(*INK)
 
 
-def generate_overtime_detail_excel(rows, driver_name='', driver_role='DRIVER', date_label=''):
+def generate_overtime_detail_excel(rows, driver_name='', driver_role='DRIVER', date_label='', modul='driver'):
     """Generate Excel (.xlsx) for overtime detail report.
-    Landscape-style: 11 kolom (No, Tgl, NoForm, Nama, Plat, TglOT, JamMulai, JamSelesai, Ket, Lokasi, Biaya).
+    Landscape-style: 11 kolom.
+    modul: 'driver' (Plat) or 'ob' (Posisi).
     Biaya column is empty for GA HR to fill in."""
     try:
         import openpyxl
@@ -1227,7 +1235,10 @@ def generate_overtime_detail_excel(rows, driver_name='', driver_role='DRIVER', d
     ws['H3'].font = normal_font
 
     # Headers
-    headers = ['NO', 'TANGGAL TIMESTAMP', 'NO. FORM', 'NAMA', 'PLAT KENDARAAN', 'TANGGAL OVERTIME', 'JAM MULAI', 'JAM SELESAI', 'KETERANGAN', 'LOKASI', 'BIAYA']
+    if modul == 'ob':
+        headers = ['NO', 'TANGGAL TIMESTAMP', 'NO. FORM', 'NAMA', 'POSISI', 'TANGGAL OVERTIME', 'JAM MULAI', 'JAM SELESAI', 'KETERANGAN', 'LOKASI', 'BIAYA']
+    else:
+        headers = ['NO', 'TANGGAL TIMESTAMP', 'NO. FORM', 'NAMA', 'PLAT KENDARAAN', 'TANGGAL OVERTIME', 'JAM MULAI', 'JAM SELESAI', 'KETERANGAN', 'LOKASI', 'BIAYA']
     for col, h in enumerate(headers, 1):
         cell = ws.cell(row=5, column=col, value=h)
         cell.font = header_font_white
@@ -1264,12 +1275,13 @@ def generate_overtime_detail_excel(rows, driver_name='', driver_role='DRIVER', d
                 lokasi_parts.append(str(val))
         lokasi = ', '.join(lokasi_parts) if lokasi_parts else (r.get('gps_address', '') or '-')
 
+        col5_val = r.get('posisi', '-') if modul == 'ob' else r.get('no_kendaraan', '-')
         data = [
             idx + 1,
             timestamp,
             r.get('display_id', '-'),
             r.get('nama', '-'),
-            r.get('no_kendaraan', '-'),
+            col5_val,
             tanggal_ot,
             r.get('waktu_mulai', '-'),
             r.get('waktu_selesai', '-'),
@@ -1308,7 +1320,7 @@ def generate_overtime_detail_excel(rows, driver_name='', driver_role='DRIVER', d
     return buf
 
 
-def _generate_overtime_detail_csv(rows, driver_name='', driver_role='DRIVER', date_label=''):
+def _generate_overtime_detail_csv(rows, driver_name='', driver_role='DRIVER', date_label='', modul='driver'):
     """Fallback CSV export if openpyxl not available."""
     import csv
     output = io.StringIO()
@@ -1316,7 +1328,10 @@ def _generate_overtime_detail_csv(rows, driver_name='', driver_role='DRIVER', da
     writer.writerow([f'OVERTIME PERIODE {date_label}'])
     writer.writerow([f'NAMA: {driver_name}', f'JABATAN: {driver_role}'])
     writer.writerow([])
-    writer.writerow(['NO', 'TANGGAL TIMESTAMP', 'NO. FORM', 'NAMA', 'PLAT KENDARAAN', 'TANGGAL OVERTIME', 'JAM MULAI', 'JAM SELESAI', 'KETERANGAN', 'LOKASI', 'BIAYA'])
+    if modul == 'ob':
+        writer.writerow(['NO', 'TANGGAL TIMESTAMP', 'NO. FORM', 'NAMA', 'POSISI', 'TANGGAL OVERTIME', 'JAM MULAI', 'JAM SELESAI', 'KETERANGAN', 'LOKASI', 'BIAYA'])
+    else:
+        writer.writerow(['NO', 'TANGGAL TIMESTAMP', 'NO. FORM', 'NAMA', 'PLAT KENDARAAN', 'TANGGAL OVERTIME', 'JAM MULAI', 'JAM SELESAI', 'KETERANGAN', 'LOKASI', 'BIAYA'])
     for idx, r in enumerate(rows, 1):
         timestamp = ''
         if r.get('submitted_at'):
@@ -1332,9 +1347,10 @@ def _generate_overtime_detail_csv(rows, driver_name='', driver_role='DRIVER', da
             if val and val != '-':
                 lokasi_parts.append(str(val))
         lokasi = ', '.join(lokasi_parts) if lokasi_parts else (r.get('gps_address', '') or '-')
+        col5 = r.get('posisi', '-') if modul == 'ob' else r.get('no_kendaraan', '-')
         writer.writerow([
             idx, timestamp, r.get('display_id', '-'), r.get('nama', '-'),
-            r.get('no_kendaraan', '-'), str(r.get('tanggal', '-')),
+            col5, str(r.get('tanggal', '-')),
             r.get('waktu_mulai', '-'), r.get('waktu_selesai', '-'),
             r.get('keterangan', '-'), lokasi, '',  # Biaya kosong
         ])

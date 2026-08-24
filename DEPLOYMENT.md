@@ -48,7 +48,7 @@ Internet / VPN
 
 | Container | Nama | Port Host | Port Kontainer | Fungsi |
 |-----------|------|-----------|----------------|--------|
-| Web (Flask + SocketIO) | `bbm_web` | `5001` (dev) / `5000` (prod) | `5000` | Aplikasi |
+| Web (Flask + SocketIO) | `bbm_web` | `5001` (dev) / `5000` (prod) | `5000` | Aplikasi + Cron (foto cleanup tiap 30 menit) |
 | Database | `bbm_mariadb` | `3307` | `3306` | MariaDB 10.11 |
 | Cache | `bbm_redis` | internal | `6379` | Rate limit + cache |
 | Backup | `bbm_backup` | cron 03:00 | — | Backup DB otomatis |
@@ -150,11 +150,38 @@ curl -s -o /dev/null -w 'driver: %{http_code}\n'  http://localhost:5001/driver
 
 ---
 
-## 6. Backup & Restore
+## 6. Backup & Restore + Foto Cleanup
 
 ### 6.1 Backup Otomatis (v2.21, Direkomendasikan)
 
 Service `backup` di docker-compose: **mysqldump semua database setiap 03:00 WIB** ke volume `bbm_backups`, retensi 30 hari.
+
+### 6.2 Foto Overtime Cleanup (v2.28.2)
+
+Foto overtime yang tersimpan di `uploads/overtime/` dibatasi **maksimal 6 bulan (180 hari)**. Sistem三层 cleanup:
+
+| Mekanisme | Interval | Keterangan |
+|-----------|----------|------------|
+| **Cron di container** | Tiap 30 menit | Shell script `scripts/overtime-cleanup.sh`, dijalankan cron di `bbm_web` — bekerja langsung saat fresh deploy |
+| **Background thread Flask** | Tiap 30 menit | Fungsi `_periodic_photo_cleanup()` di `app.py`, daemon thread |
+| **Manual trigger** | On-demand | Admin bisa panggil `POST /api/overtime/cleanup-photos` dari dashboard atau API |
+
+**Log cleanup:**
+```bash
+# Lihat log cleanup terakhir
+docker exec bbm_web cat /var/log/overtime-cleanup.log
+
+# Cleanup manual via API
+curl -X POST http://localhost:5001/api/overtime/cleanup-photos \
+  -H "Cookie: session=..."
+
+# Cleanup manual via shell
+docker exec bbm_web sh /app/scripts/overtime-cleanup.sh
+```
+
+**Konfigurasi:**
+- Default: 180 hari (6 bulan)
+- Bisa diubah via environment variable `MAX_AGE_DAYS` di `docker-compose.yml` atau `Dockerfile`
 
 ```bash
 # Cek status backup terakhir

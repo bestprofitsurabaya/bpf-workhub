@@ -1,4 +1,4 @@
-# 🏢 BPF WorkHub v2.28.0
+# 🏢 BPF WorkHub v2.28.2
 
 **Sistem Manajemen Armada, Klaim BBM, Kasbon, Log Perjalanan, Appointment & Air Minum**  
 **PT. Bestprofit Futures — Surabaya**
@@ -68,9 +68,13 @@ Semua tercatat, terverifikasi, dan bisa dipertanggungjawabkan — dengan satu ap
 
 ### ⏰ GA HR (Overtime)
 - Data overtime Driver dari Google Sheet (8.665 baris)
-- Form publik OB/Security tanpa login
+- Data OB/Security dari Google Sheet + form publik tanpa login
 - Auto-refresh saat login/logout
 - Edit & hapus data overtime
+- Detail Report per nama (PDF/Excel) — Driver & OB/Security
+- Form Permohonan PDF — Driver & OB/Security
+- Foto OT auto-cleanup > 6 bulan (cron + background thread)
+- Config sumber data terpisah untuk Driver & OB/Security
 
 ### 📰 IT (News Scraper — Multi-Cabang)
 - Scrape artikel dari newsmaker.id + Detik Finance (64 artikel/scrape)
@@ -281,4 +285,4 @@ Telp: 031-5349888
 
 ---
 
-*BPF WorkHub v2.28.0 · Dikembangkan oleh Tim IT BPF Surabaya*
+*BPF WorkHub v2.28.2 · Dikembangkan oleh Tim IT BPF Surabaya*

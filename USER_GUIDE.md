@@ -423,8 +423,11 @@ Semua perubahan papan berjalan realtime — saat driver menyelesaikan tugas, sta
 
 ### Tab 🧑‍🔧 OB & Security
 
-- Data lama (546 baris) sudah dimigrasikan penuh; baris baru masuk lewat **form publik**.
-- Filter posisi (OB/Security), tanggal, dan pencarian.
+- Data lama (546 baris) sudah dimigrasikan penuh; baris baru masuk lewat **form publik** atau **sinkronisasi Google Sheet**.
+- Filter posisi (OB/Security), tanggal, sumber, dan pencarian.
+- **🔄 Refresh** — tarik data terbaru dari Google Sheet OB/Security (sama seperti tab Driver).
+- **📋 Detail/Excel** — generate report detail per nama OB/Security (PDF atau Excel). Kolom Biaya kosong untuk diisi GA HR.
+- **⚙️ Sumber Data** — atur URL Google Sheet OB/Security di modal config (terpisah dari Driver).
 
 ### Form Publik (tanpa login)
 
@@ -435,17 +438,25 @@ Semua perubahan papan berjalan realtime — saat driver menyelesaikan tugas, sta
 
 - Akun demo tersedia: **username `ga_hr_officer`, PIN `123456`** (role GA HR) — atau buat sendiri di Manajemen User (`/app/users`) oleh Admin.
 
+### 🗑️ Foto OT Auto-Cleanup (v2.28.2)
+
+Foto overtime yang diunggah ke server secara otomatis **dibatasi penyimpanannya maksimal 6 bulan**. Setelah 6 bulan, foto akan dihapus otomatis untuk menghemat storage server.
+
+- **Otomatis**: cron di container membersihkan foto tiap 30 menit
+- **Manual**: Admin bisa trigger cleanup dari API (`POST /api/overtime/cleanup-photos`)
+- Data overtime lainnya (nama, tanggal, jam, keterangan) **tetap tersimpan** di database — hanya foto yang dihapus
+
 ### Kolom di Tab Driver
 
 - **Tanggal · Nama · No. Kendaraan · Waktu · Keterangan · Broker/Manager** — No. Kendaraan, broker (Nama Broker/Marketing), dan manager (Nama Manager/Team leader) ikut tampil di tabel, laporan PDF, dan pencarian.
 
-### 📄 Cetak Laporan & Form (v2.27.0)
+### 📄 Cetak Laporan & Form (v2.27.0+)
 
-Tiga format PDF tersedia:
+Tiga format PDF tersedia (didukung untuk Driver DAN OB/Security):
 
-1. **📄 PDF (Laporan Ringkas)** — tabel ringkas semua driver, ditandatangani GA HR. Klik tombol **📄 PDF** di toolbar.
-2. **📋 Detail/Excel (Report Per Driver)** — pilih nama driver + periode, lalu pilih **📄 PDF** atau **📊 Excel**. Kolom Biaya di Excel kosong untuk diisi manual oleh GA HR.
-3. **📄 Cetak Form (Formulir Permohonan)** — klik tombol **📄** pada baris data overtime. PDF berisi: ID form, detail OT, blok TTD (Manager/Finance/GA HR/Chief Driver/Kepala Cabang), dan link foto (bukan gambar langsung).
+1. **📄 PDF (Laporan Ringkas)** — tabel ringkas semua data, ditandatangani GA HR. Klik tombol **📄 PDF** di toolbar. Untuk OB/Security, kolom PLAT diganti POSISI.
+2. **📋 Detail/Excel (Report Per Nama)** — pilih nama + periode, lalu pilih **📄 PDF** atau **📊 Excel**. Kolom Biaya di Excel kosong untuk diisi manual oleh GA HR. Untuk OB/Security, kolom PLAT diganti POSISI.
+3. **📄 Cetak Form (Formulir Permohonan)** — klik tombol **📄** pada baris data overtime. PDF berisi: ID form, detail OT, blok TTD (Manager/Finance/GA HR/Chief Driver/Kepala Cabang), dan link foto. Untuk OB/Security, judul form menampilkan POSISI (bukan No. Kendaraan).
 
 ---
 

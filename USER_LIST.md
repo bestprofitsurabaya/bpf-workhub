@@ -275,8 +275,12 @@ Sistem mendukung 11 role pengguna:
 - Dashboard statistik overtime
 - Data migrasi Driver (8.665+ data) & OB/Security (546+ data)
 - Auto-refresh saat login/logout
+- Refresh dari Google Sheet (Driver & OB/Security)
+- Detail Report per nama (PDF/Excel) — Driver & OB/Security
+- Config sumber data terpisah (Driver + OB/Security)
 - CRUD overtime (edit, delete)
 - PDF laporan overtime
+- Foto OT auto-cleanup > 6 bulan (cron + manual API)
 
 **Halaman:** GA HR Dashboard (`/app/ga-hr`)
 

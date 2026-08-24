@@ -4,7 +4,7 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 **Terakhir diperbarui:** 2026-08-24  
 **Branch:** `main`  
-**Versi terbaru:** v2.28.1
+**Versi terbaru:** v2.28.2
 
 ---
 
@@ -12,7 +12,7 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 | Aspek | Status |
 |-------|--------|
-| Versi | v2.28.1 (OT Form Multi-Modul + H+1 + Nama Filter) |
+| Versi | v2.28.2 (OT OB/Security Parity + Foto Auto-Cleanup + Cron) |
 | Docker | `bbm_web` running on `nasbpfsby.duckdns.org:5000` |
 | App Running | `https://nasbpfsby.duckdns.org:5000` |
 | Databases | 10 DB terpisah (1 master + 9 cabang) |
@@ -148,6 +148,11 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 - [x] H+1 OT — maksimal terhitung dari jam terakhir selesai OT
 - [x] Filter nama autocomplete (searchable + selectable) di laporan
 - [x] Detail Report Landscape A4 + kolom Lokasi (GPS detail)
+- [x] OB/Security Refresh dari Google Sheet (dashboard GA HR)
+- [x] Detail Report modul-aware (driver/ob) — kolom Posisi vs Plat
+- [x] Config sumber data dual-panel (Driver + OB/Security)
+- [x] Foto OT auto-cleanup > 6 bulan (cron + background thread + manual API)
+- [x] Cron di Docker container — langsung bekerja saat fresh deploy
 
 ### PWA Driver
 - [x] 5 tab: BBM, Kasbon, Trip, OT, Rapor
@@ -234,4 +239,4 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 ---
 
-*BPF WorkHub v2.28.0 · Progres Tracker*
+*BPF WorkHub v2.28.2 · Progres Tracker*
