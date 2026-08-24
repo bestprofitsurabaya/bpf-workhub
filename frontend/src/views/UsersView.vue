@@ -62,7 +62,7 @@ const roleIcon = (r) => (ROLES.find((x) => x[0] === r) || ['', ''])[1].split(' '
 
 const branches = ref([])
 const branchName = (code) => {
-  if (!code) return '—'
+  if (!code || !Array.isArray(branches.value)) return code || '—'
   const b = branches.value.find(x => x.code === code)
   return b ? b.name : code
 }
@@ -103,7 +103,7 @@ async function load() {
       api('/api/branches').catch(() => [])
     ])
     users.value = u || []
-    branches.value = b || []
+    branches.value = (b && b.branches) ? b.branches : (Array.isArray(b) ? b : [])
   } catch (e) { err.value = e.message }
   finally { loading.value = false }
 }
