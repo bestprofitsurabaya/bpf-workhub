@@ -2,9 +2,9 @@
 
 File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks saat sesi baru dimulai.
 
-**Terakhir diperbarui:** 2026-08-21  
+**Terakhir diperbarui:** 2026-08-24  
 **Branch:** `main`  
-**Versi terbaru:** v2.23.0
+**Versi terbaru:** v2.24.0
 
 ---
 
@@ -12,14 +12,11 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 | Aspek | Status |
 |-------|--------|
-| Versi | v2.23.0 (News Scraper + role it_ef / IT Surabaya) |
-| Docs | v1.0 (commit `48a439c`) |
-| CI Fix | v1.0+fix (commit `03f5f17`) |
+| Versi | v2.24.0 (Overtime Driver Form + Audit Fix + Deployment Ready) |
+| Docker | `bbm_web` running on `nasbpfsby.duckdns.org:5000` |
 | Pytest | 223/243 passed (20 = integration tests butuh DB) |
 | Vitest | 82/82 ✅ |
-| Video | 10 mp4 (7 role + 3 baru) |
-| App Running | `http://localhost:5001` |
-| Online | `https://nasbpfsby.duckdns.org:5000` |
+| App Running | `https://nasbpfsby.duckdns.org:5000` |
 
 ---
 
@@ -27,7 +24,7 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 ### Core Features
 - [x] Sistem BBM (klaim, verifikasi, pencairan)
-- [x] Sistem Kasbon ( kode unik, LPJ, alur relay)
+- [x] Sistem Kasbon (kode unik, LPJ, alur relay)
 - [x] Log Perjalanan / Trip
 - [x] Dashboard per role (Admin, GA, Finance)
 - [x] Dark mode + High contrast mode
@@ -62,6 +59,11 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 ### Overtime
 - [x] Overtime Driver (8.665 baris dari Google Sheet)
 - [x] Overtime OB/Security (546 baris + form publik)
+- [x] **Form Overtime Driver di PWA** (foto + watermark + GPS) ⭐ NEW
+- [x] **Form Overtime OB/Security** (foto + watermark + GPS) ⭐ NEW
+- [x] **Source tracking** ('sheet' vs 'form') di database ⭐ NEW
+- [x] **Filter source** di dashboard GA HR & PDF report ⭐ NEW
+- [x] **Offline support** untuk overtime driver (overtime_queue) ⭐ NEW
 - [x] Auto-refresh saat login/logout
 - [x] Notifikasi realtime
 
@@ -72,19 +74,33 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 - [x] PDF konsolidasi lintas cabang
 
 ### PWA Driver
-- [x] 4 tab: BBM, Kasbon, Trip, Rapor
+- [x] **5 tab: BBM, Kasbon, Trip, OT, Rapor** ⭐ UPDATED
+- [x] **Foto upload: kamera + galeri** ⭐ UPDATED
 - [x] Offline-first (IndexedDB)
 - [x] Watermark foto (GPS + timestamp)
 - [x] Notifikasi real-time
 
+### News Scraper (IT Surabaya)
+- [x] Scrape artikel dari newsmaker.id (struktur baru Tailwind)
+- [x] WordPress integration (multi-site)
+- [x] SEO optimization + backlinks
+- [x] **Parser tanggal Indonesia** (Agu/Agustus) ⭐ NEW
+
 ### Keamanan
 - [x] Login PIN + session-based
 - [x] CSRF protection
-- [x] Role-based access (10 role)
+- [x] Role-based access (11 role)
 - [x] Audit trail (30+ action types)
 - [x] Security headers (CSP, X-Frame-Options)
 - [x] Rate limiting
 - [x] Backup DB otomatis
+
+### Deployment
+- [x] **Docker Compose ready** (db, web, redis, backup) ⭐ NEW
+- [x] **nginx.conf** untuk HTTPS (nextcloud_nginx) ⭐ NEW
+- [x] **DEPLOY_FRESH.md** — step-by-step guide ⭐ NEW
+- [x] **init.sql** — 35 tabel (termasuk 16 tabel v2.x) ⭐ UPDATED
+- [x] **requirements.txt** — termasuk beautifulsoup4 + lxml ⭐ UPDATED
 
 ### Testing & CI/CD
 - [x] 243 pytest (backend)
@@ -93,28 +109,15 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 - [x] GitHub Actions CI/CD
 
 ### Dokumentasi
-- [x] README.md v1.0
-- [x] CHANGELOG.md v1.0
-- [x] DEPLOYMENT.md v1.0
-- [x] SECURITY.md v1.0
-- [x] USER_GUIDE.md v1.0
-- [x] USER_LIST.md v1.0
-- [x] PELATIHAN.md v1.0
-- [x] PRESENTASI.md v1.0
-- [x] ONEPAGER.md v1.0
-
-### Video Walkthrough
-- [x] admin.mp4
-- [x] ob.mp4
-- [x] finance.mp4
-- [x] ga.mp4
-- [x] marketing.mp4
-- [x] chief.mp4
-- [x] driver.mp4
-- [x] receptionist.mp4 (baru)
-- [x] traineer.mp4 (baru)
-- [x] ga_hr.mp4 (baru)
-- [x] walkthrough-all.mp4
+- [x] README.md v2.24
+- [x] CHANGELOG.md v2.24
+- [x] DEPLOY_FRESH.md (baru)
+- [x] SECURITY.md
+- [x] USER_GUIDE.md
+- [x] USER_LIST.md
+- [x] PELATIHAN.md
+- [x] PRESENTASI.md
+- [x] ONEPAGER.md
 
 ---
 
@@ -149,7 +152,9 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 ## 🐛 Bug / Issue Terbuka
 
 - Backend tests: 20 test gagal di local = integration tests butuh DB (berjalan di CI Docker)
-- ✅ Fixed 2026-08-24: error 500 `/api/scraper/check` — bs4 tidak terinstall di root Python
+- ✅ Fixed: error 500 `/api/scraper/check` — bs4 tidak terinstall
+- ✅ Fixed: scraper parsing newsmaker.id — struktur HTML berubah
+- ✅ Fixed: 10 anomaly PWA driver (audit menyeluruh)
 
 ---
 
@@ -160,30 +165,25 @@ Ketik di awal sesi:
 
 Setelah selesai kerja, update file ini dengan status terbaru.
 
-### Sesi 2026-08-24
-1. ✅ Fix error 500 di `/api/scraper/check` — add top-level try/except ke semua scraper routes
-2. ✅ Install `beautifulsoup4` + `lxml` di server (root Python)
-3. ✅ Tambah `beautifulsoup4`, `lxml` ke `requirements.txt`
-4. ✅ Fix broken indentation di `upload_articles()` dan `check_duplicates()`
-5. ✅ App restart (HUP) — bs4 terload
+### Sesi 2026-08-24 (v2.24.0)
+1. ✅ Fix error 500 `/api/scraper/check` — install bs4 di Docker container
+2. ✅ Update scraper parsing — struktur baru newsmaker.id (Tailwind CSS)
+3. ✅ Fix parser tanggal Indonesia (Agu/Agustus)
+4. ✅ Deployment readiness — docker-compose, nginx, init.sql, DEPLOY_FRESH.md
+5. ✅ Foto bukti timestamp — form OB/Security + watermark otomatis
+6. ✅ Form Overtime Driver di PWA — tab baru ⏰ OT
+7. ✅ Source tracking — pisahkan data 'sheet' vs 'form'
+8. ✅ Filter source di dashboard GA HR & PDF report
+9. ✅ Audit PWA driver — 10 anomaly diperbaiki
+10. ✅ Foto upload support galeri + kamera (hapus capture attr)
+11. ✅ Update semua .md files
 
-### Sesi 2026-08-21
+### Sesi 2026-08-21 (v2.23.0)
 1. ✅ Tambah role `it_ef` (IT Surabaya) — backend + frontend
-2. ✅ Buat `routes_news_scraper.py` — API WordPress site management, scrape, upload, SEO, backlinks, duplicates
+2. ✅ Buat `routes_news_scraper.py` — 14 API endpoints
 3. ✅ Buat `ItEfView.vue` — UI News Scraper & Content Management
 4. ✅ Register module di `app.py`
 5. ✅ Update router, sidebar menu, ROLES list
-6. ✅ 82/82 Vitest ✅ | Module import ✅
-7. ✅ `beautifulsoup4` + `lxml` terinstall di server
-
-### Sesi Terakhir (2026-08-20)
-1. ✅ Restrukturisasi 9 file .md ke v1.0 (bahasa humanis)
-2. ✅ Fix rehearsal.mjs & record.mjs (user RIVAN → wicak, tambah 3 role)
-3. ✅ Generate 3 video baru (ga_hr, receptionist, traineer)
-4. ✅ Buat PROGRESS.md sebagai tracker lintas sesi
-5. ✅ Fix CI: UsersView.test.js — tambah Pinia setup
-6. ✅ Analisis fitur: tidak ada penurunan fungsi dari versi lama
-7. ✅ Push 3 commit: `48a439c`, `a2c5e46`, `03f5f17`
 
 ---
 
@@ -191,11 +191,13 @@ Setelah selesai kerja, update file ini dengan status terbaru.
 
 | Link | URL |
 |------|-----|
-| App (local) | `http://localhost:5001` |
 | App (online) | `https://nasbpfsby.duckdns.org:5000` |
+| App (local) | `http://localhost:5001` |
 | GitHub | `https://github.com/bestprofitsurabaya/bpf-workhub` |
-| Login | `http://localhost:5001/app/login` |
-| GA HR | `http://localhost:5001/app/ga-hr` |
+| Login | `https://nasbpfsby.duckdns.org:5000/app/login` |
+| Form OT OB/Security | `https://nasbpfsby.duckdns.org:5000/app/overtime-form` |
+| GA HR | `https://nasbpfsby.duckdns.org:5000/app/ga-hr` |
+| News Scraper | `https://nasbpfsby.duckdns.org:5000/app/it-ef` |
 
 ---
 
@@ -208,8 +210,8 @@ Setelah selesai kerja, update file ini dengan status terbaru.
 | Finance | `finance_officer` | `123456` | `/app/finance` |
 | Driver | `wicak` | `123456` | `/app/driver` |
 | GA HR | `ga_hr_officer` | `123456` | `/app/ga-hr` |
-| IT Surabaya | `it_ef` | `123456` | `/app/it-ef` | (branch SBY) |
+| IT Surabaya | `it_ef` | `123456` | `/app/it-ef` |
 
 ---
 
-*BPF WorkHub · Progres Tracker*
+*BPF WorkHub v2.24.0 · Progres Tracker*

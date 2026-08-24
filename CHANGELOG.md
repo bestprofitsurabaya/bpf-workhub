@@ -1,4 +1,4 @@
-# 📋 Changelog — BPF WorkHub v1.0
+# 📋 Changelog — BPF WorkHub v2.24.0
 
 Riwayat perubahan penting pada BPF WorkHub. Format mengikuti [Keep a Changelog](https://keepachangelog.com/id/ID/1.0.0/) dan versi mengikuti [Semantic Versioning](https://semver.org/lang/id/).
 
@@ -16,6 +16,38 @@ Telp: 031-5349888
 ---
 
 ## Versi Terbaru
+
+### [2.24.0] - 2026-08-24
+
+**Overtime Driver Form + Audit Fix + Deployment Ready**
+
+**Fitur Baru:**
+- **Form Overtime Driver di PWA**: tab ⏰ OT — submit overtime dengan foto watermark + GPS
+- **Foto Bukti Timestamp**: kamera langsung dari form, watermark otomatis (nama perusahaan + tanggal + GPS)
+- **Source Tracking**: pisahkan data Google Sheet (`sheet`) vs Aplikasi (`form`) di database
+- **Filter Source**: dropdown filter di dashboard GA HR (Sheet / Aplikasi / Semua)
+- **PDF dengan Kolom Sumber**: laporan PDF menampilkan sumber data (Sheet/Aplikasi)
+- **Single Record PDF**: parameter `display_id` untuk cetak 1 transaksi
+- **Foto Upload Galeri + Kamera**: file picker HP tampilkan opsi kamera & galeri
+
+**Fix:**
+- **Error 500 `/api/scraper/check`**: install beautifulsoup4 di Docker container
+- **Scraper Parsing**: update untuk struktur baru newsmaker.id (Tailwind CSS)
+- **Parser Tanggal Indonesia**: handle abbreviasi (Agu/Agustus)
+- **10 Anomaly PWA Driver**: GPS shared, offline support, pre-fill profile, toast events
+- **Deployment Ready**: docker-compose, nginx.conf, init.sql (35 tabel), DEPLOY_FRESH.md
+
+**Backend:**
+- `POST /api/overtime/driver/submit` — submit overtime driver dari PWA
+- Kolom `source` + `display_id` di tabel `overtime_driver`
+- Filter `source` di driver list & report endpoint
+- `_save_overtime_foto()` — simpan foto base64 ke `/uploads/overtime/`
+
+**Frontend:**
+- `OvertimeDriverTab.vue` — tab baru di PWA driver
+- `OvertimeView.vue` — filter source + kolom Sumber di tabel
+- `BBMTab.vue` — foto upload support galeri + kamera
+- `driverStore.js` — overtime_queue untuk offline support
 
 ### [2.23.0] - 2026-08-21
 

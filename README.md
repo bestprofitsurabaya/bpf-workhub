@@ -1,4 +1,4 @@
-# 🏢 BPF WorkHub v1.0
+# 🏢 BPF WorkHub v2.24.0
 
 **Sistem Manajemen Armada, Klaim BBM, Kasbon, Log Perjalanan, Appointment & Air Minum**  
 **PT. Bestprofit Futures — Surabaya**
@@ -27,7 +27,7 @@ Semua tercatat, terverifikasi, dan bisa dipertanggungjawabkan — dengan satu ap
 ## ✨ Fitur Utama
 
 ### 📱 Driver (PWA Offline-First)
-- 4 tab: ⛽ BBM, 💰 Kasbon, 🗺️ Trip, 📊 Rapor
+- 5 tab: ⛽ BBM, 💰 Kasbon, 🗺️ Trip, ⏰ OT, 📊 Rapor
 - Offline-first: data tersimpan di HP dan terkirim otomatis saat online
 - Notifikasi real-time via WebSocket
 - Watermark otomatis: GPS + waktu + nama perusahaan
@@ -219,6 +219,7 @@ bpf-workhub/
 | `bbm_mariadb` | 3307 → 3306 | MariaDB 10.11 |
 | `bbm_redis` | internal | Cache + rate limit |
 | `bbm_backup` | cron 03:00 | Backup DB otomatis |
+| `bbm_nginx` | 80, 443, 5000 | HTTPS reverse proxy |
 
 ---
 
@@ -246,7 +247,7 @@ bpf-workhub/
 | Finance | Payout, archive, rekap, verifikasi air minum |
 | Marketing | Input appointment kunjungan nasabah |
 | Chief Driver | Command center penugasan driver |
-| Driver | Submit BBM, trip log, kasbon (PWA offline-first) |
+| Driver | Submit BBM, trip log, kasbon, **overtime** (PWA offline-first) |
 | OB | Pengajuan air minum |
 | Receptionist | Verifikasi pelamar kerja |
 | Traineer | Pantau kehadiran rekrutan |
@@ -278,4 +279,4 @@ Telp: 031-5349888
 
 ---
 
-*BPF WorkHub v1.0 · Dikembangkan oleh Tim IT BPF Surabaya*
+*BPF WorkHub v2.24.0 · Dikembangkan oleh Tim IT BPF Surabaya*
