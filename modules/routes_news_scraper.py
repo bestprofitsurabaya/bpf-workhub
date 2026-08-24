@@ -1519,7 +1519,12 @@ def upload_articles():
             status_msg = '🔄 Update' if is_duplicate else '⏳ Upload'
             _set_progress(task_id, {'stage': 'upload', 'progress': progress_pct, 'message': f'{status_msg} [{idx+1}/{len(articles)}] {title[:50]}...', 'total': len(articles), 'current': idx + 1})
 
-            article_detail = {'title': title, 'category': article.get('category', ''), 'date': article.get('publish_date', ''), 'status': 'pending'}
+            article_detail = {
+                'title': title, 'category': article.get('category', ''),
+                'date': article.get('publish_date', ''), 'status': 'pending',
+                'source': article.get('source', ''), 'link': article.get('link', ''),
+                'seo_score': 0, 'post_id': 0, 'wp_url': wp_url.split('/wp-json')[0],
+            }
 
             if is_duplicate and matched_post_id:
                 # Update existing post (use cached post_id)
@@ -1556,6 +1561,7 @@ def upload_articles():
                                     updated_count += 1
                                     article_detail['status'] = 'updated'
                                     article_detail['post_id'] = post['id']
+                                    article_detail['seo_score'] = seo_score
                                 break
                 except Exception as e:
                     errors.append(f"{title}: {str(e)}")
@@ -1567,6 +1573,7 @@ def upload_articles():
                         new_count += 1
                         article_detail['status'] = 'new'
                         article_detail['post_id'] = r.json().get('id')
+                        article_detail['seo_score'] = seo_score
                     else:
                         errors.append(f"{title}: HTTP {r.status_code}")
                         article_detail['status'] = 'error'
@@ -1598,7 +1605,8 @@ def upload_articles():
             'updated_posts': updated_count,
             'errors': len(errors),
             'error_details': errors[:10],
-            'articles': [{'title': a.get('title', ''), 'category': a.get('category', ''), 'date': a.get('publish_date', '')} for a in articles],
+            'articles': [{'title': a.get('title', ''), 'category': a.get('category', ''), 'date': a.get('publish_date', ''), 'source': a.get('source', ''), 'link': a.get('link', '')} for a in articles],
+            'article_details': article_details,  # full per-article data
         })
 
         # Algo 5: Auto Sitemap Ping
@@ -1878,6 +1886,138 @@ def get_schedule():
         'can_publish': _should_publish_today(published_today),
         'daily_limit': daily_limit,
     })
+
+
+# ----- UPLOAD REPORT (per-article detail) -----
+
+@news_scraper_bp.route('/api/scraper/report', methods=['GET'])
+@role_required(SCRAPER_ROLES)
+def get_upload_report():
+    """Get detailed per-article upload report with filters."""
+    date_from = request.args.get('date_from', '')
+    date_to = request.args.get('date_to', '')
+    site_filter = request.args.get('site', '')
+    status_filter = request.args.get('status', '')
+    source_filter = request.args.get('source', '')
+    search = request.args.get('search', '').lower()
+
+    history = _load_json(UPLOAD_HISTORY_FILE, [])
+    # Collect all article_details from upload entries
+    all_articles = []
+    for entry in history:
+        if entry.get('action') != 'upload':
+            continue
+        entry_date = entry.get('date', '')
+        if date_from and entry_date < date_from:
+            continue
+        if date_to and entry_date > date_to:
+            continue
+        entry_site = entry.get('site', '')
+        if site_filter and entry_site != site_filter:
+            continue
+        for detail in entry.get('article_details', []):
+            detail['upload_date'] = entry_date
+            detail['upload_time'] = entry.get('time', '')
+            detail['upload_user'] = entry.get('user', '')
+            detail['upload_site'] = entry_site
+            if status_filter and detail.get('status', '') != status_filter:
+                continue
+            if source_filter and detail.get('source', '') != source_filter:
+                continue
+            if search and search not in (detail.get('title', '') + detail.get('category', '')).lower():
+                continue
+            all_articles.append(detail)
+
+    # Sort by date desc
+    all_articles.sort(key=lambda a: a.get('upload_date', ''), reverse=True)
+
+    # Summary
+    summary = {
+        'total': len(all_articles),
+        'new': sum(1 for a in all_articles if a.get('status') == 'new'),
+        'updated': sum(1 for a in all_articles if a.get('status') == 'updated'),
+        'error': sum(1 for a in all_articles if a.get('status') == 'error'),
+        'avg_seo': round(sum(a.get('seo_score', 0) for a in all_articles) / max(len(all_articles), 1), 1),
+    }
+
+    # Get unique sites/sources for filter dropdowns
+    sites_set = set()
+    sources_set = set()
+    for entry in history:
+        if entry.get('action') == 'upload':
+            sites_set.add(entry.get('site', ''))
+            for art in entry.get('articles', []):
+                if art.get('source'):
+                    sources_set.add(art['source'])
+
+    return jsonify({
+        'ok': True,
+        'articles': all_articles,
+        'summary': summary,
+        'filter_options': {
+            'sites': sorted(sites_set),
+            'sources': sorted(sources_set),
+        },
+    })
+
+
+@news_scraper_bp.route('/api/scraper/report/export', methods=['GET'])
+@role_required(SCRAPER_ROLES)
+def export_report_csv():
+    """Export upload report as CSV."""
+    # Reuse the same filter logic
+    date_from = request.args.get('date_from', '')
+    date_to = request.args.get('date_to', '')
+    site_filter = request.args.get('site', '')
+    status_filter = request.args.get('status', '')
+    source_filter = request.args.get('source', '')
+
+    history = _load_json(UPLOAD_HISTORY_FILE, [])
+    rows = []
+    for entry in history:
+        if entry.get('action') != 'upload':
+            continue
+        entry_date = entry.get('date', '')
+        if date_from and entry_date < date_from:
+            continue
+        if date_to and entry_date > date_to:
+            continue
+        if site_filter and entry.get('site', '') != site_filter:
+            continue
+        for detail in entry.get('article_details', []):
+            if status_filter and detail.get('status', '') != status_filter:
+                continue
+            if source_filter and detail.get('source', '') != source_filter:
+                continue
+            rows.append({
+                'Tanggal': f"{entry_date} {entry.get('time', '')}",
+                'Judul': detail.get('title', ''),
+                'Kategori': detail.get('category', ''),
+                'Sumber': detail.get('source', ''),
+                'Status': detail.get('status', ''),
+                'SEO Score': detail.get('seo_score', 0),
+                'Site': entry.get('site', ''),
+                'WP Post ID': detail.get('post_id', ''),
+                'URL Source': detail.get('link', ''),
+                'User': entry.get('user', ''),
+            })
+
+    # Build CSV
+    import io, csv
+    output = io.StringIO()
+    if rows:
+        writer = csv.DictWriter(output, fieldnames=rows[0].keys())
+        writer.writeheader()
+        writer.writerows(rows)
+    else:
+        output.write('Tidak ada data untuk filter ini\n')
+
+    from flask import Response
+    return Response(
+        output.getvalue(),
+        mimetype='text/csv',
+        headers={'Content-Disposition': f'attachment; filename=upload-report-{datetime.now().strftime("%Y%m%d")}.csv'}
+    )
 
 
 # ----- SETTINGS MANAGEMENT -----

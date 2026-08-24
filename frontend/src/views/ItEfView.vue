@@ -70,6 +70,13 @@ const historyBusy = ref(false)
 const logs = ref([])
 const showLog = ref(false)
 
+// Report
+const reportArticles = ref([])
+const reportSummary = ref({ total: 0, new: 0, updated: 0, error: 0, avg_seo: 0 })
+const reportFilter = ref({ date_from: '', date_to: '', site: '', status: '', source: '', search: '' })
+const reportFilterOptions = ref({ sites: [], sources: [] })
+const reportBusy = ref(false)
+
 // FAB
 const showFab = ref(false)
 
@@ -83,6 +90,7 @@ const tabList = [
   { key: 'upload', icon: '📤', label: 'Upload' },
   { key: 'seo', icon: '🔗', label: 'SEO' },
   { key: 'analytics', icon: '📈', label: 'Analytics' },
+  { key: 'report', icon: '📋', label: 'Report' },
 ]
 const onboardingTasks = [
   { icon: '🌐', text: 'Add WordPress Site', done: computed(() => sites.value.length > 0) },
@@ -285,6 +293,35 @@ async function loadHistory() {
 async function loadLog() { try { logs.value = await api('/api/scraper/log?limit=100') } catch { logs.value = [] } }
 function openLog() { loadLog(); showLog.value = true }
 
+// --- Report ---
+async function loadReport() {
+  reportBusy.value = true
+  try {
+    const params = new URLSearchParams()
+    for (const [k, v] of Object.entries(reportFilter.value)) {
+      if (v) params.set(k, v)
+    }
+    const r = await api(`/api/scraper/report?${params}`)
+    reportArticles.value = r.articles || []
+    reportSummary.value = r.summary || {}
+    reportFilterOptions.value = r.filter_options || { sites: [], sources: [] }
+  } catch { reportArticles.value = [] }
+  finally { reportBusy.value = false }
+}
+
+function exportReportCSV() {
+  const params = new URLSearchParams()
+  for (const [k, v] of Object.entries(reportFilter.value)) {
+    if (v) params.set(k, v)
+  }
+  window.open(`/api/scraper/report/export?${params}`, '_blank')
+}
+
+function resetReportFilter() {
+  reportFilter.value = { date_from: '', date_to: '', site: '', status: '', source: '', search: '' }
+  loadReport()
+}
+
 // --- SEO Score Visual ---
 function seoColor(score) { return score >= 80 ? '#10b981' : score >= 60 ? '#f59e0b' : '#ef4444' }
 function seoLabel(score) { return score >= 80 ? 'Excellent' : score >= 60 ? 'Good' : 'Needs Work' }
@@ -313,7 +350,7 @@ onMounted(() => { loadSites(); loadDashboard(); document.documentElement.classLi
 
     <!-- Tab Navigation -->
     <div class="tab-nav">
-      <button v-for="tab in tabList" :key="tab.key" class="tab-btn" :class="{ active: activeTab === tab.key }" @click="activeTab = tab.key">
+      <button v-for="tab in tabList" :key="tab.key" class="tab-btn" :class="{ active: activeTab === tab.key }" @click="activeTab = tab.key; if (tab.key === 'report') loadReport()">
         <span class="tab-icon">{{ tab.icon }}</span>
         <span class="tab-label">{{ tab.label }}</span>
       </button>
@@ -621,6 +658,92 @@ onMounted(() => { loadSites(); loadDashboard(); document.documentElement.classLi
               </div>
             </div>
           </div>
+        </div>
+      </div>
+
+      <!-- ===== TAB: REPORT ===== -->
+      <div v-if="activeTab === 'report'" class="tab-content">
+        <div class="card card-pad">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+            <h4>📋 Upload Report</h4>
+            <div style="display:flex;gap:6px;">
+              <button class="btn btn-sm btn-primary" @click="exportReportCSV">📥 Export CSV</button>
+              <button class="btn btn-sm" @click="loadReport">🔄 Refresh</button>
+            </div>
+          </div>
+
+          <!-- Summary -->
+          <div class="stats-grid small" style="margin-bottom:16px;">
+            <div class="stat-card mini"><div class="stat-value">{{ reportSummary.total }}</div><div class="stat-label">Total</div></div>
+            <div class="stat-card mini"><div class="stat-value" style="color:#10b981;">{{ reportSummary.new }}</div><div class="stat-label">New</div></div>
+            <div class="stat-card mini"><div class="stat-value" style="color:#3b82f6;">{{ reportSummary.updated }}</div><div class="stat-label">Updated</div></div>
+            <div class="stat-card mini"><div class="stat-value" style="color:#ef4444;">{{ reportSummary.error }}</div><div class="stat-label">Error</div></div>
+            <div class="stat-card mini"><div class="stat-value">{{ reportSummary.avg_seo }}</div><div class="stat-label">Avg SEO</div></div>
+          </div>
+
+          <!-- Filters -->
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:end;">
+            <div class="field" style="min-width:120px;"><label style="font-size:11px;">Dari</label><input class="input" type="date" v-model="reportFilter.date_from" style="font-size:12px;" /></div>
+            <div class="field" style="min-width:120px;"><label style="font-size:11px;">Sampai</label><input class="input" type="date" v-model="reportFilter.date_to" style="font-size:12px;" /></div>
+            <div class="field" style="min-width:100px;">
+              <label style="font-size:11px;">Site</label>
+              <select class="select" v-model="reportFilter.site" style="font-size:12px;"><option value="">Semua</option><option v-for="s in reportFilterOptions.sites" :key="s" :value="s">{{ s }}</option></select>
+            </div>
+            <div class="field" style="min-width:100px;">
+              <label style="font-size:11px;">Status</label>
+              <select class="select" v-model="reportFilter.status" style="font-size:12px;">
+                <option value="">Semua</option><option value="new">✅ New</option><option value="updated">🔄 Updated</option><option value="error">❌ Error</option>
+              </select>
+            </div>
+            <div class="field" style="min-width:100px;">
+              <label style="font-size:11px;">Sumber</label>
+              <select class="select" v-model="reportFilter.source" style="font-size:12px;"><option value="">Semua</option><option v-for="s in reportFilterOptions.sources" :key="s" :value="s">{{ s }}</option></select>
+            </div>
+            <div class="field" style="min-width:120px;"><label style="font-size:11px;">Cari Judul</label><input class="input" v-model="reportFilter.search" placeholder="keyword..." style="font-size:12px;" /></div>
+            <button class="btn btn-sm btn-primary" @click="loadReport">🔍 Filter</button>
+            <button class="btn btn-sm" @click="resetReportFilter">↩️ Reset</button>
+          </div>
+
+          <!-- Loading -->
+          <div v-if="reportBusy" style="text-align:center;padding:20px;color:var(--muted,#64748b);">⏳ Memuat report...</div>
+
+          <!-- Empty -->
+          <div v-else-if="!reportArticles.length" class="empty">Belum ada data upload. Lakukan upload terlebih dahulu.</div>
+
+          <!-- Table -->
+          <div v-else class="report-table-wrapper" style="overflow-x:auto;max-height:500px;overflow-y:auto;">
+            <table class="report-table" style="width:100%;border-collapse:collapse;font-size:12px;">
+              <thead style="position:sticky;top:0;background:var(--bg,#fff);z-index:1;">
+                <tr style="border-bottom:2px solid var(--border,#e2e8f0);text-align:left;">
+                  <th style="padding:8px;">Tanggal</th>
+                  <th style="padding:8px;">Judul</th>
+                  <th style="padding:8px;">Kategori</th>
+                  <th style="padding:8px;">Sumber</th>
+                  <th style="padding:8px;">Status</th>
+                  <th style="padding:8px;">SEO</th>
+                  <th style="padding:8px;">Site</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="(a, i) in reportArticles" :key="i" style="border-bottom:1px solid var(--border,#f1f5f9);">
+                  <td style="padding:6px 8px;white-space:nowrap;">{{ a.upload_date }} {{ a.upload_time }}</td>
+                  <td style="padding:6px 8px;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ a.title }}</td>
+                  <td style="padding:6px 8px;"><span style="padding:2px 8px;background:#e0e7ff;color:#3730a3;border-radius:10px;font-size:11px;">{{ a.category || '-' }}</span></td>
+                  <td style="padding:6px 8px;font-size:11px;">{{ a.source || '-' }}</td>
+                  <td style="padding:6px 8px;">
+                    <span v-if="a.status === 'new'" style="color:#10b981;font-weight:600;">✅ New</span>
+                    <span v-else-if="a.status === 'updated'" style="color:#3b82f6;font-weight:600;">🔄 Updated</span>
+                    <span v-else style="color:#ef4444;font-weight:600;">❌ {{ a.error || 'Error' }}</span>
+                  </td>
+                  <td style="padding:6px 8px;">
+                    <span :style="{ color: seoColor(a.seo_score), fontWeight: 600 }">{{ a.seo_score }}</span>
+                  </td>
+                  <td style="padding:6px 8px;font-size:11px;">{{ a.upload_site }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div style="margin-top:8px;font-size:11px;color:var(--muted,#64748b);">Menampilkan {{ reportArticles.length }} artikel</div>
         </div>
       </div>
 
