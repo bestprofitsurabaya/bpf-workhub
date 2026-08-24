@@ -284,8 +284,8 @@ onMounted(() => { loadSites(); loadDashboard(); document.documentElement.classLi
     <div class="scraper-header">
       <div class="header-left">
         <h3>📰 News Scraper</h3>
-        <span class="header-badge" v-if="schedule.can_publish">🟢 Ready</span>
-        <span class="header-badge warn" v-else>🔴 Limit</span>
+        <span class="header-badge" v-if="schedule.can_publish">🟢 Siap Publish</span>
+        <span class="header-badge warn" v-else>⏸️ Jeda — {{ schedule.published_today }}/5 hari ini</span>
       </div>
       <div class="header-right">
         <span class="optimal-time" v-if="schedule.optimal_time">⏰ {{ schedule.optimal_time }}</span>
@@ -339,8 +339,8 @@ onMounted(() => { loadSites(); loadDashboard(); document.documentElement.classLi
           </div>
           <div class="stat-card">
             <div class="stat-icon">📅</div>
-            <div class="stat-value">{{ schedule.published_today }}</div>
-            <div class="stat-label">Hari Ini</div>
+            <div class="stat-value">{{ schedule.published_today }}/5</div>
+            <div class="stat-label">Publish Hari Ini</div>
           </div>
           <div class="stat-card">
             <div class="stat-icon">🌐</div>
