@@ -331,109 +331,118 @@ def test_connection():
 @role_required(SCRAPER_ROLES)
 def check_articles():
     """Scrape articles from newsmaker.id."""
-    _check_bs4()
-    d = request.get_json(force=True)
-    pages = int(d.get('pages', 1))
-    pages = max(1, min(pages, 20))
+    try:
+        _check_bs4()
+    except RuntimeError as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+    try:
+        d = request.get_json(force=True)
+        pages = int(d.get('pages', 1))
+        pages = max(1, min(pages, 20))
+    except (ValueError, TypeError):
+        pages = 1
 
-    scrape_url = "https://www.newsmaker.id/index.php/id/market-news/commodity"
-    articles_per_page = 12
-    allowed_categories = [
-        "GOLD", "OIL", "SILVER",
-        "USD/JPY", "US DOLLAR", "EUR/USD",
-        "AUD/USD", "GBP/USD", "USD/CHF",
-    ]
+    try:
+        scrape_url = "https://www.newsmaker.id/index.php/id/market-news/commodity"
+        articles_per_page = 12
+        allowed_categories = [
+            "GOLD", "OIL", "SILVER",
+            "USD/JPY", "US DOLLAR", "EUR/USD",
+            "AUD/USD", "GBP/USD", "USD/CHF",
+        ]
 
-    session_req = _get_wp_session()
-    articles = []
+        session_req = _get_wp_session()
+        articles = []
 
-    for start in range(0, pages * articles_per_page, articles_per_page):
-        page_url = f"{scrape_url}?start={start}" if start > 0 else scrape_url
-        try:
-            r = session_req.get(page_url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=30)
-            if r.status_code != 200:
-                continue
-            soup = BeautifulSoup(r.text, 'html.parser')
-            items = soup.find_all('div', class_='single-news-item')
-            for item in items:
-                try:
-                    link_tag = item.find('div', class_='news-image')
-                    if not link_tag:
-                        continue
-                    a_tag = link_tag.find('a')
-                    if not a_tag or not a_tag.get('href'):
-                        continue
-                    link = a_tag['href']
-                    if not link.startswith('http'):
-                        link = "https://www.newsmaker.id" + link
-
-                    cat_tag = item.find('span', class_='category-label')
-                    category = cat_tag.text.strip() if cat_tag else ""
-                    if category not in allowed_categories:
-                        continue
-
-                    title_tag = item.find('h5', class_='card-title')
-                    if not title_tag:
-                        continue
-                    a_title = title_tag.find('a')
-                    title = a_title.text.strip() if a_title else "Untitled"
-
-                    date_tag = item.find('p', class_='card-text m-date')
-                    date_text = date_tag.text.strip() if date_tag else ""
-                    publish_date = ""
-                    publish_time = ""
-                    try:
-                        dt = datetime.strptime(date_text, "%d %B %Y %H:%M")
-                        publish_date = dt.strftime("%Y-%m-%d")
-                        publish_time = dt.strftime("%H:%M")
-                    except ValueError:
-                        publish_date = datetime.now().strftime("%Y-%m-%d")
-                        publish_time = datetime.now().strftime("%H:%M")
-
-                    # Get image
-                    img_tag = item.find('img', class_='card-img')
-                    image_url = ""
-                    if img_tag and img_tag.get('src'):
-                        img_src = img_tag['src']
-                        if not img_src.startswith('http'):
-                            img_src = "https://www.newsmaker.id" + img_src
-                        image_url = img_src
-
-                    articles.append({
-                        'title': title,
-                        'link': link,
-                        'category': category,
-                        'publish_date': publish_date,
-                        'publish_time': publish_time,
-                        'image_url': image_url,
-                        'content': None,
-                    })
-                except Exception:
+        for start in range(0, pages * articles_per_page, articles_per_page):
+            page_url = f"{scrape_url}?start={start}" if start > 0 else scrape_url
+            try:
+                r = session_req.get(page_url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=30)
+                if r.status_code != 200:
                     continue
-        except Exception:
-            continue
-        time.sleep(1)
-
-    # Fetch content for each article (parallel)
-    def fetch_content(article):
-        try:
-            r = session_req.get(article['link'], headers={'User-Agent': 'Mozilla/5.0'}, timeout=30)
-            if r.status_code == 200:
                 soup = BeautifulSoup(r.text, 'html.parser')
-                content_div = soup.find('div', class_='article-content')
-                if content_div:
-                    paras = [p.text.strip() for p in content_div.find_all('p') if p.text.strip()]
-                    article['content'] = "\n".join(paras)
-                    return
-            article['content'] = "Content not found"
-        except Exception:
-            article['content'] = "Content not found"
+                items = soup.find_all('div', class_='single-news-item')
+                for item in items:
+                    try:
+                        link_tag = item.find('div', class_='news-image')
+                        if not link_tag:
+                            continue
+                        a_tag = link_tag.find('a')
+                        if not a_tag or not a_tag.get('href'):
+                            continue
+                        link = a_tag['href']
+                        if not link.startswith('http'):
+                            link = "https://www.newsmaker.id" + link
 
-    with ThreadPoolExecutor(max_workers=3) as pool:
-        list(pool.map(fetch_content, articles))
+                        cat_tag = item.find('span', class_='category-label')
+                        category = cat_tag.text.strip() if cat_tag else ""
+                        if category not in allowed_categories:
+                            continue
 
-    _log_scraper(f"Scraped {len(articles)} articles ({pages} pages)", session.get('user_name', 'unknown'))
-    return jsonify({'ok': True, 'articles': articles, 'count': len(articles)})
+                        title_tag = item.find('h5', class_='card-title')
+                        if not title_tag:
+                            continue
+                        a_title = title_tag.find('a')
+                        title = a_title.text.strip() if a_title else "Untitled"
+
+                        date_tag = item.find('p', class_='card-text m-date')
+                        date_text = date_tag.text.strip() if date_tag else ""
+                        publish_date = ""
+                        publish_time = ""
+                        try:
+                            dt = datetime.strptime(date_text, "%d %B %Y %H:%M")
+                            publish_date = dt.strftime("%Y-%m-%d")
+                            publish_time = dt.strftime("%H:%M")
+                        except ValueError:
+                            publish_date = datetime.now().strftime("%Y-%m-%d")
+                            publish_time = datetime.now().strftime("%H:%M")
+
+                        # Get image
+                        img_tag = item.find('img', class_='card-img')
+                        image_url = ""
+                        if img_tag and img_tag.get('src'):
+                            img_src = img_tag['src']
+                            if not img_src.startswith('http'):
+                                img_src = "https://www.newsmaker.id" + img_src
+                            image_url = img_src
+
+                        articles.append({
+                            'title': title,
+                            'link': link,
+                            'category': category,
+                            'publish_date': publish_date,
+                            'publish_time': publish_time,
+                            'image_url': image_url,
+                            'content': None,
+                        })
+                    except Exception:
+                        continue
+            except Exception:
+                continue
+            time.sleep(1)
+
+        # Fetch content for each article (parallel)
+        def fetch_content(article):
+            try:
+                r = session_req.get(article['link'], headers={'User-Agent': 'Mozilla/5.0'}, timeout=30)
+                if r.status_code == 200:
+                    soup = BeautifulSoup(r.text, 'html.parser')
+                    content_div = soup.find('div', class_='article-content')
+                    if content_div:
+                        paras = [p.text.strip() for p in content_div.find_all('p') if p.text.strip()]
+                        article['content'] = "\n".join(paras)
+                        return
+                article['content'] = "Content not found"
+            except Exception:
+                article['content'] = "Content not found"
+
+        with ThreadPoolExecutor(max_workers=3) as pool:
+            list(pool.map(fetch_content, articles))
+
+        _log_scraper(f"Scraped {len(articles)} articles ({pages} pages)", session.get('user_name', 'unknown'))
+        return jsonify({'ok': True, 'articles': articles, 'count': len(articles)})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': f'Scrape gagal: {str(e)}', 'articles': [], 'count': 0}), 500
 
 
 # ----- UPLOAD ARTICLES -----
@@ -442,147 +451,150 @@ def check_articles():
 @role_required(SCRAPER_ROLES)
 def upload_articles():
     """Upload scraped articles to WordPress with SEO optimization."""
-    d = request.get_json(force=True)
-    site_name = (d.get('site_name') or '').strip()
-    articles = d.get('articles', [])
-    settings = d.get('settings', {})
-
-    if not site_name:
-        return jsonify({'error': 'Pilih WordPress site'}), 400
-    if not articles:
-        return jsonify({'error': 'Tidak ada artikel untuk diupload'}), 400
-
-    sites = _load_json(WP_SITES_FILE, {})
-    if site_name not in sites:
-        return jsonify({'error': f'Site "{site_name}" tidak ditemukan'}), 404
-
-    site = sites[site_name]
-    headers = _wp_auth_headers(site['username'], site['app_password'])
-    wp_url = site['wp_url']
-    wp_media_url = site.get('wp_media_url', wp_url.replace('/posts', '/media'))
-
-    enable_backlinks = settings.get('backlinks', True)
-    max_backlinks = settings.get('max_backlinks', 3)
-    enable_seo = settings.get('seo_optimize', True)
-    static_tags = settings.get('static_tags', 'newsmaker.id, Market, Financial News')
-
-    # Load backlinks config
-    bl_config = _load_json(BACKLINKS_FILE, {})
-    authority_sites = bl_config.get('authority_sites', DEFAULT_AUTHORITY_SITES)
-    keyword_mapping = bl_config.get('keyword_mapping', DEFAULT_KEYWORD_MAPPING)
-
-    # Get existing posts to avoid duplicates
-    existing_titles = set()
     try:
-        r = requests.get(wp_url, headers=headers, params={"per_page": 100}, timeout=30)
-        if r.status_code == 200:
-            for post in r.json():
-                existing_titles.add(post.get('title', {}).get('rendered', ''))
-    except Exception:
-        pass
+        d = request.get_json(force=True)
+        site_name = (d.get('site_name') or '').strip()
+        articles = d.get('articles', [])
+        settings = d.get('settings', {})
 
-    new_count = 0
-    updated_count = 0
-    errors = []
+        if not site_name:
+            return jsonify({'error': 'Pilih WordPress site'}), 400
+        if not articles:
+            return jsonify({'error': 'Tidak ada artikel untuk diupload'}), 400
 
-    for article in articles:
-        title = article.get('title', '')
-        content = article.get('content', '')
-        if not content or content == "Content not found":
-            errors.append(f"{title}: content not found")
-            continue
+        sites = _load_json(WP_SITES_FILE, {})
+        if site_name not in sites:
+            return jsonify({'error': f'Site "{site_name}" tidak ditemukan'}), 404
 
-        # Build HTML content
-        html_content = f"<h1>{title}</h1>\n<p>{content}</p>"
+        site = sites[site_name]
+        headers = _wp_auth_headers(site['username'], site['app_password'])
+        wp_url = site['wp_url']
+        wp_media_url = site.get('wp_media_url', wp_url.replace('/posts', '/media'))
 
-        # SEO optimization
-        seo_score = 0
-        if enable_seo:
-            analysis = _seo_analyze(html_content, title)
-            seo_score = analysis['seo_score']
+        enable_backlinks = settings.get('backlinks', True)
+        max_backlinks = settings.get('max_backlinks', 3)
+        enable_seo = settings.get('seo_optimize', True)
+        static_tags = settings.get('static_tags', 'newsmaker.id, Market, Financial News')
 
-        # Apply backlinks
-        backlinks_used = []
-        if enable_backlinks:
-            html_content, backlinks_used = _apply_backlinks(
-                html_content, title, authority_sites, keyword_mapping, max_backlinks
-            )
+        # Load backlinks config
+        bl_config = _load_json(BACKLINKS_FILE, {})
+        authority_sites = bl_config.get('authority_sites', DEFAULT_AUTHORITY_SITES)
+        keyword_mapping = bl_config.get('keyword_mapping', DEFAULT_KEYWORD_MAPPING)
 
-        # Process tags
-        tag_input = [t.strip().capitalize() for t in static_tags.split(',') if t.strip()]
-        title_words = [w.capitalize() for w in title.lower().split()
-                       if w not in {'dan', 'di', 'ke', 'dari', 'yang', 'untuk', 'dengan', 'ini', 'itu'} and len(w) > 3]
-        all_tags = list(set(tag_input + title_words[:5]))
+        # Get existing posts to avoid duplicates
+        existing_titles = set()
+        try:
+            r = requests.get(wp_url, headers=headers, params={"per_page": 100}, timeout=30)
+            if r.status_code == 200:
+                for post in r.json():
+                    existing_titles.add(post.get('title', {}).get('rendered', ''))
+        except Exception:
+            pass
 
-        tag_ids = []
-        for tag_name in all_tags:
-            try:
-                tags_url = wp_url.replace('/posts', '/tags')
-                r = requests.get(tags_url, headers=headers, params={"search": tag_name}, timeout=10)
-                if r.status_code == 200 and r.json():
-                    tag_ids.append(r.json()[0]['id'])
-                else:
-                    r2 = requests.post(tags_url, headers=headers, json={"name": tag_name}, timeout=10)
-                    if r2.status_code == 201:
-                        tag_ids.append(r2.json()['id'])
-            except Exception:
-                pass
+        new_count = 0
+        updated_count = 0
+        errors = []
 
-        # Schema markup
-        publish_date = article.get('publish_date', datetime.now().strftime("%Y-%m-%d"))
-        publish_time = article.get('publish_time', datetime.now().strftime("%H:%M"))
-        schema = {
-            "@context": "https://schema.org",
-            "@type": "Article",
-            "headline": title,
-            "datePublished": f"{publish_date}T{publish_time}:00",
-            "author": {"@type": "Organization", "name": "PT BESTPROFIT FUTURES Surabaya"},
-        }
-        html_content = f'<script type="application/ld+json">{json.dumps(schema, ensure_ascii=False)}</script>\n' + html_content
+        for article in articles:
+            title = article.get('title', '')
+            content = article.get('content', '')
+            if not content or content == "Content not found":
+                errors.append(f"{title}: content not found")
+                continue
 
-        post_data = {
-            'title': title,
-            'content': html_content,
-            'status': 'publish',
-            'date': f"{publish_date}T{publish_time}:00",
-            'tags': tag_ids,
-        }
+            # Build HTML content
+            html_content = f"<h1>{title}</h1>\n<p>{content}</p>"
 
-        if title in existing_titles:
-            # Update existing
-            try:
-                r = requests.get(wp_url, headers=headers, params={"per_page": 100, "search": title}, timeout=15)
-                if r.status_code == 200:
-                    for post in r.json():
-                        if post.get('title', {}).get('rendered') == title:
-                            r2 = requests.post(f"{wp_url}/{post['id']}", headers=headers,
-                                               json={'content': html_content, 'tags': tag_ids})
-                            if r2.status_code == 200:
-                                updated_count += 1
-                            break
-            except Exception as e:
-                errors.append(f"{title}: {str(e)}")
-        else:
-            # Create new
-            try:
-                r = requests.post(wp_url, headers=headers, json=post_data, timeout=30)
-                if r.status_code == 201:
-                    new_count += 1
-                else:
-                    errors.append(f"{title}: HTTP {r.status_code}")
-            except Exception as e:
-                errors.append(f"{title}: {str(e)}")
+            # SEO optimization
+            seo_score = 0
+            if enable_seo:
+                analysis = _seo_analyze(html_content, title)
+                seo_score = analysis['seo_score']
 
-    _log_scraper(
-        f"Upload selesai: {new_count} baru, {updated_count} update, {len(errors)} error",
-        session.get('user_name', 'unknown')
-    )
-    return jsonify({
-        'ok': True,
-        'new_posts': new_count,
-        'updated_posts': updated_count,
-        'errors': errors,
-    })
+            # Apply backlinks
+            backlinks_used = []
+            if enable_backlinks:
+                html_content, backlinks_used = _apply_backlinks(
+                    html_content, title, authority_sites, keyword_mapping, max_backlinks
+                )
+
+            # Process tags
+            tag_input = [t.strip().capitalize() for t in static_tags.split(',') if t.strip()]
+            title_words = [w.capitalize() for w in title.lower().split()
+                           if w not in {'dan', 'di', 'ke', 'dari', 'yang', 'untuk', 'dengan', 'ini', 'itu'} and len(w) > 3]
+            all_tags = list(set(tag_input + title_words[:5]))
+
+            tag_ids = []
+            for tag_name in all_tags:
+                try:
+                    tags_url = wp_url.replace('/posts', '/tags')
+                    r = requests.get(tags_url, headers=headers, params={"search": tag_name}, timeout=10)
+                    if r.status_code == 200 and r.json():
+                        tag_ids.append(r.json()[0]['id'])
+                    else:
+                        r2 = requests.post(tags_url, headers=headers, json={"name": tag_name}, timeout=10)
+                        if r2.status_code == 201:
+                            tag_ids.append(r2.json()['id'])
+                except Exception:
+                    pass
+
+            # Schema markup
+            publish_date = article.get('publish_date', datetime.now().strftime("%Y-%m-%d"))
+            publish_time = article.get('publish_time', datetime.now().strftime("%H:%M"))
+            schema = {
+                "@context": "https://schema.org",
+                "@type": "Article",
+                "headline": title,
+                "datePublished": f"{publish_date}T{publish_time}:00",
+                "author": {"@type": "Organization", "name": "PT BESTPROFIT FUTURES Surabaya"},
+            }
+            html_content = f'<script type="application/ld+json">{json.dumps(schema, ensure_ascii=False)}</script>\n' + html_content
+
+            post_data = {
+                'title': title,
+                'content': html_content,
+                'status': 'publish',
+                'date': f"{publish_date}T{publish_time}:00",
+                'tags': tag_ids,
+            }
+
+            if title in existing_titles:
+                # Update existing
+                try:
+                    r = requests.get(wp_url, headers=headers, params={"per_page": 100, "search": title}, timeout=15)
+                    if r.status_code == 200:
+                        for post in r.json():
+                            if post.get('title', {}).get('rendered') == title:
+                                r2 = requests.post(f"{wp_url}/{post['id']}", headers=headers,
+                                                   json={'content': html_content, 'tags': tag_ids})
+                                if r2.status_code == 200:
+                                    updated_count += 1
+                                break
+                except Exception as e:
+                    errors.append(f"{title}: {str(e)}")
+            else:
+                # Create new
+                try:
+                    r = requests.post(wp_url, headers=headers, json=post_data, timeout=30)
+                    if r.status_code == 201:
+                        new_count += 1
+                    else:
+                        errors.append(f"{title}: HTTP {r.status_code}")
+                except Exception as e:
+                    errors.append(f"{title}: {str(e)}")
+
+        _log_scraper(
+            f"Upload selesai: {new_count} baru, {updated_count} update, {len(errors)} error",
+            session.get('user_name', 'unknown')
+        )
+        return jsonify({
+            'ok': True,
+            'new_posts': new_count,
+            'updated_posts': updated_count,
+            'errors': errors,
+        })
+    except Exception as e:
+        return jsonify({'ok': False, 'error': f'Upload gagal: {str(e)}', 'new_posts': 0, 'updated_posts': 0, 'errors': []}), 500
 
 
 # ----- DUPLICATE CHECKER -----
@@ -591,56 +603,59 @@ def upload_articles():
 @role_required(SCRAPER_ROLES)
 def check_duplicates():
     """Check for duplicate articles on a WordPress site."""
-    d = request.get_json(force=True)
-    site_name = (d.get('site_name') or '').strip()
-    if not site_name:
-        return jsonify({'error': 'Pilih WordPress site'}), 400
+    try:
+        d = request.get_json(force=True)
+        site_name = (d.get('site_name') or '').strip()
+        if not site_name:
+            return jsonify({'error': 'Pilih WordPress site'}), 400
 
-    sites = _load_json(WP_SITES_FILE, {})
-    if site_name not in sites:
-        return jsonify({'error': f'Site "{site_name}" tidak ditemukan'}), 404
+        sites = _load_json(WP_SITES_FILE, {})
+        if site_name not in sites:
+            return jsonify({'error': f'Site "{site_name}" tidak ditemukan'}), 404
 
-    site = sites[site_name]
-    headers = _wp_auth_headers(site['username'], site['app_password'])
-    wp_url = site['wp_url']
+        site = sites[site_name]
+        headers = _wp_auth_headers(site['username'], site['app_password'])
+        wp_url = site['wp_url']
 
-    posts = []
-    page = 1
-    while True:
-        try:
-            r = requests.get(wp_url, headers=headers,
-                             params={'page': page, 'per_page': 100, 'orderby': 'date', 'order': 'desc'},
-                             timeout=30)
-            if r.status_code != 200:
+        posts = []
+        page = 1
+        while True:
+            try:
+                r = requests.get(wp_url, headers=headers,
+                                 params={'page': page, 'per_page': 100, 'orderby': 'date', 'order': 'desc'},
+                                 timeout=30)
+                if r.status_code != 200:
+                    break
+                page_posts = r.json()
+                if not page_posts:
+                    break
+                posts.extend(page_posts)
+                page += 1
+                time.sleep(0.1)
+            except Exception:
                 break
-            page_posts = r.json()
-            if not page_posts:
-                break
-            posts.extend(page_posts)
-            page += 1
-            time.sleep(0.1)
-        except Exception:
-            break
 
-    title_count = Counter()
-    posts_by_title = {}
-    for post in posts:
-        t = post.get('title', {}).get('rendered', '')
-        title_count[t] += 1
-        posts_by_title.setdefault(t, []).append(post)
+        title_count = Counter()
+        posts_by_title = {}
+        for post in posts:
+            t = post.get('title', {}).get('rendered', '')
+            title_count[t] += 1
+            posts_by_title.setdefault(t, []).append(post)
 
-    duplicates = []
-    for title, count in title_count.items():
-        if count > 1:
-            plist = posts_by_title[title]
-            duplicates.append({
-                'title': title,
-                'count': count,
-                'post_ids': [p['id'] for p in plist],
-                'dates': [p.get('date', '') for p in plist],
-            })
+        duplicates = []
+        for title, count in title_count.items():
+            if count > 1:
+                plist = posts_by_title[title]
+                duplicates.append({
+                    'title': title,
+                    'count': count,
+                    'post_ids': [p['id'] for p in plist],
+                    'dates': [p.get('date', '') for p in plist],
+                })
 
-    return jsonify({'ok': True, 'duplicates': duplicates, 'total_posts': len(posts)})
+        return jsonify({'ok': True, 'duplicates': duplicates, 'total_posts': len(posts)})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': f'Cek duplikat gagal: {str(e)}', 'duplicates': [], 'total_posts': 0}), 500
 
 
 @news_scraper_bp.route('/api/scraper/duplicates/delete', methods=['POST'])

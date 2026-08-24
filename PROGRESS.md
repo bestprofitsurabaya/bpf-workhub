@@ -120,7 +120,7 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 ## 🔄 Yang Sedang Dikerjakan
 
-- (kosong)
+- (kosong — semua fix sudah selesai)
 
 ---
 
@@ -149,6 +149,7 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 ## 🐛 Bug / Issue Terbuka
 
 - Backend tests: 20 test gagal di local = integration tests butuh DB (berjalan di CI Docker)
+- ✅ Fixed 2026-08-24: error 500 `/api/scraper/check` — bs4 tidak terinstall di root Python
 
 ---
 
@@ -159,6 +160,13 @@ Ketik di awal sesi:
 
 Setelah selesai kerja, update file ini dengan status terbaru.
 
+### Sesi 2026-08-24
+1. ✅ Fix error 500 di `/api/scraper/check` — add top-level try/except ke semua scraper routes
+2. ✅ Install `beautifulsoup4` + `lxml` di server (root Python)
+3. ✅ Tambah `beautifulsoup4`, `lxml` ke `requirements.txt`
+4. ✅ Fix broken indentation di `upload_articles()` dan `check_duplicates()`
+5. ✅ App restart (HUP) — bs4 terload
+
 ### Sesi 2026-08-21
 1. ✅ Tambah role `it_ef` (IT Surabaya) — backend + frontend
 2. ✅ Buat `routes_news_scraper.py` — API WordPress site management, scrape, upload, SEO, backlinks, duplicates
@@ -166,7 +174,7 @@ Setelah selesai kerja, update file ini dengan status terbaru.
 4. ✅ Register module di `app.py`
 5. ✅ Update router, sidebar menu, ROLES list
 6. ✅ 82/82 Vitest ✅ | Module import ✅
-7. ⚠️ Perlu install `beautifulsoup4` di server
+7. ✅ `beautifulsoup4` + `lxml` terinstall di server
 
 ### Sesi Terakhir (2026-08-20)
 1. ✅ Restrukturisasi 9 file .md ke v1.0 (bahasa humanis)
