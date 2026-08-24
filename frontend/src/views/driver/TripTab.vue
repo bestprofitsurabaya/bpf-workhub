@@ -1,7 +1,8 @@
 <script setup>
-import { onMounted, ref, watch } from 'vue'
+import { onMounted, onUnmounted, ref, watch } from 'vue'
 import { useDriverStore } from '../../stores/driverStore'
 import { api } from '../../api'
+import { saveTripDraft, loadTripDraft, deleteTripDraft } from '../../utils/idb'
 
 const store = useDriverStore()
 const emit = defineEmits(['toast'])
@@ -35,6 +36,43 @@ function addRow(data = {}) {
   })
 }
 
+// === Auto-save ke IndexedDB ===
+let saveTimer = null
+function scheduleAutoSave() {
+  if (saveTimer) clearTimeout(saveTimer)
+  saveTimer = setTimeout(() => doAutoSave(), 1000)
+}
+
+async function doAutoSave() {
+  if (!store.driverName || !tripDate.value) return
+  const draft = {
+    nopol: nopol.value,
+    kmAwal: kmAwal.value,
+    kmAkhir: kmAkhir.value,
+    jamBerangkat: jamBerangkat.value,
+    jamTiba: jamTiba.value,
+    rows: JSON.parse(JSON.stringify(rows.value)),
+  }
+  await saveTripDraft(store.driverName, tripDate.value, draft)
+}
+
+async function loadDraft() {
+  if (!store.driverName || !tripDate.value) return
+  const draft = await loadTripDraft(store.driverName, tripDate.value)
+  if (!draft) return false
+  nopol.value = draft.nopol || nopol.value
+  kmAwal.value = draft.kmAwal || 0
+  kmAkhir.value = draft.kmAkhir || 0
+  jamBerangkat.value = draft.jamBerangkat || ''
+  jamTiba.value = draft.jamTiba || ''
+  rows.value = (draft.rows && draft.rows.length) ? draft.rows : []
+  if (!rows.value.length) addRow()
+  return true
+}
+
+// Watch semua field untuk auto-save
+watch([nopol, kmAwal, kmAkhir, jamBerangkat, jamTiba, rows], scheduleAutoSave, { deep: true })
+
 async function loadAppointments() {
   if (!store.driverName || !tripDate.value) { appointments.value = []; return }
   apptLoading.value = true
@@ -47,7 +85,12 @@ async function loadAppointments() {
   finally { apptLoading.value = false }
 }
 
-watch([() => store.driverName, tripDate], loadAppointments)
+watch([() => store.driverName, tripDate], async () => {
+  await loadAppointments()
+  // Load draft setelah appointments (agar tidak ke-overwrite)
+  const hasDraft = await loadDraft()
+  if (hasDraft) emit('toast', '📥 Draft lokal dimuat', 'info')
+})
 
 function gpsForRow(row, which) {
   const addr = store.gps.addr || (store.gps.lat && store.gps.lon ? `${store.gps.lat.toFixed(5)}, ${store.gps.lon.toFixed(5)}` : '')
@@ -147,6 +190,7 @@ async function submit() {
       const j = await r.json().catch(() => null)
       if (r.ok && j?.status === 'success') {
         emit('toast', `✅ Log perjalanan terkirim (${j.routes || validRows.length} rute)`, 'success')
+        await deleteTripDraft(store.driverName, tripDate.value)
         rows.value = []; kmAwal.value = 0; kmAkhir.value = 0; jamBerangkat.value = ''; jamTiba.value = ''
         loadAppointments()
       } else {
@@ -156,6 +200,7 @@ async function submit() {
     finally { saving.value = false }
   } else {
     await store.enqueue('trip_queue', payload)
+    await deleteTripDraft(store.driverName, tripDate.value)
     rows.value = []; kmAwal.value = 0; kmAkhir.value = 0; jamBerangkat.value = ''; jamTiba.value = ''
     emit('toast', '🟡 Offline — data disimpan lokal, akan dikirim otomatis', 'warning')
   }
@@ -163,7 +208,14 @@ async function submit() {
 
 function visitBadge(a) { return a.visit_result ? (VISIT_LABELS[a.visit_result] || a.visit_result) : '' }
 
-onMounted(() => { addRow() })
+onMounted(async () => {
+  addRow()
+  // Load draft jika ada
+  const hasDraft = await loadDraft()
+  if (hasDraft) emit('toast', '📥 Draft lokal dimuat', 'info')
+})
+
+onUnmounted(() => { if (saveTimer) clearTimeout(saveTimer) })
 </script>
 
 <template>

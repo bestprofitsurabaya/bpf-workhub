@@ -1,10 +1,10 @@
 /**
- * IndexedDB wrapper — antrean offline driver (port dari static/js/db.js).
- * 3 antrean: fuel_queue (klaim BBM), trip_queue (log perjalanan), lpj_queue (LPJ kasbon).
+ * IndexedDB wrapper — antrean offline driver + trip drafts (auto-save).
+ * 4 stores: fuel_queue, trip_queue, lpj_queue, trip_drafts
  */
 const DB_NAME = 'BPF_Driver_DB'
-const DB_VER = 3
-const STORES = ['fuel_queue', 'trip_queue', 'lpj_queue']
+const DB_VER = 4
+const STORES = ['fuel_queue', 'trip_queue', 'lpj_queue', 'trip_drafts']
 
 let _dbPromise = null
 
@@ -78,4 +78,52 @@ export async function countAllQueues() {
   } catch {
     return { fuel: 0, trip: 0, lpj: 0 }
   }
+}
+
+// --- Trip Draft (auto-save) ---
+
+/** Simpan draft trip (upsert by key = driver+date). */
+export async function saveTripDraft(driver, tripDate, data) {
+  try {
+    const db = await openDB()
+    const t = db.transaction('trip_drafts', 'readwrite')
+    const store = t.objectStore('trip_drafts')
+    const key = `${driver}_${tripDate}`
+    // Hapus draft lama jika ada
+    const existing = await new Promise((res) => {
+      const req = store.get(key)
+      req.onsuccess = () => res(req.result)
+      req.onerror = () => res(null)
+    })
+    if (existing) store.delete(key)
+    store.put({ id: key, driver, tripDate, data, savedAt: new Date().toISOString() })
+    return true
+  } catch { return false }
+}
+
+/** Load draft trip berdasarkan driver + date. */
+export async function loadTripDraft(driver, tripDate) {
+  try {
+    const db = await openDB()
+    const t = db.transaction('trip_drafts', 'readonly')
+    const store = t.objectStore('trip_drafts')
+    const key = `${driver}_${tripDate}`
+    return await new Promise((res) => {
+      const req = store.get(key)
+      req.onsuccess = () => res(req.result?.data || null)
+      req.onerror = () => res(null)
+    })
+  } catch { return null }
+}
+
+/** Hapus draft trip (setelah submit berhasil). */
+export async function deleteTripDraft(driver, tripDate) {
+  try {
+    const db = await openDB()
+    const t = db.transaction('trip_drafts', 'readwrite')
+    const store = t.objectStore('trip_drafts')
+    const key = `${driver}_${tripDate}`
+    store.delete(key)
+    return true
+  } catch { return false }
 }
