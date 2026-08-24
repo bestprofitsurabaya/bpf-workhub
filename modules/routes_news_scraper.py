@@ -779,17 +779,35 @@ def _get_analytics(date_from=None, date_to=None):
 @news_scraper_bp.route('/api/scraper/sites', methods=['GET'])
 @role_required(SCRAPER_ROLES)
 def list_wp_sites():
-    """List all WordPress sites."""
+    """List WordPress sites filtered by user's branch."""
     sites = _load_json(WP_SITES_FILE, {})
+    user_branch = session.get('branch_code', '')
+    user_role = session.get('user_role', '')
     result = []
     for name, data in sites.items():
-        result.append({
-            'name': name,
-            'wp_url': data.get('wp_url', ''),
-            'wp_media_url': data.get('wp_media_url', ''),
-            'username': data.get('username', ''),
-            # Never expose app_password in list
-        })
+        # Admin/IT HQ can see all sites
+        is_hq = session.get('user_name', '') in ('it_hu', 'admin')
+        if user_role == 'admin' or is_hq:
+            result.append({
+                'name': name, 'wp_url': data.get('wp_url', ''),
+                'wp_media_url': data.get('wp_media_url', ''),
+                'username': data.get('username', ''),
+            })
+        else:
+            # Other users only see their branch's site
+            # Match by branch code in site name or wp_url
+            site_branch = data.get('branch_code', '')
+            if not site_branch:
+                # Try to infer from site name
+                name_lower = name.lower()
+                if user_branch.lower() in name_lower:
+                    site_branch = user_branch
+            if site_branch == user_branch or not site_branch:
+                result.append({
+                    'name': name, 'wp_url': data.get('wp_url', ''),
+                    'wp_media_url': data.get('wp_media_url', ''),
+                    'username': data.get('username', ''),
+                })
     return jsonify(result)
 
 

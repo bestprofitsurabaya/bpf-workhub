@@ -1,0 +1,72 @@
+{
+  "BPF Surabaya": {
+    "wp_url": "https://best-profit-futures-surabaya.com/wp-json/wp/v2/posts",
+    "wp_media_url": "https://best-profit-futures-surabaya.com/wp-json/wp/v2/media",
+    "username": "it_bpf_surabaya",
+    "app_password": "OfUdr5rYjL2uJD#6N71AYLKR",
+    "branch_code": "SBY"
+  },
+  "BPF Jakarta (HO)": {
+    "wp_url": "https://bestprofit-futures.co.id/wp-json/wp/v2/posts",
+    "wp_media_url": "https://bestprofit-futures.co.id/wp-json/wp/v2/media",
+    "username": "PENDING",
+    "app_password": "PENDING",
+    "branch_code": "JKT"
+  },
+  "BPF Jakarta 2": {
+    "wp_url": "https://bestprofit-jakarta2.com/wp-json/wp/v2/posts",
+    "wp_media_url": "https://bestprofit-jakarta2.com/wp-json/wp/v2/media",
+    "username": "PENDING",
+    "app_password": "PENDING",
+    "branch_code": "JKT2"
+  },
+  "BPF Bandung": {
+    "wp_url": "https://bestprofit-bandung.com/wp-json/wp/v2/posts",
+    "wp_media_url": "https://bestprofit-bandung.com/wp-json/wp/v2/media",
+    "username": "PENDING",
+    "app_password": "PENDING",
+    "branch_code": "BDG"
+  },
+  "BPF Semarang": {
+    "wp_url": "https://bestprofit-semarang.com/wp-json/wp/v2/posts",
+    "wp_media_url": "https://bestprofit-semarang.com/wp-json/wp/v2/media",
+    "username": "PENDING",
+    "app_password": "PENDING",
+    "branch_code": "SMG"
+  },
+  "BPF Malang": {
+    "wp_url": "https://bestprofit-malang.com/wp-json/wp/v2/posts",
+    "wp_media_url": "https://bestprofit-malang.com/wp-json/wp/v2/media",
+    "username": "PENDING",
+    "app_password": "PENDING",
+    "branch_code": "MLG"
+  },
+  "BPF Medan": {
+    "wp_url": "https://bestprofit-medan.com/wp-json/wp/v2/posts",
+    "wp_media_url": "https://bestprofit-medan.com/wp-json/wp/v2/media",
+    "username": "PENDING",
+    "app_password": "PENDING",
+    "branch_code": "MDN"
+  },
+  "BPF Banjarmasin": {
+    "wp_url": "https://bestprofit-banjarmasin.com/wp-json/wp/v2/posts",
+    "wp_media_url": "https://bestprofit-banjarmasin.com/wp-json/wp/v2/media",
+    "username": "PENDING",
+    "app_password": "PENDING",
+    "branch_code": "BJM"
+  },
+  "BPF Palembang": {
+    "wp_url": "https://bestprofit-palembang.com/wp-json/wp/v2/posts",
+    "wp_media_url": "https://bestprofit-palembang.com/wp-json/wp/v2/media",
+    "username": "PENDING",
+    "app_password": "PENDING",
+    "branch_code": "PLM"
+  },
+  "BPF Lampung": {
+    "wp_url": "https://bestprofit-lampung.com/wp-json/wp/v2/posts",
+    "wp_media_url": "https://bestprofit-lampung.com/wp-json/wp/v2/media",
+    "username": "PENDING",
+    "app_password": "PENDING",
+    "branch_code": "LPG"
+  }
+}
