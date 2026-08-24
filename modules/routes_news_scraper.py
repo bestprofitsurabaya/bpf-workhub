@@ -1115,6 +1115,11 @@ def upload_articles():
             return jsonify({'error': f'Site "{site_name}" tidak ditemukan'}), 404
 
         site = sites[site_name]
+        
+        # Check if credentials are set
+        if site.get('username') in ('PENDING', '', None) or site.get('app_password') in ('PENDING', '', None):
+            return jsonify({'ok': False, 'error': f'Kredensial WordPress belum diisi untuk "{site_name}". Silakan edit site dan isi username & password.', 'new_posts': 0, 'updated_posts': 0, 'errors': []}), 400
+        
         wp_url = site['wp_url']
         wp_media_url = site.get('wp_media_url', wp_url.replace('/posts', '/media'))
 

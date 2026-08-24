@@ -70,7 +70,7 @@ const showLog = ref(false)
 const showFab = ref(false)
 
 // --- Computed ---
-const siteNames = computed(() => sites.value.map(s => s.name))
+const siteNames = computed(() => sites.value.filter(s => s.username && s.username !== 'PENDING').map(s => s.name))
 const selectedCount = computed(() => selectedArticles.value.size)
 const tabList = [
   { key: 'dashboard', icon: '📊', label: 'Dashboard' },
