@@ -143,7 +143,7 @@ function stopProgress() { if (progressInterval.value) { clearInterval(progressIn
 
 // --- WP Site Management ---
 function openSiteForm(site) {
-  siteForm.value = site ? { ...site, app_password: '' } : { name: '', wp_url: '', wp_media_url: '', username: '', app_password: '' }
+  siteForm.value = site ? { ...site } : { name: '', wp_url: '', wp_media_url: '', username: '', app_password: '' }
   showSiteForm.value = true
 }
 async function saveSite() {
