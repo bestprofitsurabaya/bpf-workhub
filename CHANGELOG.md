@@ -1,4 +1,4 @@
-# 📋 Changelog — BPF WorkHub v2.28.2
+# 📋 Changelog — BPF WorkHub v2.28.3
 
 Format: [Keep a Changelog](https://keepachangelog.com/id/ID/1.0.0/) · Versi: [Semantic Versioning](https://semver.org/lang/id/)
 
@@ -12,6 +12,26 @@ Format: [Keep a Changelog](https://keepachangelog.com/id/ID/1.0.0/) · Versi: [S
 ---
 
 ## Versi Terbaru
+
+### [2.28.3] - 2026-08-25
+
+**Test Suite Fix: PDF Text Parser + Mock IDB + Refactor Duplikasi**
+
+**Fix:**
+- **Parser ekstraksi teks PDF di test** — `_pdf_text` salah menangani escape string PDF (spesifikasi §7.3.4.2): `\r`, `\n`, `\t`, `\b`, `\f` dan oktal `\ddd` dibaca sebagai huruf biasa, sehingga kode glyph 2-byte bergeser dan karakter hilang saat assert konten (`TANDA` → `TANA`, `REKAP DANA` → `REKAP ANA`). PDF yang dihasilkan aplikasi sendiri **selalu benar** — ini murni bug utilitas test (11 test gagal di host)
+- **Mock idb tidak lengkap di DriverView.test.js** — hanya menyediakan `countAllQueues`; `TripTab.vue` juga memakai `saveTripDraft`/`loadTripDraft`/`deleteTripDraft` → 3 error unhandled Vitest saat switch tab Trip
+- **Dead code** — hapus `return None` ganda di `helpers.resolve_driver_scope()`
+
+**Refactor:**
+- **`tests/pdf_text.py`** — sumber tunggal ekstraktor teks PDF untuk semua test (sebelumnya disalin duplikat di `test_water.py`, `test_pdf_compact.py`, `test_branches.py` — perbaikan harus diulang 3×)
+- Semua file test (water, overtime, applicants, assets, pdf_compact, branches) kini import dari modul bersama
+
+**Hasil Verifikasi:**
+- Backend: **236/236 pytest lulus** di host (5 test security-headers memang didesain jalan di container: `docker exec bbm_web python3 -m pytest tests/test_security_headers.py`)
+- Frontend: **82/82 Vitest lulus, 0 error unhandled**
+- Net kode: −143 baris (9 file berubah)
+
+---
 
 ### [2.28.2] - 2026-08-24
 
@@ -483,4 +503,4 @@ Versi stabil pertama dengan fitur lengkap: 10 role, 243 pytest, 82 Vitest, 10 vi
 
 ---
 
-*BPF WorkHub v2.28.2 · Changelog*
+*BPF WorkHub v2.28.3 · Changelog*

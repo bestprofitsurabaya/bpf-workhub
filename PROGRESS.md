@@ -2,9 +2,9 @@
 
 File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks saat sesi baru dimulai.
 
-**Terakhir diperbarui:** 2026-08-24  
+**Terakhir diperbarui:** 2026-08-25  
 **Branch:** `main`  
-**Versi terbaru:** v2.28.2
+**Versi terbaru:** v2.28.3
 
 ---
 
@@ -12,7 +12,7 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 | Aspek | Status |
 |-------|--------|
-| Versi | v2.28.2 (OT OB/Security Parity + Foto Auto-Cleanup + Cron) |
+| Versi | v2.28.3 (Test Suite Fix: PDF parser + mock idb + refactor duplikasi) |
 | Docker | `bbm_web` running on `nasbpfsby.duckdns.org:5000` |
 | App Running | `https://nasbpfsby.duckdns.org:5000` |
 | Databases | 10 DB terpisah (1 master + 9 cabang) |
@@ -173,6 +173,14 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 - [x] Nginx cache-busting
 - [x] GPS detail disimpan ke DB
 
+### QA / Test Suite (v2.28.3)
+- [x] Fix parser `_pdf_text` — escape string PDF (§7.3.4.2): `\r`/`\n`/oktal kini dibaca benar; PDF aplikasi tidak pernah rusak, murni bug utilitas test
+- [x] Refactor — ekstraktor teks PDF digabung ke `tests/pdf_text.py` (sebelumnya 3 salinan duplikat antar file test)
+- [x] Fix mock idb di DriverView.test.js (saveTripDraft/loadTripDraft/deleteTripDraft) — hilang 3 error unhandled Vitest
+- [x] Hapus dead code `return None` ganda di helpers.resolve_driver_scope()
+- [x] Verifikasi host: **236/236 pytest + 82/82 Vitest lulus**
+- Catatan: 5 test security-headers butuh DB container (`docker exec bbm_web python3 -m pytest tests/test_security_headers.py`); versi paket host bisa menyimpang dari requirements.txt — container tetap pakai versi pin
+
 ---
 
 ## 🔄 Yang Sedang Dikerjakan
@@ -239,4 +247,4 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 ---
 
-*BPF WorkHub v2.28.2 · Progres Tracker*
+*BPF WorkHub v2.28.3 · Progres Tracker*
