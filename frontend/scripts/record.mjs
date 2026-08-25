@@ -92,12 +92,13 @@ const ROLES = {
   driver: {
     user: 'wicak', home: '/app/driver',
     title: 'Driver PWA',
-    subtitle: 'BBM · Kasbon · Trip · Rapor',
+    subtitle: 'BBM · Kasbon · Trip · OT · Rapor',
     scenes: [
       { caption: 'Profil & status — tab BBM, form klaim + foto struk' },
       { caption: '💰 Kasbon — kode unik harian & riwayat', tab: 1 },
       { caption: '🗺️ Trip — jadwal appointment saya', tab: 2 },
-      { caption: '📊 Rapor — performa km/L', tab: 3 },
+      { caption: '⏰ Overtime — submit dengan foto watermark + GPS detail', tab: 3 },
+      { caption: '📊 Rapor — performa km/L', tab: 4 },
     ],
   },
   receptionist: {
@@ -120,11 +121,12 @@ const ROLES = {
   ga_hr: {
     user: 'ga_hr_officer', home: '/app/ga-hr',
     title: 'GA HR — Overtime',
-    subtitle: 'Overtime Driver & OB/Security',
+    subtitle: 'Driver & OB/Security · foto bukti · GPS',
     scenes: [
-      { caption: 'Dashboard GA HR — statistik overtime' },
-      { caption: 'Data overtime Driver dari Google Sheet', goto: '/app/ga-hr' },
-      { caption: 'Data OB/Security — form publik & migrasi', goto: '/app/ga-hr' },
+      { caption: 'Dashboard GA HR — statistik overtime Driver & OB/Security' },
+      { caption: 'Data overtime Driver — sinkron Google Sheet + filter sumber', goto: '/app/ga-hr' },
+      { caption: 'Tab OB & Security — paritas penuh: Refresh, PDF, Detail/Excel', click: 'OB & Security' },
+      { caption: 'Viewer foto bukti 📷 — foto mulai & selesai tiap catatan', click: '📷' },
     ],
   },
 }
@@ -149,12 +151,12 @@ async function loginPage(user, pin, home) {
   p.on('response', onResp)
   await p.goto(BASE + '/app/login', { waitUntil: 'domcontentloaded' })
   for (let i = 0; i < 3; i++) {
-    try { await p.waitForSelector('#login-pin', { timeout: 12000 }); break }
+    try { await p.waitForSelector('input[autocomplete="username"]', { timeout: 12000 }); break }
     catch (e) { if (i === 2) throw e; await p.goto(BASE + '/app/login', { waitUntil: 'domcontentloaded' }) }
   }
   await p.type('input[autocomplete="username"]', user)
-  await p.type('#login-pin', pin)
-  await p.click('form button.btn-primary')
+  await p.type('input[autocomplete="current-password"]', pin)
+  await p.click('button.login-btn')
   const t0 = Date.now()
   while (!sess && Date.now() - t0 < 15000) await new Promise((r) => setTimeout(r, 200))
   p.off('response', onResp)
