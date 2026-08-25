@@ -1,4 +1,4 @@
-# 📋 Changelog — BPF WorkHub v2.28.5
+# 📋 Changelog — BPF WorkHub v2.28.7
 
 Format: [Keep a Changelog](https://keepachangelog.com/id/ID/1.0.0/) · Versi: [Semantic Versioning](https://semver.org/lang/id/)
 
@@ -12,6 +12,83 @@ Format: [Keep a Changelog](https://keepachangelog.com/id/ID/1.0.0/) · Versi: [S
 ---
 
 ## Versi Terbaru
+
+### [2.28.7] - 2026-08-25
+
+**Ox Alpha AI Security Review: 24 Bug Fixes — 3 File, CRITICAL + HIGH + MEDIUM**
+
+AI model Ox Alpha (`stealth/ox-alpha` via OpenRouter) dijalankan via curl untuk review security & bug di seluruh codebase. Total **24 bug** ditemukan & di-fix dalam satu sesi.
+
+---
+
+#### `modules/overtime_shared.py` — 6 Fix
+
+**HIGH:**
+- **UnboundLocalError saat tanggal kosong** — `tanggal_iso` hanya didefinisikan di blok `else`, tapi dipakai setelah if/else → server crash jika user submit form tanpa tanggal
+- **Foto base64 tanpa size limit** — foto 10MB+ bisa masuk ke DB → memory blowup. Kini truncate max 7M chars (~5MB)
+- **GPS field simpan string "None"** — `str(None)` → literal `"None"` di DB saat GPS value Python `None`
+
+**MEDIUM:**
+- **Dead code waktu validation** — blok `if mulai > selesai: pass` tidak berguna
+- **Driver cols list mismatch** — `sheet_row` di cols tapi tidak di params → potential zip mismatch
+
+**LOW:**
+- **Dead code serialize** — `if dict: ... else: ...` identik
+
+---
+
+#### `modules/routes_news_scraper.py` — 10 Fix
+
+**CRITICAL:**
+- **Hardcoded credentials** — `_WP_SERVER_AUTH = ('human', 'password')` di source code
+- **Credential leak ke attacker** — Basic auth server dikirim ke SEMUA host WP termasuk attacker-controlled → dihapus
+
+**HIGH:**
+- **SSRF via image_url** — image dari scraped content di-fetch → kini validasi scheme + block private IPs
+- **Race condition JSON** — `open(path, 'w')` → kini atomic write via temp file + `os.replace()`
+- **HTML injection / XSS** — title, source_name di-interpolate ke HTML tanpa escaping → kini `html.escape()`
+- **CSV injection** — nilai `=`, `+`, `-`, `@` bisa eksekusi formula di Excel → kini di-prefix `'`
+
+**MEDIUM:**
+- **Duplicate `_seo_analyze`** — didefinisikan 2x → hapus definisi pertama
+- **Dead code `_auto_internal_links`** — return unchanged → kini insert "Baca juga" section
+- **Silent error swallowing** — `except Exception: pass` → tambah logging
+
+---
+
+#### `modules/routes_overtime.py` — 8 Fix
+
+**HIGH:**
+- **SSRF via sheet URL** — admin-configurable URL di-fetch server-side → validasi scheme + block private IPs + `allow_redirects=False`
+- **Nama impersonation** — client bisa override `nama` di driver submit → selalu pakai session name
+- **GPS data wiped** — `ON DUPLICATE KEY UPDATE gps_lat=VALUES(gps_lat)` tapi GPS tidak di INSERT → GPS jadi NULL setiap refresh. Hapus GPS dari ODKU
+- **`.upper()` crash on NULL** — `rows[0].get('posisi').upper()` → AttributeError jika NULL
+
+**MEDIUM:**
+- **Operator precedence bug** — `A or B if C else D` → query param `?full=1` diabaikan tanpa JSON body
+- **`str(None)` → "None"** — JSON null jadi string literal di update endpoint
+- **Filename header injection** — `nama` dengan `\r\n` bisa inject HTTP headers → sanitize dengan regex
+- **SVG upload XSS** — `data:image/svg+xml` diterima → `<script>` bisa execute → block SVG
+
+---
+
+**Backend:**
+- `modules/overtime_shared.py` — validasi tanggal, foto size limit, GPS None handling, dead code cleanup
+- `modules/routes_news_scraper.py` — credentials removed, SSRF/HTML/CSV injection fixes, atomic writes
+- `modules/routes_overtime.py` — SSRF, impersonation, GPS wipe, operator precedence, filename sanitize
+- `tests/test_overtime_shared.py` — update driver cols test
+- `OXALPHA_COMMUNICATION.md` — API reference untuk komunikasi dengan Ox Alpha
+
+**Verifikasi:**
+- 20/20 pytest overtime_shared tests lulus
+- Container `bbm_web` rebuilt & restarted — HTTP 200
+- Manual verification semua fix
+
+**Commits:**
+- `ab8cc90` fix: security & bug fixes via Ox Alpha AI review — overtime_shared + news_scraper
+- `1963283` fix(overtime): security & bug fixes via Ox Alpha AI review — routes_overtime.py
+
+---
 
 ### [2.28.6] - 2026-08-25
 
