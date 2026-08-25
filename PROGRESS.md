@@ -211,6 +211,9 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 - ✅ Photo upload 1 tombol → 2 tombol
 - ✅ Watermark font terlalu besar
 - ✅ **Kolom GPS tidak ada di kode migrasi (v2.28.4)** — gps_* overtime_driver & trip_masters sebelumnya hanya manual di DB produksi; fresh deploy gagal saat submit OT/Trip ber-GPS. Kini migrasi idempoten ×3 tabel (overtime_driver, overtime_ob_security, trip_masters) + init.sql
+- ✅ **Service backup DB tidak pernah jalan (v2.28.4)** — mariadb:10.11 tidak punya crond → bbm_backup crash-loop sejak v2.21. Kini loop scheduler tanpa cron; dump 10 DB terverifikasi
+- ✅ **record.mjs selector login usang (v2.28.4)** — LoginView v2.27 tak lagi pakai #login-pin; skenario driver (5 tab) & GA HR diperbarui
+- ✅ Presentasi & video demo di-regenerate dari data produksi cabang Surabaya (PPTX 12 slide + PDF + 11 mp4) — tersedia di Nextcloud `BPF /Presentasi_BPF_WorkHub_v2.28.4/`
 
 ---
 

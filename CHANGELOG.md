@@ -24,6 +24,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/id/ID/1.0.0/) · Versi: [S
 
 **Fix Kritis (Fresh Deploy):**
 - **Kolom GPS tidak pernah ada di kode migrasi** — kolom `gps_*` untuk `overtime_driver` & `trip_masters` (v2.27.1) hanya ditambah manual ke DB produksi. Fresh deploy baru akan GAGAL saat submit OT/Trip dengan GPS. Sekarang migrasi idempoten menambahkan 8 kolom GPS ke `overtime_driver`, `overtime_ob_security`, DAN `trip_masters` saat startup + kolom yang sama di `init.sql`
+- **Service backup DB tidak pernah jalan** — image `mariadb:10.11` (Debian) tidak punya `crond`/`/etc/crontabs`, jadi container `bbm_backup` crash-loop sejak v2.21 dan backup otomatis tidak pernah tereksekusi. Entry point diganti loop scheduler tanpa dependensi (baca jam dari `BACKUP_CRON`); terverifikasi dump manual sukses untuk 10 DB (master + 9 cabang)
 
 **Backend:**
 - `POST /api/overtime` (form publik OB) — terima & simpan `gps_lat/lon/address/kelurahan/kecamatan/kota/provinsi/kode_pos`
