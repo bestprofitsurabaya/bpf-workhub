@@ -1,99 +1,139 @@
 # 🔐 Keamanan & Kepatuhan Standar — BPF WorkHub v1.0
 
-Dokumen ini memetakan kontrol keamanan & kualitas aplikasi terhadap standar internasional yang relevan.
+> **Dokumen ini menjelaskan bagaimana BPF WorkHub menjaga keamanan data dan mutu layanan**, serta bagaimana penerapannya mengacu pada standar internasional yang diakui dunia.
+>
+> Ditulis dengan bahasa sederhana agar dapat dipahami oleh siapa saja — bukan hanya tim teknis.
 
-**PT. Bestprofit Futures — Surabaya**  
-Graha Bukopin Lantai 11, Jl. Panglima Sudirman No. 10-18, Surabaya 60271  
-Telp: 031-5349888
+**PT. Bestprofit Futures — Surabaya**
+Graha Bukopin Lantai 11, Jl. Panglima Sudirman No. 10-18, Surabaya 60271
+📞 Telp: 031-5349888
 
 ---
 
 ## 📋 Daftar Isi
 
-1. [ISO/IEC 27001:2022 — Manajemen Keamanan Informasi](#1-isoiec-270012022--manajemen-keamanan-informasi)
-2. [ISO 9241-11 — Usability](#2-iso-9241-11--usability)
-3. [ISO 9001 — Manajemen Mutu](#3-iso-9001--manajemen-mutu)
+1. [🛡️ ISO/IEC 27001:2022 — Standar Keamanan Informasi](#1--isoiec-270012022--standar-keamanan-informasi)
+2. [🎯 ISO 9241-11 — Standar Kemudahan Penggunaan](#2--iso-9241-11--standar-kemudahan-penggunaan)
+3. [✅ ISO 9001 — Standar Manajemen Mutu](#3--iso-9001--standar-manajemen-mutu)
+4. [🔒 Ringkasan Fitur Keamanan](#4--ringkasan-fitur-keamanan)
+5. [📞 Kontak Tim IT](#5--kontak-tim-it)
 
 ---
 
-## 1. ISO/IEC 27001:2022 — Manajemen Keamanan Informasi
+## 1️⃣ 🛡️ ISO/IEC 27001:2022 — Standar Keamanan Informasi
 
-Sistem menerapkan kontrol akses berbasis peran (RBAC) dengan prinsip **least privilege** dan **segregation of duties**.
+**Apa itu?**
+Ini adalah standar internasional tentang cara sebuah organisasi **melindungi informasinya** — memastikan data hanya bisa diakses orang yang berhak, dan setiap aktivitas penting tercatat dengan jelas.
 
-### 1.1 Pemetaan Kontrol
+**Bagaimana BPF WorkHub menerapkannya?**
 
-| Kontrol ISO 27001 | Implementasi |
-|-------------------|--------------|
-| **A.5.15 — Access control** | Autentikasi session-based (username + PIN 6 digit); setiap peran hanya bisa membuka menu/halaman yang menjadi wewenangnya; UI menyembunyikan menu tak berhak & router SPA menolak akses (403). |
-| **A.8.2 — Privileged access rights** | Hak istimewa (Admin) dibatasi: halaman Users, Settings, dan Audit Log khusus admin (`@role_required(['admin'])` di server + guard `meta.roles` di SPA). |
-| **A.8.5 — Secure authentication** | PIN disimpan di DB; login menolak user nonaktif; sesi cookie (`session.permanent`) dengan masa berlaku; anti open-redirect pada parameter `next`. |
-| **A.8.15 — Logging** | Seluruh aksi state-changing tercatat di `activity_logs` (siapa, apa, kapan, IP) dan tampil di halaman Audit Log (admin). |
-| **A.8.16 — Monitoring activities** | Indikator koneksi real-time (⚡/🔴) di topbar SPA; log aplikasi `docker logs bbm_web`. |
-| **A.8.28 — Secure coding** | SQL berparameter (anti-injection), proteksi CSRF di semua POST (token + header `X-CSRF-Token`), header `no-store` anti-cache, validasi input. |
-| **A.8.9 / A.8.25 — Configuration & secure development** | Konfigurasi via environment (`SECRET_KEY`, kredensial DB); pipeline rilis terdokumentasi; test otomatis (`pytest`) sebelum rilis. |
+Sistem menggunakan dua prinsip utama:
 
-### 1.2 Matriks Hak Akses per Peran
+- 👤 **Hak akses sesuai peran** — Setiap pengguna (admin, GA, finance, marketing, chief driver, dll.) hanya dapat membuka menu dan halaman yang memang menjadi tanggung jawabnya. Menu lain tidak tampil sama sekali di layar mereka.
+- 🔑 **Akses seminimal mungkin** (*least privilege*) — Seseorang hanya diberi kewenangan sebatas yang ia butuhkan untuk bekerja, tidak lebih. Ini mencegah salah satu orang memiliki "kunci semua pintu".
+- ✂️ **Pemisahan tugas** (*segregation of duties*) — Tugas-tugas sensitif dibagi ke beberapa peran, sehingga tidak ada satu pun orang yang bisa melakukan segalanya sendirian.
 
-| Fitur / Halaman | Admin | GA | Finance | Marketing | Chief Driver |
-|-----------------|:-----:|:--:|:-------:|:---------:|:------------:|
-| Dashboard admin/statistik | ✅ | ✅ | ✅ | – | – |
-| Log Perjalanan (trips) | ✅ | ✅ | ✅ | – | – |
-| Assignments kendaraan | ✅ | ✅ | – | – | – |
-| Rekap & Analytics | ✅ | ✅ | ✅ | – | – |
+### 🗺️ Pemetaan Kontrol Keamanan
+
+| Aspek Keamanan | Bagaimana BPF WorkHub Melakukannya |
+|---|---|
+| **Siapa boleh masuk ke mana** | Setiap orang masuk dengan *username* + PIN 6 digit. Menu yang tidak jadi wewenangnya disembunyikan dari tampilan — dan jika dipaksa lewat alamat URL langsung, sistem menolak dengan pesan **403 (Akses Ditolak)**. |
+| **Hak khusus admin** | Halaman-halaman paling sensitif — Manajemen User, Pengaturan, dan Audit Log — **hanya bisa dibuka oleh Admin**. Pembatasan ini diberlakukan di dua lapis: di server dan di tampilan aplikasi. |
+| **Cara masuk yang aman** | PIN tersimpan aman di database. Akun yang sudah dinonaktifkan tidak bisa login. Sesi login memiliki masa kedaluwarsa otomatis, dan sistem menolak upaya manipulasi alamat tujuan setelah login. |
+| **Catatan aktivitas** | **Setiap perubahan data tercatat**: siapa yang melakukannya, apa yang diubah, kapan, dan dari perangkat/IP mana. Semua ini bisa dilihat Admin di halaman Audit Log. |
+| **Pemantauan berkala** | Ada indikator status koneksi secara *real-time* (⚡ terhubung / 🔴 terputus) di bilah atas aplikasi. Log teknis juga dapat dipantau oleh tim IT. |
+| **Perlindungan dari celah umum** | Data yang dikirim selalu divalidasi; permintaan yang mengubah data wajib menyertakan token keamanan (proteksi *CSRF*); halaman dilindungi dari penyimpanan cache yang tidak diinginkan; dan kode ditulis dengan teknik yang tahan terhadap serangan umum seperti *SQL injection*. |
+| **Konfigurasi & rilis terkendali** | Kredensial penting (kunci rahasia, akses database) tidak dituliskan di kode, melainkan diatur lewat konfigurasi terpisah. Sebelum setiap versi dirilis, wajib lolos **243 pengujian otomatis** terlebih dahulu. |
+
+---
+
+### 👥 Matriks Hak Akses per Peran
+
+Tabel berikut menunjukkan **siapa dapat mengakses apa**:
+
+| Fitur / Halaman | 👑 Admin | 🚚 GA | 💰 Finance | 📣 Marketing | 🧭 Chief Driver |
+|---|:---:|:---:|:---:|:---:|:---:|
+| Dashboard & statistik | ✅ | ✅ | ✅ | – | – |
+| Log Perjalanan (*trips*) | ✅ | ✅ | ✅ | – | – |
+| Penugasan kendaraan | ✅ | ✅ | – | – | – |
+| Rekap & Analitik | ✅ | ✅ | ✅ | – | – |
 | Marketing Hub | – | – | – | ✅ | – |
-| Chief Driver board | ✅ | ✅ | – | – | ✅ |
+| Papan Chief Driver | ✅ | ✅ | – | – | ✅ |
 | Manajemen User | ✅ | – | – | – | – |
-| Pengaturan (settings) | ✅ | – | – | – | – |
+| Pengaturan | ✅ | – | – | – | – |
 | Audit Log | ✅ | – | – | – | – |
 
-Enforcement berlapis: (1) server `role_required` pada setiap route/API, (2) guard router SPA, (3) penyembunyian menu di sidebar. Membuka URL langsung oleh user tak berhak → **403**.
+> 🛡️ **Pengamanan berlapis tiga:**
+> 1. **Di server** — setiap halaman dan API memeriksa hak akses pemohon.
+> 2. **Di aplikasi** — navigasi antarhalaman ikut memvalidasi peran pengguna.
+> 3. **Di tampilan** — menu yang bukan wewenang sengaja tidak ditampilkan.
+>
+> Hasilnya: meskipun seseorang mencoba membuka URL halaman terlarang secara langsung, sistem akan **menolak dengan kode 403**.
 
 ---
 
-## 2. ISO 9241-11 — Usability
+## 2️⃣ 🎯 ISO 9241-11 — Standar Kemudahan Penggunaan
 
-| Prinsip | Implementasi |
-|---------|--------------|
-| **Efektivitas** | Dashboard per role menampilkan hanya informasi yang relevan; aksi cepat satu klik; status & konteks selalu terlihat. |
-| **Efisiensi** | SPA tanpa reload antar-halaman; lazy-loading per view; menu terfilter mengurangi langkah navigasi; shortcut & filter instan. |
-| **Kepuasan** | Desain responsif (mobile-friendly), dark mode, indikator realtime, umpan balik visual (toast/alert), bahasa Indonesia. |
+**Apa itu?**
+Standar internasional yang mengukur apakah sebuah aplikasi **mudah, nyaman, dan efektif digunakan** manusia.
 
----
-
-## 3. ISO 9001 — Manajemen Mutu
-
-| Klausul | Implementasi |
-|---------|--------------|
-| **4–5 (Konteks & Kepemimpinan)** | Ruang lingkup & peran terdokumentasi di README/USER_GUIDE/DEPLOYMENT. |
-| **7.5 (Informasi terdokumentasi)** | CHANGELOG (Keep a Changelog), DEPLOYMENT.md, USER_GUIDE.md, SECURITY.md. |
-| **8.1 (Perencanaan operasional)** | Alur rilis: CHANGELOG → tag → GitHub Release (`scripts/release.sh`). |
-| **8.6 (Rilis produk)** | Verifikasi sebelum rilis: `pytest` (243 test), `npm run build`, smoke test HTTP/WebSocket. |
-| **10 (Peningkatan)** | Audit log & umpan balik; perbaikan berkelanjutan di tiap versi (lihat CHANGELOG). |
+| Prinsip | Artinya | Wujudnya di BPF WorkHub |
+|---|---|---|
+| **🎯 Efektivitas** | Pengguna bisa mencapai tujuannya tanpa hambatan. | Dashboard tiap peran hanya menampilkan informasi yang relevan bagi mereka; ada tombol aksi cepat satu klik; status pekerjaan selalu terlihat jelas. |
+| **⚡ Efisiensi** | Tugas selesai dengan langkah sesedikit mungkin. | Antarhalaman berpindah tanpa memuat ulang (teknologi *SPA*); menu sudah difilter sesuai peran sehingga tidak perlu mencari-cari; ada filter instan dan pintasan. |
+| **😊 Kepuasan** | Pengguna merasa nyaman memakainya. | Tampilan responsif (nyaman dibuka dari HP maupun komputer), tersedia *dark mode*, notifikasi visual yang ramah, dan seluruh antarmuka berbahasa Indonesia. |
 
 ---
 
-## 🔒 Ringkasan Fitur Keamanan
+## 3️⃣ ✅ ISO 9001 — Standar Manajemen Mutu
 
-| Fitur | Deskripsi |
-|-------|-----------|
-| Login PIN | Username + 6 digit PIN per orang |
-| Session | HTTP-only cookie, SameSite=Lax, Secure (HTTPS) |
-| CSRF | Token di semua POST/PUT/DELETE/PATCH |
-| Role-Based Access | 11 role, least privilege, enforcement berlapis |
-| Audit Trail | 30+ action types, siapa + kapan + apa |
-| Rate Limit | Anti brute-force login (Redis) |
-| Watermark | GPS + timestamp di foto bukti |
-| Security Headers | CSP, X-Frame-Options, Referrer-Policy, Permissions-Policy |
-| Backup | DB otomatis tiap 03:00 WIB, retensi 30 hari |
+**Apa itu?**
+Standar internasional tentang cara sebuah organisasi **memastikan produk dan layanannya bermutu konsisten** — mulai dari dokumentasi yang rapi hingga proses rilis yang terkendali.
 
----
-
-## 📞 Kontak Tim IT
-
-**PT. Bestprofit Futures — Surabaya**  
-Graha Bukopin Lantai 11, Jl. Panglima Sudirman No. 10-18, Surabaya 60271  
-Telp: 031-5349888
+| Klausul Standar | Artinya | Penerapan di BPF WorkHub |
+|---|---|---|
+| **Klausul 4–5** — Konteks & Kepemimpinan | Ruang lingkup dan pembagian peran tertulis dengan jelas. | Panduan lengkap tersedia dalam dokumen README, USER_GUIDE, dan DEPLOYMENT. |
+| **Klausul 7.5** — Informasi Terdokumentasi | Semua hal penting didokumentasikan, tidak bergantung pada ingatan orang. | Dokumentasi lengkap: CHANGELOG (catatan perubahan), DEPLOYMENT.md (panduan rilis), USER_GUIDE.md (panduan pengguna), SECURITY.md (dokumen ini). |
+| **Klausul 8.1** — Perencanaan Operasional | Proses kerja dirancang dan diikuti secara konsisten. | Alur rilis baku: catat perubahan di CHANGELOG → beri nomor versi → publikasikan sebagai *GitHub Release* (diotomatisasi lewat `scripts/release.sh`). |
+| **Klausul 8.6** — Rilis Produk | Tidak ada produk keluar tanpa pemeriksaan. | Sebelum setiap rilis wajib lolos: **243 pengujian otomatis** (`pytest`), proses build aplikasi, serta uji coba langsung fitur HTTP & WebSocket. |
+| **Klausul 10** — Peningkatan Berkelanjutan | Selalu ada ruang untuk menjadi lebih baik. | Masukan pengguna dan jejak audit menjadi dasar perbaikan di setiap versi — lihat CHANGELOG untuk riwayatnya. |
 
 ---
 
-*BPF WorkHub v1.0 · Keamanan & Kepatuhan*
+## 4️⃣ 🔒 Ringkasan Fitur Keamanan
+
+Berikut ringkasan seluruh lapisan perlindungan yang dimiliki BPF WorkHub:
+
+| Fitur | Fungsi Singkatnya |
+|---|---|
+| 🔑 **Login PIN** | Setiap orang masuk dengan *username* + PIN pribadi 6 digit. |
+| ⏳ **Sesi Otomatis** | Sesi login tersimpan aman di *cookie* terenkripsi, dan akan berakhir secara otomatis. |
+| 🎫 **Proteksi CSRF** | Semua perubahan data (tambah/ubah/hapus) wajib menyertakan token keamanan — mencegah "permintaan palsu" yang dikirim tanpa sepengetahuan pengguna. |
+| 👥 **Hak Akses Berjenjang** | 11 jenis peran berbeda, masing-masing hanya mendapat kewenangan seperlunya, dijaga berlapis. |
+| 📜 **Jejak Audit** | 30+ jenis aktivitas tercatat lengkap: siapa, kapan, dan apa yang dilakukan. |
+| 🚧 **Anti Tebak Paksa** | Percobaan login berulang kali yang mencurigakan akan dibatasi otomatis (melalui *rate limiting*). |
+| 📍 **Watermark Foto** | Foto bukti lapangan dilengkapi stempel lokasi GPS dan waktu — sulit dipalsukan. |
+| 🏰 **Pengaturan Keamanan Browser** | Standar pelindung aktif: CSP, X-Frame-Options, Referrer-Policy, dan Permissions-Policy (mencegah halaman disalahgunakan oleh situs lain). |
+| 💾 **Cadangan Data Harian** | Database dicadangkan otomatis setiap hari pukul **03.00 WIB**, dan disimpan selama **30 hari**. |
+
+---
+
+## 5️⃣ 📞 Kontak Tim IT
+
+Untuk pertanyaan, laporan kendala, atau saran perbaikan terkait keamanan BPF WorkHub:
+
+**PT. Bestprofit Futures — Surabaya**
+Graha Bukopin Lantai 11, Jl. Panglima Sudirman No. 10-18, Surabaya 60271
+📞 Telp: **031-5349888**
+
+---
+
+*BPF WorkHub v1.0 · Dokumen Keamanan & Kepatuhan*
+
+---
+
+## 📝 Catatan Perubahan dari Versi Asli
+
+Beberapa hal yang saya sesuaikan agar lebih mudah dipahami:
+
+1. **Menambahkan penjelasan "Apa itu?"** di awal tiap standar ISO — pembaca awam kini tahu kont

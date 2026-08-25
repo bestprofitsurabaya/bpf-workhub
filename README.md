@@ -1,174 +1,109 @@
-# 🏢 BPF WorkHub v2.28.2
+# 🏢 BPF WorkHub
 
-**Sistem Manajemen Armada, Klaim BBM, Kasbon, Log Perjalanan, Appointment & Air Minum**  
-**PT. Bestprofit Futures — Surabaya**
+**Sistem Manajemen Armada untuk PT. Bestprofit Futures — Surabaya**
 
----
-
-Sistem end-to-end untuk pencatatan, verifikasi, persetujuan, dan pengarsipan klaim BBM, pengajuan kasbon dengan kode unik, log perjalanan harian, serta manajemen aset, oxygen, dan content management (News Scraper). Dilengkapi dengan sistem appointment, deteksi anomali Machine Learning, GPS tracking, watermark foto, PIN security, session-based login, role-based access, CSRF protection, notifikasi real-time, import Excel, audit trail, Chart.js visualization, PWA offline-first, dan WebSocket real-time.
+> 📅 Versi 2.28.7 · Agustus 2026
 
 ---
 
-## 🧭 Apa Isi Sistem Ini?
+## 🎯 Apa itu BPF WorkHub?
 
-BPF WorkHub dirancang untuk menggantikan cara kerja manual (catat di kertas, rekap di Excel) dengan satu aplikasi digital yang dipakai semua orang di perusahaan — dari sopir, OB, GA, Finance, Marketing, Chief Driver, hingga Admin.
+BPF WorkHub adalah aplikasi web yang membantu tim operasional PT Bestprofit Futures mengelola aktivitas harian armada — mulai dari pencatatan pengeluaran BBM (bensin), pengajuan kasbon (uang muka), log perjalanan driver, hingga manajemen appointment nasabah.
 
-**Inti masalah yang diselesaikan:**
-- Sopir harus bayar BBM dari uang sendiri, lalu menunggu berhari-hari uangnya diganti.
-- OB membeli galon tanpa bukti resmi.
-- Finance harus mengecek struk satu per satu secara manual.
-- Tidak ada audit trail yang jelas.
-
-**Solusinya:**
-Semua tercatat, terverifikasi, dan bisa dipertanggungjawabkan — dengan satu aplikasi yang dipakai semua orang, sesuai porsinya masing-masing.
+**Cara kerjanya sederhana:**
+1. 🚗 **Driver** mengisi data BBM dan perjalanan lewat HP (PWA)
+2. 👤 **GA/Finance** memverifikasi dan mencairkan dana
+3. 📊 **Admin** memantau semua aktivitas dari dashboard
+4. 📱 Semua data tersinkron real-time via WebSocket
 
 ---
 
 ## ✨ Fitur Utama
 
-### 📱 Driver (PWA Offline-First)
-- 5 tab: ⛽ BBM, 💰 Kasbon, 🗺️ Trip, ⏰ OT, 📊 Rapor
-- Offline-first: data tersimpan di HP dan terkirim otomatis saat online
-- Notifikasi real-time via WebSocket
-- Watermark otomatis: GPS + waktu + nama perusahaan
-- PWA: bisa dipasang di layar utama HP
+### 💰 Klaim BBM & Kasbon
+- Driver submit foto bukti BBM (odomenter, nota, struk)
+- Sistem otomatis hitung konsumsi BBM per kilometer
+- AI mendeteksi anomali penggunaan BBM
+- Kasbon dengan kode unik harian untuk verifikasi cash
 
-### 👨‍💼 GA (General Affairs)
-- Dashboard GA: antrean klaim BBM, kasbon, trip review
-- Verifikasi anomali ML dengan foto bukti
-- Aset & Pemeliharaan: 15 unit AC + 8 kendaraan + 12 komponen
-- Health score otomatis 0–100
+### 🗺️ Log Perjalanan
+- Multi-destination trip tracking
+- Integrasi dengan Google Maps (GPS tracking)
+- Auto-complete appointment saat driver submit trip
+- Real-time notifikasi ke marketing
 
-### 💰 Finance
-- Rekap air minum per OB, per jenis, per merk
-- Verifikasi pengajuan air minum → PDF tanda terima
-- Kasbon: approve, cairkan, arsipkan
-- Export CSV/Excel
+### 📅 Appointment
+- Marketing buat jadwal kunjungan nasabah
+- Chief Driver assign ke driver
+- Driver konfirmasi kunjungan via trip
+- Status tracking real-time
 
-### 📣 Marketing
-- Input appointment kunjungan nasabah
-- Jam kunjungan spesifik untuk rute otomatis
-- Pantau status real-time
+### ⏰ Overtime (Lembur)
+- Form publik untuk OB/Security (tanpa login)
+- Driver submit lembur dari PWA
+- Sync dari Google Sheet (data existing)
+- Export PDF laporan lembur
 
-### 🚛 Chief Driver
-- Board penugasan per sesi & per driver
-- ⚡ Atur Rute Otomatis: kunjungan dibagi per area & urut jam
-- Estimasi jarak/BBM + angka penghematan
-- Atur Rute Manual (tentukan driver + urutan sendiri)
-
-### 🪪 Receptionist
-- Form publik pelamar kerja (tanpa login)
-- Verifikasi data, catat kehadiran interview & 4 hari training
-- Laporan PDF resmi berlogo BPF
-- Kelola dropdown User untuk form pelamar
-
-### 🎯 Traineer / Upline
-- Pantau kehadiran rekrutan (read-only)
-- Scope otomatis: hanya rekrutan dengan UPLINE milik sendiri
-
-### ⏰ GA HR (Overtime)
-- Data overtime Driver dari Google Sheet (8.665 baris)
-- Data OB/Security dari Google Sheet + form publik tanpa login
-- Auto-refresh saat login/logout
-- Edit & hapus data overtime
-- Detail Report per nama (PDF/Excel) — Driver & OB/Security
-- Form Permohonan PDF — Driver & OB/Security
-- Foto OT auto-cleanup > 6 bulan (cron + background thread)
-- Config sumber data terpisah untuk Driver & OB/Security
-
-### 📰 IT (News Scraper — Multi-Cabang)
-- Scrape artikel dari newsmaker.id + Detik Finance (64 artikel/scrape)
-- Multi-WordPress site management (10 cabang, CRUD, test connection)
-- Upload artikel ke WordPress dengan SEO optimization
-- Financial Authority Backlinks otomatis (24+ situs)
-- Duplicate article checker
-- Tab Report: detail per-artikel + filter + export CSV
-- Configurable daily limit (1-100/hari)
-- Password toggle 👁/🙈 di site card & form
-
-### ⚙️ Admin
-- Manajemen user: buat akun, reset PIN, aktifkan/nonaktifkan
-- Multi-cabang: isolasi data penuh per cabang
-- Audit log: semua aktivitas tercatat
-- Backup DB otomatis
-- Seed & bersihkan data demo
+### 💧 Air Minum
+- Pembelian air minum untuk kantor
+- Tracking stok dan pengeluaran
 
 ---
 
-## 🔄 Alur Kerja
+## 👥 Siapa yang Pakai?
 
-### Alur Klaim BBM
-```
-Driver → GA Approve → Finance Payout → Driver TTD → Archive ZIP
-```
-
-### Alur Kasbon
-```
-Driver → GA Approve → Finance Cairkan → GA Serahkan → Driver Isi LPJ → GA Verifikasi → Selesai
-```
-
-### Alur Appointment
-```
-Marketing Input → Chief Driver Bagi → Driver Kunjungi → GA Review Trip
-```
-
-### Alur Air Minum
-```
-OB Ajukan → Finance Verifikasi → PDF Tanda Terima
-```
-
-### Alur Pelamar Kerja
-```
-Pelamar Isi Form → Receptionist Verifikasi → Kehadiran Interview + Training → Lulus/ Mundur
-```
+| Role | Kegunaan | Contoh |
+|------|----------|--------|
+| **Admin** | Kelola semua data dan user | Manajer IT |
+| **Driver** | Submit BBM, kasbon, trip | AKHAD, BUDI |
+| **GA** | Verifikasi klaim BBM & kasbon | Staff GA |
+| **Finance** | Pencairan dana | Staff Keuangan |
+| **GA HR** | Kelola data lembur | Staff HRD |
+| **Marketing** | Buat & pantau appointment | Marketing |
+| **Chief Driver** | Assign driver ke appointment | Supervisor |
+| **OB/Security** | Submit lembur lewat form publik | OB, Security |
 
 ---
 
-## 🛠 Tech Stack
+## 🚀 Cara Mulai
 
-| Layer | Technology |
-|-------|-----------|
-| Backend | Python 3.11 + Flask |
-| Frontend | Vue 3 + Vite (SPA penuh) |
-| Database | MariaDB 10.11 |
-| Cache | Redis 7 |
-| Realtime | Flask-SocketIO + eventlet |
-| ML | Scikit-learn (Isolation Forest) |
-| PDF | FPDF2 + DejaVu Sans |
-| Excel | openpyxl |
-| Charts | Chart.js 4.4 |
-| Container | Docker + Docker Compose |
-| PWA | Service Worker + IndexedDB |
+### Akses Online
+🌐 **https://nasbpfsby.duckdns.org:5000**
 
----
-
-## 📦 Quick Start
-
+### Akses Lokal (Development)
 ```bash
+# Clone repository
 git clone https://github.com/bestprofitsurabaya/bpf-workhub.git
 cd bpf-workhub
-docker compose up -d
+
+# Jalankan dengan Docker
+docker-compose up -d
+
+# Buka browser
+http://localhost:5001
 ```
 
-Aplikasi tersedia di `http://localhost:5001`
+### Akun Demo
+
+| Login | Password | Role |
+|-------|----------|------|
+| `admin` | `admin123` | Admin |
+| `AKHAD` | `123456` | Driver |
+| `GA` | `123456` | GA |
+| `FINANCE` | `123456` | Finance |
 
 ---
 
-## 🔐 Akun Default
+## 🛠️ Teknologi yang Dipakai
 
-| Role | Username | PIN |
-|------|----------|-----|
-| Admin | `admin` | `123456` |
-| GA | `ga_officer` | `123456` |
-| Finance | `finance_officer` | `123456` |
-| OB | `ob1` | `123456` |
-| Marketing | `Yusie` | `123456` |
-| Chief Driver | `driver` | `123456` |
-| Driver | `wicak` | `123456` |
-| Receptionist | `receptionis` | `123456` |
-| Traineer | `traineer_a` | `123456` |
-| GA HR | `ga_hr_officer` | `123456` |
-| IT Surabaya | `it_sby` | `123456` |
+| Komponen | Teknologi | Fungsi |
+|----------|-----------|--------|
+| Backend | Python Flask | Server & API |
+| Frontend | Vue 3 + Vite | Tampilan SPA |
+| Database | MariaDB | Penyimpanan data |
+| Cache | Redis | Session & real-time |
+| Realtime | Socket.IO | Notifikasi langsung |
+| Container | Docker | Deployment |
 
 ---
 
@@ -176,113 +111,63 @@ Aplikasi tersedia di `http://localhost:5001`
 
 ```
 bpf-workhub/
-├── app.py                    # Entry point Flask + SocketIO
-├── init.sql                  # Schema database
-├── modules/                  # Backend modular (32 file)
-│   ├── routes_*.py           # 16 route modules
-│   ├── config.py             # DB connection pool
-│   ├── helpers.py            # Utils + role_required
-│   ├── engine.py             # ML insights
-│   ├── pdf_generator.py      # PDF enterprise
-│   └── realtime.py           # SocketIO bus
-├── frontend/                 # SPA Vue 3
-│   └── src/
-│       ├── views/            # 20+ view components
-│       ├── stores/           # Pinia stores
-│       ├── router/           # Vue Router + role guards
-│       └── components/       # Modal, Toast, Notification
-├── tests/                    # 20 test files (pytest)
-├── scripts/                  # Utility scripts
-├── docker-compose.yml        # 4 services (db, web, redis, backup)
-└── Dockerfile
+├── app.py                  # File utama Flask
+├── modules/                # Modul backend
+│   ├── routes_driver.py    # Endpoint driver
+│   ├── routes_cash.py      # Endpoint kasbon
+│   ├── routes_overtime.py  # Endpoint lembur
+│   ├── routes_news_scraper.py  # Scraper berita
+│   └── ...
+├── frontend/               # SPA Vue 3
+│   ├── src/views/          # Halaman-halaman
+│   └── src/stores/         # State management
+├── tests/                  # Unit tests
+├── docker-compose.yml      # Konfigurasi Docker
+└── .env                    # Environment variables
 ```
-
----
-
-## 🧪 Testing
-
-- **243 pytest** (backend)
-- **82 Vitest** (frontend)
-- **Browser verification** via Puppeteer
-- **CI/CD** via GitHub Actions
-
----
-
-## 🚀 Deployment
-
-### Online
-- **URL**: `https://nasbpfsby.duckdns.org:5000`
-- **Reverse Proxy**: nginx + DuckDNS + Let's Encrypt
-
-### Local Development
-- **URL**: `http://localhost:5001`
-- **Port**: 5001 (web) → 5000 (Flask inside container)
-
-### Docker Services
-| Service | Port | Fungsi |
-|---------|------|--------|
-| `bbm_web` | 5001 → 5000 | Flask + SocketIO |
-| `bbm_mariadb` | 3307 → 3306 | MariaDB 10.11 |
-| `bbm_redis` | internal | Cache + rate limit |
-| `bbm_backup` | cron 03:00 | Backup DB otomatis |
-| `bbm_nginx` | 80, 443, 5000 | HTTPS reverse proxy |
 
 ---
 
 ## 🔒 Keamanan
 
-| Fitur | Deskripsi |
-|-------|-----------|
-| Login PIN | Username + 6 digit PIN |
-| Session | HTTP-only cookie, SameSite=Lax |
-| CSRF | Token di semua POST/PUT/DELETE/PATCH |
-| Role-Based Access | 11 role, least privilege |
-| Audit Trail | 30+ action types |
-| Rate Limit | Anti brute-force login |
-| Watermark | GPS + timestamp di foto |
-| Security Headers | CSP, X-Frame-Options, Referrer-Policy |
+- 🔐 Login PIN dengan brute-force protection
+- 🛡️ CSRF protection di semua form
+- 🔒 HTTPS dengan sertifikat Let's Encrypt
+- 📝 Audit log untuk semua aktivitas
+- 🚫 Rate limiting untuk mencegah spam
+- 🔑 Role-based access control (RBAC)
 
 ---
 
-## 👥 11 Role Pengguna
+## 🧪 Pengujian
 
-| Role | Fungsi Utama |
-|------|-------------|
-| Admin | Full access: settings, users, audit log, semua dashboard |
-| GA Officer | Approve/reject klaim, trip review, aset & pemeliharaan |
-| Finance | Payout, archive, rekap, verifikasi air minum |
-| Marketing | Input appointment kunjungan nasabah |
-| Chief Driver | Command center penugasan driver |
-| Driver | Submit BBM, trip log, kasbon, overtime (PWA offline-first, auto-save) |
-| OB | Pengajuan air minum |
-| Receptionist | Verifikasi pelamar kerja |
-| Traineer | Pantau kehadiran rekrutan |
-| GA HR | Kelola overtime Driver & OB/Security + cetak form PDF |
-| IT Surabaya | News Scraper & Content Management (WordPress + SEO, 10 cabang) |
+```bash
+# Backend tests
+python -m pytest tests/ -v
+
+# Frontend tests
+cd frontend && npm test
+```
+
+**Status:** 236 pytest · 82 vitest · Semua ✅ PASS
 
 ---
 
-## 📄 Dokumen Pendukung
+## 📚 Dokumen Lainnya
 
-| Dokumen | Deskripsi |
-|---------|-----------|
-| `DEPLOYMENT.md` | Panduan deployment lengkap |
-| `SECURITY.md` | Pemetaan ISO/IEC 27001, ISO 9241-11, ISO 9001 |
-| `USER_GUIDE.md` | Panduan pengguna per peran |
-| `USER_LIST.md` | Daftar user & role lengkap |
-| `CHANGELOG.md` | Riwayat perubahan versi |
-| `PRESENTASI.md` | Materi presentasi & demo |
-| `PELATIHAN.md` | Lembar latihan per peran |
-| `ONEPAGER.md` | Ringkasan satu halaman |
+- [🛡️ Keamanan & Standar](SECURITY.md)
+- [🚀 Panduan Deploy](DEPLOYMENT.md)
+- [📖 Panduan User](USER_GUIDE.md)
+- [📋 Changelog](CHANGELOG.md)
 
 ---
 
 ## 📞 Kontak
 
-**PT. Bestprofit Futures — Surabaya**  
-Graha Bukopin Lantai 11, Jl. Panglima Sudirman No. 10-18, Surabaya 60271  
-Telp: 031-5349888
+**PT. Bestprofit Futures — Surabaya**
+Graha Bukopin Lantai 11, Jl. Panglima Sudirman No. 10-18
+📞 031-5349888
 
 ---
 
-*BPF WorkHub v2.28.2 · Dikembangkan oleh Tim IT BPF Surabaya*
+*Dikembangkan dengan ❤️ oleh Tim IT BPF*
