@@ -124,12 +124,13 @@ def register_master_api(app):
             cursor.close(); conn.close()
             log_activity_async(0, 'bulk_driver_pin_reset', 'admin',
                                (session.get('full_name') or session.get('user_name') or 'Admin'),
-                               new_data={'total': total, 'changed': affected, 'pin': new_pin},
+                               new_data={'total': total, 'changed': affected},
                                ip=request.remote_addr)
             return jsonify({'status': 'success',
-                            'msg': f'PIN {total} akun driver disetel ke {new_pin}'})
+                            'msg': f'PIN {total} akun driver berhasil direset'})
         except Exception as e:
-            return jsonify({'status': 'error', 'msg': str(e)}), 500
+            print(f'[api-master] bulk_reset_pin error: {e}')
+            return jsonify({'status': 'error', 'msg': 'Terjadi kesalahan server'}), 500
 
     @app.route('/api/users')
     @role_required(['admin'])
@@ -313,6 +314,8 @@ def register_master_api(app):
             username = data.get('username', '').strip(); pin = data.get('pin', '').strip()
             if not username or not pin: return jsonify({'status': 'error', 'msg': 'Username dan PIN wajib'}), 400
             conn = get_master_connection(); cursor = conn.cursor(dictionary=True)
+            # NOTE: PIN is currently stored in plaintext — hashing migration
+            # TODO: hash PINs with bcrypt/sha256 and compare server-side.
             cursor.execute("SELECT * FROM users WHERE username=%s AND pin=%s AND is_active=TRUE", (username, pin))
             user = cursor.fetchone()
             if user:
@@ -324,7 +327,8 @@ def register_master_api(app):
             pin_fail(ip)
             return jsonify({'status': 'error', 'msg': 'PIN salah'}), 401
         except Exception as e:
-            return jsonify({'status': 'error', 'msg': str(e)}), 500
+            print(f'[api-master] verify_pin error: {e}')
+            return jsonify({'status': 'error', 'msg': 'Terjadi kesalahan server'}), 500
 
     @app.route('/api/vehicles/with-nopol')
     def api_vehicles_with_nopol():
