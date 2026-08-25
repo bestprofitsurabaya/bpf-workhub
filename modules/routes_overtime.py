@@ -30,6 +30,10 @@ from modules.overtime_helpers import (clean, map_headers, parse_date_mdy,
                                       parse_submitted_at_any,
                                       normalize_name, guess_position,
                                       normalize_driver_row)
+from modules.overtime_shared import (
+    validate_overtime_data, build_insert_sql, build_insert_params,
+    serialize_overtime_row, get_display_prefix, make_source_uid, POSITIONS
+)
 from modules.pdf_generator import OvertimeReportPDF
 
 POSITIONS = ('OB', 'Security')
@@ -536,70 +540,35 @@ def register_overtime_routes(app):
                                 'msg': 'Terlalu banyak pengiriman dari perangkat ini. '
                                        'Coba lagi beberapa saat.'}), 429
             data = request.get_json(silent=True) or {}
-            nama = clean(data.get('nama'))
-            posisi = clean(data.get('posisi'))
-            tanggal = clean(data.get('tanggal'))
-            waktu_mulai = clean(data.get('waktu_mulai'))
-            waktu_selesai = clean(data.get('waktu_selesai'))
-            keterangan = clean(data.get('keterangan'))[:500]
-            email = clean(data.get('email'))[:150]
-            # v2.28.4: GPS detail (paritas dengan OT Driver)
-            gps_lat = str(data.get('gps_lat', ''))[:20]
-            gps_lon = str(data.get('gps_lon', ''))[:20]
-            gps_address = str(data.get('gps_address', ''))[:500]
-            gps_kelurahan = str(data.get('gps_kelurahan', ''))[:100]
-            gps_kecamatan = str(data.get('gps_kecamatan', ''))[:100]
-            gps_kota = str(data.get('gps_kota', ''))[:100]
-            gps_provinsi = str(data.get('gps_provinsi', ''))[:100]
-            gps_kode_pos = str(data.get('gps_kode_pos', ''))[:10]
 
-            # Foto bukti timestamp (base64 data URL dari frontend)
-            foto_mulai_b64 = data.get('foto_mulai', '')
-            foto_selesai_b64 = data.get('foto_selesai', '')
+            # Shared validation
+            is_valid, errors, cleaned = validate_overtime_data(data, modul='ob')
+            if not is_valid:
+                msg = '; '.join(f'{k}: {v}' for k, v in errors.items())
+                return jsonify({'status': 'error', 'msg': msg}), 400
 
-            if not nama:
-                return jsonify({'status': 'error', 'msg': 'Nama wajib diisi'}), 400
-            if posisi not in POSITIONS:
-                return jsonify({'status': 'error',
-                                'msg': 'Posisi wajib dipilih (OB atau Security)'}), 400
-            if not tanggal:
-                return jsonify({'status': 'error', 'msg': 'Tanggal overtime wajib diisi'}), 400
-            tanggal_iso = parse_date_mdy(tanggal) or tanggal
-            if len(tanggal_iso) != 10:
-                return jsonify({'status': 'error',
-                                'msg': 'Tanggal harus format DD/MM/YYYY atau YYYY-MM-DD'}), 400
-            if not waktu_mulai:
-                return jsonify({'status': 'error', 'msg': 'Waktu mulai wajib diisi'}), 400
+            nama = cleaned['nama']
+            posisi = cleaned['posisi']
 
             conn = get_db_connection()
             if not conn:
                 return jsonify({'status': 'error', 'msg': 'DB error'}), 500
             cursor = conn.cursor(dictionary=True)
-            display_id = generate_display_id('OTL', conn)
-            source_uid = 'form-' + hashlib.md5(
-                (display_id + nama + posisi).encode('utf-8')).hexdigest()[:24]
-            # Simpan foto bukti jika ada
-            foto_mulai_url = _save_overtime_foto(foto_mulai_b64, display_id, 'mulai')
-            foto_selesai_url = _save_overtime_foto(foto_selesai_b64, display_id, 'selesai')
+            display_id = generate_display_id(get_display_prefix('ob'), conn)
+            source_uid = 'form-' + make_source_uid(display_id, nama, posisi)
 
-            cursor.execute(
-                """INSERT INTO overtime_ob_security
-                   (display_id, nama, posisi, tanggal, waktu_mulai, waktu_selesai,
-                    keterangan, foto_mulai, foto_selesai, email, source, source_uid,
-                    gps_lat, gps_lon, gps_address, gps_kelurahan, gps_kecamatan,
-                    gps_kota, gps_provinsi, gps_kode_pos)
-                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'form',%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
-                (display_id, nama, posisi, tanggal_iso,
-                 (parse_time_12h(waktu_mulai) or waktu_mulai)[:20],
-                 (parse_time_12h(waktu_selesai) or waktu_selesai or '')[:20],
-                 keterangan, foto_mulai_url, foto_selesai_url, email, source_uid,
-                 gps_lat, gps_lon, gps_address, gps_kelurahan, gps_kecamatan,
-                 gps_kota, gps_provinsi, gps_kode_pos))
+            # Simpan foto bukti
+            cleaned['foto_mulai'] = _save_overtime_foto(cleaned['foto_mulai_b64'], display_id, 'mulai')
+            cleaned['foto_selesai'] = _save_overtime_foto(cleaned['foto_selesai_b64'], display_id, 'selesai')
+
+            sql, _ = build_insert_sql('ob')
+            params = build_insert_params(display_id, cleaned, source='form', modul='ob', source_uid=source_uid)
+            cursor.execute(sql, params)
             conn.commit()
+
             log_activity_async(None, 'overtime_submit', 'public', nama,
                                new_data={'display_id': display_id, 'posisi': posisi},
                                ip=ip)
-            # v2.22.1: beri tahu GA HR ada overtime OB/Security baru dari form publik
             try:
                 from modules.notifications import push_overtime_notification
                 push_overtime_notification(
@@ -623,60 +592,33 @@ def register_overtime_routes(app):
         """Submit overtime Driver dari PWA (perlu login driver)."""
         try:
             data = request.get_json(silent=True) or {}
-            nama = clean(data.get('nama')) or session.get('full_name', '') or session.get('user_name', '')
-            tanggal = clean(data.get('tanggal'))
-            waktu_mulai = clean(data.get('waktu_mulai'))
-            waktu_selesai = clean(data.get('waktu_selesai'))
-            keterangan = clean(data.get('keterangan'))[:500]
-            no_kendaraan = clean(data.get('no_kendaraan'))[:30]
-            broker = clean(data.get('broker'))[:150]
-            manager = clean(data.get('manager'))[:150]
-            foto_mulai_b64 = data.get('foto_mulai', '')
-            foto_selesai_b64 = data.get('foto_selesai', '')
-            gps_lat = str(data.get('gps_lat', ''))[:20]
-            gps_lon = str(data.get('gps_lon', ''))[:20]
-            gps_address = str(data.get('gps_address', ''))[:500]
-            gps_kelurahan = str(data.get('gps_kelurahan', ''))[:100]
-            gps_kecamatan = str(data.get('gps_kecamatan', ''))[:100]
-            gps_kota = str(data.get('gps_kota', ''))[:100]
-            gps_provinsi = str(data.get('gps_provinsi', ''))[:100]
-            gps_kode_pos = str(data.get('gps_kode_pos', ''))[:10]
+            # Driver identity dari session (anti impersonasi)
+            if not data.get('nama'):
+                data['nama'] = session.get('full_name', '') or session.get('user_name', '')
 
-            if not nama:
-                return jsonify({'status': 'error', 'msg': 'Nama driver tidak ditemukan'}), 400
-            if not tanggal:
-                return jsonify({'status': 'error', 'msg': 'Tanggal wajib diisi'}), 400
-            tanggal_iso = parse_date_mdy(tanggal) or tanggal
-            if len(tanggal_iso) != 10:
-                return jsonify({'status': 'error', 'msg': 'Format tanggal tidak valid'}), 400
-            if not waktu_mulai:
-                return jsonify({'status': 'error', 'msg': 'Waktu mulai wajib diisi'}), 400
+            # Shared validation
+            is_valid, errors, cleaned = validate_overtime_data(data, modul='driver')
+            if not is_valid:
+                msg = '; '.join(f'{k}: {v}' for k, v in errors.items())
+                return jsonify({'status': 'error', 'msg': msg}), 400
+
+            nama = cleaned['nama']
 
             conn = get_db_connection()
             if not conn:
                 return jsonify({'status': 'error', 'msg': 'DB error'}), 500
             cursor = conn.cursor(dictionary=True)
-            display_id = generate_display_id('OTD', conn)
+            display_id = generate_display_id(get_display_prefix('driver'), conn)
 
             # Simpan foto bukti
-            foto_mulai_url = _save_overtime_foto(foto_mulai_b64, display_id, 'mulai')
-            foto_selesai_url = _save_overtime_foto(foto_selesai_b64, display_id, 'selesai')
+            cleaned['foto_mulai'] = _save_overtime_foto(cleaned['foto_mulai_b64'], display_id, 'mulai')
+            cleaned['foto_selesai'] = _save_overtime_foto(cleaned['foto_selesai_b64'], display_id, 'selesai')
 
-            cursor.execute(
-                """INSERT INTO overtime_driver
-                   (display_id, sheet_row, nama, tanggal, waktu_mulai, waktu_selesai,
-                    keterangan, no_kendaraan, broker, manager,
-                    foto_mulai, foto_selesai, source,
-                    gps_lat, gps_lon, gps_address, gps_kelurahan, gps_kecamatan, gps_kota, gps_provinsi, gps_kode_pos)
-                   VALUES (%s, 0, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'form',
-                    %s, %s, %s, %s, %s, %s, %s, %s)""",
-                (display_id, nama, tanggal_iso,
-                 (parse_time_12h(waktu_mulai) or waktu_mulai)[:20],
-                 (parse_time_12h(waktu_selesai) or waktu_selesai or '')[:20],
-                 keterangan, no_kendaraan, broker, manager,
-                 foto_mulai_url, foto_selesai_url,
-                 gps_lat, gps_lon, gps_address, gps_kelurahan, gps_kecamatan, gps_kota, gps_provinsi, gps_kode_pos))
+            sql, _ = build_insert_sql('driver')
+            params = build_insert_params(display_id, cleaned, source='form', modul='driver')
+            cursor.execute(sql, params)
             conn.commit()
+
             log_activity_async(None, 'overtime_driver_submit', 'driver', nama,
                                new_data={'display_id': display_id}, ip=request.remote_addr)
             try:
