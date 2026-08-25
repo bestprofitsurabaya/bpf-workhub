@@ -141,17 +141,20 @@ def register_branch_routes(app):
     @role_required(['admin'])
     def api_branches_activate(code):
         try:
+            code = code.strip().upper()
             ok = bm.set_branch_active(code, True)
             if not ok:
                 return jsonify({'status': 'error', 'msg': 'Cabang tidak ditemukan'}), 404
             return jsonify({'status': 'success', 'msg': f'Cabang {code} aktif'})
         except Exception as e:
-            return jsonify({'status': 'error', 'msg': str(e)}), 500
+            print(f'[branches] activate error: {e}')
+            return jsonify({'status': 'error', 'msg': 'Terjadi kesalahan server'}), 500
 
     @app.route('/api/branches/<code>/deactivate', methods=['POST'])
     @role_required(['admin'])
     def api_branches_deactivate(code):
         try:
+            code = code.strip().upper()
             ok = bm.set_branch_active(code, False)
             if not ok:
                 return jsonify({'status': 'error', 'msg': 'Cabang tidak ditemukan'}), 404
@@ -161,18 +164,21 @@ def register_branch_routes(app):
                 session['branch_name'] = None
             return jsonify({'status': 'success', 'msg': f'Cabang {code} nonaktif'})
         except Exception as e:
-            return jsonify({'status': 'error', 'msg': str(e)}), 500
+            print(f'[branches] deactivate error: {e}')
+            return jsonify({'status': 'error', 'msg': 'Terjadi kesalahan server'}), 500
 
     @app.route('/api/branches/<code>/ensure-db', methods=['POST'])
     @role_required(['admin'])
     def api_branches_ensure_db(code):
         try:
+            code = code.strip().upper()
             ok, msg = bm.ensure_branch_database(code)
             if not ok:
                 return jsonify({'status': 'error', 'msg': msg}), 400
             return jsonify({'status': 'success', 'msg': msg})
         except Exception as e:
-            return jsonify({'status': 'error', 'msg': str(e)}), 500
+            print(f'[branches] ensure_db error: {e}')
+            return jsonify({'status': 'error', 'msg': 'Terjadi kesalahan server'}), 500
 
     @app.route('/api/branches/switch', methods=['POST'])
     @role_required(['admin'])

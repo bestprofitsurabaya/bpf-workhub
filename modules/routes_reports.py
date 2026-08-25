@@ -19,21 +19,25 @@ def register_report_routes(app):
             cursor.execute("SELECT * FROM transactions WHERE id=%s", (tx_id,))
             tx = cursor.fetchone()
             if not tx:
+                cursor.close(); conn.close()
                 return "Data tidak ditemukan", 404
-            cursor.execute("UPDATE transactions SET is_reported=TRUE WHERE id=%s", (tx_id,))
-            conn.commit()
-            cursor.close(); conn.close()
+            # Generate PDF FIRST, then mark as reported (prevent marking on failure).
             pdf = PDFReportCompact()
             pdf.add_page()
             pdf.generate_compact_report(tx, app.config['UPLOAD_FOLDER'])
             pdf_raw = pdf.output(dest='S')
             pdf_bytes = pdf_raw.encode('latin-1') if isinstance(pdf_raw, str) else bytes(pdf_raw)
+            # Only mark reported AFTER successful PDF generation.
+            cursor.execute("UPDATE transactions SET is_reported=TRUE WHERE id=%s", (tx_id,))
+            conn.commit()
+            cursor.close(); conn.close()
             response = make_response(pdf_bytes)
             response.headers['Content-Type'] = 'application/pdf'
             response.headers['Content-Disposition'] = f'attachment; filename=BPF_Report_{tx.get("display_id", tx["id"])}_{tx["nopol"]}_{tx.get("created_at", datetime.now()).strftime("%Y%m%d")}.pdf'
             return response
         except Exception as e:
-            return f"Error: {str(e)}", 500
+            print(f'[reports] generate_report error: {e}')
+            return 'Terjadi kesalahan server', 500
 
     @app.route('/admin/rekap')
     @role_required(['ga', 'finance', 'admin'])
@@ -126,7 +130,12 @@ def register_report_routes(app):
         try:
             filename = f'backup_bpf_bbm_{datetime.now().strftime("%Y%m%d_%H%M%S")}.sql'
             log_activity_async(0, 'backup_download', 'admin', 'Admin', new_data={'filename': filename})
-            cmd = ['mysqldump', '--ssl=0', '-h', 'db', '-u', 'bpf_user', '-pbpf_pass', 'bpf_asset_system']
+            # Use env vars for DB credentials (never hardcode passwords).
+            db_host = os.getenv('DB_HOST', 'db')
+            db_user = os.getenv('DB_USER', 'bpf_user')
+            db_pass = os.getenv('DB_PASS', 'bpf_pass')
+            db_name = os.getenv('DB_NAME', 'bpf_asset_system')
+            cmd = ['mysqldump', '--ssl=0', '-h', db_host, '-u', db_user, f'-p{db_pass}', db_name]
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
             if result.returncode != 0:
                 return make_response("Backup unavailable", 500)
@@ -135,7 +144,8 @@ def register_report_routes(app):
             response.headers['Content-Disposition'] = f'attachment; filename={filename}'
             return response
         except Exception as e:
-            return f"Error: {str(e)}", 500
+            print(f'[reports] backup error: {e}')
+            return 'Terjadi kesalahan server', 500
 
     @app.route('/admin/templates/import-bbm')
     @role_required(['ga', 'finance', 'admin'])
