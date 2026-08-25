@@ -171,11 +171,13 @@ class TestBuildInsertSQL(unittest.TestCase):
         self.assertIn('display_id', cols)
 
     def test_build_driver_sql(self):
-        """Driver SQL should have correct columns."""
+        """Driver SQL should have correct columns.
+        sheet_row is hardcoded as literal 0, so it should NOT be in cols
+        (cols maps 1:1 with the params tuple)."""
         sql, cols = build_insert_sql('driver')
         self.assertIn('overtime_driver', sql)
         self.assertIn('no_kendaraan', cols)
-        self.assertIn('sheet_row', cols)
+        self.assertNotIn('sheet_row', cols)
 
     def test_invalid_modul_raises(self):
         """Invalid modul should raise ValueError."""

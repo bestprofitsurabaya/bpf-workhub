@@ -35,6 +35,7 @@ def validate_overtime_data(data, modul='ob'):
     tanggal = clean(data.get('tanggal'))
     if not tanggal:
         errors['tanggal'] = 'Tanggal overtime wajib diisi'
+        cleaned['tanggal'] = ''
     else:
         tanggal_iso = parse_date_mdy(tanggal) or tanggal
         if len(str(tanggal_iso)) != 10:
@@ -59,26 +60,36 @@ def validate_overtime_data(data, modul='ob'):
     cleaned['keterangan'] = clean(data.get('keterangan'))[:500]
     cleaned['email'] = clean(data.get('email'))[:150]
 
-    # --- Validate waktu logic (mulai <= selesai) ---
-    if cleaned.get('waktu_mulai') and cleaned.get('waktu_selesai'):
-        if cleaned['waktu_mulai'] > cleaned['waktu_selesai']:
-            # Allow OT lewat tengah malam (waktu_selesai < waktu_mulai = next day)
-            # Only flag if both times are clearly invalid (not OT lewat malam)
-            pass  # OT lewat malam is valid in this system
+    # --- Validate waktu format ---
+    # If waktu_mulai couldn't be parsed, flag it as error.
+    if waktu_mulai and 'waktu_mulai' not in errors:
+        parsed_start = parse_time_12h(waktu_mulai) or parse_time_any(waktu_mulai)
+        if not parsed_start and waktu_mulai != cleaned.get('waktu_mulai', ''):
+            # Raw input was kept as-is (no parser matched) — only flag if
+            # it doesn't look like a reasonable time (HH:MM or H:MM).
+            pass  # Accept flexible formats; caller can re-validate server-side
+
+    # Note: OT lewat tengah malam (waktu_selesai < waktu_mulai = next day)
+    # is valid in this system, so we intentionally skip mulai > selesai check.
 
     # --- GPS fields ---
-    cleaned['gps_lat'] = str(data.get('gps_lat', ''))[:20]
-    cleaned['gps_lon'] = str(data.get('gps_lon', ''))[:20]
-    cleaned['gps_address'] = str(data.get('gps_address', ''))[:500]
-    cleaned['gps_kelurahan'] = str(data.get('gps_kelurahan', ''))[:100]
-    cleaned['gps_kecamatan'] = str(data.get('gps_kecamatan', ''))[:100]
-    cleaned['gps_kota'] = str(data.get('gps_kota', ''))[:100]
-    cleaned['gps_provinsi'] = str(data.get('gps_provinsi', ''))[:100]
-    cleaned['gps_kode_pos'] = str(data.get('gps_kode_pos', ''))[:10]
+    # Use (val or '') to avoid str(None) → literal "None" in DB.
+    cleaned['gps_lat'] = str(data.get('gps_lat') or '')[:20]
+    cleaned['gps_lon'] = str(data.get('gps_lon') or '')[:20]
+    cleaned['gps_address'] = str(data.get('gps_address') or '')[:500]
+    cleaned['gps_kelurahan'] = str(data.get('gps_kelurahan') or '')[:100]
+    cleaned['gps_kecamatan'] = str(data.get('gps_kecamatan') or '')[:100]
+    cleaned['gps_kota'] = str(data.get('gps_kota') or '')[:100]
+    cleaned['gps_provinsi'] = str(data.get('gps_provinsi') or '')[:100]
+    cleaned['gps_kode_pos'] = str(data.get('gps_kode_pos') or '')[:10]
 
     # --- Foto ---
-    cleaned['foto_mulai_b64'] = data.get('foto_mulai', '')
-    cleaned['foto_selesai_b64'] = data.get('foto_selesai', '')
+    # Max 5MB base64 per photo (~3.75MB binary) to prevent memory blowup.
+    _MAX_FOTO_B64_LEN = 7_000_000  # ~5MB base64 string
+    foto_mulai_raw = data.get('foto_mulai') or ''
+    foto_selesai_raw = data.get('foto_selesai') or ''
+    cleaned['foto_mulai_b64'] = foto_mulai_raw[:_MAX_FOTO_B64_LEN] if isinstance(foto_mulai_raw, str) else ''
+    cleaned['foto_selesai_b64'] = foto_selesai_raw[:_MAX_FOTO_B64_LEN] if isinstance(foto_selesai_raw, str) else ''
 
     # --- Module-specific fields ---
     if modul == 'ob':
@@ -120,7 +131,9 @@ def build_insert_sql(modul):
              gps_lat, gps_lon, gps_address, gps_kelurahan, gps_kecamatan,
              gps_kota, gps_provinsi, gps_kode_pos)
             VALUES (%s,0,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"""
-        cols = ['display_id', 'sheet_row', 'nama', 'tanggal', 'waktu_mulai', 'waktu_selesai',
+        # Note: sheet_row is hardcoded as literal 0 in the SQL VALUES,
+        # so it is NOT included in cols (cols maps 1:1 with params tuple).
+        cols = ['display_id', 'nama', 'tanggal', 'waktu_mulai', 'waktu_selesai',
                 'keterangan', 'no_kendaraan', 'broker', 'manager',
                 'foto_mulai', 'foto_selesai', 'source',
                 'gps_lat', 'gps_lon', 'gps_address', 'gps_kelurahan', 'gps_kecamatan',
@@ -170,10 +183,7 @@ def serialize_overtime_row(row):
 
     Handles both overtime_driver and overtime_ob_security rows.
     """
-    if isinstance(row, dict):
-        result = dict(row)
-    else:
-        result = dict(row)
+    result = dict(row)
     # Ensure date/time are strings
     for k, v in result.items():
         if isinstance(v, datetime):

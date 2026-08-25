@@ -146,8 +146,21 @@ def _load_json(path, default=None):
 
 
 def _save_json(path, data):
-    with open(path, 'w') as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
+    """Atomic write: write to temp file then replace to prevent corruption."""
+    import tempfile
+    dir_name = os.path.dirname(path)
+    try:
+        fd, tmp_path = tempfile.mkstemp(dir=dir_name, suffix='.tmp')
+        with os.fdopen(fd, 'w') as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+        os.replace(tmp_path, path)  # atomic on POSIX
+    except Exception:
+        # Cleanup temp file on failure
+        try:
+            os.unlink(tmp_path)
+        except Exception:
+            pass
+        raise
 
 
 def _log_scraper(message, user='system'):
@@ -216,8 +229,8 @@ def check_bs4():
         raise RuntimeError('beautifulsoup4 belum terinstall. Jalankan: pip install beautifulsoup4')
 
 
-# Default server-level Basic Auth (shared hosting protection)
-_WP_SERVER_AUTH = ('human', 'password')
+# Server-level Basic Auth removed — no longer hardcoded.
+# WordPress credentials are stored per-site in wp_sites.json.
 
 
 def _get_wp_session():
@@ -237,9 +250,8 @@ def _wp_auth_headers(username, app_password):
 
 
 def _wp_login(session, wp_url, username, password):
-    """Login ke WordPress via wp-login.php dengan dual auth:
-    1. Basic Auth server (human:password) untuk bypass hosting protection
-    2. WordPress credentials untuk session login
+    """Login ke WordPress via wp-login.php.
+    Uses ONLY the site's own WordPress credentials (no server-level auth leak).
     Returns: (success, nonce_or_error)
     """
     try:
@@ -247,8 +259,9 @@ def _wp_login(session, wp_url, username, password):
         login_url = f'{base_url}/wp-login.php'
         admin_url = f'{base_url}/wp-admin/'
 
-        # Step 1: Set server Basic Auth
-        session.auth = _WP_SERVER_AUTH
+        # Step 1: Set WP Basic Auth (site credentials only — never send
+        # hardcoded server auth to external hosts to prevent credential leak).
+        session.auth = (username, password)
         session.headers.update({'User-Agent': 'BPFWorkHub-Scraper/2.0'})
 
         # Step 2: GET login page
@@ -267,11 +280,10 @@ def _wp_login(session, wp_url, username, password):
 
         # Step 4: Ambil WP REST nonce dari admin page
         r2 = session.get(admin_url, timeout=10)
-        import re
         m = re.search(r'wpApiSettings.*?"nonce":"([a-f0-9]+)"', r2.text)
         nonce = m.group(1) if m else None
 
-        # Step 5: Hapus Basic Auth (REST API pakai cookie, bukan Basic Auth)
+        # Step 5: Clear auth (REST API pakai cookie + nonce)
         session.auth = None
 
         return True, nonce
@@ -294,6 +306,22 @@ def _upload_image_to_wp(session, wp_url, nonce, image_url):
     Returns: {'id': media_id, 'html': '<img ...>'} or None on failure.
     """
     try:
+        # SSRF protection: only allow http/https to public hosts.
+        from urllib.parse import urlparse
+        parsed = urlparse(image_url)
+        if parsed.scheme not in ('http', 'https'):
+            print(f'[scraper-ssrf] Blocked non-http scheme: {parsed.scheme}')
+            return None
+        # Block private/internal IPs to prevent SSRF.
+        import ipaddress
+        try:
+            ip = ipaddress.ip_address(parsed.hostname)
+            if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
+                print(f'[scraper-ssrf] Blocked private IP: {parsed.hostname}')
+                return None
+        except (ValueError, TypeError):
+            pass  # hostname may be a domain, not IP — OK
+
         # Download image from source
         r = session.get(image_url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=15, stream=True)
         if r.status_code != 200:
@@ -338,8 +366,8 @@ def _upload_image_to_wp(session, wp_url, nonce, image_url):
                 'html': f'<figure class="wp-block-image"><img src="{media_link}" alt="" class="wp-image-{media_id}" /></figure>\n',
                 'link': media_link,
             }
-    except Exception:
-        pass
+    except Exception as e:
+        print(f'[scraper-upload] Image upload failed: {e}')
     return None
 
 
@@ -396,7 +424,11 @@ def _apply_backlinks(content, title, authority_sites, keyword_mapping, max_backl
 
 
 def _build_article_html(title, content, article, publish_date, publish_time):
-    """Build professional article HTML with proper structure."""
+    """Build professional article HTML with proper structure.
+    Escapes user-controlled content to prevent HTML injection / stored XSS.
+    """
+    from html import escape as _esc
+
     # Split content into paragraphs
     paragraphs = content.split('\n') if content else []
     paragraphs = [p.strip() for p in paragraphs if p.strip()]
@@ -411,14 +443,14 @@ def _build_article_html(title, content, article, publish_date, publish_time):
             words = para.split()[:6]
             subheading = ' '.join(words)
             if len(subheading) > 10:
-                body_paragraphs += f'<h2>{subheading}</h2>\n'
-        body_paragraphs += f'<p>{para}</p>\n'
+                body_paragraphs += f'<h2>{_esc(subheading)}</h2>\n'
+        body_paragraphs += f'<p>{_esc(para)}</p>\n'
 
     # Category badge
     category = article.get('category', '')
     category_badge = ''
     if category:
-        category_badge = f'<span style="display:inline-block;padding:4px 12px;background:#e0e7ff;color:#3730a3;border-radius:20px;font-size:12px;font-weight:600;margin-bottom:12px;">{category}</span>'
+        category_badge = f'<span style="display:inline-block;padding:4px 12px;background:#e0e7ff;color:#3730a3;border-radius:20px;font-size:12px;font-weight:600;margin-bottom:12px;">{_esc(category)}</span>'
 
     # Date & source info
     raw_source = article.get('source', 'newsmaker')
@@ -430,7 +462,9 @@ def _build_article_html(title, content, article, publish_date, publish_time):
     }
     source_name = source_map.get(raw_source, raw_source.title())
     source_url = article.get('link', '')
-    source_link = f'<a href="{source_url}" target="_blank" rel="nofollow noopener" style="color:#6b7280;">{source_name}</a>' if source_url else source_name
+    # Escape URL for href attribute safety
+    safe_url = _esc(source_url, quote=True) if source_url else ''
+    source_link = f'<a href="{safe_url}" target="_blank" rel="nofollow noopener" style="color:#6b7280;">{_esc(source_name)}</a>' if source_url else _esc(source_name)
 
     html = f'''
 <article style="font-family:Georgia,serif;line-height:1.8;color:#1f2937;">
@@ -438,12 +472,12 @@ def _build_article_html(title, content, article, publish_date, publish_time):
   <div style="margin-bottom:16px;">{category_badge}</div>
 
   <!-- Title -->
-  <h1 style="font-size:28px;font-weight:700;line-height:1.3;margin:0 0 12px;color:#111827;">{title}</h1>
+  <h1 style="font-size:28px;font-weight:700;line-height:1.3;margin:0 0 12px;color:#111827;">{_esc(title)}</h1>
 
   <!-- Meta Info -->
   <div style="display:flex;align-items:center;gap:16px;padding:12px 0;border-top:1px solid #e5e7eb;border-bottom:1px solid #e5e7eb;margin-bottom:24px;font-size:13px;color:#6b7280;">
-    <span>📅 {publish_date}</span>
-    <span>🕐 {publish_time}</span>
+    <span>📅 {_esc(publish_date)}</span>
+    <span>🕐 {_esc(publish_time)}</span>
     <span>📰 Sumber: {source_link}</span>
   </div>
 
@@ -477,15 +511,6 @@ def _build_bpf_cta_widget():
 <div style="margin-top:16px;padding:12px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;font-size:12px;color:#166534;text-align:center;">
   📰 Artikel bersumber dari sumber berita terpercaya • Diterbitkan oleh <a href="https://bestprofit-futures.co.id/" target="_blank" rel="nofollow sponsored" style="color:#16a34a;font-weight:600;">PT Bestprofit Futures</a>
 </div>'''
-
-
-def _seo_analyze(content, title):
-    """Simple SEO analysis."""
-    text = re.sub(r'<[^>]+>', '', content)
-    word_count = len(text.split())
-    h2 = len(re.findall(r'<h2', content, re.IGNORECASE))
-    h3 = len(re.findall(r'<h3', content, re.IGNORECASE))
-    headings = h2 + h3
 
 
 def _seo_analyze(content, title):
@@ -604,6 +629,7 @@ def _rewrite_content(content, title=''):
 
 def _auto_internal_links(html_content, all_articles, current_title='', max_links=3):
     """Insert internal links ke artikel lain berdasarkan keyword overlap."""
+    from html import escape as _esc
     if not all_articles or not html_content:
         return html_content, []
     linked = []
@@ -620,6 +646,20 @@ def _auto_internal_links(html_content, all_articles, current_title='', max_links
         overlap = art_words & cur_words
         if len(overlap) >= 2:
             linked.append({'title': art_title, 'url': art_url})
+
+    # Insert links into the HTML content.
+    # Strategy: append a "Baca juga" section at the end with linked articles.
+    if linked:
+        links_html = (
+            '<div style="margin-top:24px;padding:16px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;">\n'
+            '<p style="font-weight:600;margin:0 0 8px;color:#0369a1;">📰 Baca juga:</p>\n'
+            '<ul style="margin:0;padding-left:20px;list-style:disc;">\n'
+        )
+        for item in linked:
+            links_html += f'<li><a href="{_esc(item["url"], quote=True)}" target="_blank" rel="nofollow noopener" style="color:#0369a1;">{_esc(item["title"])}</a></li>\n'
+        links_html += '</ul>\n</div>\n'
+        html_content = html_content + links_html
+
     return html_content, linked
 
 
@@ -1475,8 +1515,8 @@ def upload_articles():
                         r2 = _wp_request(wp_session, 'POST', tags_url, nonce=nonce, json={"name": tag_name}, timeout=10)
                         if r2.status_code == 201:
                             tag_ids.append(r2.json()['id'])
-                except Exception:
-                    pass
+                except Exception as e:
+                    print(f'[scraper-tag] Failed to create tag "{tag_name}": {e}')
 
             # Advanced Schema (Algo 4)
             schemas = _build_advanced_schema(title, content, publish_date, publish_time, article.get('image_url', ''))
@@ -2002,13 +2042,23 @@ def export_report_csv():
                 'User': entry.get('user', ''),
             })
 
-    # Build CSV
+    # Build CSV — sanitize values to prevent CSV injection
     import io, csv
+
+    def _sanitize_csv(val):
+        """Prefix formula-triggering characters to prevent CSV injection in Excel."""
+        s = str(val) if val is not None else ''
+        if s and s[0] in ('=', '+', '-', '@', '\t', '\r'):
+            s = "'" + s  # prefix with single quote to neutralize
+        return s
+
     output = io.StringIO()
     if rows:
-        writer = csv.DictWriter(output, fieldnames=rows[0].keys())
+        # Sanitize all values
+        sanitized = [{k: _sanitize_csv(v) for k, v in row.items()} for row in rows]
+        writer = csv.DictWriter(output, fieldnames=sanitized[0].keys())
         writer.writeheader()
-        writer.writerows(rows)
+        writer.writerows(sanitized)
     else:
         output.write('Tidak ada data untuk filter ini\n')
 
