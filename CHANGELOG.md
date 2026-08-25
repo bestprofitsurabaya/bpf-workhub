@@ -15,9 +15,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/id/ID/1.0.0/) · Versi: [S
 
 ### [2.28.7] - 2026-08-25
 
-**Ox Alpha AI Security Review: 24 Bug Fixes — 3 File, CRITICAL + HIGH + MEDIUM**
+**Ox Alpha AI Security Review: 34 Bug Fixes — 5 File, CRITICAL + HIGH + MEDIUM**
 
-AI model Ox Alpha (`stealth/ox-alpha` via OpenRouter) dijalankan via curl untuk review security & bug di seluruh codebase. Total **24 bug** ditemukan & di-fix dalam satu sesi.
+AI model Ox Alpha (`stealth/ox-alpha` via OpenRouter) dijalankan via curl untuk review security & bug di seluruh codebase. Total **34 bug** ditemukan & di-fix dalam satu sesi.
 
 ---
 
@@ -84,9 +84,51 @@ AI model Ox Alpha (`stealth/ox-alpha` via OpenRouter) dijalankan via curl untuk 
 - Container `bbm_web` rebuilt & restarted — HTTP 200
 - Manual verification semua fix
 
+#### `modules/routes_driver.py` — 5 Fix
+
+**HIGH:**
+- **Connection leak di `driver_form`** — tidak ada try/finally → conn tidak di-close saat exception → connection pool exhaustion
+- **IDOR pada uploads** — `/uploads/<filename>` tanpa auth → siapapun bisa akses foto BBM/odometer (IDOR/broken access control)
+- **Client-controlled `price_per_liter`** — driver bisa set harga fuel sendiri → potensi fraud. Kini lookup dari `vehicle_fuel_prices` table
+- **Inactive driver bisa submit** — tidak cek `is_active` setelah fetch driver_data → kini reject 403
+
+**MEDIUM:**
+- **float/int ValueError → 500** — input non-numeric kasih 500 + `str(e)` leak → kini wrap `try/except → 400`
+
+---
+
+#### `modules/routes_cash.py` — 5 Fix
+
+**HIGH:**
+- **Reject tanpa status check** — request COMPLETED bisa di-reject → inkonsistensi finansial. Kini block `AND status NOT IN ('REJECTED','COMPLETED')`
+- **Missing commit di daily code** — INSERT `daily_unique_codes` tidak di-commit → code hilang setiap request
+
+**MEDIUM:**
+- **`ga_name` spoof** — approver identity dari request body → kini pakai `session.get('full_name')`
+- **TOCTOU race condition** — SELECT status lalu UPDATE tanpa cek status → kini tambah `AND status='...'` di WHERE
+- **POST path tanpa try/except** — invalid JSON → unhandled 500 → kini wrap `try/except → 400`
+
+---
+
+**Backend:**
+- `modules/overtime_shared.py` — validasi tanggal, foto size limit, GPS None handling, dead code cleanup
+- `modules/routes_news_scraper.py` — credentials removed, SSRF/HTML/CSV injection fixes, atomic writes
+- `modules/routes_overtime.py` — SSRF, impersonation, GPS wipe, operator precedence, filename sanitize
+- `modules/routes_driver.py` — connection leak, IDOR, price fraud, inactive driver, float parsing
+- `modules/routes_cash.py` — reject status check, missing commit, identity spoof, TOCTOU race
+- `tests/test_overtime_shared.py` — update driver cols test
+- `OXALPHA_COMMUNICATION.md` — API reference untuk komunikasi dengan Ox Alpha
+
+**Verifikasi:**
+- 20/20 pytest overtime_shared tests lulus
+- Container `bbm_web` rebuilt & restarted — HTTP 200
+- Manual verification semua fix
+
 **Commits:**
 - `ab8cc90` fix: security & bug fixes via Ox Alpha AI review — overtime_shared + news_scraper
 - `1963283` fix(overtime): security & bug fixes via Ox Alpha AI review — routes_overtime.py
+- `584ba88` fix(driver+cash): security & bug fixes via Ox Alpha AI review
+- `115275d` docs: update CHANGELOG v2.28.7
 
 ---
 
