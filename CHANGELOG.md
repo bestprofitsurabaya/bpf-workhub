@@ -1,4 +1,4 @@
-# 📋 Changelog — BPF WorkHub v2.28.3
+# 📋 Changelog — BPF WorkHub v2.28.4
 
 Format: [Keep a Changelog](https://keepachangelog.com/id/ID/1.0.0/) · Versi: [Semantic Versioning](https://semver.org/lang/id/)
 
@@ -12,6 +12,26 @@ Format: [Keep a Changelog](https://keepachangelog.com/id/ID/1.0.0/) · Versi: [S
 ---
 
 ## Versi Terbaru
+
+### [2.28.4] - 2026-08-25
+
+**OT OB/Security Full Parity: Foto Viewer + Filter Sumber + GPS Detail**
+
+**Fitur Baru:**
+- **Viewer Foto Bukti OT** — tombol 📷 di tab Driver & tab OB/Security membuka modal berisi foto mulai + foto selesai (klik untuk full-size). Mendukung foto lokal `/uploads/overtime/…` maupun URL eksternal dari sheet. Sebelumnya foto tersimpan tapi tidak ada UI untuk melihatnya
+- **Filter Sumber di tab OB/Security** — dropdown Semua Sumber / Google Sheet / Aplikasi / Migrasi (paritas dengan tab Driver); endpoint list & report OB kini menerima param `source`
+- **GPS Detail di Form Publik OB/Security** — form publik otomatis deteksi lokasi saat dibuka (reverse geocode Nominatim: alamat lengkap, kelurahan, kecamatan, kota, provinsi, kode pos) + tombol 🔄 Deteksi Ulang; data GPS ikut tersimpan ke DB dan muncul di Detail Report
+
+**Fix Kritis (Fresh Deploy):**
+- **Kolom GPS tidak pernah ada di kode migrasi** — kolom `gps_*` untuk `overtime_driver` & `trip_masters` (v2.27.1) hanya ditambah manual ke DB produksi. Fresh deploy baru akan GAGAL saat submit OT/Trip dengan GPS. Sekarang migrasi idempoten menambahkan 8 kolom GPS ke `overtime_driver`, `overtime_ob_security`, DAN `trip_masters` saat startup + kolom yang sama di `init.sql`
+
+**Backend:**
+- `POST /api/overtime` (form publik OB) — terima & simpan `gps_lat/lon/address/kelurahan/kecamatan/kota/provinsi/kode_pos`
+- `GET /api/overtime/ob-security` — filter `source` (`sheet`/`form`/`migrasi`)
+- `GET /api/overtime/report?modul=ob` — filter `source` mendukung nilai `migrasi`
+- `modules/overtime_schema.py` — guarded ALTER GPS ×3 tabel + kolom di CREATE TABLE
+
+---
 
 ### [2.28.3] - 2026-08-25
 
@@ -503,4 +523,4 @@ Versi stabil pertama dengan fitur lengkap: 10 role, 243 pytest, 82 Vitest, 10 vi
 
 ---
 
-*BPF WorkHub v2.28.3 · Changelog*
+*BPF WorkHub v2.28.4 · Changelog*

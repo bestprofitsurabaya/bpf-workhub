@@ -1,7 +1,8 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { api } from '../api'
 import { applyWatermark, fileToDataUrl } from '../utils/watermark'
+import { getPosition, detailedLocation } from '../utils/gps'
 
 const brandIcon = '/static/icon-192.png'
 const form = ref({
@@ -12,6 +13,30 @@ const loading = ref(false)
 const done = ref(null) // { display_id, msg }
 const names = ref([])
 const keterangan = ref([])
+
+// --- GPS detail (paritas dengan OT Driver) ---
+const gps = ref({ lat: '', lon: '', address: '', kelurahan: '', kecamatan: '', kota: '', provinsi: '', kode_pos: '' })
+const gpsStatus = ref('')
+const gpsLoading = ref(false)
+
+async function locate() {
+  gpsLoading.value = true
+  try {
+    const pos = await getPosition()
+    const d = await detailedLocation(pos.coords.latitude, pos.coords.longitude)
+    gps.value = {
+      lat: String(d.lat ?? ''), lon: String(d.lon ?? ''),
+      address: d.full_address || '', kelurahan: d.kelurahan || '',
+      kecamatan: d.kecamatan || '', kota: d.kota || '',
+      provinsi: d.provinsi || '', kode_pos: d.kode_pos || '',
+    }
+    gpsStatus.value = '✅ ' + (d.full_address || `${d.lat}, ${d.lon}`)
+  } catch {
+    gpsStatus.value = '⚠️ GPS tidak tersedia — foto tetap diberi watermark tanggal & perusahaan'
+  } finally {
+    gpsLoading.value = false
+  }
+}
 
 // --- Foto ---
 const fotoMulaiFile = ref(null)
@@ -37,8 +62,11 @@ function today() {
   return `${d.getFullYear()}-${mm}-${dd}`
 }
 
-/** Get GPS text from browser */
+/** Get GPS text for watermark (pakai hasil deteksi, fallback browser API). */
 function getGpsText() {
+  if (gps.value.lat && gps.value.lon) {
+    return Promise.resolve(`${Number(gps.value.lat).toFixed(5)}, ${Number(gps.value.lon).toFixed(5)}`)
+  }
   return new Promise((resolve) => {
     if (!navigator.geolocation) return resolve('GPS tidak tersedia')
     navigator.geolocation.getCurrentPosition(
@@ -88,8 +116,13 @@ async function submit() {
   }
   loading.value = true
   try {
-    // Convert foto to base64
-    const payload = { ...form.value }
+    // Convert foto to base64 + sertakan GPS detail
+    const payload = {
+      ...form.value,
+      gps_lat: gps.value.lat, gps_lon: gps.value.lon, gps_address: gps.value.address,
+      gps_kelurahan: gps.value.kelurahan, gps_kecamatan: gps.value.kecamatan,
+      gps_kota: gps.value.kota, gps_provinsi: gps.value.provinsi, gps_kode_pos: gps.value.kode_pos,
+    }
     if (fotoMulaiFile.value) {
       payload.foto_mulai = await blobToBase64(fotoMulaiFile.value)
     }
@@ -116,6 +149,7 @@ function reset() {
 }
 
 loadMeta()
+onMounted(locate)
 </script>
 
 <template>
@@ -220,6 +254,15 @@ loadMeta()
           </div>
         </div>
 
+        <!-- GPS DETAIL -->
+        <div class="gps-box">
+          <div class="row" style="justify-content:space-between;align-items:center;gap:8px;">
+            <label class="foto-label">📍 Lokasi (GPS)</label>
+            <button type="button" class="btn btn-xs" :disabled="gpsLoading" @click="locate">{{ gpsLoading ? '⏳ Deteksi…' : '🔄 Deteksi Ulang' }}</button>
+          </div>
+          <p style="font-size:11px;margin:4px 0 0;word-break:break-word;">{{ gpsStatus || 'Mendeteksi lokasi…' }}</p>
+        </div>
+
         <div class="field">
           <label>Keterangan</label>
           <input class="input" v-model="form.keterangan" list="ket-options" placeholder="cth: OT malam / Keamanan kantor / Standby" />
@@ -272,6 +315,11 @@ loadMeta()
 
 /* Foto section */
 .foto-section { margin: 16px 0; }
+.gps-box {
+  margin: 12px 0; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px;
+  background: var(--bg);
+}
+.btn-xs { padding: 3px 10px; font-size: 11px; }
 .foto-label { font-size: 13px; font-weight: 600; }
 .foto-box { flex: 1; min-width: 130px; }
 .foto-input {

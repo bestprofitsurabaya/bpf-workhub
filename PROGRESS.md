@@ -4,7 +4,7 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 **Terakhir diperbarui:** 2026-08-25  
 **Branch:** `main`  
-**Versi terbaru:** v2.28.3
+**Versi terbaru:** v2.28.4
 
 ---
 
@@ -12,7 +12,7 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 | Aspek | Status |
 |-------|--------|
-| Versi | v2.28.3 (Test Suite Fix: PDF parser + mock idb + refactor duplikasi) |
+| Versi | v2.28.4 (OT OB/Security Full Parity: Foto Viewer + Filter Sumber + GPS) |
 | Docker | `bbm_web` running on `nasbpfsby.duckdns.org:5000` |
 | App Running | `https://nasbpfsby.duckdns.org:5000` |
 | Databases | 10 DB terpisah (1 master + 9 cabang) |
@@ -153,6 +153,9 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 - [x] Config sumber data dual-panel (Driver + OB/Security)
 - [x] Foto OT auto-cleanup > 6 bulan (cron + background thread + manual API)
 - [x] Cron di Docker container — langsung bekerja saat fresh deploy
+- [x] Viewer foto bukti 📷 di tab Driver & OB/Security (modal, klik utk full-size)
+- [x] Filter Sumber (Sheet/Aplikasi/Migrasi) di tab OB/Security — paritas Driver
+- [x] GPS detail di form publik OB/Security (auto-detect Nominatim + simpan ke DB)
 
 ### PWA Driver
 - [x] 5 tab: BBM, Kasbon, Trip, OT, Rapor
@@ -207,6 +210,7 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 - ✅ Service Worker redirect error
 - ✅ Photo upload 1 tombol → 2 tombol
 - ✅ Watermark font terlalu besar
+- ✅ **Kolom GPS tidak ada di kode migrasi (v2.28.4)** — gps_* overtime_driver & trip_masters sebelumnya hanya manual di DB produksi; fresh deploy gagal saat submit OT/Trip ber-GPS. Kini migrasi idempoten ×3 tabel (overtime_driver, overtime_ob_security, trip_masters) + init.sql
 
 ---
 
@@ -247,4 +251,4 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 ---
 
-*BPF WorkHub v2.28.3 · Progres Tracker*
+*BPF WorkHub v2.28.4 · Progres Tracker*

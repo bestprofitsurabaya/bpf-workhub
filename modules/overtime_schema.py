@@ -51,6 +51,14 @@ def ensure_overtime_schema(conn=None):
                 broker VARCHAR(150) DEFAULT '',
                 manager VARCHAR(150) DEFAULT '',
                 doc_url VARCHAR(600) DEFAULT '',
+                gps_lat VARCHAR(20) DEFAULT '',
+                gps_lon VARCHAR(20) DEFAULT '',
+                gps_address VARCHAR(500) DEFAULT '',
+                gps_kelurahan VARCHAR(100) DEFAULT '',
+                gps_kecamatan VARCHAR(100) DEFAULT '',
+                gps_kota VARCHAR(100) DEFAULT '',
+                gps_provinsi VARCHAR(100) DEFAULT '',
+                gps_kode_pos VARCHAR(10) DEFAULT '',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                 INDEX idx_otd_tanggal (tanggal),
@@ -84,6 +92,14 @@ def ensure_overtime_schema(conn=None):
                 email VARCHAR(150) DEFAULT '',
                 source VARCHAR(20) DEFAULT 'form',
                 source_uid VARCHAR(64) DEFAULT '',
+                gps_lat VARCHAR(20) DEFAULT '',
+                gps_lon VARCHAR(20) DEFAULT '',
+                gps_address VARCHAR(500) DEFAULT '',
+                gps_kelurahan VARCHAR(100) DEFAULT '',
+                gps_kecamatan VARCHAR(100) DEFAULT '',
+                gps_kota VARCHAR(100) DEFAULT '',
+                gps_provinsi VARCHAR(100) DEFAULT '',
+                gps_kode_pos VARCHAR(10) DEFAULT '',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                 UNIQUE KEY uq_oto_source (source_uid),
@@ -92,6 +108,23 @@ def ensure_overtime_schema(conn=None):
                 INDEX idx_oto_posisi (posisi)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
         """, cursor, "overtime_ob_security")
+
+        # v2.27.1/v2.28.4: kolom GPS detail — paritas Driver vs OB/Security.
+        # Sebelumnya kolom ini hanya ditambah manual di DB produksi (tidak ada
+        # di kode migrasi → fresh deploy gagal saat submit OT/Trip dengan GPS).
+        _GPS_COLUMNS = (
+            ('gps_lat', "VARCHAR(20) DEFAULT ''"),
+            ('gps_lon', "VARCHAR(20) DEFAULT ''"),
+            ('gps_address', "VARCHAR(500) DEFAULT ''"),
+            ('gps_kelurahan', "VARCHAR(100) DEFAULT ''"),
+            ('gps_kecamatan', "VARCHAR(100) DEFAULT ''"),
+            ('gps_kota', "VARCHAR(100) DEFAULT ''"),
+            ('gps_provinsi', "VARCHAR(100) DEFAULT ''"),
+            ('gps_kode_pos', "VARCHAR(10) DEFAULT ''"),
+        )
+        for table in ('overtime_driver', 'overtime_ob_security', 'trip_masters'):
+            for col, ddl in _GPS_COLUMNS:
+                _run(f"ALTER TABLE {table} ADD COLUMN {col} {ddl}", cursor, f"{table}.{col}")
 
         # --- system_config: URL sumber sheet Driver (default CSV export;
         # GA HR bisa mengganti dengan URL Google Apps Script Web App) ---

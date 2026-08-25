@@ -544,6 +544,15 @@ def register_overtime_routes(app):
             waktu_selesai = clean(data.get('waktu_selesai'))
             keterangan = clean(data.get('keterangan'))[:500]
             email = clean(data.get('email'))[:150]
+            # v2.28.4: GPS detail (paritas dengan OT Driver)
+            gps_lat = str(data.get('gps_lat', ''))[:20]
+            gps_lon = str(data.get('gps_lon', ''))[:20]
+            gps_address = str(data.get('gps_address', ''))[:500]
+            gps_kelurahan = str(data.get('gps_kelurahan', ''))[:100]
+            gps_kecamatan = str(data.get('gps_kecamatan', ''))[:100]
+            gps_kota = str(data.get('gps_kota', ''))[:100]
+            gps_provinsi = str(data.get('gps_provinsi', ''))[:100]
+            gps_kode_pos = str(data.get('gps_kode_pos', ''))[:10]
 
             # Foto bukti timestamp (base64 data URL dari frontend)
             foto_mulai_b64 = data.get('foto_mulai', '')
@@ -577,12 +586,16 @@ def register_overtime_routes(app):
             cursor.execute(
                 """INSERT INTO overtime_ob_security
                    (display_id, nama, posisi, tanggal, waktu_mulai, waktu_selesai,
-                    keterangan, foto_mulai, foto_selesai, email, source, source_uid)
-                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'form',%s)""",
+                    keterangan, foto_mulai, foto_selesai, email, source, source_uid,
+                    gps_lat, gps_lon, gps_address, gps_kelurahan, gps_kecamatan,
+                    gps_kota, gps_provinsi, gps_kode_pos)
+                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'form',%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
                 (display_id, nama, posisi, tanggal_iso,
                  (parse_time_12h(waktu_mulai) or waktu_mulai)[:20],
                  (parse_time_12h(waktu_selesai) or waktu_selesai or '')[:20],
-                 keterangan, foto_mulai_url, foto_selesai_url, email, source_uid))
+                 keterangan, foto_mulai_url, foto_selesai_url, email, source_uid,
+                 gps_lat, gps_lon, gps_address, gps_kelurahan, gps_kecamatan,
+                 gps_kota, gps_provinsi, gps_kode_pos))
             conn.commit()
             log_activity_async(None, 'overtime_submit', 'public', nama,
                                new_data={'display_id': display_id, 'posisi': posisi},
