@@ -4,7 +4,7 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 **Terakhir diperbarui:** 2026-08-25  
 **Branch:** `main`  
-**Versi terbaru:** v2.28.5
+**Versi terbaru:** v2.28.6
 
 ---
 
@@ -12,7 +12,7 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 | Aspek | Status |
 |-------|--------|
-| Versi | v2.28.5 (Security Hardening: SECRET_KEY + SQL Injection + DB Cleanup) |
+| Versi | v2.28.6 (GPS Upsert Parity + Driver Rate Limit + Schema Config) |
 | Docker | `bbm_web` running on `nasbpfsby.duckdns.org:5000` |
 | App Running | `https://nasbpfsby.duckdns.org:5000` |
 | Databases | 10 DB terpisah (1 master + 9 cabang) |

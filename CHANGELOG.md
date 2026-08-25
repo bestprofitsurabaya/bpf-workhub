@@ -13,6 +13,26 @@ Format: [Keep a Changelog](https://keepachangelog.com/id/ID/1.0.0/) · Versi: [S
 
 ## Versi Terbaru
 
+### [2.28.6] - 2026-08-25
+
+**Overtime GPS Upsert Parity + Driver Rate Limit + Schema Config**
+
+**Fix:**
+- **GPS columns hilang saat sheet refresh** — `ON DUPLICATE KEY UPDATE` di `_upsert_driver_rows()` dan `_upsert_ob_rows()` sebelumnya tidak menyertakan 8 kolom GPS (`gps_lat/lon/address/kelurahan/kecamatan/kota/provinsi/kode_pos`). Saat GA HR menekan Refresh, GPS data yang sudah ada di DB tertimpa dengan string kosong. Kini GPS preserved saat upsert
+- **Driver submit tanpa rate limit** — endpoint `POST /api/overtime/driver/submit` sebelumnya tidak punya rate limit (berbeda dengan OB/Security yang punya 10/10menit per IP). Driver bisa spam submit tanpa batas. Kini rate limit seragam
+- **Config `overtime_ob_sheet_url` tidak ada di startup** — `overtime_schema.py` hanya insert config untuk Driver sheet URL. OB/Security sheet URL belum ada di `system_config` saat fresh deploy. Kini INSERT IGNORE untuk kedua config key
+
+**Backend:**
+- `modules/routes_overtime.py` — GPS columns di ON DUPLICATE KEY UPDATE ×2 tabel + rate limit di driver submit
+- `modules/overtime_schema.py` — INSERT IGNORE `overtime_ob_sheet_url` saat startup
+
+**Verifikasi:**
+- 55/55 pytest overtime tests lulus
+- 82/82 vitest lulus
+- Container `bbm_web` rebuilt & restarted
+
+---
+
 ### [2.28.5] - 2026-08-25
 
 **Security Hardening: SECRET_KEY + SQL Injection + DB Cleanup**
