@@ -39,6 +39,12 @@ def validate_overtime_data(data, modul='ob'):
         tanggal_iso = parse_date_mdy(tanggal) or tanggal
         if len(str(tanggal_iso)) != 10:
             errors['tanggal'] = 'Tanggal harus format DD/MM/YYYY atau YYYY-MM-DD'
+        else:
+            # Validate tanggal is a real date (not just length)
+            try:
+                datetime.strptime(tanggal_iso, '%Y-%m-%d')
+            except ValueError:
+                errors['tanggal'] = 'Tanggal tidak valid'
         cleaned['tanggal'] = tanggal_iso
 
     waktu_mulai = clean(data.get('waktu_mulai'))
@@ -52,6 +58,13 @@ def validate_overtime_data(data, modul='ob'):
 
     cleaned['keterangan'] = clean(data.get('keterangan'))[:500]
     cleaned['email'] = clean(data.get('email'))[:150]
+
+    # --- Validate waktu logic (mulai <= selesai) ---
+    if cleaned.get('waktu_mulai') and cleaned.get('waktu_selesai'):
+        if cleaned['waktu_mulai'] > cleaned['waktu_selesai']:
+            # Allow OT lewat tengah malam (waktu_selesai < waktu_mulai = next day)
+            # Only flag if both times are clearly invalid (not OT lewat malam)
+            pass  # OT lewat malam is valid in this system
 
     # --- GPS fields ---
     cleaned['gps_lat'] = str(data.get('gps_lat', ''))[:20]
