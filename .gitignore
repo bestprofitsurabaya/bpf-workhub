@@ -18,6 +18,9 @@ Thumbs.db
 uploads/*
 !uploads/.gitkeep
 
+# Runtime data News Scraper (state aplikasi, bukan kode)
+data/news_scraper/
+
 # Backup
 backup/
 *.sql.gz
