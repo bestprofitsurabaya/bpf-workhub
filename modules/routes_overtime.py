@@ -336,7 +336,11 @@ def _upsert_driver_rows(conn, rows):
                      keterangan=VALUES(keterangan), foto_mulai=VALUES(foto_mulai),
                      foto_selesai=VALUES(foto_selesai), notes=VALUES(notes),
                      no_kendaraan=VALUES(no_kendaraan), broker=VALUES(broker),
-                     manager=VALUES(manager), doc_url=VALUES(doc_url)""",
+                     manager=VALUES(manager), doc_url=VALUES(doc_url),
+                     gps_lat=VALUES(gps_lat), gps_lon=VALUES(gps_lon),
+                     gps_address=VALUES(gps_address), gps_kelurahan=VALUES(gps_kelurahan),
+                     gps_kecamatan=VALUES(gps_kecamatan), gps_kota=VALUES(gps_kota),
+                     gps_provinsi=VALUES(gps_provinsi), gps_kode_pos=VALUES(gps_kode_pos)""",
                 (row['sheet_row'], row['submitted_at'], row['email'],
                  row['nama'], row['tanggal'], row['waktu_mulai'],
                  row['waktu_selesai'], row['keterangan'], row['foto_mulai'],
@@ -384,7 +388,11 @@ def _upsert_ob_rows(conn, rows):
                      nama=VALUES(nama), posisi=VALUES(posisi), tanggal=VALUES(tanggal),
                      waktu_mulai=VALUES(waktu_mulai), waktu_selesai=VALUES(waktu_selesai),
                      keterangan=VALUES(keterangan), foto_mulai=VALUES(foto_mulai),
-                     foto_selesai=VALUES(foto_selesai), email=VALUES(email)""",
+                     foto_selesai=VALUES(foto_selesai), email=VALUES(email),
+                     gps_lat=VALUES(gps_lat), gps_lon=VALUES(gps_lon),
+                     gps_address=VALUES(gps_address), gps_kelurahan=VALUES(gps_kelurahan),
+                     gps_kecamatan=VALUES(gps_kecamatan), gps_kota=VALUES(gps_kota),
+                     gps_provinsi=VALUES(gps_provinsi), gps_kode_pos=VALUES(gps_kode_pos)""",
                 (row.get('display_id', ''), row['nama'], row.get('posisi', 'OB'),
                  row.get('tanggal', ''), row.get('waktu_mulai', ''),
                  row.get('waktu_selesai', ''), row.get('keterangan', ''),
@@ -591,6 +599,11 @@ def register_overtime_routes(app):
     def api_overtime_driver_submit():
         """Submit overtime Driver dari PWA (perlu login driver)."""
         try:
+            ip = request.remote_addr or '?'
+            if not _rate_ok(ip):
+                return jsonify({'status': 'error',
+                                'msg': 'Terlalu banyak pengiriman dari perangkat ini. '
+                                       'Coba lagi beberapa saat.'}), 429
             data = request.get_json(silent=True) or {}
             # Driver identity dari session (anti impersonasi)
             if not data.get('nama'):

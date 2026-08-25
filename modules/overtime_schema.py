@@ -126,13 +126,17 @@ def ensure_overtime_schema(conn=None):
             for col, ddl in _GPS_COLUMNS:
                 _run(f"ALTER TABLE {table} ADD COLUMN {col} {ddl}", cursor, f"{table}.{col}")
 
-        # --- system_config: URL sumber sheet Driver (default CSV export;
-        # GA HR bisa mengganti dengan URL Google Apps Script Web App) ---
+        # --- system_config: URL sumber sheet Driver + OB/Security ---
+        # GA HR bisa mengganti dengan URL Google Apps Script Web App
         _run("""
             INSERT IGNORE INTO system_config (config_key, config_value)
             VALUES ('overtime_driver_sheet_url',
                     'https://docs.google.com/spreadsheets/d/1L-7ZT0p48gVZEbDJS-azMqpGobmvmqCDB9J6sAB3DGM/gviz/tq?tqx=out:csv')
         """, cursor, "system_config.overtime_driver_sheet_url")
+        _run("""
+            INSERT IGNORE INTO system_config (config_key, config_value)
+            VALUES ('overtime_ob_sheet_url', '')
+        """, cursor, "system_config.overtime_ob_sheet_url")
 
         conn.commit()
         cursor.close()
