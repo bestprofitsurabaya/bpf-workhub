@@ -11,7 +11,12 @@ vi.mock('socket.io-client', () => ({
 const { apiMock } = vi.hoisted(() => ({ apiMock: vi.fn() }))
 vi.mock('../../api', () => ({ api: apiMock }))
 
-const idb = vi.hoisted(() => ({ countAllQueues: vi.fn(() => Promise.resolve({ fuel: 0, trip: 0, lpj: 0 })) }))
+const idb = vi.hoisted(() => ({
+  countAllQueues: vi.fn(() => Promise.resolve({ fuel: 0, trip: 0, lpj: 0 })),
+  saveTripDraft: vi.fn(() => Promise.resolve()),
+  loadTripDraft: vi.fn(() => Promise.resolve(null)),
+  deleteTripDraft: vi.fn(() => Promise.resolve()),
+}))
 vi.mock('../../utils/idb', () => idb)
 vi.mock('../../utils/gps', () => ({
   locateWithAddress: vi.fn(() => Promise.resolve({ lat: -7.25, lon: 112.75, addr: 'Jl. Raya, Surabaya', spbu: '' })),

@@ -15,7 +15,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from modules.helpers import (applicant_stage_label, applicant_status_label,
                              home_for_role, ROLE_HOME)
 from modules.pdf_generator import ApplicantReportPDF
-from tests.test_water import _pdf_text
+from tests.pdf_text import _pdf_text
 
 
 # ============================================================

@@ -13,7 +13,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from modules.routes_assets import _ac_health_score  # noqa: E402
 from modules.pdf_generator import AssetReportPDF  # noqa: E402
-from tests.test_water import _pdf_text  # noqa: E402
+from tests.pdf_text import _pdf_text  # noqa: E402
 
 
 class TestAcHealthScore:

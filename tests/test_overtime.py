@@ -405,14 +405,14 @@ class TestOvertimePDF:
         return buf.getvalue()
 
     def test_generate_empty_rows(self):
-        from tests.test_water import _pdf_text
+        from tests.pdf_text import _pdf_text
         data = self._mk_pdf([])
         assert data.startswith(b'%PDF')
         assert b'%%EOF' in data[-32:]
         assert 'LAPORAN OVERTIME' in _pdf_text(data)
 
     def test_generate_driver(self):
-        from tests.test_water import _pdf_text
+        from tests.pdf_text import _pdf_text
         rows = [{
             'tanggal': date(2026, 8, 13), 'nama': 'Andi Driver',
             'waktu_mulai': '18:00', 'waktu_selesai': '21:00',
@@ -426,7 +426,7 @@ class TestOvertimePDF:
         assert 'GA HR' in txt.upper()
 
     def test_generate_ob_security(self):
-        from tests.test_water import _pdf_text
+        from tests.pdf_text import _pdf_text
         rows = [{
             'tanggal': date(2026, 8, 13), 'nama': 'Muhajir',
             'posisi': 'Security', 'waktu_mulai': '18:30', 'waktu_selesai': '22:00',

@@ -699,7 +699,6 @@ def resolve_driver_scope(param_value=''):
     if session.get('user_role'):
         return (param_value or '').strip().upper()
     return None
-    return None
 
 
 # ============================================================
