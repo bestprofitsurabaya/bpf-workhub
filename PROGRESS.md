@@ -4,7 +4,7 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 **Terakhir diperbarui:** 2026-08-25  
 **Branch:** `main`  
-**Versi terbaru:** v2.28.4
+**Versi terbaru:** v2.28.5
 
 ---
 
@@ -12,7 +12,7 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 | Aspek | Status |
 |-------|--------|
-| Versi | v2.28.4 (OT OB/Security Full Parity: Foto Viewer + Filter Sumber + GPS) |
+| Versi | v2.28.5 (Security Hardening: SECRET_KEY + SQL Injection + DB Cleanup) |
 | Docker | `bbm_web` running on `nasbpfsby.duckdns.org:5000` |
 | App Running | `https://nasbpfsby.duckdns.org:5000` |
 | Databases | 10 DB terpisah (1 master + 9 cabang) |
@@ -214,6 +214,11 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 - ✅ **Service backup DB tidak pernah jalan (v2.28.4)** — mariadb:10.11 tidak punya crond → bbm_backup crash-loop sejak v2.21. Kini loop scheduler tanpa cron; dump 10 DB terverifikasi
 - ✅ **record.mjs selector login usang (v2.28.4)** — LoginView v2.27 tak lagi pakai #login-pin; skenario driver (5 tab) & GA HR diperbarui
 - ✅ Presentasi & video demo di-regenerate dari data produksi cabang Surabaya (PPTX 12 slide + PDF + 11 mp4) — tersedia di Nextcloud `BPF /Presentasi_BPF_WorkHub_v2.28.4/`
+- ✅ **Hardcoded SECRET_KEY (v2.28.5)** — app.py fallback insecure key; kini raise RuntimeError di production jika SECRET_KEY env tidak ada
+- ✅ **SQL Injection di _get_sheet_url() (v2.28.5)** — f-string SQL → parameterized query (`%s`)
+- ✅ **Dead code di routes_cash.py (v2.28.5)** — return statement kedua yang unreachable dihapus
+- ✅ **Missing DB connection check (v2.28.5)** — submit_trip() crash bila conn=None; kini return 500 dengan pesan
+- ✅ **Connection leak di submit_trip() (v2.28.5)** — sekarang pakai try/finally + conn=None pattern
 
 ---
 
@@ -254,4 +259,4 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 ---
 
-*BPF WorkHub v2.28.4 · Progres Tracker*
+*BPF WorkHub v2.28.5 · Progres Tracker*

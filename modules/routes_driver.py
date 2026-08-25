@@ -174,6 +174,7 @@ def register_driver_routes(app, socketio):
     @app.route('/submit-trip', methods=['POST'])
     def submit_trip():
         """Process multi-destination trip log submission"""
+        conn = None
         try:
             # v2.5: identitas driver WAJIB dari sesi login (jalur legacy ditutup)
             driver_name = session_driver_name()
@@ -191,6 +192,8 @@ def register_driver_routes(app, socketio):
                 return jsonify({'status': 'error', 'msg': 'Driver, Nopol, Jam Berangkat, dan KM Awal wajib diisi!'}), 400
 
             conn = get_db_connection()
+            if not conn:
+                return jsonify({'status': 'error', 'msg': 'DB error — koneksi database gagal'}), 500
             cursor = conn.cursor()
 
             trip_display_id = generate_trip_display_id(conn)
@@ -280,6 +283,7 @@ def register_driver_routes(app, socketio):
             log_activity_async(trip_id, 'trip_submit', 'driver', driver_name,
                               new_data={'details': detail_count}, ip=request.remote_addr)
             cursor.close(); conn.close()
+            conn = None
 
             try:
                 socketio.emit('new_trip_report', {
@@ -297,5 +301,11 @@ def register_driver_routes(app, socketio):
             print(f"Trip submit error: {e}")
             import traceback; traceback.print_exc()
             return jsonify({'status': 'error', 'msg': str(e)}), 500
+        finally:
+            if conn:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
     from modules.helpers import generate_trip_display_id

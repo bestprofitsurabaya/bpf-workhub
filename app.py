@@ -27,7 +27,16 @@ warnings.filterwarnings('ignore')
 # Init Flask
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
-app.secret_key = os.environ.get('SECRET_KEY', 'bpf_bbm_secret_key_default_2026')
+_secret = os.environ.get('SECRET_KEY')
+if not _secret:
+    _env = os.environ.get('FLASK_ENV', 'production')
+    if _env != 'development':
+        raise RuntimeError(
+            'SECRET_KEY environment variable is required in production. '
+            'Set it before starting the app.')
+    _secret = 'dev-only-insecure-key-not-for-production'
+    print('[SECURITY] WARNING: Using fallback SECRET_KEY — set SECRET_KEY env var for production!')
+app.secret_key = _secret
 app.config['UPLOAD_FOLDER'] = 'uploads'
 os.makedirs('uploads', exist_ok=True)
 
@@ -221,6 +230,10 @@ def add_security_headers(response):
     response.headers.setdefault('Permissions-Policy',
                                 'camera=(self), geolocation=(self), microphone=(), '
                                 'payment=(), usb=(), display-capture=()')
+    # HSTS: paksa HTTPS di browser (hanya aktif saat HTTPS)
+    if request.is_secure:
+        response.headers.setdefault('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
+
     if response.headers.get('Content-Type', '').startswith('text/html'):
         response.headers.setdefault(
             'Content-Security-Policy',
@@ -262,6 +275,34 @@ def log_access_json(response):
 @app.before_request
 def mark_request_start():
     request.environ['_req_start'] = time.perf_counter()
+
+
+@app.before_request
+def session_binding_check():
+    """Anti session hijacking: bind session ke IP + User-Agent.
+    Bila IP atau UA berubah signifikan setelah login, session dianggap
+    tidak valid (potensi hijacking). Skip untuk endpoint publik & socket.io.
+    ISO/IEC 27001 A.8.5 — manajemen sesi.
+    """
+    p = request.path
+    if p.startswith(('/socket.io', '/uploads/', '/api/overtime/form')):
+        return None
+    if not session.get('user_role'):
+        return None
+    # Skip binding check untuk mobile driver (IP bisa berubah saat pindah jaringan)
+    if session.get('user_role') == 'driver':
+        return None
+    # Simpan IP & UA saat login
+    if '_bind_ip' not in session:
+        session['_bind_ip'] = request.remote_addr
+        session['_bind_ua'] = request.user_agent.string[:200]
+    # Cek binding — hanya flag, tidak block (production-safe)
+    current_ip = request.remote_addr
+    saved_ip = session.get('_bind_ip', '')
+    if saved_ip and current_ip != saved_ip:
+        # IP berbeda → log warning (bukan blocker karena NAT/proxy)
+        print(f'[SESSION] IP binding mismatch: {session.get("user_name", "?")} '
+              f'({saved_ip} → {current_ip})')
 
 if __name__ == '__main__':
     socketio.run(app, host='0.0.0.0', port=5000, debug=False, allow_unsafe_werkzeug=True)

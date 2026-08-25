@@ -529,8 +529,6 @@ def register_cash_routes(app):
         except Exception as e:
             return jsonify({'status': 'error', 'msg': str(e)}), 500
 
-            return jsonify({'error': str(e)}), 500
-
     @app.route('/api/cash/delete/<int:cash_id>', methods=['POST', 'DELETE'])
     def api_cash_delete(cash_id):
         try:

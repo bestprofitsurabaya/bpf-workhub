@@ -163,8 +163,7 @@ def _get_sheet_url(conn, modul='driver'):
     """URL sumber sheet dari system_config (driver atau ob)."""
     key = 'overtime_driver_sheet_url' if modul == 'driver' else 'overtime_ob_sheet_url'
     cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT config_value FROM system_config "
-                   f"WHERE config_key='{key}'")
+    cursor.execute("SELECT config_value FROM system_config WHERE config_key=%s", (key,))
     row = cursor.fetchone()
     cursor.close()
     return (row['config_value'] if row and row.get('config_value') else '').strip()
