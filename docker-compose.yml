@@ -78,11 +78,19 @@ services:
     volumes:
       - bbm_backups:/backups
       - ./scripts/backup-db.sh:/usr/local/bin/backup-db.sh:ro
+    # Image mariadb:10.11 (Debian) TIDAK punya crond — pakai loop scheduler.
+    # Jam jalan dibaca dari 2 field pertama BACKUP_CRON (default 0 3 = 03:00).
     entrypoint: |
-      /bin/sh -c "chmod +x /usr/local/bin/backup-db.sh && \
-      echo "$${BACKUP_CRON} /bin/sh /usr/local/bin/backup-db.sh >> /var/log/backup.log 2>&1" > /etc/crontabs/root && \
-      echo 'Backup service siap — cron:' && cat /etc/crontabs/root && \
-      crond -f -l 2"
+      /bin/sh -c 'M=$$(echo $${BACKUP_CRON} | awk "{print \$1}"); \
+      H=$$(echo $${BACKUP_CRON} | awk "{print \$2}"); \
+      echo "Backup scheduler siap — jalan tiap hari jam $$H:$$(printf %02d $$M) (retensi $${BACKUP_RETENTION_DAYS} hari)"; \
+      while :; do \
+        now=$$(date +%s); t=$$(date -d "today $$H:$$M" +%s); \
+        [ "$$t" -le "$$now" ] && t=$$(date -d "tomorrow $$H:$$M" +%s); \
+        sleep $$((t - now)); \
+        echo "[scheduler] mulai backup $$(date -Iseconds)"; \
+        /bin/sh /usr/local/bin/backup-db.sh >> /var/log/backup.log 2>&1 || echo "[scheduler] backup GAGAL — cek /var/log/backup.log"; \
+      done'
     depends_on:
       db:
         condition: service_healthy
