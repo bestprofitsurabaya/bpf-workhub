@@ -1,4 +1,4 @@
-# 📋 Changelog — BPF WorkHub v2.28.4
+# 📋 Changelog — BPF WorkHub v2.28.5
 
 Format: [Keep a Changelog](https://keepachangelog.com/id/ID/1.0.0/) · Versi: [Semantic Versioning](https://semver.org/lang/id/)
 
@@ -12,6 +12,25 @@ Format: [Keep a Changelog](https://keepachangelog.com/id/ID/1.0.0/) · Versi: [S
 ---
 
 ## Versi Terbaru
+
+### [2.28.5] - 2026-08-25
+
+**Security Hardening: SECRET_KEY + SQL Injection + DB Cleanup**
+
+**Fix Kritis (Security):**
+- **Hardcoded SECRET_KEY** — `app.py` sebelumnya fallback ke hardcoded key insecure saat env `SECRET_KEY` tidak diset. Kini raise `RuntimeError` di production jika `SECRET_KEY` env tidak ada — mencegah session hijacking & CSRF token prediktable
+- **SQL Injection di `_get_sheet_url()`** — f-string SQL langsung interpolate input user → diganti ke parameterized query (`%s`) untuk mencegah SQL injection via Google Sheet URL
+- **Dead code di `routes_cash.py`** — return statement kedua unreachable dihapus (code cleanup)
+- **Missing DB connection check di `submit_trip()`** — crash bila `conn=None` karena koneksi gagal; kini return 500 dengan pesan error jelas
+- **Connection leak di `submit_trip()`** — sekarang pakai `try/finally` + `conn=None` pattern untuk menjamin koneksi selalu ditutup
+
+**Backend:**
+- `app.py` — `SECRET_KEY` env check dengan `RuntimeError` di production
+- `modules/helpers.py` — `_get_sheet_url()` → parameterized query
+- `modules/routes_cash.py` — hapus dead code unreachable return
+- `modules/routes_driver.py` — `submit_trip()` + null check & connection cleanup
+
+---
 
 ### [2.28.4] - 2026-08-25
 
@@ -30,7 +49,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/id/ID/1.0.0/) · Versi: [S
 - `POST /api/overtime` (form publik OB) — terima & simpan `gps_lat/lon/address/kelurahan/kecamatan/kota/provinsi/kode_pos`
 - `GET /api/overtime/ob-security` — filter `source` (`sheet`/`form`/`migrasi`)
 - `GET /api/overtime/report?modul=ob` — filter `source` mendukung nilai `migrasi`
-- `modules/overtime_schema.py` — guarded ALTER GPS ×3 tabel + kolom di CREATE TABLE
+- `modules/overtime_schema.py` — guarded ALTER GPS ×3 tabel (`overtime_driver`, `overtime_ob_security`, `trip_masters`) + kolom di CREATE TABLE — **idempoten & fresh-deploy safe**
 
 ---
 
@@ -521,7 +540,9 @@ Versi stabil pertama dengan fitur lengkap: 10 role, 243 pytest, 82 Vitest, 10 vi
 | v2.20.0 | 194 | 82 | 16 | 292 |
 | v2.22.0 | 243 | 82 | 16 | 341 |
 | v2.28.0 | 243 | 82 | 16 | 341 |
+| v2.28.3 | 236 | 82 | — | 318 |
+| v2.28.5 | 236 | 82 | — | 318 |
 
 ---
 
-*BPF WorkHub v2.28.4 · Changelog*
+*BPF WorkHub v2.28.5 · Changelog*

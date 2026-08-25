@@ -175,6 +175,9 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 - [x] Service Worker — fix redirect error
 - [x] Nginx cache-busting
 - [x] GPS detail disimpan ke DB
+- [x] **SECRET_KEY hardening** — RuntimeError jika env tidak ada di production
+- [x] **SQL Injection fix** — parameterized query di `_get_sheet_url()`
+- [x] **Connection leak fix** — try/finally + null check di `submit_trip()`
 
 ### QA / Test Suite (v2.28.3)
 - [x] Fix parser `_pdf_text` — escape string PDF (§7.3.4.2): `\r`/`\n`/oktal kini dibaca benar; PDF aplikasi tidak pernah rusak, murni bug utilitas test
@@ -188,7 +191,15 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 ## 🔄 Yang Sedang Dikerjakan
 
-- (kosong)
+### Roadmap v2.29.0
+- [ ] **Approval berjenjang (multi-level)** — OT/BBM/Kasbon perlu approval atasan sebelum diproses GA/Finance
+- [ ] **Dashboard mobile khusus admin** — monitoring real-time dari HP (bukan hanya desktop)
+- [ ] **Laporan otomatis mingguan via email** — ringkasan OT, BBM, kasbon terkirim otomatis tiap Senin
+
+### Tech Debt
+- [ ] **Audit endpoint unused** — 160/161 endpoint terpakai, sisanya perlu dipetakan atau dihapus
+- [ ] **Upgrade MariaDB 10.11 → 11.x** — fitur JSON table, better window functions
+- [ ] **Migrate Vue 2 → Vue 3 Composition API sepenuhnya** — beberapa komponen masih pakai Options API
 
 ---
 
@@ -201,24 +212,28 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 ---
 
-## 🐛 Bug Terbuka
+## 🐛 Bug yang Sudah Diperbaiki
 
-### Fixed
+### v2.28.5 — Security Hardening
+- ✅ **Hardcoded SECRET_KEY (v2.28.5)** — app.py fallback insecure key; kini raise RuntimeError di production jika SECRET_KEY env tidak ada
+- ✅ **SQL Injection di _get_sheet_url() (v2.28.5)** — f-string SQL → parameterized query (`%s`)
+- ✅ **Dead code di routes_cash.py (v2.28.5)** — return statement kedua yang unreachable dihapus
+- ✅ **Missing DB connection check (v2.28.5)** — submit_trip() crash bila conn=None; kini return 500 dengan pesan
+- ✅ **Connection leak di submit_trip() (v2.28.5)** — sekarang pakai try/finally + conn=None pattern
+
+### v2.28.4 — OT Parity & Infrastructure
+- ✅ **Kolom GPS tidak ada di kode migrasi** — gps_* overtime_driver & trip_masters sebelumnya hanya manual di DB produksi; fresh deploy gagal saat submit OT/Trip ber-GPS. Kini migrasi idempoten ×3 tabel (overtime_driver, overtime_ob_security, trip_masters) + init.sql
+- ✅ **Service backup DB tidak pernah jalan** — mariadb:10.11 tidak punya crond → bbm_backup crash-loop sejak v2.21. Kini loop scheduler tanpa cron; dump 10 DB terverifikasi
+- ✅ **record.mjs selector login usang** — LoginView v2.27 tak lagi pakai #login-pin; skenario driver (5 tab) & GA HR diperbarui
+- ✅ Presentasi & video demo di-regenerate dari data produksi cabang Surabaya (PPTX 12 slide + PDF + 11 mp4) — tersedia di Nextcloud `BPF /Presentasi_BPF_WorkHub_v2.28.4/`
+
+### v2.27.1 — GPS & Infrastructure
 - ✅ GPS kecamatan kosong — municipality/district fallback
 - ✅ GPS ReferenceError — variable addr undefined
 - ✅ CSP blokir Nominatim
 - ✅ Service Worker redirect error
 - ✅ Photo upload 1 tombol → 2 tombol
 - ✅ Watermark font terlalu besar
-- ✅ **Kolom GPS tidak ada di kode migrasi (v2.28.4)** — gps_* overtime_driver & trip_masters sebelumnya hanya manual di DB produksi; fresh deploy gagal saat submit OT/Trip ber-GPS. Kini migrasi idempoten ×3 tabel (overtime_driver, overtime_ob_security, trip_masters) + init.sql
-- ✅ **Service backup DB tidak pernah jalan (v2.28.4)** — mariadb:10.11 tidak punya crond → bbm_backup crash-loop sejak v2.21. Kini loop scheduler tanpa cron; dump 10 DB terverifikasi
-- ✅ **record.mjs selector login usang (v2.28.4)** — LoginView v2.27 tak lagi pakai #login-pin; skenario driver (5 tab) & GA HR diperbarui
-- ✅ Presentasi & video demo di-regenerate dari data produksi cabang Surabaya (PPTX 12 slide + PDF + 11 mp4) — tersedia di Nextcloud `BPF /Presentasi_BPF_WorkHub_v2.28.4/`
-- ✅ **Hardcoded SECRET_KEY (v2.28.5)** — app.py fallback insecure key; kini raise RuntimeError di production jika SECRET_KEY env tidak ada
-- ✅ **SQL Injection di _get_sheet_url() (v2.28.5)** — f-string SQL → parameterized query (`%s`)
-- ✅ **Dead code di routes_cash.py (v2.28.5)** — return statement kedua yang unreachable dihapus
-- ✅ **Missing DB connection check (v2.28.5)** — submit_trip() crash bila conn=None; kini return 500 dengan pesan
-- ✅ **Connection leak di submit_trip() (v2.28.5)** — sekarang pakai try/finally + conn=None pattern
 
 ---
 
@@ -259,4 +274,4 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 ---
 
-*BPF WorkHub v2.28.5 · Progres Tracker*
+*BPF WorkHub v2.28.5 · Progres Tracker · Last updated: 2026-08-25*
