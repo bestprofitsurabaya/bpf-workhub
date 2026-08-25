@@ -42,13 +42,18 @@ def register_cash_routes(app):
         cursor.close(); conn.close()
 
         if request.method == 'POST':
-            # Hanya admin Finance yang boleh mengubah kode harian (driver hanya GET)
-            if not session.get('user_role') or session.get('user_role') not in ('finance', 'admin'):
-                return jsonify({'status': 'error', 'msg': 'Akses ditolak. Hanya Finance yang dapat mengubah kode.'}), 401
-            data = request.get_json()
-            new_code = data.get('code', 0)
-            if new_code < 100 or new_code > 2000:
-                return jsonify({'status': 'error', 'msg': 'Kode harus 100-2000'}), 400
+            try:
+                # Hanya admin Finance yang boleh mengubah kode harian (driver hanya GET)
+                if not session.get('user_role') or session.get('user_role') not in ('finance', 'admin'):
+                    return jsonify({'status': 'error', 'msg': 'Akses ditolak. Hanya Finance yang dapat mengubah kode.'}), 401
+                data = request.get_json()
+                if not data:
+                    return jsonify({'status': 'error', 'msg': 'Invalid JSON body'}), 400
+                new_code = data.get('code', 0)
+                if not isinstance(new_code, (int, float)) or new_code < 100 or new_code > 2000:
+                    return jsonify({'status': 'error', 'msg': 'Kode harus angka 100-2000'}), 400
+            except Exception:
+                return jsonify({'status': 'error', 'msg': 'Invalid request body'}), 400
             conn = get_db_connection()
             cursor = conn.cursor()
             cursor.execute("INSERT INTO daily_unique_codes (code_date, unique_code) VALUES (CURDATE(), %s) ON DUPLICATE KEY UPDATE unique_code = %s", (new_code, new_code))
@@ -62,6 +67,7 @@ def register_cash_routes(app):
             if not conn: return jsonify({'error': 'DB error'}), 500
             cursor = conn.cursor(dictionary=True)
             code_val = get_or_create_daily_code_with_lock(cursor, conn)
+            conn.commit()
             cursor.close(); conn.close()
             return jsonify({'code': code_val, 'date': str(date.today()), 'manual_mode': manual_mode})
         except Exception as e:
@@ -134,10 +140,12 @@ def register_cash_routes(app):
         """GA approves the cash request"""
         try:
             data = request.get_json() or {}
-            ga_name = data.get('ga_name', 'GA Officer').strip()
+            # Use session identity for audit trail — not client-supplied name.
+            ga_name = session.get('full_name', '') or session.get('user_name', 'GA Officer')
 
             conn = get_db_connection()
             cursor = conn.cursor(dictionary=True)
+            # Atomic: check status in WHERE to prevent TOCTOU race condition.
             cursor.execute("SELECT * FROM fuel_cash_requests WHERE id = %s AND status = 'DRAFT'", (cash_id,))
             req = cursor.fetchone()
 
@@ -147,7 +155,7 @@ def register_cash_routes(app):
 
             cursor.execute("""
                 UPDATE fuel_cash_requests SET status = 'GA_APPROVED', ga_approved_by = %s, ga_approved_at = NOW()
-                WHERE id = %s
+                WHERE id = %s AND status = 'DRAFT'
             """, (ga_name, cash_id))
             conn.commit()
 
@@ -170,7 +178,8 @@ def register_cash_routes(app):
         """Finance approves the cash disbursement"""
         try:
             data = request.get_json() or {}
-            fin_name = data.get('finance_name', 'Finance Officer').strip()
+            # Use session identity for audit trail.
+            fin_name = session.get('full_name', '') or session.get('user_name', 'Finance Officer')
 
             conn = get_db_connection()
             cursor = conn.cursor(dictionary=True)
@@ -183,7 +192,7 @@ def register_cash_routes(app):
 
             cursor.execute("""
                 UPDATE fuel_cash_requests SET status = 'FINANCE_APPROVED', finance_approved_by = %s, finance_approved_at = NOW()
-                WHERE id = %s
+                WHERE id = %s AND status = 'GA_APPROVED'
             """, (fin_name, cash_id))
             conn.commit()
 
@@ -426,9 +435,12 @@ def register_cash_routes(app):
             reason = data.get('reason', 'Tanpa alasan').strip()
             conn = get_db_connection()
             cursor = conn.cursor(dictionary=True)
-            cursor.execute("SELECT * FROM fuel_cash_requests WHERE id = %s", (cash_id,))
+            cursor.execute("SELECT * FROM fuel_cash_requests WHERE id = %s AND status NOT IN ('REJECTED', 'COMPLETED')", (cash_id,))
             req = cursor.fetchone()
-            cursor.execute("UPDATE fuel_cash_requests SET status = 'REJECTED', rejection_reason = %s WHERE id = %s", (reason, cash_id))
+            if not req:
+                cursor.close(); conn.close()
+                return jsonify({'status': 'error', 'msg': 'Pengajuan tidak ditemukan, sudah ditolak, atau sudah selesai'}), 404
+            cursor.execute("UPDATE fuel_cash_requests SET status = 'REJECTED', rejection_reason = %s WHERE id = %s AND status NOT IN ('REJECTED', 'COMPLETED')", (reason, cash_id))
             conn.commit()
             cursor.close(); conn.close()
             log_activity_async(0, 'cash_reject', 'ga', 'GA Officer', new_data={'cash_id': cash_id, 'reason': reason})

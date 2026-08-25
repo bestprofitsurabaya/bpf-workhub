@@ -24,6 +24,7 @@ def register_driver_routes(app, socketio):
         if request.method == 'GET':
             return redirect('/app/driver')
         if request.method == 'POST':
+            conn = None
             try:
                 # v2.5: identitas driver WAJIB dari sesi login PIN (jalur legacy
                 # anonim lewat field `driver_name` DITUTUP — anti impersonasi).
@@ -34,11 +35,12 @@ def register_driver_routes(app, socketio):
                 nopol = request.form.get('nopol', '').strip().upper()
                 vehicle_type = request.form.get('vehicle_type', 'AVANZA')
                 bbm_type = request.form.get('bbm_type', 'PERTALITE')
-                nominal = float(request.form.get('nominal', 0))
-                price_per_liter = float(request.form.get('price_per_liter', 10000))
-                liter = nominal/price_per_liter if price_per_liter>0 else 0
-                odo_km = int(request.form.get('odo_km', 0))
-                jumlah_appointment = int(request.form.get('jumlah_appointment', 0) or 0)
+                try:
+                    nominal = float(request.form.get('nominal', 0))
+                    odo_km = int(request.form.get('odo_km', 0))
+                    jumlah_appointment = int(request.form.get('jumlah_appointment', 0) or 0)
+                except (ValueError, TypeError):
+                    return jsonify({'status': 'error', 'msg': 'Nominal, Odo KM, dan jumlah appointment harus angka'}), 400
                 spbu_type = request.form.get('spbu_type', 'rekanan')
                 gps_lat = request.form.get('gps_lat')
                 gps_lon = request.form.get('gps_lon')
@@ -53,23 +55,31 @@ def register_driver_routes(app, socketio):
                 if not conn:
                     return jsonify({'status': 'error', 'msg': 'Database error'}), 500
                 cursor = conn.cursor(dictionary=True)
+
+                # --- Basic validation BEFORE any DB writes ---
+                if not driver_name or not nopol or nominal <= 0 or odo_km <= 0:
+                    return jsonify({'status': 'error', 'msg': 'Semua field harus diisi!'}), 400
+
                 cursor.execute("SELECT * FROM drivers WHERE name=%s AND is_active=TRUE", (driver_name,))
                 driver_data = cursor.fetchone()
+                if not driver_data:
+                    return jsonify({'status': 'error', 'msg': 'Driver tidak ditemukan atau nonaktif. Hubungi Admin.'}), 403
                 resolved = resolve_driver_form_context(driver_data, driver_name, nopol, vehicle_type, bbm_type)
                 nopol = resolved['nopol']
                 vehicle_type = resolved['vehicle_type']
                 bbm_type = resolved['bbm_type']
 
-                ensure_all_master_data(driver_name, nopol, vehicle_type, bbm_type, price_per_liter)
-
                 validation = validate_bbm_for_vehicle(vehicle_type, bbm_type)
                 if not validation['valid']:
-                    cursor.close(); conn.close()
                     return jsonify({'status': 'error', 'msg': validation['error']}), 400
 
-                if not driver_name or not nopol or nominal<=0 or odo_km<=0:
-                    cursor.close(); conn.close()
-                    return jsonify({'status': 'error', 'msg': 'Semua field harus diisi!'}), 400
+                # --- Use server-side price, NOT client-provided ---
+                cursor.execute("SELECT price_per_liter FROM vehicle_fuel_prices WHERE vehicle_type=%s AND bbm_type=%s", (vehicle_type, bbm_type))
+                price_row = cursor.fetchone()
+                price_per_liter = float(price_row['price_per_liter']) if price_row and price_row.get('price_per_liter') else 10000
+                liter = nominal / price_per_liter if price_per_liter > 0 else 0
+
+                ensure_all_master_data(driver_name, nopol, vehicle_type, bbm_type, price_per_liter)
 
                 upload_dir = app.config['UPLOAD_FOLDER']
                 foto_odo_sebelum = save_file(request.files.get('foto_odo_sebelum'), 'ODO1', nopol, upload_dir)
@@ -131,6 +141,7 @@ def register_driver_routes(app, socketio):
                 except Exception:
                     pass
                 cursor.close(); conn.close()
+                conn = None
 
                 if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.headers.get('Accept') == 'application/json':
                     return jsonify({'status': 'success', 'transaction_id': display_id, 'numeric_id': tx_id, 'message': analysis['message']})
@@ -139,6 +150,12 @@ def register_driver_routes(app, socketio):
                 print(f"Driver error: {e}")
                 import traceback; traceback.print_exc()
                 return jsonify({'status': 'error', 'msg': str(e)}), 500
+            finally:
+                if conn:
+                    try:
+                        conn.close()
+                    except Exception:
+                        pass
 
     @app.route('/api/driver/me')
     @role_required(['driver'])
@@ -163,6 +180,9 @@ def register_driver_routes(app, socketio):
 
     @app.route('/uploads/<filename>')
     def uploaded_file(filename):
+        # Auth check: require login session to access uploaded files (IDOR prevention).
+        if not session.get('user_name') and not session.get('driver_name'):
+            return jsonify({'error': 'Login diperlukan'}), 401
         # Hardening (ISO/IEC 27001): file bukti dibuka inline, tapi cegah
         # MIME sniffing & eksekusi sebagai HTML (stored XSS).
         resp = make_response(send_from_directory(app.config['UPLOAD_FOLDER'], filename))
