@@ -67,6 +67,10 @@ def _save_overtime_foto(b64_data, display_id, label):
     """
     if not b64_data or not b64_data.startswith('data:image'):
         return ''
+    # Block SVG to prevent stored XSS via <script> in images.
+    if 'image/svg' in b64_data[:50].lower():
+        print('[overtime-foto] SVG upload blocked (XSS risk)')
+        return ''
     try:
         import base64
         # Parse data URL: data:image/jpeg;base64,<data>
@@ -76,10 +80,17 @@ def _save_overtime_foto(b64_data, display_id, label):
             ext = 'png'
         elif 'webp' in header:
             ext = 'webp'
-        filename = f"{display_id}_{label}.{ext}"
+        # Sanitize display_id to prevent path traversal.
+        safe_id = re.sub(r'[^a-zA-Z0-9_-]', '', display_id)
+        filename = f"{safe_id}_{label}.{ext}"
         filepath = os.path.join(_FOTO_DIR, filename)
+        decoded = base64.b64decode(data)
+        # Max 5MB decoded.
+        if len(decoded) > 5_000_000:
+            print(f'[overtime-foto] Photo too large ({len(decoded)} bytes)')
+            return ''
         with open(filepath, 'wb') as f:
-            f.write(base64.b64decode(data))
+            f.write(decoded)
         return f"/uploads/overtime/{filename}"
     except Exception as e:
         print(f"[overtime-foto] Error saving {label}: {e}")
@@ -289,11 +300,23 @@ def _fetch_sheet_rows(url, since=None):
         since: ISO datetime string untuk incremental sync (hanya ambil data baru)
                Dokumentasi v2 Apps Script: ?since=2025-08-19T00:00:00
     Return list[dict]."""
+    # SSRF protection: only allow http/https to public hosts.
+    from urllib.parse import urlparse
+    import ipaddress
+    parsed = urlparse(url)
+    if parsed.scheme not in ('http', 'https'):
+        raise ValueError(f'URL scheme tidak valid: {parsed.scheme}')
+    try:
+        ip = ipaddress.ip_address(parsed.hostname)
+        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
+            raise ValueError(f'URL ke private/internal IP tidak diizinkan: {parsed.hostname}')
+    except (ValueError, TypeError):
+        pass  # hostname is a domain, not IP — OK
     fetch_url = url
     if since:
         separator = '&' if '?' in url else '?'
         fetch_url = f'{url}{separator}since={since}'
-    resp = requests.get(fetch_url, timeout=60, headers={'User-Agent': 'Mozilla/5.0'})
+    resp = requests.get(fetch_url, timeout=60, headers={'User-Agent': 'Mozilla/5.0'}, allow_redirects=False)
     resp.raise_for_status()
     text = resp.content.decode('utf-8-sig', errors='replace')
     stripped = text.lstrip()
@@ -336,11 +359,7 @@ def _upsert_driver_rows(conn, rows):
                      keterangan=VALUES(keterangan), foto_mulai=VALUES(foto_mulai),
                      foto_selesai=VALUES(foto_selesai), notes=VALUES(notes),
                      no_kendaraan=VALUES(no_kendaraan), broker=VALUES(broker),
-                     manager=VALUES(manager), doc_url=VALUES(doc_url),
-                     gps_lat=VALUES(gps_lat), gps_lon=VALUES(gps_lon),
-                     gps_address=VALUES(gps_address), gps_kelurahan=VALUES(gps_kelurahan),
-                     gps_kecamatan=VALUES(gps_kecamatan), gps_kota=VALUES(gps_kota),
-                     gps_provinsi=VALUES(gps_provinsi), gps_kode_pos=VALUES(gps_kode_pos)""",
+                     manager=VALUES(manager), doc_url=VALUES(doc_url)""",
                 (row['sheet_row'], row['submitted_at'], row['email'],
                  row['nama'], row['tanggal'], row['waktu_mulai'],
                  row['waktu_selesai'], row['keterangan'], row['foto_mulai'],
@@ -606,8 +625,8 @@ def register_overtime_routes(app):
                                        'Coba lagi beberapa saat.'}), 429
             data = request.get_json(silent=True) or {}
             # Driver identity dari session (anti impersonasi)
-            if not data.get('nama'):
-                data['nama'] = session.get('full_name', '') or session.get('user_name', '')
+            # Always override — client must NOT be able to submit as someone else.
+            data['nama'] = session.get('full_name', '') or session.get('user_name', '')
 
             # Shared validation
             is_valid, errors, cleaned = validate_overtime_data(data, modul='driver')
@@ -701,7 +720,9 @@ def register_overtime_routes(app):
     @role_required(['ga_hr', 'admin'])
     def api_overtime_driver_refresh():
         try:
-            full = request.args.get('full', '0') == '1' or request.json and request.json.get('full') if request.is_json else False
+            full = request.args.get('full', '0') == '1'
+            if not full and request.is_json and request.json:
+                full = bool(request.json.get('full'))
             try:
                 result = _do_refresh_driver(full_sync=full)
             except ValueError as ve:
@@ -728,7 +749,9 @@ def register_overtime_routes(app):
     @role_required(['ga_hr', 'admin'])
     def api_overtime_ob_refresh():
         try:
-            full = request.args.get('full', '0') == '1' or request.json and request.json.get('full') if request.is_json else False
+            full = request.args.get('full', '0') == '1'
+            if not full and request.is_json and request.json:
+                full = bool(request.json.get('full'))
             try:
                 result = _do_refresh_ob(full_sync=full)
             except ValueError as ve:
@@ -916,12 +939,14 @@ def register_overtime_routes(app):
 
             date_label = f'{d_from or "-"} s/d {d_to or "-"}' if d_from or d_to else 'Semua Periode'
             export_format = request.args.get('format', 'pdf').lower()
-            driver_role = 'DRIVER' if modul == 'driver' else (rows[0].get('posisi', 'OB/SECURITY').upper() if rows else 'OB/SECURITY')
+            driver_role = 'DRIVER' if modul == 'driver' else ((rows[0].get('posisi') or 'OB/SECURITY').upper() if rows else 'OB/SECURITY')
 
             if export_format == 'xlsx':
                 buf = generate_overtime_detail_excel(rows, driver_name=nama, driver_role=driver_role, date_label=date_label, modul=modul)
                 buf.seek(0)
-                fname = f'Overtime_{nama.replace(" ", "_")}_{(d_to or date.today()).isoformat()}.xlsx'
+                # Sanitize filename to prevent header injection.
+                safe_nama = re.sub(r'[^a-zA-Z0-9_-]', '_', nama)[:50]
+                fname = f'Overtime_{safe_nama}_{(d_to or date.today()).isoformat()}.xlsx'
                 response = make_response(buf.read())
                 response.headers['Content-Type'] = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
                 response.headers['Content-Disposition'] = f'attachment; filename={fname}'
@@ -934,7 +959,8 @@ def register_overtime_routes(app):
                 buf = io.BytesIO()
                 pdf.output(buf)
                 buf.seek(0)
-                fname = f'Overtime_{nama.replace(" ", "_")}_{(d_to or date.today()).isoformat()}.pdf'
+                safe_nama = re.sub(r'[^a-zA-Z0-9_-]', '_', nama)[:50]
+                fname = f'Overtime_{safe_nama}_{(d_to or date.today()).isoformat()}.pdf'
                 response = make_response(buf.read())
                 response.headers['Content-Type'] = 'application/pdf'
                 response.headers['Content-Disposition'] = f'attachment; filename={fname}'
@@ -1136,7 +1162,12 @@ def register_overtime_routes(app):
             for col in _OT_COLUMNS[modul]:
                 if col not in data:
                     continue
-                val = clean(str(data[col]))
+                # Handle None/null values — don't convert to string "None"
+                raw = data[col]
+                if raw is None:
+                    val = ''
+                else:
+                    val = clean(str(raw))
                 if col == 'tanggal':
                     val = parse_date_any(val) or val
                 elif col == 'posisi':
