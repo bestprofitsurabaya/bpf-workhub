@@ -21,7 +21,19 @@ const oFrom = ref('')
 const oTo = ref('')
 const oSearch = ref('')
 const oPosisi = ref('')
+const oSource = ref('')  // '' | 'sheet' | 'form' | 'migrasi'
 const oList = ref([])
+
+// Viewer foto bukti overtime (mulai & selesai)
+const fotoRow = ref(null) // baris yang sedang dilihat fotonya
+
+function fotoUrl(v) {
+  const s = String(v || '').trim()
+  if (!s) return ''
+  return /^https?:\/\//.test(s) ? s : '/' + s.replace(/^\//, '')
+}
+
+function openFoto(r) { fotoRow.value = r }
 
 const refreshing = ref(false)
 const refreshMsg = ref('')
@@ -57,7 +69,7 @@ async function loadDriver() {
 async function loadOb() {
   loading.value = true
   try {
-    const d = await api('/api/overtime/ob-security', { params: { date_from: oFrom.value, date_to: oTo.value, search: oSearch.value, posisi: oPosisi.value } })
+    const d = await api('/api/overtime/ob-security', { params: { date_from: oFrom.value, date_to: oTo.value, search: oSearch.value, posisi: oPosisi.value, source: oSource.value } })
     oList.value = d.data || []
   } catch (e) { err.value = e.message } finally { loading.value = false }
 }
@@ -134,9 +146,10 @@ async function downloadObPdf() {
   try {
     const blob = await api('/api/overtime/report', {
       raw: true,
-      params: { modul: 'ob', date_from: oFrom.value, date_to: oTo.value, posisi: oPosisi.value, nama: oSearch.value },
+      params: { modul: 'ob', date_from: oFrom.value, date_to: oTo.value, posisi: oPosisi.value, nama: oSearch.value, source: oSource.value },
     })
-    downloadBlob(blob, `Laporan_Overtime_OB_Security_${new Date().toISOString().slice(0, 10)}.pdf`)
+    const suffix = oSource.value ? `_${oSource.value}` : ''
+    downloadBlob(blob, `Laporan_Overtime_OB_Security${suffix}_${new Date().toISOString().slice(0, 10)}.pdf`)
   } catch (e) { err.value = '❌ Gagal unduh PDF: ' + e.message }
 }
 
@@ -313,6 +326,7 @@ watch(tab, loadTab)
                   <td class="muted">{{ (r.broker || r.manager) ? (r.broker || '—') + ' / ' + (r.manager || '—') : '—' }}</td>
                   <td><span class="badge badge-gray">{{ r.source === 'sheet' ? '📥 Sheet' : '📝 App' }}</span></td>
                   <td class="row-actions">
+                    <button v-if="r.foto_mulai || r.foto_selesai" class="btn btn-xs" title="Lihat Foto Bukti" @click="openFoto(r)">📷</button>
                     <button class="btn btn-xs" title="Cetak Form Permohonan" @click="cetakForm(r, 'driver')">📄</button>
                     <button class="btn btn-xs" title="Edit" aria-label="Edit data" @click="openEdit(r, 'driver')">✏️</button>
                     <button class="btn btn-xs btn-danger" title="Hapus" aria-label="Hapus data" @click="askDelete(r, 'driver')">🗑️</button>
@@ -332,6 +346,12 @@ watch(tab, loadTab)
             <option value="">Semua Posisi</option>
             <option value="OB">OB</option>
             <option value="Security">Security</option>
+          </select>
+          <select class="select" v-model="oSource" @change="loadOb" style="max-width:140px;">
+            <option value="">Semua Sumber</option>
+            <option value="sheet">📥 Google Sheet</option>
+            <option value="form">📝 Aplikasi</option>
+            <option value="migrasi">📦 Migrasi</option>
           </select>
           <input class="input" type="date" v-model="oFrom" @change="loadOb" />
           <span class="muted">s/d</span>
@@ -363,6 +383,7 @@ watch(tab, loadTab)
                   <td class="muted">{{ r.keterangan || '—' }}</td>
                   <td><span class="badge badge-gray">{{ r.source === 'migrasi' ? '📥 Migrasi' : '📝 Form' }}</span></td>
                   <td class="row-actions">
+                    <button v-if="r.foto_mulai || r.foto_selesai" class="btn btn-xs" title="Lihat Foto Bukti" @click="openFoto(r)">📷</button>
                     <button class="btn btn-xs" title="Cetak Form Permohonan" @click="cetakForm(r, 'ob')">📄</button>
                     <button class="btn btn-xs" title="Edit" aria-label="Edit data" @click="openEdit(r, 'ob')">✏️</button>
                     <button class="btn btn-xs btn-danger" title="Hapus" aria-label="Hapus data" @click="askDelete(r, 'ob')">🗑️</button>
@@ -375,6 +396,33 @@ watch(tab, loadTab)
         </div>
       </template>
     </div>
+
+    <!-- Modal: Foto bukti overtime -->
+    <Modal v-if="fotoRow" :title="'📷 Foto Overtime — ' + (fotoRow.nama || '')" @close="fotoRow = null">
+      <div class="muted" style="font-size:12px;margin-bottom:10px;">
+        {{ fotoRow.display_id ? 'No. ' + fotoRow.display_id + ' · ' : '' }}{{ fotoRow.tanggal || '' }} {{ fmtWaktu(fotoRow) }}
+      </div>
+      <template v-if="fotoUrl(fotoRow.foto_mulai) || fotoUrl(fotoRow.foto_selesai)">
+        <div v-if="fotoUrl(fotoRow.foto_mulai)" class="field">
+          <label>📸 Foto Mulai</label>
+          <a :href="fotoUrl(fotoRow.foto_mulai)" target="_blank" rel="noopener">
+            <img :src="fotoUrl(fotoRow.foto_mulai)" alt="Foto mulai overtime" loading="lazy"
+                 style="width:100%;border-radius:8px;border:1px solid var(--border);" />
+          </a>
+        </div>
+        <div v-if="fotoUrl(fotoRow.foto_selesai)" class="field">
+          <label>📸 Foto Selesai</label>
+          <a :href="fotoUrl(fotoRow.foto_selesai)" target="_blank" rel="noopener">
+            <img :src="fotoUrl(fotoRow.foto_selesai)" alt="Foto selesai overtime" loading="lazy"
+                 style="width:100%;border-radius:8px;border:1px solid var(--border);" />
+          </a>
+        </div>
+      </template>
+      <p v-else class="empty">Tidak ada foto tersimpan untuk catatan ini.</p>
+      <div class="row" style="justify-content:flex-end;margin-top:12px;">
+        <button class="btn" @click="fotoRow = null">Tutup</button>
+      </div>
+    </Modal>
 
     <Modal v-if="editing" :title="'✏️ Edit Overtime ' + (editModul === 'driver' ? 'Driver' : 'OB/Security')" @close="editing = null">
       <div class="field">

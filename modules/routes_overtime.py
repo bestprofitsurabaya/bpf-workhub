@@ -793,6 +793,7 @@ def register_overtime_routes(app):
             search = clean(request.args.get('search'))
             posisi = clean(request.args.get('posisi'))
             nama = clean(request.args.get('nama'))
+            source = clean(request.args.get('source'))  # 'sheet' | 'form' | 'migrasi'
             where, params = [], []
             if d_from:
                 where.append('tanggal >= %s'); params.append(d_from.isoformat())
@@ -806,6 +807,8 @@ def register_overtime_routes(app):
                 where.append('posisi = %s'); params.append(posisi)
             if nama:
                 where.append('nama LIKE %s'); params.append(f'%{nama}%')
+            if source in ('sheet', 'form', 'migrasi'):
+                where.append('source = %s'); params.append(source)
 
             conn = get_db_connection()
             if not conn:
@@ -858,7 +861,7 @@ def register_overtime_routes(app):
                     where.append('posisi = %s'); params.append(posisi)
                 if nama:
                     where.append('nama LIKE %s'); params.append(f'%{nama}%')
-                if source in ('sheet', 'form'):
+                if source in ('sheet', 'form', 'migrasi'):
                     where.append('source = %s'); params.append(source)
 
             conn = get_db_connection()
