@@ -50,11 +50,26 @@ class WpClient:
     """Client for a WordPress site's REST API (``/wp-json/wp/v2``)."""
 
     def __init__(self, wp_url: str, username: str, app_password: str) -> None:
-        self.wp_url: str = wp_url.rstrip("/")
+        self.wp_url = self._normalize_base_url(wp_url)
         self.username: str = username
         self.app_password: str = app_password
         self.session: requests.Session = get_wp_session()
         self._tag_cache: dict[str, int] = {}
+
+    @staticmethod
+    def _normalize_base_url(url: str) -> str:
+        """Return the WordPress site root from ``url``.
+
+        Accepts either the bare site root (``https://example.com``) or a full
+        REST endpoint as stored in ``wp_sites.json``
+        (``https://example.com/wp-json/wp/v2/posts``), because appending
+        ``/wp-json/wp/v2/...`` to an endpoint that already contains it would
+        produce invalid URLs (HTTP 404 ``rest_no_route``).
+        """
+        base = url.rstrip("/").split("/wp-json")[0]
+        if not base:
+            raise ValueError(f"Invalid WordPress URL: {url!r}")
+        return base
 
     # ------------------------------------------------------------------ #
     # Authentication
@@ -74,6 +89,26 @@ class WpClient:
         if resp.status_code == 200:
             logger.info("Logged in to %s as %s", self.wp_url, self.username)
             return True, "Login successful"
+        if resp.status_code in (401, 403):
+            code = ""
+            try:
+                code = resp.json().get("code", "")
+            except ValueError:
+                pass
+            if code == "incorrect_password":
+                msg = (
+                    f"Password aplikasi salah untuk user '{self.username}'. "
+                    "Periksa kembali username & application password di Settings."
+                )
+            else:
+                msg = (
+                    f"Kredensial ditolak WordPress untuk user '{self.username}' "
+                    f"(HTTP {resp.status_code}). Application password kemungkinan sudah "
+                    "dicabut/tidak valid — buat baru di WP admin: Users → Profile → "
+                    "Application Passwords, lalu simpan di menu Settings scraper."
+                )
+            logger.error("WP auth rejected at %s as %s: %s", self.wp_url, self.username, code or resp.status_code)
+            return False, msg
         msg = f"Login failed (HTTP {resp.status_code}): {resp.text[:200]}"
         logger.error(msg)
         return False, msg
@@ -185,23 +220,27 @@ class WpClient:
     # Posts
     # ------------------------------------------------------------------ #
 
-    def create_post(self, data: dict[str, Any], nonce: str) -> Response:
+    def create_post(self, data: dict[str, Any], nonce: str, **kwargs: Any) -> Response:
         """Create a new post. ``data`` follows the WP REST post schema."""
         return self.request(
-            "POST", f"{self.wp_url}/wp-json/wp/v2/posts", nonce, json=data
+            "POST", f"{self.wp_url}/wp-json/wp/v2/posts", nonce, json=data, **kwargs
         )
 
-    def update_post(self, post_id: int, data: dict[str, Any], nonce: str) -> Response:
+    def update_post(self, post_id: int, data: dict[str, Any], nonce: str, **kwargs: Any) -> Response:
         """Update an existing post by ID."""
         return self.request(
-            "POST", f"{self.wp_url}/wp-json/wp/v2/posts/{post_id}", nonce, json=data
+            "POST", f"{self.wp_url}/wp-json/wp/v2/posts/{post_id}", nonce, json=data, **kwargs
         )
 
-    def get_posts(self, nonce: str, params: dict[str, Any] | None = None) -> Response:
+    def get_posts(self, nonce: str, params: dict[str, Any] | None = None, **kwargs: Any) -> Response:
         """Fetch posts; ``params`` are passed straight through as query args."""
         return self.request(
-            "GET", f"{self.wp_url}/wp-json/wp/v2/posts", nonce, params=params or {}
+            "GET", f"{self.wp_url}/wp-json/wp/v2/posts", nonce, params=params or {}, **kwargs
         )
+
+    def search_posts(self, query: str, nonce: str, **kwargs: Any) -> Response:
+        """Search posts by title. Returns a list of matching posts."""
+        return self.get_posts(nonce, params={"per_page": 10, "search": query}, **kwargs)
 
     # ------------------------------------------------------------------ #
     # Tags

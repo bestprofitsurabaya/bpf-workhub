@@ -4,6 +4,22 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 
 ---
 
+## v2.28.8 — 26 Agustus 2026
+
+### 📰 Fix News Scraper (debug sebagai user `it_sby`)
+
+Debug fungsi news scraper via simulasi login `it_sby`. Ditemukan **3 bug**:
+
+1. **`wp_sites.json` rusak oleh edit manual** — `branch_code: SBY` hilang dari BPF Surabaya (+ entri sampah `"B"`), sehingga `it_sby` melihat 0 situs. Data dipulihkan.
+2. **Filter branch naif di `list_wp_sites()`** — substring `"sby"` tidak match nama situs `"bpf surabaya"`. Kini refactor ke `_visible_sites()` + alias kota (`SBY→surabaya`, dst).
+3. **URL ganda di `WpClient`** — `wp_url` di config sudah berisi `/wp-json/wp/v2/posts`, client menambahkan `/wp-json/wp/v2/...` lagi → semua request 404 `rest_no_route`. Kini dinormalisasi via `_normalize_base_url()`. Ini memperbaiki `test-connection`, cek duplikat, DAN upload untuk semua cabang.
+
+Bonus: pesan error auth WP (401/403) kini actionable — menyebut user mana dan cara membuat Application Password baru. Live test: **BPF Bandung login OK, 9.029 post terbaca**.
+
+Catatan: app password BPF Surabaya ditolak WordPress (401) — perlu Application Password baru; 8 cabang lain masih kredensial `PENDING`.
+
+---
+
 ## v2.28.7 — 25 Agustus 2026
 
 ### 🔐 Security Review Total via Ox Alpha AI

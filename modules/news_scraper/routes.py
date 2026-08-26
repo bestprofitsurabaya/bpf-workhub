@@ -15,7 +15,7 @@ from . import (news_scraper_bp, DATA_DIR, WP_SITES_FILE, BACKLINKS_FILE,
     HYPERLINKS_FILE, SCRAPER_LOG_FILE, UPLOAD_HISTORY_FILE, SETTINGS_FILE,
     SCRAPER_ROLES, DEFAULT_AUTHORITY_SITES, DEFAULT_KEYWORD_MAPPING)
 from .wp_client import get_wp_session, WpClient
-from .scraper_engine import scrape_newsmaker, scrape_detik_finance, fetch_article_content, RateLimiter, ProgressTracker
+from .scraper_engine import scrape_newsmaker, scrape_detik_finance, fetch_article_content, RateLimiter, progress_tracker
 from .seo_optimizer import (apply_backlinks, build_article_html, seo_analyze, build_advanced_schema,
     ping_sitemap, track_performance, get_analytics, get_optimal_publish_time, should_publish_today,
     JsonCache, normalize_title, rewrite_content)
@@ -56,41 +56,20 @@ def _log_scraper(message, user='unknown'):
 
 
 # Rate limiter: 5 scrape requests / minute per user
-_scrape_rate_limiter = RateLimiter(max_calls=5, per_seconds=60)
-
-# In-memory progress trackers keyed by task_id
-_progress_trackers = {}
-_progress_lock = threading.Lock()
-
-
-def _get_tracker(task_id):
-    with _progress_lock:
-        if task_id not in _progress_trackers:
-            _progress_trackers[task_id] = ProgressTracker(task_id)
-        # Prune old trackers (keep last 50)
-        if len(_progress_trackers) > 50:
-            for k in list(_progress_trackers.keys())[:-50]:
-                del _progress_trackers[k]
-        return _progress_trackers[task_id]
-
+_scrape_rate_limiter = RateLimiter(max_requests=5, window_seconds=60)
 
 def _set_progress(task_id, data):
-    tracker = _get_tracker(task_id)
-    tracker.update(
-        stage=data.get('stage', ''),
-        progress=data.get('progress', 0),
-        message=data.get('message', ''),
-        total=data.get('total', 0),
-        current=data.get('current', 0),
-    )
+    progress_tracker.set(task_id, {
+        'stage': data.get('stage', ''),
+        'progress': data.get('progress', 0),
+        'message': data.get('message', ''),
+        'total': data.get('total', 0),
+        'current': data.get('current', 0),
+    })
 
 
 def _get_progress(task_id):
-    with _progress_lock:
-        tracker = _progress_trackers.get(task_id)
-    if not tracker:
-        return None
-    return tracker.snapshot()
+    return progress_tracker.get(task_id)
 
 
 def _save_upload_history(entry):
@@ -120,6 +99,54 @@ def _sanitize_csv(val):
     if s and s[0] in ('=', '+', '-', '@', '\t', '\r'):
         s = "'" + s
     return s
+
+
+# City-name aliases so branch codes (e.g. "SBY") can be matched against site
+# names that only contain the full city name (e.g. "BPF Surabaya").
+_BRANCH_CITY_ALIASES = {
+    'SBY': ('surabaya',),
+    'JKT': ('jakarta',),
+    'JKT2': ('jakarta 2', 'jakarta2'),
+    'BDG': ('bandung',),
+    'SMG': ('semarang',),
+    'MLG': ('malang',),
+    'MDN': ('medan',),
+    'BJM': ('banjarmasin',),
+    'PLM': ('palembang',),
+    'LPG': ('lampung',),
+}
+
+
+def _site_matches_branch(name, site_branch, user_branch):
+    """Return True if a site belongs to ``user_branch``.
+
+    Matches on ``branch_code`` first; falls back to matching the branch code
+    or its full-city alias against the site name (case-insensitive).
+    """
+    if site_branch:
+        return site_branch.upper() == user_branch.upper()
+    name_lower = name.lower()
+    ub = user_branch.upper()
+    if ub in _BRANCH_CITY_ALIASES:
+        return any(alias in name_lower for alias in _BRANCH_CITY_ALIASES[ub])
+    return user_branch.lower() in name_lower
+
+
+def _visible_sites(sites, user_branch, user_role, user_name):
+    """Return the subset of ``sites`` visible to the current user.
+
+    Admins and HQ users see everything; other scraper roles only see sites
+    belonging to their own branch.
+    """
+    is_hq = user_name in ('it_hu', 'admin')
+    if user_role == 'admin' or is_hq:
+        return dict(sites)
+    result = {}
+    for name, data in sites.items():
+        site_branch = data.get('branch_code', '')
+        if _site_matches_branch(name, site_branch, user_branch):
+            result[name] = data
+    return result
 
 
 # Scheduled jobs store
@@ -163,34 +190,22 @@ def _send_telegram(message):
 def list_wp_sites():
     """List WordPress sites filtered by user's branch."""
     sites = _load_json(WP_SITES_FILE, {})
-    user_branch = session.get('branch_code', '')
-    user_role = session.get('user_role', '')
-    result = []
-    for name, data in sites.items():
-        is_hq = session.get('user_name', '') in ('it_hu', 'admin')
-        if user_role == 'admin' or is_hq:
-            result.append({
-                'name': name, 'wp_url': data.get('wp_url', ''),
-                'wp_media_url': data.get('wp_media_url', ''),
-                'username': data.get('username', ''),
-                'app_password': data.get('app_password', ''),
-                'branch_code': data.get('branch_code', ''),
-            })
-        else:
-            site_branch = data.get('branch_code', '')
-            if not site_branch:
-                name_lower = name.lower()
-                if user_branch.lower() in name_lower:
-                    site_branch = user_branch
-            if site_branch == user_branch:
-                result.append({
-                    'name': name, 'wp_url': data.get('wp_url', ''),
-                    'wp_media_url': data.get('wp_media_url', ''),
-                    'username': data.get('username', ''),
-                    'app_password': data.get('app_password', ''),
-                    'branch_code': data.get('branch_code', ''),
-                })
-    return jsonify(result)
+    visible = _visible_sites(
+        sites,
+        session.get('branch_code', ''),
+        session.get('user_role', ''),
+        session.get('user_name', ''),
+    )
+    return jsonify([
+        {
+            'name': name, 'wp_url': data.get('wp_url', ''),
+            'wp_media_url': data.get('wp_media_url', ''),
+            'username': data.get('username', ''),
+            'app_password': data.get('app_password', ''),
+            'branch_code': data.get('branch_code', ''),
+        }
+        for name, data in visible.items()
+    ])
 
 
 @news_scraper_bp.route('/api/scraper/sites', methods=['POST'])
@@ -275,7 +290,7 @@ def test_connection():
         login_ok, nonce_or_err = client.login()
         if not login_ok:
             return jsonify({'ok': False, 'message': f'Login gagal: {nonce_or_err}'}), 200
-        r = client.request('GET', params={"per_page": 1}, timeout=10)
+        r = client.get_posts(nonce_or_err, params={"per_page": 1}, timeout=10)
         if r.status_code == 200:
             data = r.json()
             post_count = len(data) if isinstance(data, list) else 1
@@ -304,9 +319,9 @@ def test_connection():
 def check_articles():
     """Scrape articles from multiple sources (rate limited: 5/min per user)."""
     user = session.get('user_name', 'unknown')
-    allowed, retry_after = _scrape_rate_limiter.check(user)
+    allowed = _scrape_rate_limiter.check(user)
     if not allowed:
-        return jsonify({'ok': False, 'error': f'Rate limit tercapai (5/menit). Coba lagi dalam {retry_after}s.'}), 429
+        return jsonify({'ok': False, 'error': 'Rate limit tercapai (5/menit). Coba lagi dalam 60 detik.'}), 429
 
     try:
         d = request.get_json(force=True)
@@ -427,7 +442,7 @@ def _upload_articles_to_site(site_name, articles, settings, task_prefix='upload'
     existing_posts = {}
     try:
         for page in range(1, 6):
-            r = client.request('GET', params={"per_page": 100, "page": page, "orderby": "date", "order": "desc"}, timeout=30)
+            r = client.get_posts(nonce_or_err, params={"per_page": 100, "page": page, "orderby": "date", "order": "desc"})
             if r.status_code != 200 or not r.json():
                 break
             for post in r.json():
@@ -485,17 +500,12 @@ def _upload_articles_to_site(site_name, articles, settings, task_prefix='upload'
         all_tags = list(set(tag_input + title_words[:5]))
 
         tag_ids = []
-        tags_url = wp_url.replace('/posts', '/tags')
         for tag_name in all_tags:
             try:
-                r = client.request('GET', full_url=tags_url, nonce=nonce_or_err, params={"search": tag_name}, timeout=10)
-                if r.status_code == 200 and r.json():
-                    tag_ids.append(r.json()[0]['id'])
-                else:
-                    r2 = client.request('POST', full_url=tags_url, nonce=nonce_or_err, json={"name": tag_name}, timeout=10)
-                    if r2.status_code == 201:
-                        tag_ids.append(r2.json()['id'])
-                        _sl.tag_create(tag_name, tag_id=r2.json()['id'], created=True)
+                tag_id = client.get_or_create_tag(tag_name, nonce_or_err)
+                if tag_id is not None:
+                    tag_ids.append(tag_id)
+                    _sl.tag_create(tag_name, tag_id=tag_id, created=True)
             except Exception as e:
                 _sl.tag_create(tag_name, created=False, error=str(e)[:100])
                 print(f'[scraper-tag] Failed to create tag "{tag_name}": {e}')
@@ -508,7 +518,7 @@ def _upload_articles_to_site(site_name, articles, settings, task_prefix='upload'
         featured_media_id = 0
         image_url = article.get('image_url', '')
         if image_url:
-            wp_media = client.upload_image(image_url)
+            wp_media = client.upload_image(image_url, nonce_or_err)
             if wp_media:
                 featured_img_html = wp_media.get('html', '')
                 featured_media_id = wp_media.get('id', 0)
@@ -553,7 +563,7 @@ def _upload_articles_to_site(site_name, articles, settings, task_prefix='upload'
                 update_data = {'content': html_content, 'tags': tag_ids}
                 if featured_media_id:
                     update_data['featured_media'] = featured_media_id
-                r2 = client.request('POST', full_url=f"{wp_url}/{matched_post_id}", nonce=nonce_or_err, json=update_data)
+                r2 = client.update_post(matched_post_id, update_data, nonce_or_err)
                 if r2.status_code == 200:
                     updated_count += 1
                     article_detail['status'] = 'updated'
@@ -571,14 +581,14 @@ def _upload_articles_to_site(site_name, articles, settings, task_prefix='upload'
                 _sl.upload_article(title=title[:50], status='error', error=str(e)[:200])
         elif is_duplicate:
             try:
-                r = client.request('GET', nonce=nonce_or_err, params={"per_page": 10, "search": title}, timeout=15)
+                r = client.search_posts(title, nonce_or_err, timeout=15)
                 if r.status_code == 200:
                     for post in r.json():
                         if normalize_title(post.get('title', {}).get('rendered', '')) == norm_title:
                             update_data = {'content': html_content, 'tags': tag_ids}
                             if featured_media_id:
                                 update_data['featured_media'] = featured_media_id
-                            r2 = client.request('POST', full_url=f"{wp_url}/{post['id']}", nonce=nonce_or_err, json=update_data)
+                            r2 = client.update_post(post['id'], update_data, nonce_or_err)
                             if r2.status_code == 200:
                                 updated_count += 1
                                 article_detail['status'] = 'updated'
@@ -589,7 +599,7 @@ def _upload_articles_to_site(site_name, articles, settings, task_prefix='upload'
                 errors.append(f"{title}: {str(e)}")
         else:
             try:
-                r = client.request('POST', nonce=nonce_or_err, json=post_data, timeout=30)
+                r = client.create_post(post_data, nonce_or_err)
                 if r.status_code == 201:
                     new_count += 1
                     article_detail['status'] = 'new'
@@ -746,8 +756,8 @@ def check_duplicates():
         page = 1
         while True:
             try:
-                r = client.request('GET', nonce=nonce_or_err,
-                                   params={'page': page, 'per_page': 100, 'orderby': 'date', 'order': 'desc'}, timeout=30)
+                r = client.get_posts(nonce_or_err,
+                                   params={'page': page, 'per_page': 100, 'orderby': 'date', 'order': 'desc'})
                 if r.status_code != 200:
                     break
                 page_posts = r.json()
@@ -806,7 +816,7 @@ def delete_duplicates():
     deleted = 0
     for pid in post_ids_to_delete:
         try:
-            r = client.request('DELETE', full_url=f"{site['wp_url']}/{pid}", nonce=nonce_or_err,
+            r = client.request('DELETE', f"{site['wp_url']}/{pid}", nonce_or_err,
                                params={'force': True}, timeout=15)
             if r.status_code == 200:
                 deleted += 1

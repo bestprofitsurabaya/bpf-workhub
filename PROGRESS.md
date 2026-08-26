@@ -2,9 +2,9 @@
 
 File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks saat sesi baru dimulai.
 
-**Terakhir diperbarui:** 2026-08-25  
+**Terakhir diperbarui:** 2026-08-26  
 **Branch:** `main`  
-**Versi terbaru:** v2.28.6
+**Versi terbaru:** v2.28.8
 
 ---
 
@@ -12,7 +12,7 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 | Aspek | Status |
 |-------|--------|
-| Versi | v2.28.6 (GPS Upsert Parity + Driver Rate Limit + Schema Config) |
+| Versi | v2.28.8 (News Scraper fix — branch filter + WpClient URL) |
 | Docker | `bbm_web` running on `nasbpfsby.duckdns.org:5000` |
 | App Running | `https://nasbpfsby.duckdns.org:5000` |
 | Databases | 10 DB terpisah (1 master + 9 cabang) |
@@ -169,6 +169,7 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 - [x] Multi-WordPress site (10 cabang)
 - [x] Tab Report + Settings + Daily Limit configurable
 - [x] SEO 7 Algoritma + Backlinks
+- [x] **v2.28.8** — fix filter branch (alias kota) + normalisasi URL WpClient; live test Bandung OK
 
 ### Security & Infrastructure
 - [x] CSP connect-src — Nominatim diizinkan
@@ -213,6 +214,12 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 ---
 
 ## 🐛 Bug yang Sudah Diperbaiki
+
+### v2.28.8 — News Scraper
+- ✅ `it_sby` melihat 0 situs — `wp_sites.json` rusak edit manual + fallback substring branch gagal; kini alias kota (`SBY→surabaya`)
+- ✅ Semua request WP 404 `rest_no_route` — URL ganda `/wp-json/` di WpClient; kini dinormalisasi
+- ✅ Pesan error auth WP tidak actionable — kini sebut user + cara buat Application Password baru
+- ⚠️ App password BPF Surabaya ditolak WP (perlu Application Password baru); 8 cabang kredensial masih `PENDING`
 
 ### v2.28.5 — Security Hardening
 - ✅ **Hardcoded SECRET_KEY (v2.28.5)** — app.py fallback insecure key; kini raise RuntimeError di production jika SECRET_KEY env tidak ada
