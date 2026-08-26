@@ -19,6 +19,9 @@ from .scraper_engine import scrape_newsmaker, scrape_detik_finance, fetch_articl
 from .seo_optimizer import (apply_backlinks, build_article_html, seo_analyze, build_advanced_schema,
     ping_sitemap, track_performance, get_analytics, get_optimal_publish_time, should_publish_today,
     JsonCache, normalize_title, rewrite_content)
+from .scraper_logger import get_logger
+
+_sl = get_logger()  # structured scraper logger
 
 
 # ===================================================================
@@ -319,6 +322,7 @@ def check_articles():
         seen_links = set()
         task_id = request.args.get('task_id') or f"scrape_{int(time.time())}"
         _set_progress(task_id, {'stage': 'scrape', 'progress': 0, 'message': 'Mulai scrape...', 'total': pages, 'current': 0})
+        _sl.log('INFO', 'SCRAPE', f'Start scrape: source={source}, pages={pages}, user={user}')
 
         if source in ('all', 'newsmaker'):
             _set_progress(task_id, {'stage': 'scrape', 'progress': 5, 'message': 'Scrape Newsmaker.id...', 'total': pages, 'current': 0})
@@ -328,8 +332,9 @@ def check_articles():
                     if a['link'] not in seen_links:
                         seen_links.add(a['link'])
                         articles.append(a)
-            except Exception:
-                pass
+                _sl.log('SUCCESS', 'SCRAPE', f'Newsmaker: {len(newsmaker_articles)} articles found')
+            except Exception as e:
+                _sl.log('ERROR', 'SCRAPE', f'Newsmaker scrape failed: {str(e)[:200]}')
 
         if source in ('all', 'detik'):
             _set_progress(task_id, {'stage': 'scrape', 'progress': 50, 'message': 'Scrape Detik Finance...', 'total': 1, 'current': 0})
@@ -339,8 +344,9 @@ def check_articles():
                     if a['link'] not in seen_links:
                         seen_links.add(a['link'])
                         articles.append(a)
-            except Exception:
-                pass
+                _sl.log('SUCCESS', 'SCRAPE', f'Detik: {len(detik_articles)} articles found')
+            except Exception as e:
+                _sl.log('ERROR', 'SCRAPE', f'Detik scrape failed: {str(e)[:200]}')
 
         _set_progress(task_id, {'stage': 'scrape', 'progress': 70, 'message': f'Ditemukan {len(articles)} artikel...', 'total': len(articles), 'current': 0})
 
@@ -400,6 +406,7 @@ def _upload_articles_to_site(site_name, articles, settings, task_prefix='upload'
 
     client = WpClient(wp_url, site['username'], site['app_password'])
     login_ok, nonce_or_err = client.login()
+    _sl.wp_login(site_name, login_ok, error=None if login_ok else str(nonce_or_err)[:200])
     if not login_ok:
         return {'ok': False, 'status': 401, 'error': f'WordPress login gagal: {nonce_or_err}',
                 'new_posts': 0, 'updated_posts': 0, 'errors': [], 'task_id': task_id}
@@ -487,7 +494,9 @@ def _upload_articles_to_site(site_name, articles, settings, task_prefix='upload'
                     r2 = client.request('POST', full_url=tags_url, nonce=nonce_or_err, json={"name": tag_name}, timeout=10)
                     if r2.status_code == 201:
                         tag_ids.append(r2.json()['id'])
+                        _sl.tag_create(site_name, tag_name, 'OK', tag_id=r2.json()['id'])
             except Exception as e:
+                _sl.tag_create(site_name, tag_name, 'ERROR', error=str(e)[:100])
                 print(f'[scraper-tag] Failed to create tag "{tag_name}": {e}')
 
         schemas = build_advanced_schema(title, content, publish_date, publish_time, article.get('image_url', ''))
@@ -503,6 +512,9 @@ def _upload_articles_to_site(site_name, articles, settings, task_prefix='upload'
                 featured_img_html = wp_media.get('html', '')
                 featured_media_id = wp_media.get('id', 0)
                 html_content = featured_img_html + html_content
+                _sl.image_upload(site_name, image_url[:80], 'OK', media_id=featured_media_id)
+            else:
+                _sl.image_upload(site_name, image_url[:80], 'ERROR', error='Upload failed')
 
         post_data = {
             'title': title,
@@ -545,14 +557,17 @@ def _upload_articles_to_site(site_name, articles, settings, task_prefix='upload'
                     updated_count += 1
                     article_detail['status'] = 'updated'
                     article_detail['post_id'] = matched_post_id
+                    _sl.upload_article(site_name, title[:50], 'UPDATED', post_id=matched_post_id, seo_score=seo_score)
                 else:
                     errors.append(f"{title}: update HTTP {r2.status_code}")
                     article_detail['status'] = 'error'
                     article_detail['error'] = f'HTTP {r2.status_code}'
+                    _sl.upload_article(site_name, title[:50], 'ERROR', error=f'HTTP {r2.status_code}')
             except Exception as e:
                 errors.append(f"{title}: {str(e)}")
                 article_detail['status'] = 'error'
                 article_detail['error'] = str(e)
+                _sl.upload_article(site_name, title[:50], 'ERROR', error=str(e)[:200])
         elif is_duplicate:
             try:
                 r = client.request('GET', nonce=nonce_or_err, params={"per_page": 10, "search": title}, timeout=15)
@@ -579,12 +594,15 @@ def _upload_articles_to_site(site_name, articles, settings, task_prefix='upload'
                     article_detail['status'] = 'new'
                     article_detail['post_id'] = r.json().get('id')
                     article_detail['seo_score'] = seo_score
+                    _sl.upload_article(site_name, title[:50], 'NEW', post_id=r.json().get('id'), seo_score=seo_score)
                 else:
                     errors.append(f"{title}: HTTP {r.status_code}")
                     article_detail['status'] = 'error'
                     article_detail['error'] = f'HTTP {r.status_code}'
+                    _sl.upload_article(site_name, title[:50], 'ERROR', error=f'HTTP {r.status_code}')
             except Exception as e:
                 errors.append(f"{title}: {str(e)}")
+                _sl.upload_article(site_name, title[:50], 'ERROR', error=str(e)[:200])
                 article_detail['status'] = 'error'
                 article_detail['error'] = str(e)
 
@@ -594,6 +612,7 @@ def _upload_articles_to_site(site_name, articles, settings, task_prefix='upload'
                             'message': f'Selesai! {new_count} baru, {updated_count} update, {len(errors)} error',
                             'total': len(articles), 'current': len(articles)})
 
+    _sl.upload_done(site_name, new_count, updated_count, len(errors))
     _log_scraper(f"[{site_name}] Upload selesai: {new_count} baru, {updated_count} update, {len(errors)} error",
                  session.get('user_name', 'unknown'))
 
