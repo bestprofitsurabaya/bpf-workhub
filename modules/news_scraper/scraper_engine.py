@@ -288,7 +288,7 @@ def scrape_newsmaker(pages: int = 1, session=None) -> list:
     headers = {'User-Agent': DEFAULT_UA}
     articles = []
     seen = set()
-    _sl.scrape_start('newsmaker', pages)
+    _sl.scrape_start('newsmaker')
 
     try:
         for page in range(1, max(1, int(pages)) + 1):
@@ -300,8 +300,8 @@ def scrape_newsmaker(pages: int = 1, session=None) -> list:
                 elapsed_ms = int((time.time() - t0) * 1000)
                 _adaptive_sleep(resp)
                 if resp.status_code != 200:
-                    _sl.scrape_page('newsmaker', page, 'ERROR', 0, elapsed_ms,
-                                    error=f'HTTP {resp.status_code}')
+                    _sl.scrape_page(f'newsmaker/page/{page}', status='ERROR', items_found=0,
+                                    error=f'HTTP {resp.status_code}', duration_ms=elapsed_ms)
                     logger.warning('newsmaker page %s -> HTTP %s',
                                    page, resp.status_code)
                     break
@@ -329,19 +329,19 @@ def scrape_newsmaker(pages: int = 1, session=None) -> list:
                         'content': None,
                         'source': 'newsmaker',
                     })
-                _sl.scrape_page('newsmaker', page, 'OK', hits, elapsed_ms)
+                _sl.scrape_page(f'newsmaker/page/{page}', status='OK', items_found=hits, duration_ms=elapsed_ms)
                 if hits == 0 and page > 1:
                     break  # deeper page empty -> stop walking
             except requests.RequestException as exc:
                 elapsed_ms = int((time.time() - t0) * 1000)
-                _sl.scrape_page('newsmaker', page, 'ERROR', 0, elapsed_ms,
-                                error=str(exc)[:200])
+                _sl.scrape_page(f'newsmaker/page/{page}', status='ERROR', items_found=0,
+                                error=str(exc)[:200], duration_ms=elapsed_ms)
                 logger.warning('newsmaker page %s failed: %s', page, exc)
                 time.sleep(0.5)
     finally:
         if own_session:
             sess.close()
-    _sl.scrape_done('newsmaker', len(articles), len(articles), 0)
+    _sl.scrape_done(total_articles=len(articles))
     return articles
 
 
@@ -361,7 +361,7 @@ def scrape_detik_finance(pages: int = 1) -> list:
     headers = {'User-Agent': DEFAULT_UA}
     articles = []
     seen = set()
-    _sl.scrape_start('detik', pages)
+    _sl.scrape_start('detik')
 
     # 1) Main finance page with keyword filter
     t0 = time.time()
@@ -371,7 +371,7 @@ def scrape_detik_finance(pages: int = 1) -> list:
         elapsed_ms = int((time.time() - t0) * 1000)
         _adaptive_sleep(r)
         if r.status_code == 200:
-            _sl.scrape_page('detik', 'homepage', 'OK', 0, elapsed_ms)
+            _sl.scrape_page('detik.com', status='OK', items_found=0, duration_ms=elapsed_ms)
             soup = BeautifulSoup(r.text, 'html.parser')
             for a_tag in soup.select('h2 a, h3 a'):
                 title = a_tag.get_text(strip=True)[:200]
@@ -390,8 +390,8 @@ def scrape_detik_finance(pages: int = 1) -> list:
                         })
     except requests.RequestException as exc:
         elapsed_ms = int((time.time() - t0) * 1000)
-        _sl.scrape_page('detik', 'homepage', 'ERROR', 0, elapsed_ms,
-                        error=str(exc)[:200])
+        _sl.scrape_page('detik.com', status='ERROR', items_found=0,
+                        error=str(exc)[:200], duration_ms=elapsed_ms)
         logger.warning('detik finance homepage failed: %s', exc)
 
     # 2) Tag pages for specific commodity terms (with pagination)
@@ -421,16 +421,16 @@ def scrape_detik_finance(pages: int = 1) -> list:
                             'content': None,
                             'source': 'detik_finance',
                         })
-                _sl.scrape_page('detik', target.split('/')[-1] or tag_url, 'OK', page_hits, elapsed_ms)
+                _sl.scrape_page(target, status='OK', items_found=page_hits, duration_ms=elapsed_ms)
                 if page_hits == 0:
                     break
             except requests.RequestException as exc:
                 elapsed_ms = int((time.time() - t0) * 1000)
-                _sl.scrape_page('detik', target, 'ERROR', 0, elapsed_ms,
-                                error=str(exc)[:200])
+                _sl.scrape_page(target, status='ERROR', items_found=0,
+                                error=str(exc)[:200], duration_ms=elapsed_ms)
                 logger.warning('detik tag %s failed: %s', target, exc)
                 break
-    _sl.scrape_done('detik', len(articles), len(articles), 0)
+    _sl.scrape_done(total_articles=len(articles))
     return articles
 
 
@@ -515,8 +515,7 @@ def fetch_article_content(article: dict, session=None) -> None:
 
     url = article.get('link') or article.get('url') or ''
     if not url or not validate_url_safe(url):
-        _sl.scrape_article(source, article.get('title', '?')[:50], url, 'BLOCKED',
-                           error='SSRF blocked')
+        _sl.scrape_article(article.get('title', '?')[:50], url=url, error='SSRF blocked')
         return
 
     getter = session.get if session is not None else requests.get
@@ -525,7 +524,7 @@ def fetch_article_content(article: dict, session=None) -> None:
                    headers={'User-Agent': DEFAULT_UA})
         _adaptive_sleep(r)
         if r.status_code != 200:
-            _sl.scrape_article(source, article.get('title', '?')[:50], url, 'ERROR',
+            _sl.scrape_article(article.get('title', '?')[:50], url=url,
                                error=f'HTTP {r.status_code}')
             return
         soup = BeautifulSoup(r.text, 'html.parser')
@@ -562,8 +561,8 @@ def fetch_article_content(article: dict, session=None) -> None:
 
         if len(text) >= 100 and not article.get('content'):
             article['content'] = text
-            _sl.scrape_article(source, article.get('title', '?')[:50], url, 'OK',
-                               chars=len(text))
+            _sl.scrape_article(article.get('title', '?')[:50], url=url,
+                               word_count=len(text.split()))
 
         # Metadata top-ups
         if not article.get('image_url'):
@@ -580,7 +579,7 @@ def fetch_article_content(article: dict, session=None) -> None:
                         f'{iso.group(1)}-{iso.group(2)}-{iso.group(3)}'
                     article['publish_time'] = f'{iso.group(4)}:{iso.group(5)}'
     except requests.RequestException as exc:
-        _sl.scrape_article(source, article.get('title', '?')[:50], url, 'ERROR',
+        _sl.scrape_article(article.get('title', '?')[:50], url=url,
                            error=str(exc)[:200])
         logger.warning('fetch_article_content failed for %s: %s', url, exc)
 
@@ -722,7 +721,7 @@ class RateLimiter:
                 dq.popleft()
             if len(dq) >= self._max:
                 retry_after = int(self._window - (now - dq[0])) if dq else int(self._window)
-                _sl.rate_limit_hit(str(user_id), retry_after)
+                _sl.rate_limit_hit(service=str(user_id), retry_after=retry_after)
                 return False
             dq.append(now)
             return True

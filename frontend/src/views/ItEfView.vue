@@ -69,6 +69,22 @@ const historyBusy = ref(false)
 // Log
 const logs = ref([])
 const showLog = ref(false)
+const logLevelFilter = ref('')
+const filteredLogs = computed(() => {
+  if (!logLevelFilter.value) return logs.value
+  return logs.value.filter(l => l.level === logLevelFilter.value)
+})
+function logLevelColor(level) {
+  const colors = { ERROR: '#ef4444', WARNING: '#f59e0b', INFO: '#10b981', DEBUG: '#6b7280', CRITICAL: '#ec4899' }
+  return colors[level] || '#6b7280'
+}
+function formatLogTime(ts) {
+  if (!ts) return ''
+  try {
+    const d = new Date(ts)
+    return d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+  } catch { return ts }
+}
 
 // Report
 const reportArticles = ref([])
@@ -855,14 +871,32 @@ onMounted(() => { loadSites(); loadDashboard(); document.documentElement.classLi
     </Modal>
 
     <!-- Modal: Log -->
-    <Modal v-if="showLog" title="📝 Activity Log" @close="showLog = false" style="max-width:700px;">
-      <div class="config-list" style="max-height:400px;overflow-y:auto;">
-        <div v-for="(l, i) in logs" :key="i" class="log-item">
-          <span class="log-time">{{ new Date(l.timestamp).toLocaleString('id-ID') }}</span>
-          <span class="log-text">{{ l.user }}: {{ l.message }}</span>
-        </div>
+    <Modal v-if="showLog" title="📝 Scraper Activity Log" @close="showLog = false" style="max-width:800px;">
+      <div class="log-filters" style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;">
+        <button class="btn btn-sm" :class="{ 'btn-primary': logLevelFilter === '' }" @click="logLevelFilter = ''">All</button>
+        <button class="btn btn-sm" :class="{ 'btn-primary': logLevelFilter === 'ERROR' }" @click="logLevelFilter = 'ERROR'" style="color:#ef4444;">❌ Error</button>
+        <button class="btn btn-sm" :class="{ 'btn-primary': logLevelFilter === 'WARNING' }" @click="logLevelFilter = 'WARNING'" style="color:#f59e0b;">⚠️ Warning</button>
+        <button class="btn btn-sm" :class="{ 'btn-primary': logLevelFilter === 'INFO' }" @click="logLevelFilter = 'INFO'" style="color:#10b981;">ℹ️ Info</button>
+        <button class="btn btn-sm" :class="{ 'btn-primary': logLevelFilter === 'DEBUG' }" @click="logLevelFilter = 'DEBUG'" style="color:#6b7280;">🔍 Debug</button>
       </div>
-      <button class="btn btn-sm btn-danger" @click="async () => { await api('/api/scraper/log', { method: 'DELETE' }); logs = [] }">🗑 Clear</button>
+      <div class="config-list" style="max-height:400px;overflow-y:auto;font-family:monospace;font-size:12px;">
+        <div v-for="(l, i) in filteredLogs" :key="i" class="log-item" :style="{ borderLeft: '3px solid ' + logLevelColor(l.level) }">
+          <div style="display:flex;gap:8px;align-items:start;">
+            <span class="log-time" style="white-space:nowrap;">{{ formatLogTime(l.ts || l.timestamp) }}</span>
+            <span :style="{ color: logLevelColor(l.level), fontWeight: 600, minWidth: '55px' }">[{{ l.level }}]</span>
+            <span style="color:#6366f1;font-weight:500;min-width:90px;">{{ l.category || '' }}</span>
+            <span class="log-text" style="flex:1;">{{ l.msg || l.message || '' }}</span>
+          </div>
+          <div v-if="l.extra" style="margin-left:160px;margin-top:2px;font-size:11px;color:#94a3b8;">
+            <span v-for="(val, key) in l.extra" :key="key" style="margin-right:8px;">{{ key }}={{ typeof val === 'object' ? JSON.stringify(val) : val }}</span>
+          </div>
+        </div>
+        <div v-if="!filteredLogs.length" style="text-align:center;padding:20px;color:#94a3b8;">Tidak ada log</div>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;">
+        <span style="font-size:11px;color:#94a3b8;">{{ filteredLogs.length }} entries</span>
+        <button class="btn btn-sm btn-danger" @click="async () => { await api('/api/scraper/log', { method: 'DELETE' }); logs = [] }">🗑 Clear</button>
+      </div>
     </Modal>
   </div>
 </template>

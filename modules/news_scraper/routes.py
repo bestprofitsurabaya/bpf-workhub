@@ -406,7 +406,8 @@ def _upload_articles_to_site(site_name, articles, settings, task_prefix='upload'
 
     client = WpClient(wp_url, site['username'], site['app_password'])
     login_ok, nonce_or_err = client.login()
-    _sl.wp_login(site_name, login_ok, error=None if login_ok else str(nonce_or_err)[:200])
+    _sl.wp_login(site_name, success=login_ok, user=site.get('username'),
+                  error=None if login_ok else str(nonce_or_err)[:200])
     if not login_ok:
         return {'ok': False, 'status': 401, 'error': f'WordPress login gagal: {nonce_or_err}',
                 'new_posts': 0, 'updated_posts': 0, 'errors': [], 'task_id': task_id}
@@ -494,9 +495,9 @@ def _upload_articles_to_site(site_name, articles, settings, task_prefix='upload'
                     r2 = client.request('POST', full_url=tags_url, nonce=nonce_or_err, json={"name": tag_name}, timeout=10)
                     if r2.status_code == 201:
                         tag_ids.append(r2.json()['id'])
-                        _sl.tag_create(site_name, tag_name, 'OK', tag_id=r2.json()['id'])
+                        _sl.tag_create(tag_name, tag_id=r2.json()['id'], created=True)
             except Exception as e:
-                _sl.tag_create(site_name, tag_name, 'ERROR', error=str(e)[:100])
+                _sl.tag_create(tag_name, created=False, error=str(e)[:100])
                 print(f'[scraper-tag] Failed to create tag "{tag_name}": {e}')
 
         schemas = build_advanced_schema(title, content, publish_date, publish_time, article.get('image_url', ''))
@@ -512,9 +513,9 @@ def _upload_articles_to_site(site_name, articles, settings, task_prefix='upload'
                 featured_img_html = wp_media.get('html', '')
                 featured_media_id = wp_media.get('id', 0)
                 html_content = featured_img_html + html_content
-                _sl.image_upload(site_name, image_url[:80], 'OK', media_id=featured_media_id)
+                _sl.image_upload(image_url[:80], media_id=featured_media_id, success=True)
             else:
-                _sl.image_upload(site_name, image_url[:80], 'ERROR', error='Upload failed')
+                _sl.image_upload(image_url[:80], success=False, error='Upload failed')
 
         post_data = {
             'title': title,
@@ -557,17 +558,17 @@ def _upload_articles_to_site(site_name, articles, settings, task_prefix='upload'
                     updated_count += 1
                     article_detail['status'] = 'updated'
                     article_detail['post_id'] = matched_post_id
-                    _sl.upload_article(site_name, title[:50], 'UPDATED', post_id=matched_post_id, seo_score=seo_score)
+                    _sl.upload_article(post_id=matched_post_id, title=title[:50], status='updated', seo_score=seo_score)
                 else:
                     errors.append(f"{title}: update HTTP {r2.status_code}")
                     article_detail['status'] = 'error'
                     article_detail['error'] = f'HTTP {r2.status_code}'
-                    _sl.upload_article(site_name, title[:50], 'ERROR', error=f'HTTP {r2.status_code}')
+                    _sl.upload_article(title=title[:50], status='error', error=f'HTTP {r2.status_code}')
             except Exception as e:
                 errors.append(f"{title}: {str(e)}")
                 article_detail['status'] = 'error'
                 article_detail['error'] = str(e)
-                _sl.upload_article(site_name, title[:50], 'ERROR', error=str(e)[:200])
+                _sl.upload_article(title=title[:50], status='error', error=str(e)[:200])
         elif is_duplicate:
             try:
                 r = client.request('GET', nonce=nonce_or_err, params={"per_page": 10, "search": title}, timeout=15)
@@ -594,15 +595,15 @@ def _upload_articles_to_site(site_name, articles, settings, task_prefix='upload'
                     article_detail['status'] = 'new'
                     article_detail['post_id'] = r.json().get('id')
                     article_detail['seo_score'] = seo_score
-                    _sl.upload_article(site_name, title[:50], 'NEW', post_id=r.json().get('id'), seo_score=seo_score)
+                    _sl.upload_article(post_id=r.json().get('id'), title=title[:50], status='new', seo_score=seo_score)
                 else:
                     errors.append(f"{title}: HTTP {r.status_code}")
                     article_detail['status'] = 'error'
                     article_detail['error'] = f'HTTP {r.status_code}'
-                    _sl.upload_article(site_name, title[:50], 'ERROR', error=f'HTTP {r.status_code}')
+                    _sl.upload_article(title=title[:50], status='error', error=f'HTTP {r.status_code}')
             except Exception as e:
                 errors.append(f"{title}: {str(e)}")
-                _sl.upload_article(site_name, title[:50], 'ERROR', error=str(e)[:200])
+                _sl.upload_article(title=title[:50], status='error', error=str(e)[:200])
                 article_detail['status'] = 'error'
                 article_detail['error'] = str(e)
 
@@ -612,7 +613,7 @@ def _upload_articles_to_site(site_name, articles, settings, task_prefix='upload'
                             'message': f'Selesai! {new_count} baru, {updated_count} update, {len(errors)} error',
                             'total': len(articles), 'current': len(articles)})
 
-    _sl.upload_done(site_name, new_count, updated_count, len(errors))
+    _sl.upload_done(uploaded=new_count + updated_count, failed=len(errors))
     _log_scraper(f"[{site_name}] Upload selesai: {new_count} baru, {updated_count} update, {len(errors)} error",
                  session.get('user_name', 'unknown'))
 
@@ -882,8 +883,23 @@ def save_hyperlinks():
 @news_scraper_bp.route('/api/scraper/log', methods=['GET'])
 @role_required(SCRAPER_ROLES)
 def get_scraper_log():
-    logs = _load_json(SCRAPER_LOG_FILE, [])
+    logs = []
     limit = request.args.get('limit', 100, type=int)
+    try:
+        with open(SCRAPER_LOG_FILE, 'r', encoding='utf-8') as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    logs.append(json.loads(line))
+                except json.JSONDecodeError:
+                    pass
+    except (FileNotFoundError, OSError):
+        pass
+    # Also handle legacy JSON array format
+    if not logs:
+        logs = _load_json(SCRAPER_LOG_FILE, [])
     return jsonify(logs[-limit:])
 
 
