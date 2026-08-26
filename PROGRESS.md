@@ -224,8 +224,10 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 - ✅ `SECRET_KEY` regenerate tiap deploy → logout massal; DEPLOY_FRESH kini menjaga `.env` lama
 - ✅ CSRF stale token di tab lama → `api.js` auto-refresh + retry sekali
 - ✅ Lockout login per-IP murni mengunci seluruh kantor NAT → rate-limit kini per kombinasi IP+username
-- ⚠️ App password BPF Surabaya ditolak WP (perlu Application Password baru); 8 cabang kredensial masih `PENDING`
+- ✅ WpClient fallback basic auth (`basic_username`/`basic_password`) saat application password ditolak — aktif di semua endpoint scraper
+- ⚠️ App password BPF Surabaya ditolak WP (perlu Application Password baru); 8 cabang kredensial masih `PENDING`. Investigaasi live: WP Surabaya hanya izinkan application passwords (basic auth ditolak, XML-RPC 404) — kredensial `human/password` tidak berlaku lagi
 - ℹ️ Full suite host: 300 passed; security-headers 7 passed (di container); test PDF overtime flake sekali saat full-run (lulus konsisten standalone — flake lingkungan)
+- 🚀 Deployed v2.28.8 ke bbm_web (build SPA + image rebuild) — login it_sby & scraper sites terverifikasi live
 
 ### v2.28.5 — Security Hardening
 - ✅ **Hardcoded SECRET_KEY (v2.28.5)** — app.py fallback insecure key; kini raise RuntimeError di production jika SECRET_KEY env tidak ada

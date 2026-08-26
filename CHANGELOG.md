@@ -6,6 +6,21 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 
 ## v2.28.8 — 26 Agustus 2026
 
+### 📰 Upload WordPress: Basic-Auth Fallback
+
+`WpClient` kini mendukung **dua lapis kredensial**: application password dulu,
+bila ditolak (401) otomatis coba basic auth username/password biasa dari field
+`basic_username`/`basic_password` di site config. Pasangan yang berhasil dipakai
+untuk semua request berikutnya (upload, cek duplikat, delete). Berlaku di semua
+titik: test-connection, upload single/multi, duplicates, delete.
+
+Hasil investigasi live WP Surabaya: situs hanya mengizinkan **Application
+Passwords** (REST basic auth password biasa ditolak; XML-RPC dimatikan/404).
+Kredensial `human/password` tidak lagi diterima — kemungkinan jalur lama via
+plugin yang sudah dihapus. **App password baru tetap wajib dibuat** untuk
+Surabaya; fallback tetap berguna bila jalur basic auth diaktifkan lagi atau
+di cabang lain.
+
 ### 🔐 Stabilisasi Sesi Login + Rate Limit Per-User
 
 Sesi login dilaporkan tidak stabil. Akar masalah yang ditemukan & diperbaiki:
