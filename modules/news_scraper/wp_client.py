@@ -49,12 +49,23 @@ def get_wp_session() -> requests.Session:
 class WpClient:
     """Client for a WordPress site's REST API (``/wp-json/wp/v2``)."""
 
-    def __init__(self, wp_url: str, username: str, app_password: str) -> None:
+    def __init__(self, wp_url: str, username: str, app_password: str,
+                 fallback_auth: tuple[str, str] | None = None) -> None:
         self.wp_url = self._normalize_base_url(wp_url)
         self.username: str = username
         self.app_password: str = app_password
         self.session: requests.Session = get_wp_session()
         self._tag_cache: dict[str, int] = {}
+        # Rantai kredensial: application password dulu, lalu (opsional) basic
+        # auth username/password biasa — beberapa situs WP memakai plugin
+        # JSON Basic Authentication sehingga password biasa diterima REST API.
+        self._auth_pairs: list[tuple[str, str]] = [(username, app_password)]
+        if fallback_auth and fallback_auth[0] and fallback_auth[1] \
+                and tuple(fallback_auth) not in self._auth_pairs:
+            self._auth_pairs.append((fallback_auth[0], fallback_auth[1]))
+        # Pasangan kredensial yang terbukti berhasil dipakai login();
+        # semua request berikutnya otomatis memakainya.
+        self.active_auth: tuple[str, str] = self._auth_pairs[0]
 
     @staticmethod
     def _normalize_base_url(url: str) -> str:
@@ -76,19 +87,32 @@ class WpClient:
     # ------------------------------------------------------------------ #
 
     def login(self) -> tuple[bool, str]:
-        """Validate credentials against ``/users/me``. Returns ``(ok, message)``."""
-        url = f"{self.wp_url}/wp-json/wp/v2/users/me"
-        try:
-            resp = self.session.get(
-                url, auth=(self.username, self.app_password), timeout=DEFAULT_TIMEOUT
-            )
-        except requests.RequestException as exc:
-            logger.error("Login request failed: %s", exc)
-            return False, f"Connection error: {exc}"
+        """Validate credentials against ``/users/me``. Returns ``(ok, message)``.
 
-        if resp.status_code == 200:
-            logger.info("Logged in to %s as %s", self.wp_url, self.username)
-            return True, "Login successful"
+        Tries each credential pair in order (application password first, then
+        the optional basic-auth fallback). The pair that succeeds becomes
+        ``active_auth`` for all subsequent requests.
+        """
+        url = f"{self.wp_url}/wp-json/wp/v2/users/me"
+        last_msg = ''
+        for auth in self._auth_pairs:
+            try:
+                resp = self.session.get(url, auth=auth, timeout=DEFAULT_TIMEOUT)
+            except requests.RequestException as exc:
+                logger.error("Login request failed: %s", exc)
+                return False, f"Connection error: {exc}"
+
+            if resp.status_code == 200:
+                self.active_auth = auth
+                logger.info("Logged in to %s as %s", self.wp_url, auth[0])
+                return True, "Login successful"
+            last_msg = self._login_error_message(resp)
+
+        logger.error("WP auth failed at %s: %s", self.wp_url, last_msg)
+        return False, last_msg
+
+    def _login_error_message(self, resp: Response) -> str:
+        """Bangun pesan error actionable dari response login yang gagal."""
         if resp.status_code in (401, 403):
             code = ""
             try:
@@ -96,22 +120,21 @@ class WpClient:
             except ValueError:
                 pass
             if code == "incorrect_password":
-                msg = (
+                return (
                     f"Password aplikasi salah untuk user '{self.username}'. "
                     "Periksa kembali username & application password di Settings."
                 )
-            else:
-                msg = (
-                    f"Kredensial ditolak WordPress untuk user '{self.username}' "
-                    f"(HTTP {resp.status_code}). Application password kemungkinan sudah "
-                    "dicabut/tidak valid — buat baru di WP admin: Users → Profile → "
-                    "Application Passwords, lalu simpan di menu Settings scraper."
-                )
-            logger.error("WP auth rejected at %s as %s: %s", self.wp_url, self.username, code or resp.status_code)
-            return False, msg
-        msg = f"Login failed (HTTP {resp.status_code}): {resp.text[:200]}"
-        logger.error(msg)
-        return False, msg
+            hint = (
+                f" Application password & basic auth sudah dicoba untuk user "
+                f"'{self.username}'.") if len(self._auth_pairs) > 1 else \
+                (
+                    f" Application password user '{self.username}' ditolak. "
+                    "Buat baru di WP admin: Users → Profile → Application Passwords, "
+                    "atau isi basic_username/basic_password di Settings.")
+            return (
+                f"Kredensial ditolak WordPress (HTTP {resp.status_code}).{hint}"
+            )
+        return f"Login failed (HTTP {resp.status_code}): {resp.text[:200]}"
 
     # ------------------------------------------------------------------ #
     # Generic request helper
@@ -122,7 +145,8 @@ class WpClient:
         headers = kwargs.pop("headers", None) or {}
         headers.setdefault("X-WP-Nonce", nonce)
         kwargs.setdefault("timeout", DEFAULT_TIMEOUT)
-        kwargs.setdefault("auth", (self.username, self.app_password))
+        # Pakai pasangan kredensial yang terbukti berhasil di login().
+        kwargs.setdefault("auth", self.active_auth)
         return self.session.request(method, url, headers=headers, **kwargs)
 
     # ------------------------------------------------------------------ #

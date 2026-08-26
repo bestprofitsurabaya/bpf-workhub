@@ -196,6 +196,82 @@ class TestWpClientUrlNormalization:
         assert "Password aplikasi salah" in msg
 
 
+class TestWpClientFallbackAuth:
+    """Basic-auth fallback saat application password ditolak (401)."""
+
+    def _client_with_mock(self, responses):
+        from modules.news_scraper.wp_client import WpClient
+        client = WpClient("https://example.com", "app_user", "bad-app-pass",
+                          fallback_auth=("human", "password"))
+        client.session = MagicMock()
+        client.session.get.side_effect = responses
+        return client
+
+    def test_fallback_used_when_app_password_rejected(self):
+        resp401 = MagicMock()
+        resp401.status_code = 401
+        resp401.json.return_value = {"code": "rest_not_logged_in"}
+        resp200 = MagicMock()
+        resp200.status_code = 200
+        client = self._client_with_mock([resp401, resp200])
+        ok, _msg = client.login()
+        assert ok is True
+        # Kredensial kedua yang aktif untuk request berikutnya
+        assert client.active_auth == ("human", "password")
+        assert client.session.get.call_count == 2
+
+    def test_request_uses_active_auth_after_fallback(self):
+        resp401 = MagicMock(); resp401.status_code = 401
+        resp401.json.return_value = {"code": "rest_not_logged_in"}
+        resp200 = MagicMock(); resp200.status_code = 200
+        client = self._client_with_mock([resp401, resp200])
+        client.login()
+        client.session.request.return_value = _mock_ok_response([])
+        client.get_posts("nonce-x")
+        call_kwargs = client.session.request.call_args[1]
+        assert call_kwargs["auth"] == ("human", "password")
+
+    def test_no_fallback_when_primary_ok(self):
+        resp200 = MagicMock(); resp200.status_code = 200
+        client = self._client_with_mock([resp200])
+        ok, _msg = client.login()
+        assert ok is True
+        assert client.active_auth == ("app_user", "bad-app-pass")
+        assert client.session.get.call_count == 1
+
+    def test_all_pairs_fail_reports_actionable(self):
+        resp401 = MagicMock()
+        resp401.status_code = 401
+        resp401.json.return_value = {"code": "rest_not_logged_in"}
+        client = self._client_with_mock([resp401, resp401])
+        ok, msg = client.login()
+        assert ok is False
+        assert "sudah dicoba" in msg
+
+    def test_make_wp_client_reads_basic_credentials(self):
+        """_make_wp_client harus meneruskan basic_username/password sebagai fallback."""
+        from modules.news_scraper.routes import _make_wp_client
+        site = {
+            "wp_url": "https://example.com/wp-json/wp/v2/posts",
+            "username": "app_user",
+            "app_password": "x",
+            "basic_username": "human",
+            "basic_password": "password",
+        }
+        client = _make_wp_client(site)
+        assert ("human", "password") in client._auth_pairs
+
+    def test_make_wp_client_without_basic_credentials(self):
+        from modules.news_scraper.routes import _make_wp_client
+        site = {
+            "wp_url": "https://example.com/wp-json/wp/v2/posts",
+            "username": "app_user",
+            "app_password": "x",
+        }
+        client = _make_wp_client(site)
+        assert len(client._auth_pairs) == 1
+
+
 # ---------------------------------------------------------------------------
 # upload_image() tests
 # ---------------------------------------------------------------------------

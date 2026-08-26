@@ -270,6 +270,7 @@ def test_connection():
     username = (d.get('username') or '').strip()
     app_password = (d.get('app_password') or '').strip()
 
+    site = None
     if site_name:
         sites = _load_json(WP_SITES_FILE, {})
         if site_name not in sites:
@@ -286,7 +287,12 @@ def test_connection():
         return jsonify({'ok': False, 'message': 'Kredensial belum diisi — klik Edit dan isi username & password'}), 200
 
     try:
-        client = WpClient(wp_url, username, app_password)
+        # Situs tersimpan -> pakai fallback basic auth (jika dikonfigurasi);
+        # kredensial manual (form Edit) -> tanpa fallback.
+        if site is not None:
+            client = _make_wp_client(site)
+        else:
+            client = WpClient(wp_url, username, app_password)
         login_ok, nonce_or_err = client.login()
         if not login_ok:
             return jsonify({'ok': False, 'message': f'Login gagal: {nonce_or_err}'}), 200
@@ -402,6 +408,22 @@ def check_articles():
 
 # ----- UPLOAD ARTICLES -----
 
+def _make_wp_client(site):
+    """Bangun WpClient dari config site, dengan fallback basic auth opsional.
+
+    Site config dapat memuat `basic_username`/`basic_password` (login WP biasa
+    via plugin JSON Basic Authentication) sebagai cadangan bila application
+    password ditolak.
+    """
+    fallback = None
+    bu = (site.get('basic_username') or '').strip()
+    bp = (site.get('basic_password') or '').strip()
+    if bu and bp:
+        fallback = (bu, bp)
+    return WpClient(site['wp_url'], site['username'], site['app_password'],
+                    fallback_auth=fallback)
+
+
 def _upload_articles_to_site(site_name, articles, settings, task_prefix='upload'):
     """Core upload logic shared by single-site and multi-site upload."""
     sites = _load_json(WP_SITES_FILE, {})
@@ -419,7 +441,7 @@ def _upload_articles_to_site(site_name, articles, settings, task_prefix='upload'
     task_id = f"{task_prefix}_{int(time.time())}"
     _set_progress(task_id, {'stage': 'login', 'progress': 5, 'message': 'Login ke WordPress...', 'total': len(articles), 'current': 0})
 
-    client = WpClient(wp_url, site['username'], site['app_password'])
+    client = _make_wp_client(site)
     login_ok, nonce_or_err = client.login()
     _sl.wp_login(site_name, success=login_ok, user=site.get('username'),
                   error=None if login_ok else str(nonce_or_err)[:200])
@@ -747,7 +769,7 @@ def check_duplicates():
             return jsonify({'error': f'Site "{site_name}" tidak ditemukan'}), 404
 
         site = sites[site_name]
-        client = WpClient(site['wp_url'], site['username'], site['app_password'])
+        client = _make_wp_client(site)
         login_ok, nonce_or_err = client.login()
         if not login_ok:
             return jsonify({'ok': False, 'error': f'Login gagal: {nonce_or_err}', 'duplicates': [], 'total_posts': 0}), 401
@@ -808,7 +830,7 @@ def delete_duplicates():
         return jsonify({'error': f'Site "{site_name}" tidak ditemukan'}), 404
 
     site = sites[site_name]
-    client = WpClient(site['wp_url'], site['username'], site['app_password'])
+    client = _make_wp_client(site)
     login_ok, nonce_or_err = client.login()
     if not login_ok:
         return jsonify({'ok': False, 'error': f'Login gagal: {nonce_or_err}', 'deleted': 0}), 401
