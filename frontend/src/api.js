@@ -1,8 +1,12 @@
 /**
  * Fetch wrapper — JSON + CSRF + error normalization.
  * CSRF token disimpan dari /api/auth/me atau /api/auth/login (session-based).
+ *
+ * Stale CSRF recovery: bila server menolak POST/PUT/DELETE dengan error CSRF
+ * (mis. tab lama yang masih memegang token sesi sebelum re-login di tab lain),
+ * wrapper mengambil token baru dari /api/auth/me lalu retry SEKALI.
  */
-export async function api(path, { method = 'GET', body, params, raw = false } = {}) {
+export async function api(path, { method = 'GET', body, params, raw = false } = {}, _retried = false) {
   const opts = { method, headers: raw ? {} : { Accept: 'application/json' } }
   if (body !== undefined) {
     opts.headers['Content-Type'] = 'application/json'
@@ -46,6 +50,23 @@ export async function api(path, { method = 'GET', body, params, raw = false } = 
 
   if (!r.ok) {
     const msg = (data && (data.msg || data.error)) || `HTTP ${r.status}`
+    // Token CSRF stale → refresh dari /api/auth/me lalu retry sekali.
+    if (
+      r.status === 400 &&
+      typeof msg === 'string' &&
+      msg.includes('CSRF') &&
+      path !== '/api/auth/me' &&
+      !_retried
+    ) {
+      try {
+        const meResp = await fetch('/api/auth/me', { headers: { Accept: 'application/json' } })
+        const meData = await meResp.json()
+        if (meData?.csrf_token) {
+          localStorage.setItem('bpf_csrf', meData.csrf_token)
+          return api(path, { method, body, params, raw }, true)
+        }
+      } catch { /* fall through ke throw normal */ }
+    }
     const err = new Error(msg)
     err.status = r.status
     err.data = data

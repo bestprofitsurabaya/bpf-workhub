@@ -50,15 +50,16 @@ cd bpf-workhub
 ## 3. Buat File .env
 
 ```bash
-# Generate SECRET_KEY acak
-SECRET_KEY=$(openssl rand -hex 32)
-
-# Buat .env
-cat > .env << EOF
-SECRET_KEY=${SECRET_KEY}
-EOF
-
-echo "✅ .env created with SECRET_KEY"
+# Generate SECRET_KEY acak — HANYA jika .env belum ada.
+# PENTING: SECRET_KEY yang berarti semua session cookie user menjadi tidak
+# valid (semua ter-logout massal). Jangan regenerate saat re-deploy!
+if [ ! -f .env ]; then
+  echo "SECRET_KEY=$(openssl rand -hex 32)" > .env
+  chmod 600 .env
+  echo "✅ .env created with new SECRET_KEY"
+else
+  echo "ℹ️ .env sudah ada — SECRET_KEY lama DIPERTAHANKAN (sesi user aman)"
+fi
 ```
 
 ---

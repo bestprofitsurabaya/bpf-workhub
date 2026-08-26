@@ -42,6 +42,10 @@ os.makedirs('uploads', exist_ok=True)
 
 # Session cookie hardening (ISO/IEC 27001 A.8.5 manajemen sesi)
 app.config['SESSION_COOKIE_HTTPONLY'] = True
+# Nama cookie unik — cookie browser per-domain dan MENGABAIKAN port. Nextcloud
+# (atau layanan lain) di domain yang sama memakai nama default 'session' juga;
+# tanpa nama unik kedua app saling menimpa cookie -> sesi acak ter-logout.
+app.config['SESSION_COOKIE_NAME'] = os.environ.get('SESSION_COOKIE_NAME', 'bpf_session')
 app.config['SESSION_COOKIE_SAMESITE'] = os.environ.get('SESSION_COOKIE_SAMESITE', 'Lax')
 # Secure cookie: aktif saat HTTPS (produksi duckdns). Matikan hanya untuk dev http lokal.
 app.config['SESSION_COOKIE_SECURE'] = os.environ.get('SESSION_COOKIE_SECURE', 'true').lower() in ('1', 'true', 'yes')

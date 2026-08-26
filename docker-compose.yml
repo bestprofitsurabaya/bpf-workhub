@@ -42,6 +42,10 @@ services:
       - DB_NAME=bpf_asset_system
       - DB_POOL_SIZE=15
       - SECRET_KEY=${SECRET_KEY:?SECRET_KEY wajib di .env}
+      # Secure cookie: WAJIB true jika diakses via HTTPS (produksi). Jika ada
+      # user mengakses via http://IP:5001 di LAN, cookie tidak akan dikirim
+      # browser -> login loop. Matikan hanya untuk dev http lokal.
+      - SESSION_COOKIE_SECURE=${SESSION_COOKIE_SECURE:-true}
       - REDIS_URL=redis://redis:6379/0
       # Titik awal rute appointment (kantor): PT Bestprofit Futures Cab. Surabaya
       # Graha Bukopin Lantai 11, Jl. Panglima Sudirman No. 10-18, Surabaya 60271
