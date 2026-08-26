@@ -62,27 +62,47 @@ def test_login_lockout_setelah_5_gagal(monkeypatch):
     _use_memory(monkeypatch)
     ip = '10.9.8.7'
     for _ in range(5):
-        helpers.login_fail(ip)
-    allowed, retry_after = helpers.login_rate_check(ip)
+        helpers.login_fail(ip, 'user1')
+    allowed, retry_after = helpers.login_rate_check(ip, 'user1')
     assert not allowed
     assert retry_after > 0
+
+
+def test_login_lockout_terisolasi_per_user_satu_ip(monkeypatch):
+    """User lain di IP yang sama tidak ikut terkunci (kasus NAT kantor)."""
+    _use_memory(monkeypatch)
+    ip = '203.0.113.10'  # 1 IP publik kantor
+    for _ in range(5):
+        helpers.login_fail(ip, 'driver_salah_pin')
+    # Pelaku gagal → terkunci
+    assert helpers.login_rate_check(ip, 'driver_salah_pin')[0] is False
+    # Rekan sekantor (IP sama, user beda) → tetap bisa login
+    assert helpers.login_rate_check(ip, 'it_sby') == (True, 0)
+
+
+def test_login_lockout_case_insensitive_username(monkeypatch):
+    _use_memory(monkeypatch)
+    ip = '203.0.113.11'
+    for _ in range(5):
+        helpers.login_fail(ip, 'It_SBY')
+    assert helpers.login_rate_check(ip, 'it_sby')[0] is False
 
 
 def test_login_success_mereset(monkeypatch):
     _use_memory(monkeypatch)
     ip = '10.9.8.8'
     for _ in range(3):
-        helpers.login_fail(ip)
-    helpers.login_success(ip)
-    assert helpers.login_rate_check(ip) == (True, 0)
+        helpers.login_fail(ip, 'user1')
+    helpers.login_success(ip, 'user1')
+    assert helpers.login_rate_check(ip, 'user1') == (True, 0)
 
 
 def test_login_belum_lockout_sebelum_batas(monkeypatch):
     _use_memory(monkeypatch)
     ip = '10.9.8.9'
     for _ in range(4):
-        helpers.login_fail(ip)
-    assert helpers.login_rate_check(ip) == (True, 0)
+        helpers.login_fail(ip, 'user1')
+    assert helpers.login_rate_check(ip, 'user1') == (True, 0)
 
 
 # ---------- PIN rate limit ----------

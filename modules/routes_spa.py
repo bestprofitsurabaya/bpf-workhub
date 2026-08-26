@@ -62,7 +62,7 @@ def register_spa_routes(app):
 
         # Rate limit anti brute-force (ISO/IEC 27001 A.8.5) — sama dengan login klasik
         ip = _client_ip()
-        allowed, retry_after = login_rate_check(ip)
+        allowed, retry_after = login_rate_check(ip, username)
         if not allowed:
             return jsonify({'status': 'error', 'msg': f'Terlalu banyak percobaan. Coba lagi dalam {retry_after // 60} menit.'}), 429
 
@@ -77,7 +77,7 @@ def register_spa_routes(app):
         except Exception as e:
             return jsonify({'status': 'error', 'msg': str(e)}), 500
         if not user:
-            login_fail(ip)
+            login_fail(ip, username)
             return jsonify({'status': 'error', 'msg': 'Username atau PIN salah'}), 401
 
         # Multi-cabang: tentukan cabang user; cabang nonaktif → tolak login
@@ -85,11 +85,11 @@ def register_spa_routes(app):
         branch_code = (user.get('branch_code') or '').strip() or DEFAULT_BRANCH_CODE
         branch = get_branch(branch_code)
         if not branch or not branch.get('is_active'):
-            login_fail(ip)
+            login_fail(ip, username)
             return jsonify({'status': 'error',
                             'msg': 'Cabang tidak aktif atau tidak terdaftar. Hubungi Admin.'}), 403
 
-        login_success(ip)
+        login_success(ip, username)
         session.clear()
         session['user_role'] = user['role']
         session['user_name'] = user['username']

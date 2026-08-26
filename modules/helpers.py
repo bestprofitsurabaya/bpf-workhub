@@ -843,19 +843,30 @@ _LOGIN_LOCKOUT = 900
 _login_store = _RateStore('login')
 
 
-def login_rate_check(ip):
-    """Cek apakah IP boleh mencoba login. Return (allowed: bool, retry_after: int)."""
-    return _login_store.check(ip, _LOGIN_WINDOW)
+def _login_key(ip, username=''):
+    """Kunci rate-limit per kombinasi IP+username (bukan IP saja).
+
+    v2.28.9: sebelumnya per-IP murni — seluruh karyawan kantor di balik satu
+    IP publik (NAT) terkunci bersama walaupun yang salah PIN hanya satu orang.
+    Dengan kunci gabungan, lockout hanya menimpa akun yang gagal.
+    """
+    return f"{ip}|{str(username or '').strip().lower()}"
 
 
-def login_fail(ip):
+def login_rate_check(ip, username=''):
+    """Cek apakah kombinasi IP+username boleh mencoba login. Return (allowed, retry_after)."""
+    return _login_store.check(_login_key(ip, username), _LOGIN_WINDOW)
+
+
+def login_fail(ip, username=''):
     """Catat percobaan login gagal; kembalikan (locked, retry_after)."""
-    return _login_store.record_fail(ip, _LOGIN_WINDOW, _LOGIN_MAX_FAILS, _LOGIN_LOCKOUT)
+    return _login_store.record_fail(
+        _login_key(ip, username), _LOGIN_WINDOW, _LOGIN_MAX_FAILS, _LOGIN_LOCKOUT)
 
 
-def login_success(ip):
+def login_success(ip, username=''):
     """Reset penghitung gagal setelah login sukses."""
-    _login_store.reset(ip)
+    _login_store.reset(_login_key(ip, username))
 
 
 # ============================================================
