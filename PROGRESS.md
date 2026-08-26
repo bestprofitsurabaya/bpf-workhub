@@ -4,7 +4,7 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 **Terakhir diperbarui:** 2026-08-26  
 **Branch:** `main`  
-**Versi terbaru:** v2.28.8
+**Versi terbaru:** v2.28.8 (News Scraper fix + Session stability — deployed)
 
 ---
 
@@ -12,7 +12,8 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 | Aspek | Status |
 |-------|--------|
-| Versi | v2.28.8 (News Scraper fix — branch filter + WpClient URL) |
+| Versi | v2.28.8 (News Scraper fix + Session stability) |
+| Deploy | ✅ bbm_web di-rebuild & restart 26 Aug — login it_sby terverifikasi live |
 | Docker | `bbm_web` running on `nasbpfsby.duckdns.org:5000` |
 | App Running | `https://nasbpfsby.duckdns.org:5000` |
 | Databases | 10 DB terpisah (1 master + 9 cabang) |
@@ -215,11 +216,16 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 ## 🐛 Bug yang Sudah Diperbaiki
 
-### v2.28.8 — News Scraper
+### v2.28.8 — News Scraper + Stabilitas Sesi Login
 - ✅ `it_sby` melihat 0 situs — `wp_sites.json` rusak edit manual + fallback substring branch gagal; kini alias kota (`SBY→surabaya`)
 - ✅ Semua request WP 404 `rest_no_route` — URL ganda `/wp-json/` di WpClient; kini dinormalisasi
 - ✅ Pesan error auth WP tidak actionable — kini sebut user + cara buat Application Password baru
+- ✅ Cookie `session` bentrok Nextcloud (domain sama, port diabaikan) → `SESSION_COOKIE_NAME='bpf_session'`
+- ✅ `SECRET_KEY` regenerate tiap deploy → logout massal; DEPLOY_FRESH kini menjaga `.env` lama
+- ✅ CSRF stale token di tab lama → `api.js` auto-refresh + retry sekali
+- ✅ Lockout login per-IP murni mengunci seluruh kantor NAT → rate-limit kini per kombinasi IP+username
 - ⚠️ App password BPF Surabaya ditolak WP (perlu Application Password baru); 8 cabang kredensial masih `PENDING`
+- ℹ️ Full suite host: 300 passed; security-headers 7 passed (di container); test PDF overtime flake sekali saat full-run (lulus konsisten standalone — flake lingkungan)
 
 ### v2.28.5 — Security Hardening
 - ✅ **Hardcoded SECRET_KEY (v2.28.5)** — app.py fallback insecure key; kini raise RuntimeError di production jika SECRET_KEY env tidak ada

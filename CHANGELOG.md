@@ -6,6 +6,23 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 
 ## v2.28.8 — 26 Agustus 2026
 
+### 🔐 Stabilisasi Sesi Login + Rate Limit Per-User
+
+Sesi login dilaporkan tidak stabil. Akar masalah yang ditemukan & diperbaiki:
+
+| # | Masalah | Dampak | Perbaikan |
+|---|---------|--------|----------|
+| 1 | Cookie default `session` bentrok dengan Nextcloud di domain sama (cookie browser **mengabaikan port**) | Sesi acak ter-logout | `SESSION_COOKIE_NAME='bpf_session'` |
+| 2 | `DEPLOY_FRESH.md` regenerate `SECRET_KEY` tiap deploy fresh | Semua user logout massal | `.env` hanya dibuat bila belum ada |
+| 3 | Akses http LAN + cookie `Secure` | Login loop (cookie tak terkirim) | Env eksplisit di compose + dokumentasi |
+| 4 | Token CSRF stale di tab lama setelah re-login | Error "muat ulang halaman" | `api.js` auto-refresh via `/api/auth/me` + retry sekali |
+| 5 | Lockout login per-IP murni | Seluruh kantor NAT terkunci gara-gara satu orang salah PIN | Kunci rate-limit kini `IP+username` |
+
+### 🚀 Deployment & Verifikasi Produksi
+- SPA di-rebuild (`scripts/build-spa.sh`) + image `bbm_web` di-rebuild & restart.
+- Verifikasi live: login `it_sby` HTTP 200 dengan cookie `bpf_session`, `/api/scraper/sites` menampilkan tepat **BPF Surabaya**.
+- Full test suite host: **300 passed**; security-headers **7 passed** di container; test PDF overtime flake sekali saat full-run (lulus konsisten saat standalone/file — flake lingkungan, bukan regresi).
+
 ### 📰 Fix News Scraper (debug sebagai user `it_sby`)
 
 Debug fungsi news scraper via simulasi login `it_sby`. Ditemukan **3 bug**:
