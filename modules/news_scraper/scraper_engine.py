@@ -567,6 +567,7 @@ def fetch_article_content(article: dict, session=None) -> None:
             soup.select_one('.read__content'),
             soup.select_one('.post-content'),
             soup.select_one('.entry-content'),
+            soup.select_one('.prose'),
         ]
         best, best_len = None, 0
         for cand in candidates:
