@@ -15,6 +15,7 @@ Sections:
     7. Internal Linking   - auto_internal_links()
     8. Analytics          - track_performance(), get_analytics()
     9. Caching            - JsonCache (file-based, TTL 30s)
+   10. SEO Analysis       - seo_analyze()
 
 All data-file paths are sourced from ``modules/news_scraper/__init__.py``
 constants (with safe fallbacks for standalone execution).
@@ -229,6 +230,150 @@ def _save_json(path: str, data: Any) -> bool:
 # ===================================================================
 # 2. BACKLINKS
 # ===================================================================
+def seo_analyze(html_content: str, title: str = '') -> Dict[str, Any]:
+    """Analyse HTML content for basic SEO signals and return a score.
+
+    Scoring breakdown (0–100):
+        - Title presence & length          15 pts
+        - Heading tags (h1, h2, h3)        15 pts
+        - Paragraph count                  10 pts
+        - Content length (word count)      20 pts
+        - Image presence                    5 pts
+        - Meta keywords (inline)            5 pts
+        - Link presence (backlinks)         5 pts
+        - Structured data (schema)         10 pts
+        - Title-in-content keyword match   10 pts
+        - Readability (avg sentence len)     5 pts
+
+    Returns:
+        dict with keys: seo_score (int 0-100), details (dict), suggestions (list)
+    """
+    details: Dict[str, Any] = {}
+    suggestions: List[str] = []
+    score = 0
+    text_only = re.sub(r'<[^>]+>', ' ', html_content or '')
+    text_only = re.sub(r'\s+', ' ', text_only).strip()
+    words = text_only.split()
+
+    # 1. Title presence & length (15 pts)
+    title_len = len(title or '')
+    if title_len > 0:
+        score += 5
+        if 30 <= title_len <= 70:
+            score += 10
+            details['title'] = 'optimal'
+        elif title_len < 30:
+            score += 3
+            details['title'] = 'too_short'
+            suggestions.append('Judul terlalu pendek (ideal: 30-70 karakter)')
+        else:
+            score += 5
+            details['title'] = 'too_long'
+            suggestions.append('Judul terlalu panjang (ideal: 30-70 karakter)')
+    else:
+        suggestions.append('Judul kosong — wajib diisi untuk SEO')
+
+    # 2. Heading tags (15 pts)
+    h1_count = len(re.findall(r'<h1[\s>]', html_content, re.I))
+    h2_count = len(re.findall(r'<h2[\s>]', html_content, re.I))
+    h3_count = len(re.findall(r'<h3[\s>]', html_content, re.I))
+    details['headings'] = {'h1': h1_count, 'h2': h2_count, 'h3': h3_count}
+    if h1_count >= 1:
+        score += 5
+    if h2_count >= 1:
+        score += 5
+    if h3_count >= 1:
+        score += 5
+    if h1_count == 0:
+        suggestions.append('Tambahkan tag <h1> untuk judul utama')
+
+    # 3. Paragraph count (10 pts)
+    para_count = len(re.findall(r'<p[\s>]', html_content, re.I))
+    details['paragraphs'] = para_count
+    if para_count >= 5:
+        score += 10
+    elif para_count >= 3:
+        score += 6
+    elif para_count >= 1:
+        score += 3
+    else:
+        suggestions.append('Tambahkan lebih banyak paragraf (minimal 5)')
+
+    # 4. Content length (20 pts)
+    word_count = len(words)
+    details['word_count'] = word_count
+    if word_count >= 600:
+        score += 20
+    elif word_count >= 300:
+        score += 15
+    elif word_count >= 150:
+        score += 10
+    elif word_count >= 50:
+        score += 5
+    else:
+        suggestions.append('Konten terlalu pendek (ideal: 600+ kata)')
+
+    # 5. Image presence (5 pts)
+    img_count = len(re.findall(r'<img[\s>]', html_content, re.I))
+    details['images'] = img_count
+    if img_count >= 1:
+        score += 5
+    else:
+        suggestions.append('Tambahkan minimal 1 gambar untuk engagement lebih baik')
+
+    # 6. Inline meta keywords (5 pts)
+    has_meta_kw = bool(re.search(r'keywords', html_content, re.I)) or bool(
+        re.search(r'\b(seo|keyword|tag)\b', html_content, re.I)
+    )
+    if has_meta_kw:
+        score += 5
+
+    # 7. Link presence (5 pts)
+    link_count = len(re.findall(r'<a[\s>]', html_content, re.I))
+    details['links'] = link_count
+    if link_count >= 1:
+        score += 5
+
+    # 8. Structured data / schema (10 pts)
+    schema_count = html_content.count('application/ld+json')
+    details['schemas'] = schema_count
+    if schema_count >= 1:
+        score += 10
+    else:
+        suggestions.append('Tambahkan JSON-LD structured data untuk rich snippets')
+
+    # 9. Title keyword in content (10 pts)
+    if title and words:
+        title_words = set(w.lower() for w in re.findall(r'[a-z]{4,}', title.lower()))
+        content_words_lower = ' '.join(words[:500]).lower()
+        matched = sum(1 for tw in title_words if tw in content_words_lower)
+        ratio = matched / max(len(title_words), 1)
+        details['keyword_density'] = round(ratio, 2)
+        if ratio >= 0.5:
+            score += 10
+        elif ratio >= 0.3:
+            score += 6
+        elif ratio >= 0.1:
+            score += 3
+        else:
+            suggestions.append('Kata kunci judul kurang muncul di konten')
+
+    # 10. Readability — avg sentence length (5 pts)
+    sentences = re.split(r'[.!?]+', text_only)
+    sentences = [s.strip() for s in sentences if s.strip()]
+    if sentences:
+        avg_len = sum(len(s.split()) for s in sentences) / len(sentences)
+        details['avg_sentence_words'] = round(avg_len, 1)
+        if avg_len <= 25:
+            score += 5
+        elif avg_len <= 35:
+            score += 3
+        else:
+            suggestions.append('Kalimat terlalu panjang — pecah untuk readability')
+
+    score = min(score, 100)
+    return {'seo_score': score, 'details': details, 'suggestions': suggestions}
+
 
 def get_anchor_text(keyword: str) -> str:
     """Pick a natural-sounding anchor variation for a matched keyword."""
@@ -318,7 +463,7 @@ def build_article_html(title: str, content: str, article: Dict[str, Any],
     Escapes user-controlled content to prevent HTML injection / stored XSS.
     """
     # Split content into paragraphs
-    paragraphs = content.split('') if content else []
+    paragraphs = content.split('\n') if content else []
     paragraphs = [p.strip() for p in paragraphs if p.strip()]
     if not paragraphs:
         paragraphs = [content] if content else []
@@ -670,7 +815,7 @@ def rewrite_content(content: str, title: str = '') -> str:
             if len(w) >= 3:
                 protected.add(w.lower())
 
-    paragraphs = content.split('')
+    paragraphs = content.split('\n')
     rewritten: List[str] = []
     for para in paragraphs:
         para = para.strip()
