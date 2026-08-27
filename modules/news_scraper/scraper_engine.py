@@ -87,7 +87,7 @@ DEFAULT_RSS_FEEDS = {
     'kontan': 'https://kontan.co.id/feed',
 }
 
-_NEWSMAKER_BASE = 'https://newsmaker.id'
+_NEWSMAKER_BASE = 'https://www.newsmaker.id/id/news/commodity'
 
 _ISO_DATETIME_RE = re.compile(r'(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})')
 
@@ -292,8 +292,8 @@ def scrape_newsmaker(pages: int = 1, session=None) -> list:
 
     try:
         for page in range(1, max(1, int(pages)) + 1):
-            url = _NEWSMAKER_BASE + '/' if page == 1 \
-                else f'{_NEWSMAKER_BASE}/page/{page}'
+            url = _NEWSMAKER_BASE if page == 1 \
+                else f'{_NEWSMAKER_BASE}?page={page}'
             t0 = time.time()
             try:
                 resp = sess.get(url, timeout=REQUEST_TIMEOUT, headers=headers)
@@ -307,17 +307,32 @@ def scrape_newsmaker(pages: int = 1, session=None) -> list:
                     break
                 soup = BeautifulSoup(resp.text, 'html.parser')
                 hits = 0
-                for a_tag in soup.select('article h2 a, article h3 a, h2 a, h3 a'):
-                    title = a_tag.get_text(strip=True)[:200]
-                    href = a_tag.get('href', '')
-                    if not title or not href or len(title) < 10:
+                # Newsmaker.id layout: card > div > h3 (title) + a[href*=commodity] (link)
+                # Strategy: find all h3 headings, then find nearest article link
+                h3_tags = soup.select('h3')
+                for h3 in h3_tags:
+                    title = h3.get_text(strip=True)[:200]
+                    if not title or len(title) < 10:
+                        continue
+                    # Find the closest parent card that also contains an article link
+                    card = h3.parent
+                    for _ in range(5):
+                        if card is None:
+                            break
+                        article_link = card.select_one('a[href*="/id/news/commodity/"]')
+                        if article_link:
+                            break
+                        card = card.parent
+                    if not article_link:
+                        continue
+                    href = article_link.get('href', '')
+                    if not href:
                         continue
                     link = urljoin(_NEWSMAKER_BASE, href.strip())
                     if link in seen:
                         continue
                     seen.add(link)
-                    if not is_commodity_related(title):
-                        continue
+                    # All articles on commodity page are commodity-related
                     hits += 1
                     articles.append({
                         'title': title,
