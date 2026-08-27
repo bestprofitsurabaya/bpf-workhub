@@ -597,9 +597,35 @@ def fetch_article_content(article: dict, session=None) -> None:
 
         # Metadata top-ups
         if not article.get('image_url'):
+            # 1) og:image meta tag
             og_img = soup.find('meta', property='og:image')
             if og_img and og_img.get('content'):
                 article['image_url'] = og_img['content'].strip()
+
+        if not article.get('image_url'):
+            # 2) Fallback: find <img> with full URL whose alt matches article title
+            title_lower = (article.get('title') or '').lower()
+            for img in soup.select('img[src]'):
+                src = img.get('src', '')
+                alt = (img.get('alt') or '').lower()
+                if not src or not src.startswith('http'):
+                    continue
+                # Skip logos, icons, avatars
+                skip_words = ['logo', 'icon', 'avatar', 'favicon', 'banner', 'widget']
+                if any(w in src.lower() for w in skip_words):
+                    continue
+                # Match by alt text or by being the first large image in article area
+                if title_lower and any(w in alt for w in title_lower.split()[:3] if len(w) > 3):
+                    article['image_url'] = src.strip()
+                    break
+            # 3) Last resort: first external <img> with class containing 'full'
+            if not article.get('image_url'):
+                for img in soup.select('img[src]'):
+                    src = img.get('src', '')
+                    cls = ' '.join(img.get('class', []))
+                    if src.startswith('http') and 'full' in cls:
+                        article['image_url'] = src.strip()
+                        break
 
         if not article.get('publish_date'):
             meta_time = soup.find('meta', property='article:published_time')
