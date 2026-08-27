@@ -1,4 +1,4 @@
-# 📖 Panduan Pengguna BPF WorkHub v2.28.2
+# 📖 Panduan Pengguna BPF WorkHub v2.29.0
 
 > **Siapa pun kamu — sopir, OB, admin, atau pimpinan — panduan ini ditulis untuk kamu.**
 > Tidak perlu paham teknis. Cukup ikuti langkah-langkah sesuai bagianmu.
@@ -563,11 +563,15 @@ Angka "receh" yang ditambahkan ke nominal kasbon (mis. Rp 100.023, bukan Rp 100.
 1. Pilih artikel yang mau diupload (checkbox per artikel).
 2. Pilih **target site** dari dropdown.
 3. Klik **📤 Upload to WordPress**.
-4. **SEO Optimization** otomatis: schema markup, meta description, word count.
-5. **Financial Authority Backlinks** otomatis berdasarkan keyword.
-6. **Source backlink** otomatis ke sumber asli (Newsmaker/Detik).
-7. **Tag otomatis** dibuat berdasarkan judul artikel.
-8. Hasil upload: jumlah baru, update, dan error.
+4. **Progress bar** bergerak sesuai tahapan: login → filter → upload → selesai.
+5. **Pre-filter otomatis** — artikel yang sudah ada di WordPress otomatis di-skip (hanya artikel BARU yang diproses).
+6. **SEO Optimization** otomatis: schema markup, meta description, word count.
+7. **Financial Authority Backlinks** otomatis berdasarkan keyword.
+8. **Source backlink** otomatis ke sumber asli (Newsmaker/Detik).
+9. **Tag otomatis** dibuat berdasarkan judul artikel.
+10. Hasil upload: jumlah baru, update, error, dan berapa yang di-skip (sudah ada di WP).
+
+> 💡 **Tips:** Jika upload terasa lambat, kemungkinan banyak artikel sudah ada di WP. Pre-filter otomatis menanganinya — kamu tidak perlu khawatir upload duplikat.
 
 ### 14.4 Tab Report 📋
 
@@ -589,7 +593,29 @@ Klik **🔗 Backlinks** untuk melihat/mengelola:
 2. Artikel duplikat terdeteksi: judul, jumlah duplikat, post IDs.
 3. Klik **🗑 Delete Duplicates** untuk menghapus (keep latest only).
 
-### 14.7 Settings SEO
+### 14.7 Auto-Scrape (Otomatis)
+
+Sistem memiliki **cron otomatis** yang berjalan 4× sehari:
+
+| Jam (WIB) | Keterangan |
+|-----------|------------|
+| 06:00 | Pagi — artikel semalam |
+| 10:00 | Siang — artikel pagi |
+| 14:00 | Sore — artikel siang |
+| 18:00 | Sore — artikel menjelang malam |
+
+**Alur otomatis:**
+1. Scrape newsmaker.id (gold, oil, silver).
+2. Fetch konten setiap artikel (dengan retry jika gagal).
+3. Login ke semua WordPress site aktif.
+4. Fetch semua post yang sudah ada di WP.
+5. **Pre-filter** — skip artikel yang sudah ada.
+6. Upload hanya artikel BARU ke WP.
+7. Log: `/app/data/news_scraper/auto_scrape.log`
+
+> 💡 Kamu tetap bisa upload manual kapan saja — auto-scrape hanya membantu agar artikel baru tidak terlewat.
+
+### 14.8 Settings SEO
 
 - **🔍 Auto-SEO**: aktifkan untuk optimasi otomatis.
 - **🔗 Authority Backlinks**: aktifkan untuk backlink otomatis.
@@ -598,6 +624,12 @@ Klik **🔗 Backlinks** untuk melihat/mengelola:
 - **⚙️ Daily Limit**: atur jumlah maksimal publish per hari (1-100).
   - Default: 10/hari
   - Bisa diubah dari Tab Dashboard → ⚙️ Pengaturan
+
+### 14.9 Retry & Error Handling
+
+Jika situs berita rate-limit (HTTP 429) atau error server (5xx), sistem otomatis **retry 3× dengan exponential backoff** (tunggu 2 detik → 4 detik → 8 detik). Ini memastikan artikel tetap bisa di-scrape meskipun situs sedang sibuk.
+
+Jika upload ke WordPress gagal, pesan error sekarang menampilkan **response body** dari WordPress (bukan cuma "HTTP 400") — memudahkan debugging.
 
 ---
 

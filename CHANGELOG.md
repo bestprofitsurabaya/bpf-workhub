@@ -4,6 +4,59 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 
 ---
 
+## v2.29.0 — 27 Agustus 2026
+
+### 📰 Scraper: Pre-Filter, Retry Logic & Progress Bar Fix
+
+Tiga fix kritis + satu fitur baru untuk pipeline scraper:
+
+#### 🔧 Fix: Progress Bar stuck 0%
+
+**Root cause:** Frontend buat `task_id` (JS milliseconds) lalu polling endpoint yang sama, tapi backend generate `task_id` baru sendiri (Python epoch seconds). Task ID tidak pernah match → frontend poll task yang tidak ada → progress bar stuck di 0%.
+
+**Fix:** Backend sekarang terima `task_id` dari frontend via query param `?task_id=...` dan menggunakannya, bukan generate baru. Scrape endpoint sudah benar sejak awal; hanya upload endpoint yang perlu diperbaiki.
+
+#### 🔧 Fix: HTTP 400 saat Upload ke WordPress
+
+**Root cause:** Dua masalah:
+1. `update_post()` pakai method `POST` — WordPress REST API expects `PUT`/`PATCH` untuk update.
+2. `publish_time` kosong bikin format date invalid (`2024-01-01T:00`).
+
+**Fix:** `update_post()` diganti ke `PUT`. Content size validation ditambah (>120KB auto-truncate). `publish_time` default ke `'08:00'` jika kosong. Error logging sekarang tampilkan response body WordPress (sebelumnya cuma "HTTP 400").
+
+#### 🔧 Fix: Content Not Found (Rate Limiting)
+
+**Root cause:** Scrape 48 artikel secara sequential ke newsmaker.id tanpa retry → situs rate-limit setelah ~25 request → 23 artikel gagal dapat konten.
+
+**Fix:** Ditambah `_retry_get()` — helper dengan exponential backoff (3 retries, 2s→4s→8s) yang retry otomatis pada HTTP 429/5xx dan connection errors. Respect header `Retry-After` jika ada. Dipakai di scraper newsmaker, detik, dan fetch article content.
+
+#### ✨ Fitur: Pre-Filter Artikel vs WordPress
+
+Upload kini **pre-filter** artikel melawan WordPress SEBELUM memproses pipeline:
+1. Fetch semua post titles dari WordPress (hingga 1000 posts).
+2. Bandingkan normalized title → skip yang sudah ada.
+3. Hanya proses artikel BARU melalui pipeline mahal (rewrite, HTML, SEO, backlinks, tags, schema).
+
+**Hasil:** 48 scraped → 45 already on WP (skip) → hanya 3 diproses. Upload ~94% lebih cepat.
+
+#### ✨ Fitur: Auto-Scrape Cron
+
+Script `scripts/auto_scrape.sh` dijalankan via cron di Docker container:
+- Jam 06:00, 10:00, 14:00, 18:00 WIB
+- Scrape newsmaker.id → pre-filter vs WP → upload hanya yang baru
+- Log: `/app/data/news_scraper/auto_scrape.log`
+- Lock file mencegah overlapping runs
+
+### Commits
+
+```
+73068e5 perf(scraper): pre-filter articles against WordPress before upload
+cc3773d feat(scraper): add auto-scrape cron (jam 6,10,14,18 WIB)
+319d2de fix(scraper): fix progress bar, HTTP 400 errors, and add retry logic
+```
+
+---
+
 ## v2.28.9 — 27 Agustus 2026
 
 ### 📰 Source Badge + Filter Artikel
@@ -413,4 +466,4 @@ Versi stabil pertama dengan fitur lengkap: 10 role, 243 pytest, 82 Vitest, 10 vi
 
 ---
 
-*BPF WorkHub v2.28.7 · Diperbarui 25 Agustus 2026*
+*BPF WorkHub v2.29.0 · Diperbarui 27 Agustus 2026*

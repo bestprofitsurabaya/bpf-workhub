@@ -203,6 +203,35 @@ docker compose exec web cat /var/log/overtime-cleanup.log
 docker compose exec web sh /app/scripts/overtime-cleanup.sh
 ```
 
+### Auto-Scrape (News Scraper — Jam 6,10,14,18 WIB)
+
+Cron otomatis scrape newsmaker.id + upload ke WordPress. Sudah ter-setup di Dockerfile.
+
+**Schedule:** Jam 06:00, 10:00, 14:00, 18:00 WIB
+**Log:** `/app/data/news_scraper/auto_scrape.log`
+
+```bash
+# Cek cron yang aktif
+docker compose exec web crontab -l
+
+# Cek log auto-scrape
+docker compose exec web tail -50 /app/data/news_scraper/auto_scrape.log
+
+# Jalankan manual (test)
+docker compose exec web sh /app/scripts/auto_scrape.sh
+
+# Nonaktifkan auto-scrape (comment baris cron)
+docker compose exec web crontab -l | grep -v auto_scrape | crontab -
+```
+
+**Fitur:**
+- Pre-filter otomatis — hanya upload artikel BARU (skip yang sudah ada di WP)
+- Retry + exponential backoff jika situs rate-limit
+- Lock file mencegah overlapping runs
+- Upload ke semua WP site aktif (BPF Surabaya, Bandung, dll)
+
+**Konfigurasi site:** Edit `/app/data/news_scraper/wp_sites.json` (atau mount dari host via volume)
+
 ---
 
 ## 8. Update / Redeploy
