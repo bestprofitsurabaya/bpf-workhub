@@ -586,60 +586,48 @@ def build_article_html(title: str, content: str, article: Dict[str, Any],
     encoded_title = _url.quote(title) if title else ''
 
     html = f'''
-<!-- Reading Progress Bar -->
-<div id="bpf-progress" style="position:fixed;top:0;left:0;height:3px;background:linear-gradient(90deg,#1e3a5f,#c8a951);z-index:9999;width:0%;transition:width .1s;"></div>
+<!-- BPF Article UX -->
+<div class="bpf-progress" id="bpf-progress"></div>
 
-<article style="font-family:Georgia,serif;line-height:1.8;color:#1f2937;">
-  <!-- Breadcrumb -->
-  <nav style="margin-bottom:16px;font-size:13px;color:#94a3b8;">
-    <a href="/" style="color:#1e3a5f;text-decoration:none;">🏠 Beranda</a>
-    <span style="margin:0 6px;">›</span>
-    <span style="color:#1e3a5f;">Berita</span>
-    <span style="margin:0 6px;">›</span>
-    <span>{_esc(title[:40])}{'…' if len(title) > 40 else ''}</span>
-  </nav>
+<div class="bpf-breadcrumb">
+  <a href="/">🏠 Beranda</a>
+  <span>›</span>
+  <span>Berita</span>
+  <span>›</span>
+  <span>{_esc(title[:40])}{'…' if len(title) > 40 else ''}</span>
+</div>
 
-  <!-- Category Badge -->
-  <div style="margin-bottom:12px;">{category_badge}</div>
-
-  <!-- Title -->
-  <h1 style="font-size:28px;font-weight:700;line-height:1.3;margin:0 0 12px;color:#111827;">{_esc(title)}</h1>
-
-  <!-- Meta Info -->
-  <div style="display:flex;align-items:center;gap:16px;padding:12px 0;border-top:1px solid #e5e7eb;border-bottom:1px solid #e5e7eb;margin-bottom:24px;font-size:13px;color:#6b7280;flex-wrap:wrap;">
+<article class="bpf-article">
+  <div class="bpf-article-badge">{category_badge}</div>
+  <h1 class="bpf-article-title">{_esc(title)}</h1>
+  <div class="bpf-article-meta">
     <span>📅 {_esc(publish_date)}</span>
     <span>🕐 {_esc(publish_time)}</span>
     <span>⏱️ {reading_time} menit baca</span>
     <span>📰 Sumber: {source_link}</span>
-    <span style="margin-left:auto;display:flex;gap:8px;">
-      <a href="https://api.whatsapp.com/send?text={encoded_title}%20{encoded_url}" target="_blank" rel="noopener" title="Share ke WhatsApp" style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;background:#25d366;color:#fff;border-radius:6px;font-size:11px;text-decoration:none;">💬 WA</a>
-      <a href="https://www.facebook.com/sharer/sharer.php?u={encoded_url}" target="_blank" rel="noopener" title="Share ke Facebook" style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;background:#1877f2;color:#fff;border-radius:6px;font-size:11px;text-decoration:none;">📘 FB</a>
-      <a href="https://twitter.com/intent/tweet?text={encoded_title}&url={encoded_url}" target="_blank" rel="noopener" title="Share ke Twitter" style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;background:#1da1f2;color:#fff;border-radius:6px;font-size:11px;text-decoration:none;">🐦 X</a>
-      <button onclick="navigator.clipboard.writeText(window.location.href);this.innerHTML='✅';setTimeout(()=>this.innerHTML='🔗',1500)" title="Salin link" style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;background:#6b7280;color:#fff;border-radius:6px;font-size:11px;border:none;cursor:pointer;">🔗</button>
+    <span class="bpf-share-group">
+      <a href="https://api.whatsapp.com/send?text={encoded_title}%20{encoded_url}" target="_blank" rel="noopener" class="bpf-share bpf-share-wa">💬 WA</a>
+      <a href="https://www.facebook.com/sharer/sharer.php?u={encoded_url}" target="_blank" rel="noopener" class="bpf-share bpf-share-fb">📘 FB</a>
+      <a href="https://twitter.com/intent/tweet?text={encoded_title}&url={encoded_url}" target="_blank" rel="noopener" class="bpf-share bpf-share-x">🐦 X</a>
+      <button onclick="navigator.clipboard.writeText(window.location.href);this.innerHTML='✅';setTimeout(()=>this.innerHTML='🔗',1500)" class="bpf-share bpf-share-copy">🔗</button>
     </span>
   </div>
 
-  <!-- Table of Contents -->
   {toc_html}
 
-  <!-- Article Body -->
-  <div style="font-size:16px;">
+  <div class="bpf-article-body">
     {body_paragraphs}
   </div>
 
-  <!-- Disclaimer -->
-  <div style="margin-top:24px;padding:16px;background:#f9fafb;border-left:4px solid #d1d5db;font-size:13px;color:#6b7280;font-style:italic;">
+  <div class="bpf-disclaimer">
     <strong>Disclaimer:</strong> Artikel ini dikutip dari sumber berita untuk tujuan informasi. Segala keputusan investasi harus berdasarkan pertimbangan matang dan berkonsultasi dengan penasihat keuangan yang kompeten.
   </div>
 </article>
 
-<!-- Back to Top Button -->
-<button id="bpf-backtotop" onclick="window.scrollTo({{top:0,behavior:'smooth'}})" style="position:fixed;bottom:24px;right:24px;width:44px;height:44px;border-radius:50%;background:#1e3a5f;color:#fff;border:none;font-size:20px;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.2);display:none;z-index:9998;transition:all .3s;" onmouseover="this.style.background='#c8a951'" onmouseout="this.style.background='#1e3a5f'">↑</button>
+<button id="bpf-backtotop" class="bpf-backtotop" onclick="window.scrollTo({{top:0,behavior:'smooth'}})">↑</button>
 
-<!-- UX JavaScript -->
 <script>
 (function(){{
-  // Reading progress bar
   var bar = document.getElementById('bpf-progress');
   var btn = document.getElementById('bpf-backtotop');
   if(bar){{
@@ -647,11 +635,9 @@ def build_article_html(title: str, content: str, article: Dict[str, Any],
       var h = document.documentElement.scrollHeight - window.innerHeight;
       var p = (window.scrollY / h) * 100;
       bar.style.width = p + '%';
-      // Show/hide back-to-top
       if(btn) btn.style.display = window.scrollY > 400 ? 'block' : 'none';
     }});
   }}
-  // Smooth scroll for TOC links
   document.querySelectorAll('.bpf-toc a').forEach(function(a){{
     a.addEventListener('click', function(e){{
       var id = this.getAttribute('href').slice(1);
@@ -664,11 +650,6 @@ def build_article_html(title: str, content: str, article: Dict[str, Any],
   }});
 }})();
 </script>
-
-<style>
-.bpf-toc-collapsed ul {{ display: none !important; }}
-.bpf-toc-collapsed span {{ transform: rotate(-90deg); display: inline-block; }}
-</style>
 '''
     return html.strip()
 
