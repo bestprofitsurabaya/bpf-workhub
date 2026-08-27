@@ -33,6 +33,17 @@ const selectedSource = ref('all')
 const articles = ref([])
 const scrapeBusy = ref(false)
 const selectedArticles = ref(new Set())
+const sourceFilter = ref('all') // filter articles by source
+const filteredArticles = computed(() => {
+  if (sourceFilter.value === 'all') return articles.value
+  return articles.value.filter(a => a.source === sourceFilter.value)
+})
+const sourceCount = computed(() => {
+  const counts = { all: articles.value.length, newsmaker: 0, detik_finance: 0 }
+  articles.value.forEach(a => { if (counts[a.source] !== undefined) counts[a.source]++ })
+  return counts
+})
+const sourceLabel = (src) => ({ newsmaker: '📰 Newsmaker.id', detik_finance: '📰 Detik Finance' })[src] || src
 
 // Upload
 const selectedSite = ref('')
@@ -239,11 +250,14 @@ function toggleArticle(idx) {
   selectedArticles.value = s
 }
 function toggleAllArticles() {
-  if (selectedArticles.value.size === articles.value.length) {
-    selectedArticles.value = new Set()
+  const visible = filteredArticles.value
+  const allSelected = visible.every(a => selectedArticles.value.has(articles.value.indexOf(a)))
+  if (allSelected) {
+    visible.forEach(a => selectedArticles.value.delete(articles.value.indexOf(a)))
   } else {
-    selectedArticles.value = new Set(articles.value.map((_, i) => i))
+    visible.forEach(a => selectedArticles.value.add(articles.value.indexOf(a)))
   }
+  selectedArticles.value = new Set(selectedArticles.value)
 }
 
 // --- Upload ---
@@ -522,16 +536,19 @@ onMounted(() => { loadSites(); loadDashboard(); document.documentElement.classLi
             <h4>📄 {{ articles.length }} Artikel Ditemukan</h4>
             <div class="card-actions">
               <span class="selected-count">{{ selectedCount }} dipilih</span>
-              <button class="btn btn-sm" @click="toggleAllArticles">{{ selectedCount === articles.length ? 'Deselect All' : 'Select All' }}</button>
+              <button class="btn btn-sm" @click="sourceFilter = 'all'" :class="{ 'btn-primary': sourceFilter === 'all' }">🌐 Semua ({{ sourceCount.all }})</button>
+              <button class="btn btn-sm" @click="sourceFilter = 'newsmaker'" :class="{ 'btn-primary': sourceFilter === 'newsmaker' }">📰 Newsmaker ({{ sourceCount.newsmaker }})</button>
+              <button class="btn btn-sm" @click="sourceFilter = 'detik_finance'" :class="{ 'btn-primary': sourceFilter === 'detik_finance' }">📰 Detik ({{ sourceCount.detik_finance }})</button>
+              <button class="btn btn-sm" @click="toggleAllArticles">{{ selectedCount === filteredArticles.length ? 'Deselect All' : 'Select All' }}</button>
               <button class="btn btn-primary btn-sm" :disabled="!selectedCount || !selectedSite" @click="activeTab = 'upload'">
                 📤 Upload {{ selectedCount }} →
               </button>
             </div>
           </div>
           <div class="article-grid">
-            <div v-for="(a, i) in articles" :key="i" class="article-card" :class="{ selected: selectedArticles.has(i) }" @click="toggleArticle(i)">
+            <div v-for="(a, i) in filteredArticles" :key="articles.indexOf(a)" class="article-card" :class="{ selected: selectedArticles.has(articles.indexOf(a)) }" @click="toggleArticle(articles.indexOf(a))">
               <div class="article-check">
-                <input type="checkbox" :checked="selectedArticles.has(i)" @click.stop />
+                <input type="checkbox" :checked="selectedArticles.has(articles.indexOf(a))" @click.stop />
               </div>
               <div class="article-thumb" v-if="a.image_url">
                 <img :src="a.image_url" :alt="a.title" loading="lazy" @error="$event.target.style.display='none'" />
@@ -539,6 +556,7 @@ onMounted(() => { loadSites(); loadDashboard(); document.documentElement.classLi
               <div class="article-body">
                 <div class="article-title">{{ a.title }}</div>
                 <div class="article-meta">
+                  <span class="badge" :class="a.source === 'newsmaker' ? 'badge-cyan' : 'badge-orange'">{{ sourceLabel(a.source) }}</span>
                   <span class="badge badge-purple">{{ a.category }}</span>
                   <span class="article-date">{{ a.publish_date }}</span>
                   <span class="article-chars" v-if="a.content">{{ a.content.length }} chars</span>
