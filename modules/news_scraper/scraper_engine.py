@@ -88,6 +88,7 @@ DEFAULT_RSS_FEEDS = {
 }
 
 _NEWSMAKER_BASE = 'https://www.newsmaker.id/id/news/commodity'
+_NEWSMAKER_SUBCATEGORIES = ['gold', 'oil', 'silver']
 
 _ISO_DATETIME_RE = re.compile(r'(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})')
 
@@ -270,14 +271,75 @@ def parse_detik_date(date_text: str) -> tuple:
 # MULTI-SOURCE SCRAPERS
 # ===================================================================
 
-def scrape_newsmaker(pages: int = 1, session=None) -> list:
-    """Scrape newsmaker.id listing pages.
+def _scrape_newsmaker_page(url: str, sess, headers: dict, seen: set) -> list:
+    """Scrape articles from a single newsmaker.id page."""
+    articles = []
+    t0 = time.time()
+    try:
+        resp = sess.get(url, timeout=REQUEST_TIMEOUT, headers=headers)
+        elapsed_ms = int((time.time() - t0) * 1000)
+        _adaptive_sleep(resp)
+        if resp.status_code != 200:
+            _sl.scrape_page(f'newsmaker/{url.split("/commodity")[-1][:30]}',
+                            status='ERROR', items_found=0,
+                            error=f'HTTP {resp.status_code}', duration_ms=elapsed_ms)
+            return articles
+        soup = BeautifulSoup(resp.text, 'html.parser')
+        hits = 0
+        h3_tags = soup.select('h3')
+        for h3 in h3_tags:
+            title = h3.get_text(strip=True)[:200]
+            if not title or len(title) < 10:
+                continue
+            card = h3.parent
+            article_link = None
+            for _ in range(5):
+                if card is None:
+                    break
+                article_link = card.select_one('a[href*="/id/news/commodity/"]')
+                if article_link:
+                    break
+                card = card.parent
+            if not article_link:
+                continue
+            href = article_link.get('href', '')
+            if not href:
+                continue
+            link = urljoin(_NEWSMAKER_BASE, href.strip())
+            if link in seen:
+                continue
+            seen.add(link)
+            hits += 1
+            articles.append({
+                'title': title,
+                'link': link,
+                'category': '',
+                'publish_date': datetime.now().strftime('%Y-%m-%d'),
+                'publish_time': '',
+                'image_url': '',
+                'content': None,
+                'source': 'newsmaker',
+            })
+        _sl.scrape_page(f'newsmaker/{url.split("/commodity")[-1][:30]}',
+                        status='OK', items_found=hits, duration_ms=elapsed_ms)
+    except requests.RequestException as exc:
+        elapsed_ms = int((time.time() - t0) * 1000)
+        _sl.scrape_page(f'newsmaker/{url.split("/commodity")[-1][:30]}',
+                        status='ERROR', items_found=0,
+                        error=str(exc)[:200], duration_ms=elapsed_ms)
+        logger.warning('newsmaker %s failed: %s', url, exc)
+        time.sleep(0.5)
+    return articles
 
-    Only commodity-related headlines are kept. An adaptive delay
-    (based on measured response time) is applied between requests.
+
+def scrape_newsmaker(pages: int = 1, session=None) -> list:
+    """Scrape newsmaker.id commodity pages + sub-categories.
+
+    Crawls the main commodity page plus sub-categories (gold, oil, silver)
+    to maximize article coverage.
 
     Args:
-        pages: number of listing pages to walk (page 1 = homepage).
+        pages: number of listing pages to walk per section.
         session: optional pre-configured requests.Session.
 
     Returns:
@@ -286,78 +348,31 @@ def scrape_newsmaker(pages: int = 1, session=None) -> list:
     own_session = session is None
     sess = session or requests.Session()
     headers = {'User-Agent': DEFAULT_UA}
-    articles = []
-    seen = set()
+    seen_links = set()
+    all_articles = []
     _sl.scrape_start('newsmaker')
 
+    # Build URL list: main commodity page + sub-categories
+    urls = [_NEWSMAKER_BASE]
+    for sub in _NEWSMAKER_SUBCATEGORIES:
+        urls.append(f'{_NEWSMAKER_BASE}/{sub}')
+
     try:
-        for page in range(1, max(1, int(pages)) + 1):
-            url = _NEWSMAKER_BASE if page == 1 \
-                else f'{_NEWSMAKER_BASE}?page={page}'
-            t0 = time.time()
-            try:
-                resp = sess.get(url, timeout=REQUEST_TIMEOUT, headers=headers)
-                elapsed_ms = int((time.time() - t0) * 1000)
-                _adaptive_sleep(resp)
-                if resp.status_code != 200:
-                    _sl.scrape_page(f'newsmaker/page/{page}', status='ERROR', items_found=0,
-                                    error=f'HTTP {resp.status_code}', duration_ms=elapsed_ms)
-                    logger.warning('newsmaker page %s -> HTTP %s',
-                                   page, resp.status_code)
+        for url in urls:
+            page_articles = _scrape_newsmaker_page(url, sess, headers, seen_links)
+            all_articles.extend(page_articles)
+            # Also try page 2+ if pages > 1
+            for page in range(2, max(1, int(pages)) + 1):
+                page_url = f'{url}?page={page}'
+                extra = _scrape_newsmaker_page(page_url, sess, headers, seen_links)
+                if not extra:
                     break
-                soup = BeautifulSoup(resp.text, 'html.parser')
-                hits = 0
-                # Newsmaker.id layout: card > div > h3 (title) + a[href*=commodity] (link)
-                # Strategy: find all h3 headings, then find nearest article link
-                h3_tags = soup.select('h3')
-                for h3 in h3_tags:
-                    title = h3.get_text(strip=True)[:200]
-                    if not title or len(title) < 10:
-                        continue
-                    # Find the closest parent card that also contains an article link
-                    card = h3.parent
-                    for _ in range(5):
-                        if card is None:
-                            break
-                        article_link = card.select_one('a[href*="/id/news/commodity/"]')
-                        if article_link:
-                            break
-                        card = card.parent
-                    if not article_link:
-                        continue
-                    href = article_link.get('href', '')
-                    if not href:
-                        continue
-                    link = urljoin(_NEWSMAKER_BASE, href.strip())
-                    if link in seen:
-                        continue
-                    seen.add(link)
-                    # All articles on commodity page are commodity-related
-                    hits += 1
-                    articles.append({
-                        'title': title,
-                        'link': link,
-                        'category': '',
-                        'publish_date': datetime.now().strftime('%Y-%m-%d'),
-                        'publish_time': '',
-                        'image_url': '',
-                        'content': None,
-                        'source': 'newsmaker',
-                    })
-                _sl.scrape_page(f'newsmaker/page/{page}', status='OK', items_found=hits, duration_ms=elapsed_ms)
-                if hits == 0 and page > 1:
-                    break  # deeper page empty -> stop walking
-            except requests.RequestException as exc:
-                elapsed_ms = int((time.time() - t0) * 1000)
-                _sl.scrape_page(f'newsmaker/page/{page}', status='ERROR', items_found=0,
-                                error=str(exc)[:200], duration_ms=elapsed_ms)
-                logger.warning('newsmaker page %s failed: %s', page, exc)
-                time.sleep(0.5)
+                all_articles.extend(extra)
     finally:
         if own_session:
             sess.close()
-    _sl.scrape_done(total_articles=len(articles))
-    return articles
+    _sl.scrape_done(total_articles=len(all_articles))
+    return all_articles
 
 
 def scrape_detik_finance(pages: int = 1) -> list:
