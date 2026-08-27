@@ -449,7 +449,44 @@ def apply_backlinks(
     cta_html = build_bpf_cta_widget()
     content = content + cta_html
 
+    # Inject internal links to linkable pages (kalkulator & glossarium)
+    content = _inject_linkable_page_links(content)
+
     return content, used
+
+
+def _inject_linkable_page_links(content: str) -> str:
+    """Add contextual internal links to linkable pages at end of article.
+
+    These pages are designed to attract backlinks (kalkulator emas, glossarium).
+    Linking from every article boosts their authority and helps them rank.
+    """
+    wp_base = 'https://best-profit-futures-surabaya.com'
+    links = []
+
+    # Link to kalkulator emas if article mentions emas/gold
+    if any(w in content.lower() for w in ['emas', 'gold', 'harga emas', 'antam', 'logam mulia']):
+        links.append(
+            f'<a href="{wp_base}/kalkulator-emas/" target="_blank">'
+            f'Kalkulator Emas</a>'
+        )
+
+    # Link to glossarium if article mentions trading terms
+    if any(w in content.lower() for w in ['trading', 'forex', 'saham', 'komoditas', 'investasi']):
+        links.append(
+            f'<a href="{wp_base}/glossarium-trading/" target="_blank">'
+            f'Glossarium Trading</a>'
+        )
+
+    if links:
+        links_html = ' &bull; '.join(links)
+        content += (
+            f'<div style="margin-top:20px;padding:12px;background:#f8fafc;'
+            f'border:1px solid #e2e8f0;border-radius:8px;font-size:13px;'
+            f'color:#475569;">'
+            f'📖 Baca juga: {links_html}</div>\n'
+        )
+    return content
 
 
 # ===================================================================
