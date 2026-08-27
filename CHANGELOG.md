@@ -6,6 +6,20 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 
 ## v2.28.9 — 27 Agustus 2026
 
+### 📰 Source Badge + Filter Artikel
+
+Artikel card kini menampilkan **badge sumber** (cyan untuk Newsmaker.id,
+orange untuk Detik Finance) dan **tombol filter** untuk membedakan
+artikel berdasarkan sumber. Filter menampilkan jumlah per sumber dan
+Select All hanya memilih artikel yang sedang ditampilkan.
+
+### 📰 Update Newsmaker.id URL
+
+URL scraping diubah ke `https://www.newsmaker.id/id/news/commodity`
+yang sudah spesifik ke artikel komoditas. Selector scraping diupdate
+menyesuaikan struktur HTML baru (`h3` + `a[href*=commodity]`).
+Live test: 16 artikel komoditas ditemukan dari halaman pertama.
+
 ### 📰 Site Config: Branch Code + WordPress Auth Investigation
 
 **Branch code penyebab `it_sby` tidak melihat site.**
@@ -38,8 +52,14 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
   fallback — tetapi di WP Surabaya, basic auth ditolak (plugin dihapus)
 
 ### Perubahan Code
+- `scraper_engine.py`: URL newsmaker.id diupdate ke `/id/news/commodity` + selector scraping
+- `ItEfView.vue`: source badge (cyan/orange) + filter buttons (Semua/Newsmaker/Detik)
 - `routes.py`: `save_wp_site()` kini menerima & menyimpan `branch_code`
 - `ItEfView.vue`: form site ditambah field **Branch Code**
+
+### 🚀 Deploy
+- SPA build + Docker image rebuild + container restart
+- Docker cleanup: ~4.7 GB reclaimed (images + build cache)
 
 ---
 

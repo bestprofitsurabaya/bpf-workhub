@@ -293,7 +293,7 @@ Sistem mendukung 11 role pengguna:
 **Akses:** News Scraper & Content Management (`/app/it`)
 
 **Fitur Khusus:**
-- Scrape artikel dari newsmaker.id + Detik Finance (64 artikel/scrape)
+- Scrape artikel dari newsmaker.id (commodity page, ~16/halaman) + Detik Finance (~48/halaman)
 - Multi-WordPress site management (10 cabang, CRUD, test connection)
 - Upload artikel ke WordPress dengan SEO optimization
 - Upload gambar (featured image + inline)

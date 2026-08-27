@@ -4,7 +4,7 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 **Terakhir diperbarui:** 2026-08-27  
 **Branch:** `main`  
-**Versi terbaru:** v2.28.9 (Site config branch_code + WP auth investigation)
+**Versi terbaru:** v2.28.9 (News Scraper improvements + WP auth + deploy)
 
 ---
 
@@ -12,8 +12,8 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 | Aspek | Status |
 |-------|--------|
-| Versi | v2.28.8 (News Scraper fix + Session stability) |
-| Deploy | ✅ bbm_web di-rebuild & restart 26 Aug — login it_sby terverifikasi live |
+| Versi | v2.28.9 (News Scraper improvements + WP auth + deploy) |
+| Deploy | ✅ bbm_web di-rebuild & restart 27 Aug — source badge, newsmaker URL, branch_code |
 | Docker | `bbm_web` running on `nasbpfsby.duckdns.org:5000` |
 | App Running | `https://nasbpfsby.duckdns.org:5000` |
 | Databases | 10 DB terpisah (1 master + 9 cabang) |
@@ -216,11 +216,15 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 ## 🐛 Bug yang Sudah Diperbaiki
 
-### v2.28.9 — Site Config Branch Code + Investigasi WordPress Auth
+### v2.28.9 — News Scraper Improvements + WP Auth + Deploy
+- ✅ **Source badge + filter**: setiap artikel card menampilkan badge sumber (cyan=newsmaker, orange=detik) + tombol filter per sumber
+- ✅ **Newsmaker URL updated**: `https://www.newsmaker.id/id/news/commodity` — spesifik komoditas, selector scraping diupdate (live test: 16 artikel)
 - ✅ `save_wp_site()` tidak menyimpan `branch_code` → `it_sby` tidak bisa melihat site → kini `branch_code` disimpan di backend & form UI
 - ✅ Investigasi kredensial WP Surabaya: `human/password` tidak ada di WP DB (user tidak ditemukan)
-- ✅ Kredensial benar: `it_bpf_surabaya` / Application Password → terverifikasi via curl
+- ✅ Kredensial benar: `it_bpf_surabaya` / Application Password → terverifikasi via curl (HTTP 200)
 - ✅ Server WP Surabaya aktifkan HTTP Basic Auth → memblokir UI Application Passwords, tapi REST API tetap bisa via header `Authorization: Basic ...`
+- ✅ Deploy: SPA build + Docker image rebuild + container restart — HTTP 200 verified
+- ✅ Docker cleanup: ~4.7 GB reclaimed (3.85 GB images + 893 MB build cache)
 - ✅ Test suite: 39 passed, 6 skipped (news_scraper) — tidak ada regressi
 
 ### v2.28.8 — News Scraper + Stabilitas Sesi Login

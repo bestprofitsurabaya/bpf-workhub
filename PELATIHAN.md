@@ -156,7 +156,7 @@ Telp: 031-5349888
 | 1 | Login `it_sby` / PIN `123456` | Masuk News Scraper, sidebar 📰 News Scraper tampil |
 | 2 | Klik ➕ Add Site → isi nama, WP URL, username, app password | Site tersimpan di daftar |
 | 3 | Klik 🔌 Test pada site | Pesan "Koneksi berhasil" muncul |
-| 4 | Pilih site → atur jumlah halaman → klik 🔍 Check Articles | Artikel dari newsmaker.id muncul di tabel |
+| 4 | Pilih sumber (Newsmaker/Detik/Semua) → atur halaman → 🔍 Check Articles | Artikel muncul dengan badge sumber (cyan/orange) |
 | 5 | Klik 📤 Upload to WordPress | Artikel terupload + SEO score + backlinks otomatis |
 | 6 | Klik 🔍 Check Duplicates | Duplikat terdeteksi (jika ada) |
 | 7 | Klik 🔗 Backlinks → lihat authority sites | 24+ situs otoritas tampil |

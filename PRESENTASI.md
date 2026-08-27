@@ -205,7 +205,7 @@ Telp: 031-5349888
 |---------|-------|---------------|------------------|
 | 1 | Login `it_sby` / `123456` | Masuk News Scraper dashboard | "Role IT cabang — semua terpusat di satu halaman, per-cabang access filtering." |
 | 2 | WordPress Sites | Klik 🔌 Test Connection | "Multi-site management — bisa kelola beberapa WP sekaligus." |
-| 3 | Scrape | Pilih site → Check Articles → 2 halaman | "Artikel dari newsmaker.id langsung di-scrape dengan konten lengkap." |
+| 3 | Scrape | Pilih sumber (Newsmaker/Detik) → Check Articles → 2 halaman | "Artikel komoditas langsung di-scrape — badge sumber & filter tersedia." |
 | 4 | Upload | Klik Upload to WordPress | "Upload otomatis + SEO score + 24 authority backlinks." |
 | 5 | Backlinks | Klik 🔗 Financial Backlinks | "24+ situs otoritas — OJK, BI, Bloomberg — backlink otomatis." |
 | 6 | Duplicates | Klik Check Duplicates | "Deteksi & bersihkan artikel duplikat." |

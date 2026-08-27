@@ -541,18 +541,21 @@ Angka "receh" yang ditambahkan ke nominal kasbon (mis. Rp 100.023, bukan Rp 100.
 ### 14.1 Mengelola WordPress Sites
 
 1. Klik **➕ Add Site** untuk menambah WordPress site baru.
-2. Isi: **Site Name**, **API URL** (endpoint posts WP), **Username**, **App Password**.
+2. Isi: **Site Name**, **API URL** (endpoint posts WP), **Username**, **App Password**, **Branch Code** (SBY, JKT, BDG, dst).
 3. Klik **🔌 Test** untuk memverifikasi koneksi.
 4. Password ditampilkan dengan tombol **👁/🙈** untuk show/hide.
-5. Bisa menambah **multiple sites** dengan credentials berbeda.
+5. Branch Code menentukan situs mana yang terlihat oleh user IT cabang.
+6. Bisa menambah **multiple sites** dengan credentials berbeda.
 
 ### 14.2 Scrape Artikel
 
 1. Pilih **Sumber Berita**: Semua Sumber / Newsmaker.id / Detik Finance.
 2. Atur **jumlah halaman** (1-20).
 3. Klik **🔍 Check Articles** — artikel dari sumber terpilih akan di-scrape.
-4. Total ~64 artikel unik per scrape (16 NM + 48 DT).
-5. Artikel muncul sebagai kartu: judul, thumbnail, kategori, sumber.
+4. Newsmaker.id: ~16 artikel komoditas per halaman dari `newsmaker.id/id/news/commodity`.
+5. Detik Finance: ~48 artikel dari homepage + tag pages.
+6. Artikel muncul sebagai kartu dengan **badge sumber** (cyan=Newsmaker, orange=Detik).
+7. Gunakan **tombol filter** di atas daftar untuk membedakan artikel per sumber.
 
 ### 14.3 Upload ke WordPress
 
