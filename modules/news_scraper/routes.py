@@ -428,7 +428,7 @@ def _make_wp_client(site):
                     fallback_auth=fallback)
 
 
-def _upload_articles_to_site(site_name, articles, settings, task_prefix='upload'):
+def _upload_articles_to_site(site_name, articles, settings, task_prefix='upload', task_id=None):
     """Core upload logic shared by single-site and multi-site upload."""
     sites = _load_json(WP_SITES_FILE, {})
     if site_name not in sites:
@@ -442,7 +442,8 @@ def _upload_articles_to_site(site_name, articles, settings, task_prefix='upload'
                 'new_posts': 0, 'updated_posts': 0, 'errors': []}
 
     wp_url = site['wp_url']
-    task_id = f"{task_prefix}_{int(time.time())}"
+    if not task_id:
+        task_id = f"{task_prefix}_{int(time.time())}"
     _set_progress(task_id, {'stage': 'login', 'progress': 5, 'message': 'Login ke WordPress...', 'total': len(articles), 'current': 0})
 
     client = _make_wp_client(site)
@@ -553,11 +554,22 @@ def _upload_articles_to_site(site_name, articles, settings, task_prefix='upload'
             else:
                 _sl.image_upload(image_url[:80], success=False, error='Upload failed')
 
+        # Safety: WordPress may reject posts with extremely large content.
+        # Truncate HTML body (keep schema + CTA) if over ~120KB.
+        _MAX_CONTENT_BYTES = 120 * 1024
+        if len(html_content.encode('utf-8')) > _MAX_CONTENT_BYTES:
+            _sl.log('WARNING', 'UPLOAD', f'Content too large ({len(html_content.encode("utf-8"))} bytes) for "{title[:50]}" — truncating')
+            # Keep the schema scripts at the start, truncate the article body
+            schema_end = html_content.rfind('<!-- BPF CTA Widget -->')
+            if schema_end > 0:
+                html_content = html_content[:schema_end]
+            html_content = html_content[:_MAX_CONTENT_BYTES].rsplit('\n', 1)[0] + '\n</article>'
+
         post_data = {
             'title': title,
             'content': html_content,
             'status': 'publish',
-            'date': f"{publish_date}T{publish_time}:00",
+            'date': f"{publish_date}T{publish_time or '08:00'}:00",
             'tags': tag_ids,
             'featured_media': featured_media_id,
         }
@@ -596,10 +608,11 @@ def _upload_articles_to_site(site_name, articles, settings, task_prefix='upload'
                     article_detail['post_id'] = matched_post_id
                     _sl.upload_article(post_id=matched_post_id, title=title[:50], status='updated', seo_score=seo_score)
                 else:
-                    errors.append(f"{title}: update HTTP {r2.status_code}")
+                    err_body = r2.text[:200] if hasattr(r2, 'text') else ''
+                    errors.append(f"{title}: update HTTP {r2.status_code} — {err_body}")
                     article_detail['status'] = 'error'
-                    article_detail['error'] = f'HTTP {r2.status_code}'
-                    _sl.upload_article(title=title[:50], status='error', error=f'HTTP {r2.status_code}')
+                    article_detail['error'] = f'HTTP {r2.status_code}: {err_body}'
+                    _sl.upload_article(title=title[:50], status='error', error=f'HTTP {r2.status_code}: {err_body}')
             except Exception as e:
                 errors.append(f"{title}: {str(e)}")
                 article_detail['status'] = 'error'
@@ -633,10 +646,13 @@ def _upload_articles_to_site(site_name, articles, settings, task_prefix='upload'
                     article_detail['seo_score'] = seo_score
                     _sl.upload_article(post_id=r.json().get('id'), title=title[:50], status='new', seo_score=seo_score)
                 else:
-                    errors.append(f"{title}: HTTP {r.status_code}")
+                    error_body = ''
+                    try: error_body = r.text[:200]
+                    except Exception: pass
+                    errors.append(f"{title}: HTTP {r.status_code} — {error_body}")
                     article_detail['status'] = 'error'
-                    article_detail['error'] = f'HTTP {r.status_code}'
-                    _sl.upload_article(title=title[:50], status='error', error=f'HTTP {r.status_code}')
+                    article_detail['error'] = f'HTTP {r.status_code}: {error_body}'
+                    _sl.upload_article(title=title[:50], status='error', error=f'HTTP {r.status_code}: {error_body}')
             except Exception as e:
                 errors.append(f"{title}: {str(e)}")
                 _sl.upload_article(title=title[:50], status='error', error=str(e)[:200])
@@ -697,7 +713,8 @@ def upload_articles():
         if not articles:
             return jsonify({'error': 'Tidak ada artikel untuk diupload'}), 400
 
-        result = _upload_articles_to_site(site_name, articles, settings)
+        task_id = request.args.get('task_id') or d.get('task_id')
+        result = _upload_articles_to_site(site_name, articles, settings, task_id=task_id)
         status = result.pop('status', 200)
         return jsonify(result), status
     except Exception as e:

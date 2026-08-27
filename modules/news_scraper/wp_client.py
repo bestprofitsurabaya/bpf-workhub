@@ -253,7 +253,7 @@ class WpClient:
     def update_post(self, post_id: int, data: dict[str, Any], nonce: str, **kwargs: Any) -> Response:
         """Update an existing post by ID."""
         return self.request(
-            "POST", f"{self.wp_url}/wp-json/wp/v2/posts/{post_id}", nonce, json=data, **kwargs
+            "PUT", f"{self.wp_url}/wp-json/wp/v2/posts/{post_id}", nonce, json=data, **kwargs
         )
 
     def get_posts(self, nonce: str, params: dict[str, Any] | None = None, **kwargs: Any) -> Response:

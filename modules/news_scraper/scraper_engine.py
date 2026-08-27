@@ -186,6 +186,51 @@ def _adaptive_sleep(response, multiplier: float = 0.5,
 
 
 # ===================================================================
+# RETRY WITH EXPONENTIAL BACKOFF
+# ===================================================================
+
+def _retry_get(url: str, sess=None, max_retries: int = 3,
+               base_delay: float = 2.0, timeout: int = REQUEST_TIMEOUT) -> 'requests.Response | None':
+    """GET a URL with retry + exponential backoff on failure/rate-limit.
+
+    Retries on HTTP 429 (Too Many Requests), 5xx, and connection errors.
+    Returns the successful Response, or None after all retries exhausted.
+    """
+    getter = (sess or requests).get
+    headers = {'User-Agent': DEFAULT_UA}
+    last_err = None
+    for attempt in range(max_retries):
+        try:
+            r = getter(url, timeout=timeout, headers=headers)
+            if r.status_code == 200:
+                return r
+            # Retry on rate-limit (429) or server errors (5xx)
+            if r.status_code in (429, 500, 502, 503, 504):
+                delay = base_delay * (2 ** attempt)
+                # Respect Retry-After header if present
+                retry_after = r.headers.get('Retry-After')
+                if retry_after:
+                    try: delay = max(delay, float(retry_after))
+                    except ValueError: pass
+                logger.warning('Retry %d/%d for %s (HTTP %d) — sleeping %.1fs',
+                               attempt + 1, max_retries, url[:80], r.status_code, delay)
+                time.sleep(delay)
+                last_err = f'HTTP {r.status_code}'
+                continue
+            # Non-retryable error (400, 403, 404 etc.)
+            logger.warning('Non-retryable HTTP %d for %s', r.status_code, url[:80])
+            return None
+        except requests.RequestException as exc:
+            delay = base_delay * (2 ** attempt)
+            logger.warning('Request error %d/%d for %s: %s — sleeping %.1fs',
+                           attempt + 1, max_retries, url[:80], exc, delay)
+            time.sleep(delay)
+            last_err = str(exc)[:100]
+    logger.error('All %d retries exhausted for %s: %s', max_retries, url[:80], last_err)
+    return None
+
+
+# ===================================================================
 # COMMODITY KEYWORD FILTERING
 # ===================================================================
 
@@ -276,8 +321,13 @@ def _scrape_newsmaker_page(url: str, sess, headers: dict, seen: set) -> list:
     articles = []
     t0 = time.time()
     try:
-        resp = sess.get(url, timeout=REQUEST_TIMEOUT, headers=headers)
+        resp = _retry_get(url, sess=sess, max_retries=3, base_delay=2.0)
         elapsed_ms = int((time.time() - t0) * 1000)
+        if resp is None:
+            _sl.scrape_page(f'newsmaker/{url.split("/commodity")[-1][:30]}',
+                            status='ERROR', items_found=0,
+                            error='All retries failed', duration_ms=elapsed_ms)
+            return articles
         _adaptive_sleep(resp)
         if resp.status_code != 200:
             _sl.scrape_page(f'newsmaker/{url.split("/commodity")[-1][:30]}',
@@ -396,11 +446,9 @@ def scrape_detik_finance(pages: int = 1) -> list:
     # 1) Main finance page with keyword filter
     t0 = time.time()
     try:
-        r = requests.get('https://finance.detik.com/',
-                         timeout=REQUEST_TIMEOUT, headers=headers)
+        r = _retry_get('https://finance.detik.com/', max_retries=3, base_delay=2.0)
         elapsed_ms = int((time.time() - t0) * 1000)
-        _adaptive_sleep(r)
-        if r.status_code == 200:
+        if r and r.status_code == 200:
             _sl.scrape_page('detik.com', status='OK', items_found=0, duration_ms=elapsed_ms)
             soup = BeautifulSoup(r.text, 'html.parser')
             for a_tag in soup.select('h2 a, h3 a'):
@@ -430,9 +478,8 @@ def scrape_detik_finance(pages: int = 1) -> list:
         for page in range(1, total_pages + 1):
             target = tag_url if page == 1 else f'{tag_url}?page={page}'
             try:
-                r = requests.get(target, timeout=REQUEST_TIMEOUT, headers=headers)
-                _adaptive_sleep(r)
-                if r.status_code != 200:
+                r = _retry_get(target, max_retries=3, base_delay=2.0)
+                if r is None or r.status_code != 200:
                     break
                 soup = BeautifulSoup(r.text, 'html.parser')
                 page_hits = 0
@@ -548,10 +595,12 @@ def fetch_article_content(article: dict, session=None) -> None:
         _sl.scrape_article(article.get('title', '?')[:50], url=url, error='SSRF blocked')
         return
 
-    getter = session.get if session is not None else requests.get
     try:
-        r = getter(url, timeout=REQUEST_TIMEOUT,
-                   headers={'User-Agent': DEFAULT_UA})
+        r = _retry_get(url, sess=session, max_retries=3, base_delay=2.0)
+        if r is None:
+            _sl.scrape_article(article.get('title', '?')[:50], url=url,
+                               error='All retries failed')
+            return
         _adaptive_sleep(r)
         if r.status_code != 200:
             _sl.scrape_article(article.get('title', '?')[:50], url=url,
