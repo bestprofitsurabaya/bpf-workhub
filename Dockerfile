@@ -23,7 +23,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     cron \
     && rm -rf /var/lib/apt/lists/*
 
-# Setup cron: cleanup foto overtime > 6 bulan, tiap 30 menit
+# Setup cron: cleanup foto overtime > 6 bulan
 COPY scripts/overtime-cleanup.sh /app/scripts/overtime-cleanup.sh
 RUN chmod +x /app/scripts/overtime-cleanup.sh && \
     echo '*/30 * * * * /bin/sh /app/scripts/overtime-cleanup.sh >> /var/log/overtime-cleanup.log 2>&1' > /etc/cron.d/overtime-cleanup && \
@@ -41,6 +41,12 @@ COPY fonts/ /app/fonts/
 
 # Data directory untuk news_scraper (wp_sites.json, logs, dll)
 RUN mkdir -p /app/data/news_scraper
+
+# Auto-scrape cron: scrape + upload tiap jam 6,10,14,18 WIB
+RUN chmod +x /app/scripts/auto_scrape.sh && \
+    echo '0 6,10,14,18 * * * /bin/sh /app/scripts/auto_scrape.sh >> /app/data/news_scraper/auto_scrape.log 2>&1' >> /etc/cron.d/overtime-cleanup && \
+    crontab /etc/cron.d/overtime-cleanup && \
+    touch /app/data/news_scraper/auto_scrape.log
 
 # SPA bundle hasil build Vue (harus paling akhir agar tidak tertimpa COPY static/)
 COPY --from=frontend-build /build/dist/ /app/static/app/
