@@ -55,16 +55,17 @@ Setiap orang **hanya melihat menu sesuai tugasnya**. Tidak ada yang tercampur â€
 
 Setelah masuk, kamu otomatis diarahkan ke halaman utama sesuai peranmu:
 
-| Peran | Langsung dibawa ke |
-|-------|--------------------|
-| Admin | Dashboard Admin |
-| GA | Dashboard GA |
-| Finance | Dashboard Finance |
-| Marketing | Marketing Hub |
-| Chief Driver | Dashboard Chief Driver |
-| Driver | Aplikasi Driver |
-| OB | Halaman Air Minum |
-| IT Surabaya | News Scraper |
+| Peran | Contoh Username | Langsung dibawa ke |
+|-------|----------------|--------------------|
+| Admin | `admin` | Dashboard Admin |
+| GA | `ga_sby`, `ga_hu`, ... | Dashboard GA |
+| Finance | `finance_sby`, `finance_hu`, ... | Dashboard Finance |
+| GA HR | `gahr_sby`, `gahr_hu`, ... | Data Overtime |
+| Marketing | `marketing_sby`, `marketing_hu`, ... | Marketing Hub |
+| Chief Driver | `chief_driver` | Dashboard Chief Driver |
+| Driver | `driver_1`, `driver_2`, ... | Aplikasi Driver |
+| OB | `ob` | Halaman Air Minum |
+| IT | `it_sby`, `it_hu`, ... | News Scraper |
 
 ### 2.2 Keluar dari Aplikasi
 

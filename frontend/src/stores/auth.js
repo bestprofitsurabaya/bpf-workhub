@@ -1,6 +1,34 @@
 import { defineStore } from 'pinia'
 import { api } from '../api'
 
+const BRANCH_NAMES = {
+  sby: 'Surabaya', hu: 'Jakarta HO', jkt2: 'Jakarta 2', bdg: 'Bandung',
+  smg: 'Semarang', mlg: 'Malang', mdn: 'Medan', bjm: 'Banjarmasin',
+  plm: 'Palembang', lpg: 'Lampung',
+}
+
+const BASE_ROLE_LABELS = {
+  admin: 'Admin', ga: 'GA', finance: 'Finance', marketing: 'Marketing',
+  chief_driver: 'Chief Driver', driver: 'Driver', ob: 'OB',
+  receptionist: 'Receptionist', traineer: 'Traineer', ga_hr: 'GA HR',
+  it: 'IT',
+}
+
+function deriveLabel(username, role) {
+  // e.g. finance_sby → Finance Surabaya, ga_bdg → GA Bandung, it_sby → IT Surabaya
+  const parts = (username || '').split('_')
+  if (parts.length >= 2) {
+    const base = parts[0]
+    const branch = parts.slice(1).join('_')
+    const branchName = BRANCH_NAMES[branch]
+    if (branchName) {
+      const baseLabel = BASE_ROLE_LABELS[base] || base.toUpperCase()
+      return `${baseLabel} ${branchName}`
+    }
+  }
+  return ROLE_META[role]?.label || role
+}
+
 /** Metadata per role (ISO/IEC 27001: hak akses minimal per peran). */
 export const ROLE_META = {
   admin:        { label: 'Admin',        home: '/dashboard',    color: '#2563eb', icon: '🛡️' },
@@ -14,7 +42,7 @@ export const ROLE_META = {
   traineer:     { label: 'Traineer',     home: '/traineer',     color: '#b45309', icon: '🎯' },
   ga_hr:        { label: 'GA HR',        home: '/ga-hr',        color: '#7e22ce', icon: '⏰' },
   it_sby:       { label: 'IT Surabaya',  home: '/it',           color: '#0891b2', icon: '📰' },
-  it_hu:        { label: 'IT Jakarta HO', home: '/it',           color: '#0891b2', icon: '📰' },
+  it_hu:        { label: 'IT Jakarta HO', home: '/it',          color: '#0891b2', icon: '📰' },
   it_jkt2:      { label: 'IT Jakarta 2', home: '/it',           color: '#0891b2', icon: '📰' },
   it_bdg:       { label: 'IT Bandung',   home: '/it',           color: '#0891b2', icon: '📰' },
   it_smg:       { label: 'IT Semarang',  home: '/it',           color: '#0891b2', icon: '📰' },
@@ -33,35 +61,31 @@ export const useAuthStore = defineStore('auth', {
   getters: {
     role: (s) => s.user?.role || null,
     isAuthenticated: (s) => !!s.user,
-    meta: (s) => (s.user ? ROLE_META[s.user.role] : null),
+    meta: (s) => {
+      if (!s.user) return null
+      const base = ROLE_META[s.user.role] || {}
+      return {
+        ...base,
+        label: deriveLabel(s.user.username, s.user.role),
+      }
+    },
   },
   actions: {
     /** Pulihkan sesi saat SPA dimuat. */
     async bootstrap() {
       try {
-        const me = await api('/api/auth/me')
-        if (me?.authenticated) {
-          this.user = me.user
-        } else {
-          this.user = null
-        }
-        if (me?.csrf_token) localStorage.setItem('bpf_csrf', me.csrf_token)
+        const data = await api('/api/auth/me')
+        this.user = data.user || null
       } catch {
         this.user = null
+      } finally {
+        this.ready = true
       }
-      this.ready = true
-      return !!this.user
-    },
-    async login(username, pin) {
-      const d = await api('/api/auth/login', { method: 'POST', body: { username, pin } })
-      this.user = d.user
-      if (d.csrf_token) localStorage.setItem('bpf_csrf', d.csrf_token)
-      return d
     },
     async logout() {
-      try { await api('/api/auth/logout', { method: 'POST' }) } catch { /* noop */ }
+      try { await api('/api/auth/logout', { method: 'POST' }) } catch {}
       this.user = null
-      localStorage.removeItem('bpf_csrf')
+      window.location.href = '/app/login'
     },
   },
 })

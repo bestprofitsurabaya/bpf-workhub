@@ -265,6 +265,9 @@ docker network ls | grep nextcloud_net
 | Admin | admin | 123456 |
 | GA | ga_officer | 123456 |
 | Finance | finance_officer | 123456 |
+| **Per-Cabang** | Format: `{divisi}_{kode_cabang}` | 123456 |
+| GA Surabaya | ga_sby | 123456 |
+| Finance Surabaya | finance_sby | 123456 |
 | IT Surabaya | it_sby | 123456 |
 | IT Jakarta HO | it_hu | 123456 |
 | IT Jakarta 2 | it_jkt2 | 123456 |

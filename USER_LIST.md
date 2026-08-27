@@ -31,6 +31,21 @@ Akun berikut dibuat otomatis saat inisialisasi database:
 
 > ⚠️ **Segera ganti PIN bawaan** setelah login pertama kali.
 
+### 🏷️ Konvensi Username Per-Cabang
+
+Setiap divisi back-office punya user unik per cabang dengan format `{divisi}_{kode_cabang}`:
+
+| Divisi | SBY | HU (JKT) | JKT2 | BDG | SMG | MLG | MDN | BJM | PLM | LPG |
+|--------|-----|----------|------|-----|-----|-----|-----|-----|-----|-----|
+| GA | `ga_sby` | `ga_hu` | `ga_jkt2` | `ga_bdg` | `ga_smg` | `ga_mlg` | `ga_mdn` | `ga_bjm` | `ga_plm` | `ga_lpg` |
+| Finance | `finance_sby` | `finance_hu` | `finance_jkt2` | `finance_bdg` | `finance_smg` | `finance_mlg` | `finance_mdn` | `finance_bjm` | `finance_plm` | `finance_lpg` |
+| GA HR | `gahr_sby` | `gahr_hu` | `gahr_jkt2` | `gahr_bdg` | `gahr_smg` | `gahr_mlg` | `gahr_mdn` | `gahr_bjm` | `gahr_plm` | `gahr_lpg` |
+| Marketing | `marketing_sby` | `marketing_hu` | `marketing_jkt2` | `marketing_bdg` | `marketing_smg` | `marketing_mlg` | `marketing_mdn` | `marketing_bjm` | `marketing_plm` | `marketing_lpg` |
+| IT | `it_sby` | `it_hu` | `it_jkt2` | `it_bdg` | `it_smg` | `it_mlg` | `it_mdn` | `it_bjm` | `it_plm` | `it_lpg` |
+
+> PIN default semua user: `123456`. Role di DB tetap sama (misal `finance_sby` → role `finance`),
+> hanya username yang unik. Label di UI otomatis menyesuaikan (Finance Surabaya, GA Bandung, dst).
+
 ---
 
 ## 2. 11 Role yang Didukung
