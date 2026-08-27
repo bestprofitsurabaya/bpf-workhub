@@ -88,9 +88,9 @@ for site_name, site_data in sites.items():
         _sl.log('ERROR', 'AUTO', f'{site_name} login failed: {msg}')
         continue
 
-    # Fetch existing posts
+    # Fetch ALL existing posts from WP (up to 1000)
     existing = {}
-    for page in range(1, 6):
+    for page in range(1, 11):
         r = client.session.get(f'{client.wp_url}/wp-json/wp/v2/posts',
                                auth=client.active_auth,
                                params={'per_page': 100, 'page': page, 'orderby': 'date', 'order': 'desc'},
@@ -102,8 +102,12 @@ for site_name, site_data in sites.items():
         if len(r.json()) < 100: break
         time.sleep(0.1)
 
+    # Pre-filter: only process articles NOT on WP
+    new_arts = [a for a in ready if normalize_title(a.get('title', '')) not in existing]
+    print(f'  {len(new_arts)} new articles (skipped {len(ready) - len(new_arts)} already on WP)', flush=True)
+
     site_new = site_upd = site_err = 0
-    for art in ready:
+    for art in new_arts:
         title = art.get('title', '')
         content = rewrite_content(art.get('content', ''), title)
         pd = art.get('publish_date', time.strftime('%Y-%m-%d'))

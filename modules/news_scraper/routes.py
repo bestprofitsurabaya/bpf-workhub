@@ -465,29 +465,53 @@ def _upload_articles_to_site(site_name, articles, settings, task_prefix='upload'
     authority_sites = bl_config.get('authority_sites', DEFAULT_AUTHORITY_SITES)
     keyword_mapping = bl_config.get('keyword_mapping', DEFAULT_KEYWORD_MAPPING)
 
+    # ── Fetch ALL existing posts from WordPress (up to 1000) ──
     existing_titles = set()
-    existing_posts = {}
+    existing_norm_map = {}  # normalized_title -> post_id
     try:
-        for page in range(1, 6):
+        for page in range(1, 11):
             r = client.get_posts(nonce_or_err, params={"per_page": 100, "page": page, "orderby": "date", "order": "desc"})
             if r.status_code != 200 or not r.json():
                 break
             for post in r.json():
                 t = post.get('title', {}).get('rendered', '')
                 existing_titles.add(t)
-                existing_posts[t] = post.get('id')
+                existing_norm_map[normalize_title(t)] = post.get('id')
             if len(r.json()) < 100:
                 break
-            time.sleep(0.2)
+            time.sleep(0.1)
     except Exception:
         pass
+
+    # ── Pre-filter: only process articles NOT yet on WordPress ──
+    new_articles = []
+    skipped_existing = 0
+    skipped_no_content = 0
+    for article in articles:
+        title = article.get('title', '')
+        content = article.get('content', '')
+        if not content or content == 'Content not found':
+            skipped_no_content += 1
+            continue
+        norm = normalize_title(title)
+        if norm in existing_norm_map:
+            skipped_existing += 1
+            continue
+        new_articles.append(article)
+
+    _sl.log('INFO', 'UPLOAD',
+            f'Pre-filter: {len(articles)} scraped → {len(new_articles)} new, '
+            f'{skipped_existing} already on WP, {skipped_no_content} no content')
+    _set_progress(task_id, {'stage': 'filter', 'progress': 15,
+                            'message': f'{len(new_articles)} artikel baru dari {len(articles)} — {skipped_existing} sudah ada di WP',
+                            'total': len(new_articles), 'current': 0})
 
     new_count = 0
     updated_count = 0
     errors = []
     article_details = []
 
-    for idx, article in enumerate(articles):
+    for idx, article in enumerate(new_articles):
         title = article.get('title', '')
         content = article.get('content', '')
         if not content or content == "Content not found":
@@ -574,20 +598,16 @@ def _upload_articles_to_site(site_name, articles, settings, task_prefix='upload'
             'featured_media': featured_media_id,
         }
 
-        is_duplicate = False
-        matched_post_id = None
+        # Pre-filtered: all articles here are new, but double-check via norm_map
         norm_title = normalize_title(title)
-        for et in existing_titles:
-            if title == et or norm_title == normalize_title(et):
-                is_duplicate = True
-                matched_post_id = existing_posts.get(et)
-                break
+        matched_post_id = existing_norm_map.get(norm_title)
+        is_duplicate = matched_post_id is not None
 
-        progress_pct = 10 + int(((idx + 1) / len(articles)) * 85)
+        progress_pct = 15 + int(((idx + 1) / max(len(new_articles), 1)) * 80)
         status_msg = '🔄 Update' if is_duplicate else '⏳ Upload'
         _set_progress(task_id, {'stage': 'upload', 'progress': progress_pct,
-                                'message': f'{status_msg} [{idx+1}/{len(articles)}] {title[:50]}...',
-                                'total': len(articles), 'current': idx + 1})
+                                'message': f'{status_msg} [{idx+1}/{len(new_articles)}] {title[:50]}...',
+                                'total': len(new_articles), 'current': idx + 1})
 
         article_detail = {
             'title': title, 'category': article.get('category', ''),
@@ -662,11 +682,12 @@ def _upload_articles_to_site(site_name, articles, settings, task_prefix='upload'
         article_details.append(article_detail)
 
     _set_progress(task_id, {'stage': 'done', 'progress': 100,
-                            'message': f'Selesai! {new_count} baru, {updated_count} update, {len(errors)} error',
-                            'total': len(articles), 'current': len(articles)})
+                            'message': f'Selesai! {new_count} baru, {updated_count} update, {len(errors)} error — {skipped_existing} sudah ada di WP',
+                            'total': len(new_articles), 'current': len(new_articles)})
 
     _sl.upload_done(uploaded=new_count + updated_count, failed=len(errors))
-    _log_scraper(f"[{site_name}] Upload selesai: {new_count} baru, {updated_count} update, {len(errors)} error",
+    _log_scraper(f"[{site_name}] Upload selesai: {new_count} baru, {updated_count} update, {len(errors)} error "
+                 f"(skipped {skipped_existing} sudah ada, {skipped_no_content} tanpa konten)",
                  session.get('user_name', 'unknown'))
 
     _save_upload_history({
@@ -675,13 +696,16 @@ def _upload_articles_to_site(site_name, articles, settings, task_prefix='upload'
         'action': 'upload',
         'user': session.get('user_name', 'unknown'),
         'site': site_name,
-        'total': len(articles),
+        'total_scraped': len(articles),
+        'total': len(new_articles),
+        'skipped_existing': skipped_existing,
+        'skipped_no_content': skipped_no_content,
         'new_posts': new_count,
         'updated_posts': updated_count,
         'errors': len(errors),
         'error_details': errors[:10],
         'articles': [{'title': a.get('title', ''), 'category': a.get('category', ''), 'date': a.get('publish_date', ''),
-                      'source': a.get('source', ''), 'link': a.get('link', '')} for a in articles],
+                      'source': a.get('source', ''), 'link': a.get('link', '')} for a in new_articles],
         'article_details': article_details,
     })
 
@@ -695,6 +719,7 @@ def _upload_articles_to_site(site_name, articles, settings, task_prefix='upload'
             track_performance(detail['post_id'], site_name, detail['title'])
 
     return {'ok': True, 'task_id': task_id, 'new_posts': new_count, 'updated_posts': updated_count,
+            'skipped_existing': skipped_existing, 'skipped_no_content': skipped_no_content,
             'errors': errors, 'sitemap_ping': ping_results}
 
 
