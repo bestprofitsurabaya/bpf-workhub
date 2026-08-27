@@ -1051,8 +1051,11 @@ def get_analytics(date_from: Any = None, date_to: Any = None) -> Dict[str, Any]:
 
     return {
         'total_posts': total,
+        'total_articles': total,
         'posts_by_site': by_site,
+        'by_site': by_site,
         'posts_by_day': dict(sorted(by_day.items())),
+        'by_date': dict(sorted(by_day.items())),
         'period': {
             'from': df.isoformat() if df else None,
             'to': dt_to.isoformat() if dt_to else None,

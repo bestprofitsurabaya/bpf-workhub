@@ -571,12 +571,25 @@ def _upload_articles_to_site(site_name, articles, settings, task_prefix='upload'
         if image_url:
             wp_media = client.upload_image(image_url, nonce_or_err)
             if wp_media:
-                featured_img_html = wp_media.get('html', '')
                 featured_media_id = wp_media.get('id', 0)
-                html_content = featured_img_html + html_content
+                # WordPress REST API does not return 'html' — build it from source_url
+                wp_img_url = wp_media.get('source_url', '')
+                if wp_img_url:
+                    details = wp_media.get('media_details', {})
+                    w = details.get('width', 1200)
+                    h = details.get('height', 675)
+                    featured_img_html = (
+                        f'<figure class="wp-block-image size-large">'
+                        f'<img src="{wp_img_url}" alt="{title}" '
+                        f'width="{w}" height="{h}" class="wp-post-image"/>'
+                        f'</figure>\n'
+                    )
+                    html_content = featured_img_html + html_content
                 _sl.image_upload(image_url[:80], media_id=featured_media_id, success=True)
+                print(f'[scraper-img] Upload OK: media_id={featured_media_id}, wp_url={wp_img_url[:80] if wp_img_url else "(none)"}, title={title[:50]}')
             else:
                 _sl.image_upload(image_url[:80], success=False, error='Upload failed')
+                print(f'[scraper-img] Upload FAILED for "{title[:50]}" — image_url={image_url[:80]}')
 
         # Safety: WordPress may reject posts with extremely large content.
         # Truncate HTML body (keep schema + CTA) if over ~120KB.
@@ -597,6 +610,7 @@ def _upload_articles_to_site(site_name, articles, settings, task_prefix='upload'
             'tags': tag_ids,
             'featured_media': featured_media_id,
         }
+        print(f'[scraper-post] Creating post: featured_media={featured_media_id}, title={title[:50]}')
 
         # Pre-filtered: all articles here are new, but double-check via norm_map
         norm_title = normalize_title(title)
@@ -621,6 +635,7 @@ def _upload_articles_to_site(site_name, articles, settings, task_prefix='upload'
                 update_data = {'content': html_content, 'tags': tag_ids}
                 if featured_media_id:
                     update_data['featured_media'] = featured_media_id
+                print(f'[scraper-update] Updating post {matched_post_id}: featured_media={featured_media_id}, title={title[:50]}')
                 r2 = client.update_post(matched_post_id, update_data, nonce_or_err)
                 if r2.status_code == 200:
                     updated_count += 1
@@ -647,6 +662,7 @@ def _upload_articles_to_site(site_name, articles, settings, task_prefix='upload'
                             update_data = {'content': html_content, 'tags': tag_ids}
                             if featured_media_id:
                                 update_data['featured_media'] = featured_media_id
+                            print(f'[scraper-update] Updating post {post["id"]}: featured_media={featured_media_id}, title={title[:50]}')
                             r2 = client.update_post(post['id'], update_data, nonce_or_err)
                             if r2.status_code == 200:
                                 updated_count += 1
