@@ -4,6 +4,45 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 
 ---
 
+## v2.28.9 — 27 Agustus 2026
+
+### 📰 Site Config: Branch Code + WordPress Auth Investigation
+
+**Branch code penyebab `it_sby` tidak melihat site.**
+`save_wp_site()` sebelumnya tidak menyimpan field `branch_code` — sehingga
+`_visible_sites()` tidak bisa memfilter site berdasarkan cabang. Kini
+`branch_code` disimpan, di-load, dan ditampilkan di form UI (input `SBY`, `JKT`, dst).
+
+**Investigasi kredensial WordPress BPF Surabaya:**
+- Server `best-profit-futures-surabaya.com` mengaktifkan **HTTP Basic Auth**
+  di level server (nginx/apache), yang memblokir Application Passwords WordPress.
+- Pesan WordPress: _"Your website appears to use Basic Authentication,
+  which is not currently compatible with Application Passwords."_ — ini
+  karena fungsi `wp_is_site_protected_by_basic_auth()` mendeteksi
+  `$_SERVER['PHP_AUTH_USER']` / `PHP_AUTH_PW` yang diset oleh server.
+- **Solusi yang berhasil:** Kredensial Application Password (`it_bpf_surabaya` /
+  `OfUdr5rYjL2uJD#6N71AYLKR`) langsung dikirim via header
+  `Authorization: Basic ...` — WordPress menerima karena Application
+  Passwords tetap bisa dipakai via REST API langsung (hanya UI admin yang
+  terblokir).
+- **Cara test:** `curl -H "Authorization: Basic $(echo -n 'user:pass' | base64)"`
+  berhasil, tapi `curl -u user:pass` juga berhasil (server meneruskan header).
+- **Yang tidak berhasil:** username `human` / `password` — user tidak ditemukan
+  di WP database; ini bukan kredensial yang benar.
+
+**Catatan untuk AI ke depan:**
+- `wp_sites.json` adalah file **runtime** (data dir, di-gitignore)
+- Untuk test koneksi WP dari luar server: gunakan `curl -H "Authorization: Basic ..."`
+- Field config site: `wp_url`, `wp_media_url`, `username`, `app_password`, `branch_code`
+- `_make_wp_client()` juga mendukung `basic_username`/`basic_password` sebagai
+  fallback — tetapi di WP Surabaya, basic auth ditolak (plugin dihapus)
+
+### Perubahan Code
+- `routes.py`: `save_wp_site()` kini menerima & menyimpan `branch_code`
+- `ItEfView.vue`: form site ditambah field **Branch Code**
+
+---
+
 ## v2.28.8 — 26 Agustus 2026
 
 ### 📰 Upload WordPress: Basic-Auth Fallback

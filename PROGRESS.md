@@ -2,9 +2,9 @@
 
 File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks saat sesi baru dimulai.
 
-**Terakhir diperbarui:** 2026-08-26  
+**Terakhir diperbarui:** 2026-08-27  
 **Branch:** `main`  
-**Versi terbaru:** v2.28.8 (News Scraper fix + Session stability — deployed)
+**Versi terbaru:** v2.28.9 (Site config branch_code + WP auth investigation)
 
 ---
 
@@ -215,6 +215,13 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 ---
 
 ## 🐛 Bug yang Sudah Diperbaiki
+
+### v2.28.9 — Site Config Branch Code + Investigasi WordPress Auth
+- ✅ `save_wp_site()` tidak menyimpan `branch_code` → `it_sby` tidak bisa melihat site → kini `branch_code` disimpan di backend & form UI
+- ✅ Investigasi kredensial WP Surabaya: `human/password` tidak ada di WP DB (user tidak ditemukan)
+- ✅ Kredensial benar: `it_bpf_surabaya` / Application Password → terverifikasi via curl
+- ✅ Server WP Surabaya aktifkan HTTP Basic Auth → memblokir UI Application Passwords, tapi REST API tetap bisa via header `Authorization: Basic ...`
+- ✅ Test suite: 39 passed, 6 skipped (news_scraper) — tidak ada regressi
 
 ### v2.28.8 — News Scraper + Stabilitas Sesi Login
 - ✅ `it_sby` melihat 0 situs — `wp_sites.json` rusak edit manual + fallback substring branch gagal; kini alias kota (`SBY→surabaya`)

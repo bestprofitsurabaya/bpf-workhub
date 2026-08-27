@@ -22,7 +22,7 @@ const historyList = ref([])
 // Sites
 const sites = ref([])
 const showSiteForm = ref(false)
-const siteForm = ref({ name: '', wp_url: '', wp_media_url: '', username: '', app_password: '' })
+const siteForm = ref({ name: '', wp_url: '', wp_media_url: '', username: '', app_password: '', branch_code: '' })
 const showFormPassword = ref(false)
 import { reactive } from 'vue'
 const showCardPassword = reactive({}) // {siteName: true/false}
@@ -180,7 +180,7 @@ function stopProgress() { if (progressInterval.value) { clearInterval(progressIn
 
 // --- WP Site Management ---
 function openSiteForm(site) {
-  siteForm.value = site ? { ...site } : { name: '', wp_url: '', wp_media_url: '', username: '', app_password: '' }
+  siteForm.value = site ? { ...site } : { name: '', wp_url: '', wp_media_url: '', username: '', app_password: '', branch_code: '' }
   showSiteForm.value = true
 }
 async function saveSite() {
@@ -795,6 +795,7 @@ onMounted(() => { loadSites(); loadDashboard(); document.documentElement.classLi
     <Modal v-if="showSiteForm" :title="siteForm.name ? '✏️ Edit Site' : '➕ Add Site'" @close="showSiteForm = false">
       <div class="form-grid">
         <div class="field"><label>Name *</label><input class="input" v-model="siteForm.name" :disabled="!!siteForm.name" /></div>
+        <div class="field"><label>Branch Code</label><input class="input" v-model="siteForm.branch_code" placeholder="SBY, JKT, BDG, ..." style="text-transform:uppercase;" /></div>
         <div class="field"><label>API URL *</label><input class="input" v-model="siteForm.wp_url" placeholder="https://site.com/wp-json/wp/v2/posts" /></div>
         <div class="field"><label>Media URL</label><input class="input" v-model="siteForm.wp_media_url" /></div>
         <div class="field"><label>Username *</label><input class="input" v-model="siteForm.username" /></div>

@@ -217,6 +217,7 @@ def save_wp_site():
     wp_url = (d.get('wp_url') or '').strip()
     username = (d.get('username') or '').strip()
     app_password = (d.get('app_password') or '').strip()
+    branch_code = (d.get('branch_code') or '').strip().upper()
 
     if not all([name, wp_url, username]):
         return jsonify({'error': 'name, wp_url, username wajib diisi'}), 400
@@ -231,12 +232,15 @@ def save_wp_site():
     old = sites.get(name)
     if old and not app_password:
         app_password = old.get('app_password', '')
+    if old and not branch_code:
+        branch_code = old.get('branch_code', '')
 
     sites[name] = {
         'wp_url': wp_url,
         'wp_media_url': wp_media_url,
         'username': username,
         'app_password': app_password,
+        'branch_code': branch_code,
     }
     _save_json(WP_SITES_FILE, sites)
     _log_scraper(f"WordPress site saved: {name}", session.get('user_name', 'unknown'))
