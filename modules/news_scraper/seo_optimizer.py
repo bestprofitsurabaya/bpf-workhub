@@ -568,16 +568,7 @@ def build_article_html(title: str, content: str, article: Dict[str, Any],
             f'<li style="margin:4px 0;"><a href="#{{}}" style="color:#475569;text-decoration:none;font-size:13px;">{{}}</a></li>'.format(tid, ttext)
             for tid, ttext in toc_items
         )
-        toc_html = f'''
-<div class="bpf-toc" style="margin-bottom:24px;padding:16px 20px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;">
-  <div onclick="this.parentElement.classList.toggle('bpf-toc-collapsed')" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;">
-    <strong style="font-size:14px;color:#1e3a5f;">📑 Daftar Isi</strong>
-    <span style="font-size:12px;color:#94a3b8;">▼</span>
-  </div>
-  <ul style="margin:12px 0 0;padding-left:20px;list-style:disc;">
-    {toc_li}
-  </ul>
-</div>'''
+        toc_html = '<div style="margin-bottom:24px;padding:16px 20px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;font-family:Inter,sans-serif;"><div onclick="var u=this.nextElementSibling;u.style.display=u.style.display===\'none\'?\'block\':\'none\'" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;"><strong style="font-size:14px;color:#1e3a5f;">📑 Daftar Isi</strong> <span style="font-size:12px;color:#94a3b8;">▼</span></div><ul style="margin:12px 0 0;padding-left:20px;list-style:disc;">' + toc_li + '</ul></div>'
 
     # Social share URL encoding
     import urllib.parse as _url
@@ -585,72 +576,32 @@ def build_article_html(title: str, content: str, article: Dict[str, Any],
     encoded_url = _url.quote(page_url) if page_url else ''
     encoded_title = _url.quote(title) if title else ''
 
-    html = f'''
-<!-- BPF Article UX -->
-<div class="bpf-progress" id="bpf-progress"></div>
-
-<div class="bpf-breadcrumb">
-  <a href="/">🏠 Beranda</a>
-  <span>›</span>
-  <span>Berita</span>
-  <span>›</span>
-  <span>{_esc(title[:40])}{'…' if len(title) > 40 else ''}</span>
-</div>
-
-<article class="bpf-article">
-  <div class="bpf-article-badge">{category_badge}</div>
-  <h1 class="bpf-article-title">{_esc(title)}</h1>
-  <div class="bpf-article-meta">
-    <span>📅 {_esc(publish_date)}</span>
-    <span>🕐 {_esc(publish_time)}</span>
-    <span>⏱️ {reading_time} menit baca</span>
-    <span>📰 Sumber: {source_link}</span>
-    <span class="bpf-share-group">
-      <a href="https://api.whatsapp.com/send?text={encoded_title}%20{encoded_url}" target="_blank" rel="noopener" class="bpf-share bpf-share-wa">💬 WA</a>
-      <a href="https://www.facebook.com/sharer/sharer.php?u={encoded_url}" target="_blank" rel="noopener" class="bpf-share bpf-share-fb">📘 FB</a>
-      <a href="https://twitter.com/intent/tweet?text={encoded_title}&url={encoded_url}" target="_blank" rel="noopener" class="bpf-share bpf-share-x">🐦 X</a>
-      <button onclick="navigator.clipboard.writeText(window.location.href);this.innerHTML='✅';setTimeout(()=>this.innerHTML='🔗',1500)" class="bpf-share bpf-share-copy">🔗</button>
-    </span>
-  </div>
-
-  {toc_html}
-
-  <div class="bpf-article-body">
-    {body_paragraphs}
-  </div>
-
-  <div class="bpf-disclaimer">
-    <strong>Disclaimer:</strong> Artikel ini dikutip dari sumber berita untuk tujuan informasi. Segala keputusan investasi harus berdasarkan pertimbangan matang dan berkonsultasi dengan penasihat keuangan yang kompeten.
-  </div>
-</article>
-
-<button id="bpf-backtotop" class="bpf-backtotop" onclick="window.scrollTo({{top:0,behavior:'smooth'}})">↑</button>
-
-<script>
-(function(){{
-  var bar = document.getElementById('bpf-progress');
-  var btn = document.getElementById('bpf-backtotop');
-  if(bar){{
-    window.addEventListener('scroll', function(){{
-      var h = document.documentElement.scrollHeight - window.innerHeight;
-      var p = (window.scrollY / h) * 100;
-      bar.style.width = p + '%';
-      if(btn) btn.style.display = window.scrollY > 400 ? 'block' : 'none';
-    }});
-  }}
-  document.querySelectorAll('.bpf-toc a').forEach(function(a){{
-    a.addEventListener('click', function(e){{
-      var id = this.getAttribute('href').slice(1);
-      var target = document.getElementById(id);
-      if(target){{
-        e.preventDefault();
-        target.scrollIntoView({{behavior:'smooth', block:'start'}});
-      }}
-    }});
-  }});
-}})();
-</script>
-'''
+    share_wa = 'https://api.whatsapp.com/send?text=' + encoded_title + '%20' + encoded_url
+    share_fb = 'https://www.facebook.com/sharer/sharer.php?u=' + encoded_url
+    share_x = 'https://twitter.com/intent/tweet?text=' + encoded_title + '&url=' + encoded_url
+    title_short = _esc(title[:40]) + ('…' if len(title) > 40 else '')
+    share_btns = (
+        '<a href="' + share_wa + '" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:4px;padding:5px 12px;background:#25d366;color:#fff;border-radius:6px;font-size:12px;text-decoration:none;">💬 WA</a>'
+        '<a href="' + share_fb + '" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:4px;padding:5px 12px;background:#1877f2;color:#fff;border-radius:6px;font-size:12px;text-decoration:none;">📘 FB</a>'
+        '<a href="' + share_x + '" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:4px;padding:5px 12px;background:#1da1f2;color:#fff;border-radius:6px;font-size:12px;text-decoration:none;">🐦 X</a>'
+        '<button onclick="navigator.clipboard.writeText(window.location.href);this.innerHTML=&#39;Copied!&#39;;setTimeout(function(){this.innerHTML=&#39;🔗 Copy&#39;}.bind(this),1500)" style="display:inline-flex;align-items:center;gap:4px;padding:5px 12px;background:#6b7280;color:#fff;border-radius:6px;font-size:12px;border:none;cursor:pointer;">🔗 Copy</button>'
+    )
+    html = '<div style="font-family:Inter,sans-serif;">'
+    html += '<span id="bpf-progress" style="position:fixed;top:0;left:0;height:3px;background:linear-gradient(90deg,#1e3a5f,#c8a951);z-index:9999;width:0%;transition:width .1s;display:block;"></span>'
+    html += '<p style="margin-bottom:16px;font-size:13px;color:#94a3b8;"><a href="/" style="color:#1e3a5f;text-decoration:none;">🏠 Beranda</a> <span style="margin:0 6px;">›</span> <span style="color:#1e3a5f;">Berita</span> <span style="margin:0 6px;">›</span> <span>' + title_short + '</span></p>'
+    html += '<p style="margin-bottom:12px;">' + category_badge + '</p>'
+    html += '<h1 style="font-size:28px;font-weight:700;line-height:1.3;margin:0 0 12px;color:#111827;">' + _esc(title) + '</h1>'
+    html += '<div style="display:flex;align-items:center;gap:16px;padding:12px 0;border-top:1px solid #e5e7eb;border-bottom:1px solid #e5e7eb;margin-bottom:24px;font-size:13px;color:#6b7280;flex-wrap:wrap;">'
+    html += '<span>📅 ' + _esc(publish_date) + ' &nbsp; 🕐 ' + _esc(publish_time) + ' &nbsp; ⏱️ ' + str(reading_time) + ' menit baca &nbsp; 📰 Sumber: ' + source_link + '</span>'
+    html += '<span style="display:flex;gap:6px;margin-left:auto;">' + share_btns + '</span>'
+    html += '</div>'
+    html += toc_html
+    html += '<div style="font-size:16px;line-height:1.85;color:#374151;">' + body_paragraphs + '</div>'
+    html += '<div style="margin-top:24px;padding:16px;background:#f9fafb;border-left:4px solid #d1d5db;font-size:13px;color:#6b7280;font-style:italic;"><strong>Disclaimer:</strong> Artikel ini dikutip dari sumber berita untuk tujuan informasi. Segala keputusan investasi harus berdasarkan pertimbangan matang dan berkonsultasi dengan penasihat keuangan yang kompeten.</div>'
+    html += '</div>'
+    html += '<button id="bpf-backtotop" onclick="window.scrollTo({top:0,behavior:&quot;smooth&quot;})" style="position:fixed;bottom:24px;right:24px;width:44px;height:44px;border-radius:50%;background:#1e3a5f;color:#fff;border:none;font-size:20px;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.2);display:none;z-index:9998;">↑</button>'
+    html += '<script>var bar=document.getElementById("bpf-progress"),btn=document.getElementById("bpf-backtotop");if(bar){window.addEventListener("scroll",function(){var h=document.documentElement.scrollHeight-window.innerHeight;p=(window.scrollY/h)*100;bar.style.width=p+"%";if(btn)btn.style.display=window.scrollY>400?"block":"none";});}document.querySelectorAll(".bpf-toc a").forEach(function(a){a.addEventListener("click",function(e){var t=document.getElementById(this.getAttribute("href").slice(1));if(t){e.preventDefault();t.scrollIntoView({behavior:"smooth",block:"start"});}});});</script>'
+    html += '</div>'
     return html.strip()
 
 
