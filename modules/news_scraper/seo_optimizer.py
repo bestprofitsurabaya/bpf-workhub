@@ -499,9 +499,56 @@ def build_article_html(title: str, content: str, article: Dict[str, Any],
 
     Escapes user-controlled content to prevent HTML injection / stored XSS.
     """
-    # Split content into paragraphs
-    paragraphs = content.split('\n') if content else []
-    paragraphs = [p.strip() for p in paragraphs if p.strip()]
+    # Normalize and clean content
+    if not content:
+        content = ''
+    
+    # Normalize line endings (\r\n -> \n, then \r -> \n)
+    content = content.replace('\r\n', '\n').replace('\r', '\n')
+    
+    # Split into lines and merge short lines into paragraphs
+    lines = content.split('\n')
+    lines = [line.strip() for line in lines]
+    
+    # Merge lines that belong to the same paragraph
+    # A new paragraph starts when:
+    # - The line ends with certain punctuation (period, question mark, exclamation)
+    # - The next line starts with a capital letter
+    # - Or the line is empty (blank line = paragraph break)
+    paragraphs = []
+    current_para = []
+    
+    for i, line in enumerate(lines):
+        if not line:
+            # Empty line = paragraph break
+            if current_para:
+                paragraphs.append(' '.join(current_para))
+                current_para = []
+            continue
+        
+        # Check if this line starts a new paragraph
+        starts_new_para = False
+        if i > 0 and lines[i-1]:
+            prev_line = lines[i-1]
+            # Previous line ends with sentence-ending punctuation
+            if prev_line.endswith(('.', '!', '?', '...', '…')):
+                # Current line starts with capital or specific patterns
+                if line[0].isupper() or line.startswith(('Harga', 'Emas', 'Minyak', 'Perak', 'Dolar')):
+                    starts_new_para = True
+        
+        if starts_new_para and current_para:
+            paragraphs.append(' '.join(current_para))
+            current_para = []
+        
+        current_para.append(line)
+    
+    # Don't forget the last paragraph
+    if current_para:
+        paragraphs.append(' '.join(current_para))
+    
+    # Filter out very short paragraphs (less than 10 chars)
+    paragraphs = [p.strip() for p in paragraphs if p.strip() and len(p.strip()) > 10]
+    
     if not paragraphs:
         paragraphs = [content] if content else []
 
