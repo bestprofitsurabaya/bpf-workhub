@@ -476,7 +476,7 @@ def _scrape_newsmaker_page(url: str, sess, headers: dict, seen: set) -> list:
     return articles
 
 
-def scrape_newsmaker(pages: int = 1, session=None) -> list:
+def scrape_newsmaker(pages: int = 1, session=None, fetch_content: bool = False, content_limit: int = 20) -> list:
     """Scrape newsmaker.id commodity pages + sub-categories.
 
     Crawls the main commodity page plus sub-categories (gold, oil, silver)
@@ -485,6 +485,8 @@ def scrape_newsmaker(pages: int = 1, session=None) -> list:
     Args:
         pages: number of listing pages to walk per section.
         session: optional pre-configured requests.Session.
+        fetch_content: if True, fetch full article content from each article page.
+        content_limit: max number of articles to fetch content for (to avoid rate limiting).
 
     Returns:
         List of article dicts in the standard pipeline shape.
@@ -512,6 +514,15 @@ def scrape_newsmaker(pages: int = 1, session=None) -> list:
                 if not extra:
                     break
                 all_articles.extend(extra)
+
+        # Fetch full content for articles if requested
+        if fetch_content and all_articles:
+            to_fetch = all_articles[:content_limit]
+            logger.info('Fetching content for %d/%d articles...', len(to_fetch), len(all_articles))
+            for i, article in enumerate(to_fetch):
+                fetch_article_content(article, session=sess)
+                if (i + 1) % 10 == 0:
+                    logger.info('  Content fetched: %d/%d', i + 1, len(to_fetch))
     finally:
         if own_session:
             sess.close()
