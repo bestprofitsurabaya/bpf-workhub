@@ -316,8 +316,88 @@ def parse_detik_date(date_text: str) -> tuple:
 # MULTI-SOURCE SCRAPERS
 # ===================================================================
 
+def _extract_from_rsc_payload(html: str, seen: set) -> list:
+    """Extract articles from Next.js RSC (React Server Components) payload.
+    
+    newsmaker.id is a Next.js app that embeds all article data in RSC payload
+    script tags. The SSR HTML only shows ~20 articles, but the RSC payload
+    contains 100+ articles.
+    
+    Returns:
+        List of article dicts.
+    """
+    articles = []
+    # Find RSC payload in script tags
+    rsc_match = re.search(r'self\.__next_f\.push\(\[1,"(.*?)"\]\)', html, re.DOTALL)
+    if not rsc_match:
+        return articles
+    
+    try:
+        # Find ALL RSC payloads (Next.js splits data across multiple script tags)
+        rsc_payloads = re.findall(r'self\.__next_f\.push\(\[1,"(.*?)"\]\)', html, re.DOTALL)
+        if not rsc_payloads:
+            return articles
+        
+        # Combine and decode all payloads
+        combined = ''.join(rsc_payloads)
+        decoded = combined.replace('\\"', '"').replace('\\n', '\n')
+        
+        # Extract articles from RSC payload items array
+        # Format: {"key":"...","title":"...","summary":"...","tag":"...","date":"...","href":"...","timestamp":...}
+        article_re = re.compile(
+            r'"key":"(\d+)","title":"([^"]+)","summary":"[^"]*","tag":"([^"]*)","date":"([^"]*)","(?:image|image)":"([^"]*)","href":"([^"]*)","timestamp":(\d+)',
+            re.DOTALL
+        )
+        
+        for m in article_re.finditer(decoded):
+            key, title, tag, date_str, image_url, href, timestamp = m.groups()
+            
+            # Build full URL
+            if href.startswith('/'):
+                link = f'https://newsmaker.id{href}'
+            elif href.startswith('http'):
+                link = href
+            else:
+                continue
+            
+            if link in seen:
+                continue
+            seen.add(link)
+            
+            # Parse date from format "28 Agu 2026 - 14.08"
+            publish_date = datetime.now().strftime('%Y-%m-%d')
+            publish_time = ''
+            date_match = re.match(r'(\d{1,2})\s+(\w{3})\s+(\d{4})\s*-\s*(\d{1,2})\.(\d{2})', date_str)
+            if date_match:
+                day, mon, year, hour, minute = date_match.groups()
+                mon_map = {'jan':'01','feb':'02','mar':'03','apr':'04','mei':'05','jun':'06',
+                           'jul':'07','agu':'08','sep':'09','okt':'10','nov':'11','des':'12'}
+                mon_num = mon_map.get(mon.lower(), '01')
+                publish_date = f'{year}-{mon_num}-{day.zfill(2)}'
+                publish_time = f'{hour.zfill(2)}:{minute}'
+            
+            articles.append({
+                'title': title[:200],
+                'link': link,
+                'category': tag,
+                'publish_date': publish_date,
+                'publish_time': publish_time,
+                'image_url': image_url if image_url.startswith('http') else '',
+                'content': None,
+                'source': 'newsmaker',
+            })
+    except Exception as exc:
+        logger.warning('RSC payload extraction failed: %s', exc)
+    
+    return articles
+
+
 def _scrape_newsmaker_page(url: str, sess, headers: dict, seen: set) -> list:
-    """Scrape articles from a single newsmaker.id page."""
+    """Scrape articles from a single newsmaker.id page.
+    
+    Extracts from both SSR HTML (h3 tags) and RSC payload (Next.js data).
+    The RSC payload contains 100+ articles vs ~20 in SSR HTML.
+    """
     articles = []
     t0 = time.time()
     try:
@@ -334,8 +414,22 @@ def _scrape_newsmaker_page(url: str, sess, headers: dict, seen: set) -> list:
                             status='ERROR', items_found=0,
                             error=f'HTTP {resp.status_code}', duration_ms=elapsed_ms)
             return articles
-        soup = BeautifulSoup(resp.text, 'html.parser')
+        
+        html = resp.text
         hits = 0
+        
+        # Strategy 1: Extract from RSC payload (100+ articles)
+        rsc_articles = _extract_from_rsc_payload(html, seen)
+        if rsc_articles:
+            articles.extend(rsc_articles)
+            hits = len(rsc_articles)
+            _sl.scrape_page(f'newsmaker/{url.split("/commodity")[-1][:30]}',
+                            status='OK', items_found=hits, duration_ms=elapsed_ms,
+                            method='rsc_payload')
+            return articles
+        
+        # Strategy 2: Fallback to SSR HTML parsing (~20 articles)
+        soup = BeautifulSoup(html, 'html.parser')
         h3_tags = soup.select('h3')
         for h3 in h3_tags:
             title = h3.get_text(strip=True)[:200]
