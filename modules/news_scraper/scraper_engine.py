@@ -185,6 +185,28 @@ def _adaptive_sleep(response, multiplier: float = 0.5,
     time.sleep(max(floor, min(ceiling, response_time * multiplier)))
 
 
+def _inter_request_delay(min_delay: float = 1.0, max_delay: float = 3.0) -> None:
+    """Add delay between requests with jitter to avoid pattern detection.
+    
+    Uses random jitter within the delay range to make request timing
+    less predictable and more human-like.
+    """
+    import random
+    delay = random.uniform(min_delay, max_delay)
+    time.sleep(delay)
+
+
+def _content_fetch_delay() -> None:
+    """Add longer delay between content fetches to avoid rate limiting.
+    
+    Content fetching involves multiple requests per article, so we
+    need longer delays to be polite.
+    """
+    import random
+    delay = random.uniform(2.0, 4.0)
+    time.sleep(delay)
+
+
 # ===================================================================
 # RETRY WITH EXPONENTIAL BACKOFF
 # ===================================================================
@@ -472,7 +494,8 @@ def _scrape_newsmaker_page(url: str, sess, headers: dict, seen: set) -> list:
                         status='ERROR', items_found=0,
                         error=str(exc)[:200], duration_ms=elapsed_ms)
         logger.warning('newsmaker %s failed: %s', url, exc)
-        time.sleep(0.5)
+        # Longer delay on error to avoid hammering the server
+        _inter_request_delay(min_delay=2.0, max_delay=4.0)
     return articles
 
 
@@ -507,6 +530,8 @@ def scrape_newsmaker(pages: int = 1, session=None, fetch_content: bool = False, 
         for url in urls:
             page_articles = _scrape_newsmaker_page(url, sess, headers, seen_links)
             all_articles.extend(page_articles)
+            # Add delay between page requests
+            _inter_request_delay(min_delay=1.0, max_delay=2.0)
             # Also try page 2+ if pages > 1
             for page in range(2, max(1, int(pages)) + 1):
                 page_url = f'{url}?page={page}'
@@ -514,6 +539,7 @@ def scrape_newsmaker(pages: int = 1, session=None, fetch_content: bool = False, 
                 if not extra:
                     break
                 all_articles.extend(extra)
+                _inter_request_delay(min_delay=1.0, max_delay=2.0)
 
         # Fetch full content for articles if requested
         if fetch_content and all_articles:
@@ -521,6 +547,9 @@ def scrape_newsmaker(pages: int = 1, session=None, fetch_content: bool = False, 
             logger.info('Fetching content for %d/%d articles...', len(to_fetch), len(all_articles))
             for i, article in enumerate(to_fetch):
                 fetch_article_content(article, session=sess)
+                # Add delay between content fetches
+                if i < len(to_fetch) - 1:  # Don't delay after last article
+                    _content_fetch_delay()
                 if (i + 1) % 10 == 0:
                     logger.info('  Content fetched: %d/%d', i + 1, len(to_fetch))
     finally:
