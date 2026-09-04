@@ -26,6 +26,38 @@ jobs:
   backend:
     name: Backend (pytest)
     runs-on: ubuntu-latest
+    services:
+      mariadb:
+        image: mariadb:10.11
+        env:
+          MARIADB_ROOT_PASSWORD: bpf_root_pass
+          MARIADB_DATABASE: bpf_asset_system
+          MARIADB_USER: bpf_user
+          MARIADB_PASSWORD: bpf_pass
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd "mariadb-admin ping -h 127.0.0.1 -u root -pbpf_root_pass"
+          --health-interval 5s --health-timeout 5s --health-retries 15 --health-start-period 20s
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      SECRET_KEY: ci-secret-key
+      SESSION_COOKIE_SECURE: 'false'
+      DB_HOST: 127.0.0.1
+      DB_PORT: '3306'
+      DB_USER: bpf_user
+      DB_PASSWORD: bpf_pass
+      DB_NAME: bpf_asset_system
+      DB_POOL_SIZE: '2'
+      BRANCH_POOL_SIZE: '1'
+      DB_POOL_RETRIES: '1'
+      REDIS_URL: redis://127.0.0.1:6379/0
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -35,5 +67,5 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-      - name: Run tests (unit, tanpa DB)
+      - name: Run tests (unit, DB service tersedia)
         run: python -m pytest tests/ -q
