@@ -57,7 +57,7 @@ Sebelumnya, pencatatan BBM, kasbon, dan pembelian air minum dilakukan manual —
 - Login dengan PIN 6 digit per pengguna · sesi aman · proteksi laju permintaan (rate limit).
 - Semua aksi tercatat (siapa, kapan, apa) — tidak bisa "hilang".
 - Pemeriksaan otomatis keanehan pengisian (anomali) membantu mencegah salah input.
-- 82 tes antarmuka + 243 tes backend — setiap perubahan diuji otomatis.
+- 83 tes antarmuka (vitest) + 323 tes backend (pytest) — setiap perubahan diuji otomatis di CI.
 
 ---
 
@@ -81,4 +81,4 @@ Sebelumnya, pencatatan BBM, kasbon, dan pembelian air minum dilakukan manual —
 
 ---
 
-*BPF WorkHub v1.0 · Ringkasan Satu Halaman*
+*BPF WorkHub v2.29.6 · Ringkasan Satu Halaman*

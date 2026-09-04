@@ -4,7 +4,7 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 **Terakhir diperbarui:** 2026-09-04  
 **Branch:** `main`  
-**Versi terbaru:** v2.29.5 (housekeeping: pembersihan data demo air minum — runtime tetap v2.29.4)
+**Versi terbaru:** v2.29.6 (overtime Google Sheet sync — Driver & OB/Security; deployed live)
 
 ---
 
@@ -13,21 +13,45 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 | Aspek | Status |
 |-------|--------|
 | Versi | v2.29.6 (overtime sheet sync fix) — runtime sebelumnya v2.29.4 · v2.29.5 housekeeping |
-| Sync Overtime | ✅ Driver & OB/Security — Apps Script bridge OB deployed; re-seed 599 sesi; redirect & duplicate display_id bugs fixed |
-| Data demo air minum | ✅ Dibersihkan 4 Sep — WTR-20260904-10300556, WTR-DEMO-01/02 dihapus (bpf_asset_system + bpf_restore_test); backup `/tmp/bpf_water_demo_backup_20260904.sql` |
-| Deploy | ✅ 4 Sep 2026 — v2.29.4 rebuild + restart `bbm_web` (PDF air minum + label SPA) |
+| Sync Overtime | ✅ Driver (±8.675 sesi) & OB/Security (599 sesi) — keduanya via Apps Script Web App; auto-refresh saat login/logout GA HR/Admin; redirect & duplicate display_id bugs fixed; `submitted_at` tersimpan |
+| Urutan overtime | ✅ Terkini-di-atas di semua daftar + detail report per nama dibalik terkini-dulu (PDF/Excel, commit `733fd2f`) |
+| Data demo air minum | ✅ Dibersihkan 4 Sep — WTR-20260904-10300556, WTR-DEMO-01/02 dihapus (bpf_asset_system + bpf_restore_test); backup `/tmp/bpf_water_demo_backup_20260904.sql`; tabel `water_purchases` kini 0 baris |
+| Deploy | ✅ 4 Sep 2026 — runtime v2.29.6 live (rebuild ×4 `bbm_web`: PDF air minum → overtime sync); `bbm_web` healthy |
+| Akses CI | ✅ `gh` CLI v2.100 di `~/.local/bin` (device login sbg `bestprofitsurabaya`) — run CI terbaca; semua run terbaru hijau |
 | Pool DB | ✅ Master 25 + cabang 5 (Threads_connected 206 → 26) — lihat CHANGELOG v2.29.1 |
 | Docker | `bbm_web` running on `nasbpfsby.duckdns.org:5000` |
 | App Running | `https://nasbpfsby.duckdns.org:5000` (health 200) |
 | Databases | 10 DB terpisah (1 master + 9 cabang) |
 | GPS Detail | ✅ Nominatim reverse geocode + disimpan ke DB |
 | Watermark | ✅ 4 baris: perusahaan + tanggal + alamat + koordinat |
-| Test Suite | ✅ 313 pytest + vitest auth store (7) |
+| Test Suite | ✅ 323 pytest + 83 vitest — CI GitHub Actions hijau tiap push (Backend: pytest + service mariadb/redis; Frontend: unit test + build) |
 | Kestabilan | ✅ bbm_web healthy — 0 restart, 0 error di log sejak deploy terakhir |
 
 ---
 
 ## 🗂️ Riwayat Sesi
+
+### Sesi 2026-09-04 — Detail report terkini-dulu + sinkronisasi dokumentasi (v2.29.6) ✅ SELESAI
+
+> Konteks: lanjutan sesi overtime — user minta laporan detail per karyawan ikut
+> urut terbaru-di-atas, lalu seluruh dokumentasi proyek diselaraskan ke v2.29.6.
+
+#### 🔑 Yang dikerjakan
+
+1. **Detail report per nama dibalik terkini-dulu** (commit `733fd2f`): endpoint
+   `/api/overtime/detail-report` kini `ORDER BY tanggal DESC, waktu_mulai DESC,
+   id DESC` (PDF & Excel). Verifikasi live: baris 1 = 03/09/2026, terakhir =
+   01/07/2026. Deployed (`bbm_web` healthy) + CI hijau (Backend 1m1s, Frontend
+   7m36s).
+2. **Sinkronisasi dokumentasi v2.29.6** (sesi ini): README, USER_GUIDE (overtime:
+   Apps Script OB, auto-refresh, urutan terkini-di-atas, PDF form berfoto),
+   **DEPLOYMENT.md dipulihkan** (terpotong 464→83 baris sejak rewrite `918d7ee` —
+   kini lengkap dgn fakta v2.29.6), DEPLOY_FRESH.md, USER_LIST.md, SECURITY.md,
+   ONEPAGER/PRESENTASI/PELATIHAN (angka tes 243/82 → 323/83), CHANGELOG & file ini.
+3. **Angka aktual per 4 Sep**: 33 user, 135 transaksi BBM, 8.675 sesi OT Driver,
+   599 sesi OT OB/Security, 0 pengajuan air minum (bersih pasca-cleanup demo).
+
+---
 
 ### Sesi 2026-09-04 — Overtime: Apps Script OB + fix sinkronisasi (v2.29.6) ✅ SELESAI
 
@@ -58,7 +82,10 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
    `/tmp/overtime_ob_migrasi_backup_20260904.sql`; 4 tanggal korup 1926
    (Edwin P) dikoreksi 2026 di DB — ⚠️ **sel sumber masih 1926**, perlu
    dibetulkan di Google Sheet lalu Refresh.
-7. **Verifikasi**: 599 baris, uid & display_id unik & konsisten, tahun
+7. **Verifikasi**: 599 baris tersimpan, uid & display_id unik & konsisten,
+   tahun 2025–2026, refresh meta tercatat. Deploy: image rebuild ×2,
+   `bbm_web` healthy. Test: 56 pytest overtime lulus (incl. anti-regresi
+   redirect).
 8. **Auto-refresh OB + polish PDF + sorting** — auto-refresh OB di
    login/logout (mirror Driver); header tabel PDF rata satu baris + kolom
    WAKTU/NO. FORM dilebar; Form PDF semat foto sbg gambar (fallback link utk
@@ -66,12 +93,8 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
    Render PNG visual: /tmp/rekap_pg-*.png, /tmp/detail_pg-*.png,
    /tmp/form_pg-1.png. Deploy & verifikasi live (login admin memicu
    refresh OB: meta 12:55:00).
-   2025–2026, refresh meta tercatat. Deploy: image rebuild ×2, `bbm_web`
-   healthy. Test: 56 pytest overtime lulus (incl. anti-regresi redirect).
 
 ---
-
-## 🗂️ Riwayat Sesi
 
 ### Sesi 2026-09-04 — Pembersihan data demo air minum (v2.29.5) ✅ SELESAI
 
@@ -94,8 +117,6 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
    tidak bisa membaca run. Setup akses CI menyusul.
 
 ---
-
-## 🗂️ Riwayat Sesi
 
 ### Sesi 2026-09-04 — Format PDF air minum Finance + CI backend (v2.29.4) ✅ SELESAI
 
@@ -126,8 +147,6 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
    health 200; browser pengguna akan otomatis membuang shell lama.
 
 ---
-
-## 🗂️ Riwayat Sesi
 
 ### Sesi 2026-09-04 — Fix login production + PDF air minum (v2.29.3) ✅ SELESAI
 
@@ -161,8 +180,6 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
   halaman) — isi & TTD Finance/GA sesuai konfigurasi `system_config`.
 
 ---
-
-## 🗂️ Riwayat Sesi
 
 ### Sesi 2026-09-04 — Security server-wide + Monitoring (v2.29.2) ✅ SELESAI
 
@@ -285,7 +302,8 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 │    ├── branches (10)                                │
 │    ├── system_config                                │
 │    ├── transactions (135 — BBM SBY)                 │
-│    ├── overtime_driver (8,676 — OT SBY)             │
+│    ├── overtime_driver (8,675 — OT Driver)           │
+│    ├── overtime_ob_security (599 — OT OB/Sec)       │
 │    ├── trip_masters (Trip SBY)                      │
 │    ├── appointments                                 │
 │    └── ...38 tables                                 │
@@ -586,4 +604,4 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 ---
 
-*BPF WorkHub v2.29.2 · Progres Tracker · Last updated: 2026-09-04*
+*BPF WorkHub v2.29.6 · Progres Tracker · Last updated: 2026-09-04*

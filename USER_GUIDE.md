@@ -1,4 +1,4 @@
-# 📖 Panduan Pengguna BPF WorkHub v2.29.0
+# 📖 Panduan Pengguna BPF WorkHub v2.29.6
 
 > **Siapa pun kamu — sopir, OB, admin, atau pimpinan — panduan ini ditulis untuk kamu.**
 > Tidak perlu paham teknis. Cukup ikuti langkah-langkah sesuai bagianmu.
@@ -413,22 +413,23 @@ Semua perubahan papan berjalan realtime — saat driver menyelesaikan tugas, sta
 
 ### Tab 🚗 Driver
 
-- Data ditarik dari Google Sheet lama (diisi Google Form) — **8.665 baris (2020–2026) sudah dimigrasikan** ke tabel `overtime_driver`.
-- Klik **🔄 Refresh dari Google Sheet** untuk menyinkronkan — baris baru ditambahkan, baris lama diperbarui.
+- Data ditarik dari Google Sheet lama (diisi Google Form) lewat **Apps Script Web App** — saat ini tersimpan **±8.675 sesi (2020–2026)** di tabel `overtime_driver`.
+- Klik **🔄 Refresh dari Google Sheet** untuk menyinkronkan — baris baru ditambahkan, baris lama diperbarui (aman diulang: tidak membuat dobel).
 - **Otomatis**: setiap kali user GA HR atau Admin **login atau logout**, data Driver langsung disinkronkan ulang di background — tanpa perlu menekan tombol apa pun. (Refresh dibatasi maksimal 1× per 30 detik agar tidak membebani Google.)
 - **🔔 Notifikasi**: saat sinkronisasi menemukan **data Driver baru** atau ada **form publik OB/Security** yang diisi, lonceng 🔔 di pojok kanan atas langsung berbunyi (realtime).
 - **✏️ Edit & 🗑️ Hapus**: tiap baris punya tombol aksi — koreksi typo (nama, kendaraan, tanggal, jam, keterangan, broker/manager) lewat modal edit, atau hapus baris yang keliru. Semua aksi tercatat di Audit Log.
 - Filter **tanggal** & **pencarian** nama/kendaraan/broker/manager/keterangan.
-- Tombol **⚙️ Sumber Data**: URL yang dibaca server. Bila sheet **private**, ganti dengan URL Google Apps Script Web App (template: `scripts/apps_script_overtime_driver.gs`) supaya refresh tetap berjalan tanpa membuka akses sheet. **Tidak perlu akses ke akun pemilik** — cukup akun Google mana pun yang sudah punya akses (termasuk view/read-only) membuat script standalone di `script.google.com` lalu deploy sebagai Web App (*Execute as: Me*, *Who has access: Anyone*).
+- Tombol **⚙️ Sumber Data**: URL yang dibaca server. Sheet **private** → gunakan URL Google Apps Script Web App (template: `scripts/apps_script_overtime_driver_v2.gs`). **Tidak perlu akses ke akun pemilik** — cukup akun Google mana pun yang sudah punya akses (termasuk view/read-only) membuat script standalone di `script.google.com` lalu deploy sebagai Web App (*Execute as: Me*, *Who has access: Anyone*). Tautan sheet mentah (`docs.google.com/.../edit`) **tidak** bisa dibaca server.
 - Tanggal & jam dari Apps Script (format ISO UTC) otomatis dikonversi ke **zona WIB** saat disimpan.
 
 ### Tab 🧑‍🔧 OB & Security
 
-- Data lama (546 baris) sudah dimigrasikan penuh; baris baru masuk lewat **form publik** atau **sinkronisasi Google Sheet**.
+- Data berasal dari Google Sheet (diisi Google Form) lewat **Apps Script Web App** — saat ini **599 sesi** tersimpan (di-re-seed dari sheet, source `sheet`). Baris baru masuk lewat **form publik** atau **🔄 Refresh**.
 - Filter posisi (OB/Security), tanggal, sumber, dan pencarian.
-- **🔄 Refresh** — tarik data terbaru dari Google Sheet OB/Security (sama seperti tab Driver).
+- **🔄 Refresh** — tarik data terbaru dari Google Sheet OB/Security. **Otomatis**: ikut tersinkron di background saat GA HR/Admin **login/logout** (debounce 30 dtk, sama seperti Driver) — tombol Refresh hanya untuk tarikan manual.
 - **📋 Detail/Excel** — generate report detail per nama OB/Security (PDF atau Excel). Kolom Biaya kosong untuk diisi GA HR.
-- **⚙️ Sumber Data** — atur URL Google Sheet OB/Security di modal config (terpisah dari Driver).
+- **⚙️ Sumber Data** — atur URL OB/Security di modal config (terpisah dari Driver); isi dengan URL **Apps Script Web App** (template: `scripts/apps_script_overtime_ob_security.gs`).
+- **Waktu submit asli** (timestamp Google Form) tersimpan & tampil di PDF — bukan waktu sinkronisasi.
 
 ### Form Publik (tanpa login)
 
@@ -455,26 +456,31 @@ Foto overtime yang diunggah ke server secara otomatis **dibatasi penyimpanannya 
 
 Tiga format PDF tersedia (didukung untuk Driver DAN OB/Security):
 
-1. **📄 PDF (Laporan Ringkas)** — tabel ringkas semua data, ditandatangani GA HR. Klik tombol **📄 PDF** di toolbar. Untuk OB/Security, kolom PLAT diganti POSISI.
-2. **📋 Detail/Excel (Report Per Nama)** — pilih nama + periode, lalu pilih **📄 PDF** atau **📊 Excel**. Kolom Biaya di Excel kosong untuk diisi manual oleh GA HR. Untuk OB/Security, kolom PLAT diganti POSISI.
-3. **📄 Cetak Form (Formulir Permohonan)** — klik tombol **📄** pada baris data overtime. PDF berisi: ID form, detail OT, blok TTD (Manager/Finance/GA HR/Chief Driver/Kepala Cabang), dan link foto. Untuk OB/Security, judul form menampilkan POSISI (bukan No. Kendaraan).
+1. **📄 PDF (Laporan Ringkas)** — tabel ringkas semua data, ditandatangani GA HR. Klik tombol **📄 PDF** di toolbar. Untuk OB/Security, kolom PLAT diganti POSISI. Urutan: **tanggal terbaru di atas**.
+2. **📋 Detail/Excel (Report Per Nama)** — pilih nama + periode, lalu pilih **📄 PDF** atau **📊 Excel**. Kolom Biaya di Excel kosong untuk diisi manual oleh GA HR. Untuk OB/Security, kolom PLAT diganti POSISI. Urutan: **tanggal terbaru di atas** (sejak v2.29.6).
+3. **📄 Cetak Form (Formulir Permohonan)** — klik tombol **📄** pada baris data overtime. PDF berisi: ID form, detail OT, blok TTD (Manager/Finance/GA HR/Chief Driver/Kepala Cabang), dan **foto tersemat sebagai gambar** (bila foto dari aplikasi/URL publik; tautan Google Drive private tampil sebagai link yang bisa diklik). Untuk OB/Security, judul form menampilkan POSISI (bukan No. Kendaraan). **Tanggal form = waktu submit asli** di Google Form.
 
 ---
 
-## 11.6 Untuk GA HR — Migrasi Data Driver dari Google Sheet 📥
+## 11.6 Untuk GA HR — Migrasi Data dari Google Sheet 📥
 
-> Kamu hanya punya akses **view (read-only)** ke sheet overtime Driver dan tidak punya akses ke akun pemilik. Tenang — tetap bisa sinkron.
+> Kamu hanya punya akses **view (read-only)** ke sheet overtime Driver **dan** OB/Security, dan tidak punya akses ke akun pemilik. Tenang — tetap bisa sinkron. (Halaman ini memandu langkah untuk **satu** sheet; ulangi untuk sheet yang lain dengan template masing-masing.)
+
+| Sheet | Template script |
+|-------|-----------------|
+| Driver | `scripts/apps_script_overtime_driver_v2.gs` |
+| OB/Security | `scripts/apps_script_overtime_ob_security.gs` |
 
 1. Buka **https://script.google.com** → **New project** (proyek *standalone*, jangan lewat menu sheet — itu butuh akses edit).
-2. Hapus isi `Code.gs`, tempel semua kode dari **`scripts/apps_script_overtime_driver.gs`**, lalu simpan.
+2. Hapus isi `Code.gs`, tempel semua kode dari template di atas (**sheet ID sudah tertanam** di baris `SHEET_ID` — pastikan sesuai sheet tujuan), lalu simpan.
 3. **Deploy** → **New deployment** → type **Web app**:
    - *Execute as:* **Me** (akun Anda yang punya akses ke sheet)
    - *Who has access:* **Anyone**
 4. Saat diminta izin: pilih akun yang sama → **Advanced** → *Go to … (unsafe)* → **Allow** (script hanya membaca).
-5. Salin URL `https://script.google.com/macros/s/…/exec`, tempel di dashboard GA HR → **⚙️ Sumber Data** → **Simpan**.
+5. Salin URL `https://script.google.com/macros/s/…/exec`, tempel di dashboard GA HR → **⚙️ Sumber Data** (modul yang sesuai) → **Simpan**.
 6. Tekan **🔄 Refresh** — data terbaru (termasuk yang baru diisi di Google Form) langsung masuk ke WorkHub.
 
-**Kenapa bisa?** Script dieksekusi *atas nama akun Anda* (yang sudah diberi akses baca oleh pemilik), jadi bisa membaca sheet private. Hasilnya jadi JSON publik yang dibaca server WorkHub — sheet tidak pernah dibuka aksesnya.
+**Kenapa bisa?** Script dieksekusi *atas nama akun Anda* (yang sudah diberi akses baca oleh pemilik), jadi bisa membaca sheet private. Hasilnya jadi JSON publik yang dibaca server WorkHub — sheet tidak pernah dibuka aksesnya. Sejak v2.29.6 refresh juga berjalan otomatis saat login/logout GA HR/Admin, jadi data hampir selalu segar tanpa tombol.
 
 ---
 
@@ -680,4 +686,4 @@ Jika upload ke WordPress gagal, pesan error sekarang menampilkan **response body
 
 Ada pertanyaan atau kendala? Hubungi **Admin** atau **tim IT** — mereka bisa melihat riwayat sistem (Audit Log) untuk membantu menyelesaikan masalahmu dengan cepat.
 
-*BPF WorkHub v2.29.1 · Panduan Pengguna*
+*BPF WorkHub v2.29.6 · Panduan Pengguna · Diperbarui 4 September 2026*

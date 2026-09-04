@@ -1,4 +1,4 @@
-# 🎤 Materi Presentasi — BPF WorkHub v1.0
+# 🎤 Materi Presentasi — BPF WorkHub v2.29.6
 
 Panduan demo lengkap untuk presentasi di depan audiens. Urutan disusun dari yang paling berkesan ke yang paling teknis. Tiap bagian berisi tujuan, apa yang ditampilkan di layar, poin yang dibicarakan, dan satu kalimat kunci.
 
@@ -249,7 +249,7 @@ Telp: 031-5349888
 ## 12. Kualitas & Kepatuhan (2 menit) 🧪
 
 **Poin yang dibicarakan:**
-- 243 uji otomatis backend + 82 uji frontend.
+- 323 uji otomatis backend (pytest) + 83 uji frontend (vitest) — dipastikan hijau di CI tiap rilis.
 - Uji end-to-end di produksi untuk alur kritis.
 - Pemetaan standar: ISO/IEC 27001, ISO 9241-11, ISO 9001.
 - Aksesibilitas: fokus keyboard, kontras warna, mode kontras tinggi, mode gelap.
@@ -319,4 +319,4 @@ Telp: 031-5349888
 
 ---
 
-*BPF WorkHub v1.0 · Materi Presentasi*
+*BPF WorkHub v2.29.6 · Materi Presentasi · Diperbarui 4 September 2026*

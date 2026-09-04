@@ -2,7 +2,7 @@
 
 **Sistem Manajemen Armada untuk PT. Bestprofit Futures — Surabaya**
 
-> 📅 Versi 2.29.1 · September 2026 — Production hardening (gunicorn, pool DB, keamanan port)
+> 📅 Versi 2.29.6 · September 2026 — Sinkronisasi overtime Google Sheet (Driver & OB/Security), PDF Finance, hardening produksi
 
 ---
 
@@ -39,14 +39,15 @@ BPF WorkHub adalah aplikasi web yang membantu tim operasional PT Bestprofit Futu
 - Status tracking real-time
 
 ### ⏰ Overtime (Lembur)
-- Form publik untuk OB/Security (tanpa login)
-- Driver submit lembur dari PWA
-- Sync dari Google Sheet (data existing)
-- Export PDF laporan lembur
+- **Dua sumber data**: Driver & OB/Security, masing-masing disinkronkan dari Google Sheet private lewat **Apps Script Web App** (tanpa membuka akses sheet)
+- Form publik untuk OB/Security (tanpa login) + form Driver dari PWA
+- **Auto-refresh** di background saat GA HR/Admin login/logout (debounce 30 dtk) + tombol Refresh manual
+- Riwayat **8.675 sesi Driver** (2020–2026) & **599 sesi OB/Security** tersimpan; tanggal terbaru selalu di posisi teratas
+- 3 format PDF resmi berlogo BPF: laporan rekap, detail per karyawan (PDF/Excel), & Formulir Permohonan (foto tersemat, blok TTD 5 kolom)
 
 ### 💧 Air Minum
-- Pembelian air minum untuk kantor
-- Tracking stok dan pengeluaran
+- OB mengajukan pengiriman air minum (galon/botol/gelas) + **foto bukti sebelum & sesudah diisi**
+- Finance memverifikasi → **PDF Tanda Terima** (Informasi Pengiriman → Rincian Barang → Lampiran Foto → Tanda Tangan Finance & GA)
 
 ---
 
@@ -163,7 +164,7 @@ python -m pytest tests/ -v
 cd frontend && npm test
 ```
 
-**Status:** 313 pytest · Semua ✅ PASS (terakhir diverifikasi di container rebuilt v2.29.1)
+**Status:** 323 pytest + 83 vitest · Semua ✅ PASS (terakhir diverifikasi v2.29.6 — CI GitHub Actions: Backend pytest + Frontend build/unit test, hijau di tiap push)
 
 ---
 

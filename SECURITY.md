@@ -43,7 +43,7 @@ Sistem menggunakan dua prinsip utama:
 | **Catatan aktivitas** | **Setiap perubahan data tercatat**: siapa yang melakukannya, apa yang diubah, kapan, dan dari perangkat/IP mana. Semua ini bisa dilihat Admin di halaman Audit Log. |
 | **Pemantauan berkala** | Ada indikator status koneksi secara *real-time* (⚡ terhubung / 🔴 terputus) di bilah atas aplikasi. Log teknis juga dapat dipantau oleh tim IT. |
 | **Perlindungan dari celah umum** | Data yang dikirim selalu divalidasi; permintaan yang mengubah data wajib menyertakan token keamanan (proteksi *CSRF*); halaman dilindungi dari penyimpanan cache yang tidak diinginkan; dan kode ditulis dengan teknik yang tahan terhadap serangan umum seperti *SQL injection*. |
-| **Konfigurasi & rilis terkendali** | Kredensial penting (kunci rahasia, akses database) tidak dituliskan di kode, melainkan diatur lewat konfigurasi terpisah. Sebelum setiap versi dirilis, wajib lolos **243 pengujian otomatis** terlebih dahulu. |
+| **Konfigurasi & rilis terkendali** | Kredensial penting (kunci rahasia, akses database) tidak dituliskan di kode, melainkan diatur lewat konfigurasi terpisah. Sebelum setiap versi dirilis, wajib lolos **323 pengujian otomatis** (pytest) + **83 uji antarmuka** (vitest) terlebih dahulu. |
 
 ---
 
@@ -95,7 +95,7 @@ Standar internasional tentang cara sebuah organisasi **memastikan produk dan lay
 | **Klausul 4–5** — Konteks & Kepemimpinan | Ruang lingkup dan pembagian peran tertulis dengan jelas. | Panduan lengkap tersedia dalam dokumen README, USER_GUIDE, dan DEPLOYMENT. |
 | **Klausul 7.5** — Informasi Terdokumentasi | Semua hal penting didokumentasikan, tidak bergantung pada ingatan orang. | Dokumentasi lengkap: CHANGELOG (catatan perubahan), DEPLOYMENT.md (panduan rilis), USER_GUIDE.md (panduan pengguna), SECURITY.md (dokumen ini). |
 | **Klausul 8.1** — Perencanaan Operasional | Proses kerja dirancang dan diikuti secara konsisten. | Alur rilis baku: catat perubahan di CHANGELOG → beri nomor versi → publikasikan sebagai *GitHub Release* (diotomatisasi lewat `scripts/release.sh`). |
-| **Klausul 8.6** — Rilis Produk | Tidak ada produk keluar tanpa pemeriksaan. | Sebelum setiap rilis wajib lolos: **243 pengujian otomatis** (`pytest`), proses build aplikasi, serta uji coba langsung fitur HTTP & WebSocket. |
+| **Klausul 8.6** — Rilis Produk | Tidak ada produk keluar tanpa pemeriksaan. | Sebelum setiap rilis wajib lolos: **323 pengujian otomatis** (`pytest`) + **83 uji frontend** (`vitest`), proses build aplikasi, serta uji coba langsung fitur HTTP & WebSocket (diverifikasi otomatis di GitHub Actions tiap push). |
 | **Klausul 10** — Peningkatan Berkelanjutan | Selalu ada ruang untuk menjadi lebih baik. | Masukan pengguna dan jejak audit menjadi dasar perbaikan di setiap versi — lihat CHANGELOG untuk riwayatnya. |
 
 ---
@@ -128,7 +128,7 @@ Graha Bukopin Lantai 11, Jl. Panglima Sudirman No. 10-18, Surabaya 60271
 
 ---
 
-*BPF WorkHub v1.0 · Dokumen Keamanan & Kepatuhan*
+*BPF WorkHub v2.29.6 · Dokumen Keamanan & Kepatuhan · Diperbarui 4 September 2026*
 
 ---
 

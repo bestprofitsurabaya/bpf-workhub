@@ -54,6 +54,18 @@ ketemu saat mengaktifkan sumber OB/Security kedua (mirip Driver).
   Tanggal) — harus dibetulkan di Google Sheet agar refresh berikutnya tidak
   mengembalikannya.
 
+### 📚 Dokumentasi diselaraskan ke v2.29.6
+
+- **DEPLOYMENT.md dipulihkan** — sejak rewrite `918d7ee` file terpotong
+  (464 → 83 baris, berakhir di tengah tabel, isi TOC 14 seksi tak ada). Kini
+  lengkap & akurat: arsitektur (gunicorn, redis, backup), env vars v2.29.1,
+  monitoring (Uptime Kuma + CI), HTTPS, troubleshooting overtime, endpoint,
+  checklist go-live.
+- README, USER_GUIDE (overtime dua sumber Apps Script + auto-refresh +
+  urutan terkini-di-atas + PDF), USER_LIST, DEPLOY_FRESH, SECURITY,
+  ONEPAGER/PRESENTASI/PELATIHAN diperbarui; angka tes konsisten
+  (323 pytest + 83 vitest).
+
 ---
 
 ## v2.29.5 — 4 September 2026
@@ -728,7 +740,8 @@ Versi stabil pertama dengan fitur lengkap: 10 role, 243 pytest, 82 Vitest, 10 vi
 | v2.22.0 | 243 | 82 | 325 |
 | v2.28.3 | 236 | 82 | 318 |
 | v2.28.7 | 236 | 82 | 318 |
+| v2.29.6 | 323 | 83 | 406 |
 
 ---
 
-*BPF WorkHub v2.29.0 · Diperbarui 27 Agustus 2026*
+*BPF WorkHub v2.29.6 · Diperbarui 4 September 2026*

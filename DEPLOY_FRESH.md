@@ -186,6 +186,14 @@ docker compose exec web python3 scripts/migrate_asset_system.py /path/to/bpf_ac_
 docker compose exec web python3 scripts/migrate_applicants_sheet.py /path/to/export.csv
 ```
 
+> ⚠️ **Migrasi = impor sekali jalan.** Untuk sinkronisasi **berkala** overtime (tombol 🔄
+> Refresh di GA HR + auto-refresh saat login/logout), kedua sheet harus dibaca lewat URL
+> **Apps Script Web App** (`script.google.com/macros/s/…/exec`) — bukan tautan sheet mentah
+> (`docs.google.com/.../edit`), karena itu hanya menghasilkan HTML yang tidak bisa dibaca server.
+> Deploy script dilakukan manual di `script.google.com` (panduan: `USER_GUIDE.md` §11.6).
+> Template: `scripts/apps_script_overtime_driver_v2.gs` (Driver) dan
+> `scripts/apps_script_overtime_ob_security.gs` (OB/Security).
+
 ---
 
 ## 7. Backup & Restore
@@ -314,4 +322,4 @@ docker network ls | grep nextcloud_net
 
 ---
 
-*BPF WorkHub v2.29.1 — Deployment Guide*
+*BPF WorkHub v2.29.6 — Deployment Guide · Diperbarui 4 September 2026*

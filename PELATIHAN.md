@@ -1,4 +1,4 @@
-# 🎯 Lembar Latihan per Peran — BPF WorkHub v1.0
+# 🎯 Lembar Latihan per Peran — BPF WorkHub v2.29.6
 
 Panduan latihan singkat (±5–10 menit per peran) untuk gladi resik sebelum demo atau meeting. Tiap latihan menjelaskan langkah yang harus dilakukan dan hasil yang diharapkan.
 
@@ -185,4 +185,4 @@ Telp: 031-5349888
 
 ---
 
-*BPF WorkHub v1.0 · Lembar Latihan per Peran*
+*BPF WorkHub v2.29.6 · Lembar Latihan per Peran*

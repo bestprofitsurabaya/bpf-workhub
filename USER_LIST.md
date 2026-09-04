@@ -1,4 +1,4 @@
-# 📋 Daftar User & Role — BPF WorkHub v2.29.1
+# 📋 Daftar User & Role — BPF WorkHub v2.29.6
 
 Dokumen ini menjelaskan semua role yang didukung sistem, siapa yang memakainya, dan apa yang bisa dilakukan masing-masing.
 
@@ -50,7 +50,7 @@ Setiap divisi back-office punya user unik per cabang dengan format `{divisi}_{ko
 
 ## 2. 11 Role yang Didukung
 
-Sistem mendukung 11 role pengguna:
+Sistem mendukung **11 peran inti** (peran `it` dipecah per cabang pada daftar di bawah):
 
 | # | Role | Label | Halaman Utama | Keterangan |
 |---|------|-------|---------------|------------|
@@ -288,7 +288,7 @@ Sistem mendukung 11 role pengguna:
 
 **Fitur Khusus:**
 - Dashboard statistik overtime
-- Data migrasi Driver (8.665+ data) & OB/Security (546+ data)
+- Data Driver (±8.675 sesi dari Google Sheet via Apps Script) & OB/Security (599 sesi dari sheet)
 - Auto-refresh saat login/logout
 - Refresh dari Google Sheet (Driver & OB/Security)
 - Detail Report per nama (PDF/Excel) — Driver & OB/Security
