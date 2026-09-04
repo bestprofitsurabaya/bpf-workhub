@@ -4,6 +4,45 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 
 ---
 
+## v2.29.3 — 4 September 2026
+
+### 🐛 Fix login production + fix PDF Tanda Terima Air Minum (redeploy penuh)
+
+Image web di-rebuild & container di-restart (pertama kali sejak v2.29.1 — sesi
+v2.29.2 memang sengaja tanpa perubahan runtime).
+
+#### 🔑 Fix: Login error "login is not a function"
+
+- **Gejala:** klik tombol Masuk → `k.login is not a function` (k = store Pinia
+  hasil minify).
+- **Akar masalah:** refactor username per-cabang 27 Agu (commit `0450822`)
+  tidak sengaja menghapus aksi `login` dari `frontend/src/stores/auth.js`,
+  sementara `LoginView.vue` tetap memanggil `auth.login()` → regresi di
+  production sejak 27 Agu.
+- **Fix source:** aksi `login(username, pin)` dikembalikan + simpan
+  `csrf_token` ke localStorage (commit `e8c9281`).
+- **Fix deploy:** `docker compose build web` + `up -d web` (4 Sep); bundle baru
+  terverifikasi berisi `/api/auth/login` + handling CSRF.
+- **Verifikasi live (HTTPS `nasbpfsby.duckdns.org:5000`):** login admin → 200,
+  sesi terkonfirmasi via `/api/auth/me`. Catatan: `ga_sby`/`finance_sby` dengan
+  PIN demo `123456` → 401 (PIN bukan default / akun beda — bukan bug aplikasi).
+- **Anti-regresi:** test kontrak store (`login`/`bootstrap`/`logout`) di
+  `frontend/src/stores/auth.test.js` — gagal di unit test bila aksi hilang lagi.
+- ⚠️ Pengguna yang masih melihat error: hard-refresh (Ctrl+Shift+R) atau
+  bersihkan service worker — `sw.js` dapat meng-cache `index.html` lama.
+
+#### 📄 Fix: PDF air minum — judul seksi tidak lagi "orphan"
+
+- Dokumen panjang (banyak item/remark): judul 'TANDA TANGAN' dan 'LAMPIRAN FOTO
+  (TIMESTAMP)' tercetak di dasar halaman sebelumnya sementara isinya pindah ke
+  halaman berikutnya — cek ruang halaman berjalan setelah judul digambar.
+- Fix: cek ruang dipindah SEBELUM judul seksi digambar di
+  `WaterReceiptPDF._draw_signatures` & `_draw_photos` + test regresi
+  multi-halaman di `tests/test_water.py`.
+- 16 pytest lulus (test_water + test_pdf_compact).
+
+---
+
 ## v2.29.2 — 4 September 2026
 
 ### 🛡️ Security & Monitoring: Audit server-wide + Uptime Kuma

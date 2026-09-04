@@ -4,7 +4,7 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 **Terakhir diperbarui:** 2026-09-04  
 **Branch:** `main`  
-**Versi terbaru:** v2.29.2 (Security server-wide + Uptime Kuma monitoring; runtime workhub tetap v2.29.1)
+**Versi terbaru:** v2.29.3 (Fix login production + fix PDF air minum; redeploy 4 Sep)
 
 ---
 
@@ -12,16 +12,57 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 | Aspek | Status |
 |-------|--------|
-| Versi | v2.29.1 (Production hardening — gunicorn, pool DB, keamanan port) |
-| Deploy | ✅ 3 Sep 2026 — gunicorn eventlet, pool retry, port lokal, healthcheck |
+| Versi | v2.29.3 (Fix login "not a function" + PDF water receipt orphan heading) |
+| Deploy | ✅ 4 Sep 2026 — rebuild image + restart `bbm_web` (fix login, CSRF, bundle baru) |
 | Pool DB | ✅ Master 25 + cabang 5 (Threads_connected 206 → 26) — lihat CHANGELOG v2.29.1 |
 | Docker | `bbm_web` running on `nasbpfsby.duckdns.org:5000` |
-| App Running | `https://nasbpfsby.duckdns.org:5000` |
+| App Running | `https://nasbpfsby.duckdns.org:5000` (health 200) |
 | Databases | 10 DB terpisah (1 master + 9 cabang) |
 | GPS Detail | ✅ Nominatim reverse geocode + disimpan ke DB |
 | Watermark | ✅ 4 baris: perusahaan + tanggal + alamat + koordinat |
-| Test Suite | ✅ 313 pytest lulus di container rebuilt v2.29.1 |
-| Kestabilan | ✅ 0 restart, 0 error di log sejak deploy terakhir |
+| Test Suite | ✅ 313 pytest + vitest auth store (7) |
+| Kestabilan | ✅ bbm_web healthy — 0 restart, 0 error di log sejak deploy terakhir |
+
+---
+
+## 🗂️ Riwayat Sesi
+
+### Sesi 2026-09-04 — Fix login production + PDF air minum (v2.29.3) ✅ SELESAI
+
+> Konteks: lanjutan sesi v2.29.2. Workhub di-restart & di-rebuild pertama kali
+> setelah v2.29.1 untuk men-deploy fix login & perbaikan PDF.
+
+#### 🔑 Yang dikerjakan
+
+1. **Fix login "k.login is not a function"** — regresi sejak 27 Agu: aksi
+   `login` tidak sengaja terhapus dari auth store (commit `0450822`) padahal
+   `LoginView` tetap memanggilnya. Source sudah difix di `e8c9281` (login +
+   CSRF); 4 Sep image di-rebuild (`docker compose build web`) + restart
+   (`up -d web`). Verifikasi: container healthy, `/api/health` 200, bundle baru
+   berisi `/api/auth/login` + `bpf_csrf`.
+2. **Verifikasi login live via HTTPS** (`nasbpfsby.duckdns.org:5000`): alur
+   `/api/auth/me` → login admin/123456 → 200, sesi terkonfirmasi
+   (`authenticated: true`). `ga_sby`/`finance_sby` PIN `123456` → 401 (bukan
+   default — perlu PIN asli utk verifikasi lanjutan).
+3. **Anti-regresi login:** test kontrak store di `frontend/src/stores/auth.test.js`
+   (7 vitest lulus) — gagal cepat bila `login`/`bootstrap`/`logout` hilang.
+4. **Fix PDF Tanda Terima Air Minum** — judul seksi 'TANDA TANGAN'/'LAMPIRAN
+   FOTO' bisa orphan di dasar halaman saat dokumen panjang; cek ruang pindah ke
+   sebelum judul + test regresi multi-halaman (`tests/test_water.py`, 16 pytest
+   lulus). Lihat CHANGELOG v2.29.3.
+
+#### ⚠️ Catatan
+
+- Browser pengguna yang masih menampilkan error login lama: hard-refresh atau
+  bersihkan service worker (`sw.js` cache `index.html` lama).
+- Dokumen PDF diperiksa menyeluruh (render + ekstraksi teks + layout 1 & 2
+  halaman) — isi & TTD Finance/GA sesuai konfigurasi `system_config`.
+
+---
+
+## 🗂️ Riwayat Sesi
+
+### Sesi 2026-09-04 — Security server-wide + Monitoring (v2.29.2) ✅ SELESAI
 
 ---
 
