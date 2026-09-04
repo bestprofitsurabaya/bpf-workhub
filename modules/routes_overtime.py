@@ -1003,7 +1003,7 @@ def register_overtime_routes(app):
                 where.append('tanggal >= %s'); params.append(d_from.isoformat())
             if d_to:
                 where.append('tanggal <= %s'); params.append(d_to.isoformat())
-            sql = f"SELECT * FROM {table} WHERE {' AND '.join(where)} ORDER BY tanggal ASC, waktu_mulai ASC LIMIT 500"
+            sql = f"SELECT * FROM {table} WHERE {' AND '.join(where)} ORDER BY tanggal DESC, waktu_mulai DESC, id DESC LIMIT 500"
             cursor.execute(sql, params)
             rows = cursor.fetchall()
             cursor.close(); conn.close()

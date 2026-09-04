@@ -36,6 +36,8 @@ ketemu saat mengaktifkan sumber OB/Security kedua (mirip Driver).
   Permohonan kini menyematkan **foto sebagai gambar** (file lokal `/uploads`
   atau URL publik; tautan Drive private → fallback link klik); en dash `–`
   diganti ASCII `-` (clean_text membuang non-ASCII).
+- **Detail report per orang dibalik terkini-dulu** (PDF & Excel):
+  `ORDER BY tanggal DESC, waktu_mulai DESC, id DESC` — baris terbaru di atas.
 - **Urutan overtime terkini-dulu** — API & PDF rekap sudah `tanggal DESC`;
   ditambah pengaman sort di sisi klien GA HR (Driver & OB/Security) supaya
   tanggal terbaru selalu di posisi teratas.
