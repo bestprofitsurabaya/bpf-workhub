@@ -4,6 +4,34 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 
 ---
 
+## v2.29.4 — 4 September 2026
+
+### 📄 PDF Tanda Terima Air Minum — format Finance
+
+Penyesuaian format dokumen air minum sesuai masukan user Finance.
+
+- Seksi `INFORMASI PENGAJUAN` → **`INFORMASI PENGIRIMAN`** (dengan baris
+  **Tanggal Pengiriman**).
+- Urutan isi dokumen terverifikasi: **Informasi Pengiriman → Rincian Barang →
+  Hasil Verifikasi/Remark → Lampiran Foto → Tanda Tangan** — foto bukti OB
+  (sebelum & sesudah diisi, dari form OB) kini tampil SEBELUM blok TTD.
+- Nama di blok TTD Finance ('Menyerahkan') diambil dari **user yang
+  memverifikasi** (`verified_by`); nama TTD `system_config` hanya fallback
+  (mis. status masih pending).
+- Form OB + validasi backend: label **'Tanggal Pembelian' → 'Tanggal
+  Pengiriman'** agar istilah seragam di seluruh alur.
+- Tests: heading & urutan seksi dikunci di `tests/test_water.py` (13 lulus) +
+  `WaterView` vitest (4 lulus).
+
+### 🛠️ CI backend diperbaiki (test_security_headers)
+
+Job pytest di GitHub Actions kini menjalankan service **mariadb + redis** dengan
+env DB/SECRET_KEY (meniru compose produksi). Sebelumnya test yang meng-import
+`app` error di collection (tanpa `SECRET_KEY`) atau hang (koneksi DB 60s tanpa
+DB).
+
+---
+
 ## v2.29.3 — 4 September 2026
 
 ### 🐛 Fix login production + fix PDF Tanda Terima Air Minum (redeploy penuh)

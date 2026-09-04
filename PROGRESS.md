@@ -4,7 +4,7 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 **Terakhir diperbarui:** 2026-09-04  
 **Branch:** `main`  
-**Versi terbaru:** v2.29.3 (Fix login production + fix PDF air minum; redeploy 4 Sep)
+**Versi terbaru:** v2.29.4 (Format PDF air minum Finance; CI backend mariadb+redis)
 
 ---
 
@@ -12,8 +12,8 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 | Aspek | Status |
 |-------|--------|
-| Versi | v2.29.3 (Fix login "not a function" + PDF water receipt orphan heading) |
-| Deploy | ✅ 4 Sep 2026 — rebuild image + restart `bbm_web` (fix login, CSRF, bundle baru) |
+| Versi | v2.29.4 (PDF air minum: Informasi Pengiriman, TTD verifier, foto sebelum TTD) |
+| Deploy | ⏳ v2.29.4 BELUM di-deploy — butuh rebuild image + restart `bbm_web` (deploy terakhir v2.29.3) |
 | Pool DB | ✅ Master 25 + cabang 5 (Threads_connected 206 → 26) — lihat CHANGELOG v2.29.1 |
 | Docker | `bbm_web` running on `nasbpfsby.duckdns.org:5000` |
 | App Running | `https://nasbpfsby.duckdns.org:5000` (health 200) |
@@ -22,6 +22,28 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 | Watermark | ✅ 4 baris: perusahaan + tanggal + alamat + koordinat |
 | Test Suite | ✅ 313 pytest + vitest auth store (7) |
 | Kestabilan | ✅ bbm_web healthy — 0 restart, 0 error di log sejak deploy terakhir |
+
+---
+
+## 🗂️ Riwayat Sesi
+
+### Sesi 2026-09-04 — Format PDF air minum Finance + CI backend (v2.29.4) ✅ SELESAI
+
+> Konteks: lanjutan sesi v2.29.3. Fokus user Finance: perbaikan dokumen Tanda
+> Terima Air Minum + perbaikan CI backend yang error tanpa DB.
+
+#### 🔑 Yang dikerjakan
+
+1. **Format PDF air minum (v2.29.4)** — keputusan user: seksi `INFORMASI
+   PENGIRIMAN`; urutan Info → Rincian → Verifikasi/Remark → **Lampiran Foto
+   (sebelum TTD)** → TTD; nama TTD Finance = **user yang verifikasi**
+   (`verified_by`, fallback `system_config`); form OB `Tanggal Pembelian` →
+   `Tanggal Pengiriman`. Commit `b0f65df`. Test: 13 pytest water + 4 vitest
+   WaterView lulus.
+2. **CI backend** — job pytest pakai service mariadb+redis + env DB/SECRET_KEY
+   (mirror compose). Commit `1e12feb`.
+3. ⏳ **Belum deploy** — v2.29.4 belum di-build ke image (backend `routes_water`
+   + PDF + label SPA).
 
 ---
 
