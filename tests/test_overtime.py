@@ -183,7 +183,8 @@ class TestFetchSheetRows:
         import modules.routes_overtime as ro
 
         class FakeResp:
-            def __init__(self):
+            def __init__(self, url_):
+                self.url = url_
                 self.content = body.encode('utf-8-sig')
                 self._json = is_json
             def raise_for_status(self):
@@ -194,7 +195,7 @@ class TestFetchSheetRows:
 
         def fake_get(url_, timeout=30, headers=None, **kwargs):
             assert url_ == url
-            return FakeResp()
+            return FakeResp(url_)
 
         import modules.routes_overtime as ro
         ro.requests.get = fake_get
@@ -219,6 +220,33 @@ class TestFetchSheetRows:
     def test_fetch_kosong(self):
         ro = self._fake_get('{"rows": []}', is_json=True)
         assert ro._fetch_sheet_rows('https://example.test/x') == []
+
+    def test_fetch_mengikuti_redirect(self):
+        """Regresi 1963283: allow_redirects=False membuat body kosong karena
+        Google Apps Script /exec selalu 302 dulu — refresh jadi 0 baris diam-
+        diam. Fetch harus memakai default (redirect diikuti)."""
+        import modules.routes_overtime as ro
+
+        class FakeResp:
+            url = 'https://example.test/final'
+            content = b'{"rows": [{"Nama Lengkap": "X"}]}'
+            def raise_for_status(self):
+                pass
+            def json(self):
+                import json as _j
+                return _j.loads('{"rows": [{"Nama Lengkap": "X"}]}')
+
+        captured = {}
+        def fake_get(url_, timeout=30, headers=None, **kwargs):
+            captured['allow_redirects'] = kwargs.get('allow_redirects')
+            return FakeResp()
+
+        ro.requests.get = fake_get
+        rows = ro._fetch_sheet_rows('https://example.test/x')
+        assert len(rows) == 1
+        # allow_redirects harus False-tidak-dipaksakan (default requests = True)
+        assert captured.get('allow_redirects') is not False
+        assert captured.get('allow_redirects') is None or captured['allow_redirects'] is True
 
 
 # ============================================================

@@ -12,7 +12,8 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 | Aspek | Status |
 |-------|--------|
-| Versi | v2.29.4 runtime (PDF air minum: Informasi Pengiriman, TTD verifier, foto sebelum TTD) · v2.29.5 housekeeping |
+| Versi | v2.29.6 (overtime sheet sync fix) — runtime sebelumnya v2.29.4 · v2.29.5 housekeeping |
+| Sync Overtime | ✅ Driver & OB/Security — Apps Script bridge OB deployed; re-seed 599 sesi; redirect & duplicate display_id bugs fixed |
 | Data demo air minum | ✅ Dibersihkan 4 Sep — WTR-20260904-10300556, WTR-DEMO-01/02 dihapus (bpf_asset_system + bpf_restore_test); backup `/tmp/bpf_water_demo_backup_20260904.sql` |
 | Deploy | ✅ 4 Sep 2026 — v2.29.4 rebuild + restart `bbm_web` (PDF air minum + label SPA) |
 | Pool DB | ✅ Master 25 + cabang 5 (Threads_connected 206 → 26) — lihat CHANGELOG v2.29.1 |
@@ -23,6 +24,39 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 | Watermark | ✅ 4 baris: perusahaan + tanggal + alamat + koordinat |
 | Test Suite | ✅ 313 pytest + vitest auth store (7) |
 | Kestabilan | ✅ bbm_web healthy — 0 restart, 0 error di log sejak deploy terakhir |
+
+---
+
+## 🗂️ Riwayat Sesi
+
+### Sesi 2026-09-04 — Overtime: Apps Script OB + fix sinkronisasi (v2.29.6) ✅ SELESAI
+
+> Konteks: user mau 2 sumber overtime dari Google Sheet seperti Driver; sumber
+> OB/Security kedua masih URL sheet mentah dan tidak pernah sinkron.
+
+#### 🔑 Yang dikerjakan
+
+1. **Diagnosis**: `overtime_ob_sheet_url` berisi `…/edit` → HTML, bukan CSV →
+   `overtime_ob_last_refresh` tidak pernah ada. Sheet sebenarnya bisa di-export
+   CSV publik (610 baris) tapi sebaiknya tetap private seperti Driver.
+2. **Apps Script OB/Security** dibuat (`scripts/apps_script_overtime_ob_security.gs`,
+   SHEET_ID `1AsBq-rHss…`, commit `e450e8b`) + di-deploy user; config diarahkan
+   ke Web App.
+3. **Bug #1 — redirect mati (regresi `1963283`)**: `allow_redirects=False` →
+   Apps Script 302 → body kosong → refresh **0 baris diam-diam**. Ini juga
+   mematikan sinkronisasi **Driver**. Fix: ikuti redirect + SSRF di URL akhir;
+   Driver diuji penuh 8.831 baris (57 usang ter-update).
+4. **Bug #2 — `display_id` kembar di batch besar**: suffix acak 2 digit habis
+   (~100/detik) → guard break → id kembar → baris tertimpa diam-diam (hanya
+   ~200/599 sesi tersimpan). Fix: `OTL-SH-` + 16 hex digest deterministik.
+5. **Re-seed OB/Security** (disetujui user): 578 migrasi → 599 sesi sheet
+   (11 duplikat form dide-dupe), source='sheet', backup
+   `/tmp/overtime_ob_migrasi_backup_20260904.sql`; 4 tanggal korup 1926
+   (Edwin P) dikoreksi 2026 di DB — ⚠️ **sel sumber masih 1926**, perlu
+   dibetulkan di Google Sheet lalu Refresh.
+6. **Verifikasi**: 599 baris, uid & display_id unik & konsisten, tahun
+   2025–2026, refresh meta tercatat. Deploy: image rebuild ×2, `bbm_web`
+   healthy. Test: 56 pytest overtime lulus (incl. anti-regresi redirect).
 
 ---
 

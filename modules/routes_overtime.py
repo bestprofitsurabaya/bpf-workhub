@@ -291,16 +291,13 @@ def trigger_driver_refresh_async(role, full_name, ip=None):
     production_pool_executor.submit(_run)
 
 
-def _fetch_sheet_rows(url, since=None):
-    """Ambil baris data dari URL sumber. Support CSV (export/gviz) & JSON
-    (Google Apps Script Web App: {"rows": [{...}]}).
+def _check_public_url(url):
+    """SSRF protection: hanya izinkan http/https menuju host publik.
 
-    Args:
-        url: URL sumber data (CSV export atau Apps Script Web App)
-        since: ISO datetime string untuk incremental sync (hanya ambil data baru)
-               Dokumentasi v2 Apps Script: ?since=2025-08-19T00:00:00
-    Return list[dict]."""
-    # SSRF protection: only allow http/https to public hosts.
+    Dilempar ValueError bila scheme aneh atau host berupa IP private/
+    loopback/link-local/reserved. Hostname domain dianggap OK (di-resolve
+    DNS publik).
+    """
     from urllib.parse import urlparse
     import ipaddress
     parsed = urlparse(url)
@@ -312,18 +309,34 @@ def _fetch_sheet_rows(url, since=None):
             raise ValueError(f'URL ke private/internal IP tidak diizinkan: {parsed.hostname}')
     except (ValueError, TypeError):
         pass  # hostname is a domain, not IP — OK
+
+
+def _fetch_sheet_rows(url, since=None):
+    """Ambil baris data dari URL sumber. Support CSV (export/gviz) & JSON
+    (Google Apps Script Web App: {"rows": [{...}]}).
+
+    Args:
+        url: URL sumber data (CSV export atau Apps Script Web App)
+        since: ISO datetime string untuk incremental sync (hanya ambil data baru)
+               Dokumentasi v2 Apps Script: ?since=2025-08-19T00:00:00
+    Return list[dict]."""
     fetch_url = url
     if since:
         separator = '&' if '?' in url else '?'
         fetch_url = f'{url}{separator}since={since}'
+    _check_public_url(fetch_url)
     # Retry transien (SSLEOFError/timeout dari Google Apps Script sering terjadi
     # sesaat — v2.29: 3 percobaan dengan backoff 1s/2s).
+    # Catatan: redirect WAJIB diikuti. Google Apps Script /exec selalu menjawab
+    # 302 dulu ke script.googleusercontent.com; allow_redirects=False membuat
+    # body kosong → refresh diam-diam 0 baris (regresi 1963283 — mematikan
+    # sinkronisasi Driver & OB). URL akhir tetap dicek SSRF (_check_public_url).
     resp = None
     for attempt in range(3):
         try:
             resp = requests.get(fetch_url, timeout=60,
-                                headers={'User-Agent': 'Mozilla/5.0'},
-                                allow_redirects=False)
+                                headers={'User-Agent': 'Mozilla/5.0'})
+            _check_public_url(resp.url)
             resp.raise_for_status()
             break
         except (requests.exceptions.SSLError,
@@ -408,11 +421,23 @@ def _upsert_ob_rows(conn, rows):
             if not row:
                 skipped += 1
                 continue
-            # source_uid = hash dari nama+posisi+tanggal untuk dedup
+            # Kunci stabil per SESI: nama + tanggal + jam-mulai (bukan indeks
+            # baris, bukan nama+posisi+tanggal). Idempoten saat refresh ulang
+            # & tahan reorder sheet; jam-mulai disertakan agar dua sesi orang
+            # yang sama di hari yang sama tidak saling menimpa.
             import hashlib
-            source_uid = 'sheet-' + hashlib.md5(
-                (row['nama'] + row.get('posisi', '') + row.get('tanggal', '')).encode('utf-8')
-            ).hexdigest()[:24]
+            digest = hashlib.md5(
+                '|'.join([row['nama'], row.get('tanggal', ''),
+                          row.get('waktu_mulai', '')]).encode('utf-8')
+            ).hexdigest()
+            source_uid = 'sheet-' + digest
+            # display_id kolom UNIQUE — TIDAK memakai generate_display_id():
+            # suffix acaknya cuma 2 digit (~100 kandidat/detik), habis saat
+            # batch 600+ baris → guard 500x break → id kembar → INSERT kena
+            # duplicate display_id → baris lain TERTIMPA (silent data loss).
+            # display_id deterministik dari digest yang sama: sama saat
+            # re-sync (update in-place), unik antar sesi, tanpa query tambahan.
+            display_id = 'OTL-SH-' + digest[:16]
             cursor.execute(
                 """INSERT INTO overtime_ob_security
                    (display_id, nama, posisi, tanggal, waktu_mulai, waktu_selesai,
@@ -427,7 +452,7 @@ def _upsert_ob_rows(conn, rows):
                      gps_address=VALUES(gps_address), gps_kelurahan=VALUES(gps_kelurahan),
                      gps_kecamatan=VALUES(gps_kecamatan), gps_kota=VALUES(gps_kota),
                      gps_provinsi=VALUES(gps_provinsi), gps_kode_pos=VALUES(gps_kode_pos)""",
-                (row.get('display_id', ''), row['nama'], row.get('posisi', 'OB'),
+                (display_id, row['nama'], row.get('posisi', 'OB'),
                  row.get('tanggal', ''), row.get('waktu_mulai', ''),
                  row.get('waktu_selesai', ''), row.get('keterangan', ''),
                  row.get('foto_mulai', ''), row.get('foto_selesai', ''),

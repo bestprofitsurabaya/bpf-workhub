@@ -4,6 +4,40 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 
 ---
 
+## v2.29.6 — 4 September 2026
+
+### ⏰ Sinkronisasi Overtime Google Sheet diperbaiki (Driver & OB/Security)
+
+Dua bug lama membuat sinkronisasi sheet overtime **diam-diam mati**; keduanya
+ketemu saat mengaktifkan sumber OB/Security kedua (mirip Driver).
+
+- **Fix regresi redirect Apps Script** (`1963283`): `_fetch_sheet_rows()` memakai
+  `allow_redirects=False`, padahal Google Apps Script `/exec` selalu menjawab
+  302 dulu ke `script.googleusercontent.com` → body kosong → refresh melaporkan
+  **0 baris tanpa error**. Akibatnya refresh **Driver** (dan calon OB) tidak
+  pernah mengambil data baru. Kini redirect diikuti + URL akhir tetap dicek
+  SSRF (`_check_public_url`). Test anti-regresi ditambahkan. Sinkronisasi
+  Driver diuji penuh: 8.831 baris, 57 baris usang terperbarui.
+- **Fix duplicate `display_id` saat batch besar** di `_upsert_ob_rows()`:
+  `generate_display_id()` bersuffix acak 2 digit (~100 kandidat/detik) — dalam
+  satu batch 600+ baris ruangnya habis, guard 500× break → id kembar → INSERT
+  kena UNIQUE `display_id` → **baris lain tertimpa diam-diam**. Kini
+  `display_id` sheet deterministik per sesi (`OTL-SH-` + 16 hex digest, sama
+  dengan basis `source_uid`) — idempoten saat re-sync tanpa query tambahan.
+- **Apps Script bridge OB/Security** (`scripts/apps_script_overtime_ob_security.gs`)
+  — pola sama seperti Driver v2 (SHEET_ID `1AsBq-rHss…`), untuk sheet private.
+  Deployed oleh user; `overtime_ob_sheet_url` kini mengarah ke Web App.
+- **Re-seed data OB/Security dari sheet** (persetujuan user): 578 baris migrasi
+  lama (beberapa tanggal korup 0026/1926 & duplikat) diganti dengan 599 sesi
+  dari sheet (11 pengajuan ganda dide-dupe), semua `source='sheet'`,
+  `display_id` seragam `OTL-SH-…`. Backup migrasi:
+  `/tmp/overtime_ob_migrasi_backup_20260904.sql`. Tahun kini 2025–2026.
+  ⚠️ **4 sel di sheet sumber masih 1926** (Edwin P, ~8–14 Jan 2026, kolom
+  Tanggal) — harus dibetulkan di Google Sheet agar refresh berikutnya tidak
+  mengembalikannya.
+
+---
+
 ## v2.29.5 — 4 September 2026
 
 ### 🧹 Pembersihan data demo modul air minum (production)
