@@ -89,14 +89,19 @@ docker compose up -d --build
 
 ### Akun Demo (PIN-based)
 
+Akun seed yang dibuat otomatis saat inisialisasi database (terverifikasi login):
+
 | Login | PIN | Role |
 |-------|-----|------|
 | `admin` | `123456` | Admin |
-| `ga_sby` | `123456` | GA Surabaya |
-| `finance_sby` | `123456` | Finance Surabaya |
-| `it_sby` | `123456` | IT Surabaya |
-| `AKHAD` | `123456` | Driver |
+| `ga_officer` | `123456` | GA Officer |
+| `finance_officer` | `123456` | Finance Officer |
 
+> ⚠️ User per-cabang (`ga_sby`, `finance_sby`, `it_sby`, dst.) **bukan akun demo
+> publik** — dibuat oleh Admin saat onboarding dengan konvensi `{divisi}_{cabang}`
+> dan PIN-nya dikelola Admin (ganti setelah login pertama). Jangan andalkan PIN
+> `123456` untuk akun tersebut.
+>
 > Semua login memakai **PIN**, bukan password. Endpoint login: `POST /api/auth/login`
 > (JSON `{username, pin}` + header `X-CSRF-Token` dari `GET /api/auth/me`).
 
