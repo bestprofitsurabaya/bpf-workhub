@@ -177,7 +177,7 @@ python -m pytest tests/ -v
 cd frontend && npm test
 ```
 
-**Status:** 331 pytest + 84 vitest · Semua ✅ PASS (terakhir diverifikasi v2.29.7 — CI GitHub Actions: Backend pytest + Frontend build/unit test, hijau di tiap push)
+**Status:** 331 pytest + 85 vitest · Semua ✅ PASS (terakhir diverifikasi v2.29.7 — CI GitHub Actions: Backend pytest + Frontend build/unit test, hijau di tiap push)
 
 ---
 

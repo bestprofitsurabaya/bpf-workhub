@@ -103,6 +103,25 @@ describe('UsersView', () => {
     expect(call[1].body.branch_code).toBe('SBY')
   })
 
+  it('form tambah user: helper text menampilkan contoh pola username per role', async () => {
+    const w = await mountView()
+    const addBtn = w.findAll('button').find(b => b.text().includes('Tambah User'))
+    await addBtn.trigger('click')
+    await flushPromises()
+    // Default role 'ga' (cabang fallback 'sby') → contoh ga_sby
+    expect(w.text()).toContain('contoh: ga_sby')
+    // Ganti role ke ob → contoh ob_sby + catatan nama bila >1 orang
+    // (select role di MODAL = yang punya opsi role tapi bukan filter 'Semua Role')
+    const roleSelect = w.findAll('select').find(s => {
+      const opts = s.findAll('option').map(o => o.text())
+      return opts.includes('🚰 OB') && !opts.some(t => t.includes('Semua Role'))
+    })
+    await roleSelect.setValue('ob')
+    await flushPromises()
+    expect(w.text()).toContain('contoh: ob_sby')
+    expect(w.text()).toContain('ob_faisol_sby')
+  })
+
   it('tambah user: simpan mengirim pin saat diisi', async () => {
     const w = await mountView()
     // Click "Tambah User" button

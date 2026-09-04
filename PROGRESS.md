@@ -14,7 +14,7 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 |-------|--------|
 | Versi | v2.29.7 (user management + PDF air minum) — runtime sebelumnya v2.29.6 overtime sync |
 | Manajemen User | ✅ Admin bisa edit SEMUA detail user: fix tombol Simpan mati saat edit tanpa PIN, `branch_code` kini tersimpan, username bisa diganti (update by-id) |
-| Konvensi username | ✅ `{divisi}_{cabang}` (nama bila >1 per divisi-cabang): 12 akun produksi di-rename (`finance_sby`, `ob_faisol_sby`, `gahr_sby`, …) — driver & it_* tidak berubah |
+| Konvensi username | ✅ `{divisi}_{cabang}` (nama bila >1 per divisi-cabang): 12 akun produksi di-rename (`finance_sby`, `ob_faisol_sby`, `gahr_sby`, …) — driver & it_* tidak berubah; helper text contoh pola di form Users; login UI diverifikasi browser 11/11 |
 | PDF Air Minum | ✅ Foto bukti diperbesar (60–130 mm mengikuti ruang kosong), TTD lebih ke bawah, header kop simetris (teks rata tengah halaman) |
 | Sync Overtime | ✅ Driver (±8.675 sesi) & OB/Security (599 sesi) — keduanya via Apps Script Web App; auto-refresh saat login/logout GA HR/Admin; redirect & duplicate display_id bugs fixed; `submitted_at` tersimpan |
 | Urutan overtime | ✅ Terkini-di-atas di semua daftar + detail report per nama dibalik terkini-dulu (PDF/Excel, commit `733fd2f`) |
@@ -27,7 +27,7 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 | Databases | 10 DB terpisah (1 master + 9 cabang) |
 | GPS Detail | ✅ Nominatim reverse geocode + disimpan ke DB |
 | Watermark | ✅ 4 baris: perusahaan + tanggal + alamat + koordinat |
-| Test Suite | ✅ 331 pytest (325 pass + 6 skip) + 84 vitest — CI GitHub Actions hijau tiap push (Backend: pytest + service mariadb/redis; Frontend: unit test + build) |
+| Test Suite | ✅ 331 pytest (325 pass + 6 skip) + 85 vitest — CI GitHub Actions hijau tiap push (Backend: pytest + service mariadb/redis; Frontend: unit test + build) |
 | Kestabilan | ✅ bbm_web healthy — 0 restart, 0 error di log sejak deploy terakhir |
 
 ---
@@ -57,6 +57,14 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
    init.sql (seed ga_sby/finance_sby + branch_code SBY), README/USER_LIST/
    USER_GUIDE/PELATIHAN/PRESENTASI/presentasi/DEPLOYMENT/DEPLOY_FRESH.
    ⚠️ Pemilik akun perlu tahu username baru (PIN tetap).
+4. **Helper text pola username di form Users** (keputusan "contoh saja"):
+   contoh dinamis per role+cabang (ga_sby, ob_sby → ob_faisol_sby bila
+   >1 orang); catatan driver/admin/it. Deploy + verifikasi login dari UI
+   via browser nyata: 11 skenario landing benar (admin, finance_sby,
+   ga_sby, ob_faisol_sby, chief_driver_sby, gahr_sby, receptionist_sby,
+   it_sby, marketing_yusie_sby) + PIN salah ditolak + hint tampil di
+   /app/users. Satu 400 konsol tab 'Selesai' MarketingDashboard =
+   endpoint driver-only pre-existing (ditangkap, tidak menghalangi).
 
 ---
 

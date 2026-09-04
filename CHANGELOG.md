@@ -55,6 +55,17 @@ Keputusan user (4 Sep): username dibuat agar terbaca **divisi & cabang**.
   PRESENTASI, presentasi/index.html, DEPLOYMENT, DEPLOY_FRESH.
 - ⚠️ User yang akunnya di-rename perlu tahu username barunya (PIN tidak
   berubah). Appointment lama marketing tetap tercatat di bawah username lama.
+- **Helper text pola username di form Users** (keputusan: contoh saja, tanpa
+  validasi keras) — di bawah kolom Username tampil contoh dinamis per role
+  + cabang: `contoh: ga_sby`, `ob_sby … bila >1 orang per cabang:
+  ob_nama_sby (mis. ob_faisol_sby)`; catatan khusus driver/admin/it.
+- **Verifikasi login dari UI (browser nyata, puppeteer)**: 11 skenario
+  lulus — admin, finance_sby, ga_sby, ob_faisol_sby, chief_driver_sby,
+  gahr_sby, receptionist_sby, it_sby → landing halaman masing-masing +
+  cookie sesi terbentuk; PIN salah → tetap di login + pesan; hint terlihat
+  di halaman Users. (Satu 400 konsol di tab 'Selesai' MarketingDashboard =
+  endpoint driver-only — pre-existing, ditangkap diam-diam, tak terkait
+  rename.)
 
 ### 💧 PDF Tanda Terima Air Minum dirapikan
 
@@ -811,7 +822,7 @@ Versi stabil pertama dengan fitur lengkap: 10 role, 243 pytest, 82 Vitest, 10 vi
 | v2.28.3 | 236 | 82 | 318 |
 | v2.28.7 | 236 | 82 | 318 |
 | v2.29.6 | 323 | 83 | 406 |
-| v2.29.7 | 331 | 84 | 415 |
+| v2.29.7 | 331 | 85 | 416 |
 
 ---
 

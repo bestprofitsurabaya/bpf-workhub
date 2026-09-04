@@ -67,6 +67,33 @@ const branchName = (code) => {
   return b ? b.name : code
 }
 
+// Konvensi username v2.29.7: {divisi}_{cabang} (+ nama bila >1 orang per cabang).
+// Helper text di form — contoh saja, tanpa validasi keras.
+const DIVISI_TOKEN = {
+  ga: 'ga', finance: 'finance', marketing: 'marketing', chief_driver: 'chief_driver',
+  ob: 'ob', receptionist: 'receptionist', traineer: 'traineer', ga_hr: 'gahr',
+}
+const usernameHint = computed(() => {
+  const role = form.value.role
+  const branch = (form.value.branch_code || auth.user?.branch_code || '').toLowerCase()
+  let hint = ''
+  if (role === 'admin') {
+    hint = 'Khusus: akun admin pusat — biarkan \u201cadmin\u201d'
+  } else if (role === 'driver') {
+    hint = 'Driver: username = nama driver (huruf kecil), mis. akhad — dibuat otomatis dari tabel drivers'
+  } else if (role.startsWith('it_')) {
+    hint = `Username biasanya mengikuti role — contoh: ${role}`
+  } else {
+    const token = DIVISI_TOKEN[role] || role
+    const cab = branch || 'sby'
+    hint = `contoh: ${token}_${cab}`
+    if (role === 'ob' || role === 'marketing' || role === 'ga' || role === 'finance') {
+      hint += ` — bila >1 orang per cabang: ${token}_nama_${cab} (mis. ob_faisol_sby)`
+    }
+  }
+  return (form.value.id ? 'Mengganti username = mengganti nama login. ' : '') + hint
+})
+
 // Computed
 const filteredUsers = computed(() => {
   return users.value.filter(u => {
@@ -379,7 +406,7 @@ onMounted(load)
     <Modal v-if="showForm" :title="form.username ? '✏️ Edit User' : '➕ Tambah User'" @close="showForm = false">
       <div class="form-grid">
         <div class="field"><label>Username *</label><input class="input" v-model="form.username" required placeholder=" huruf kecil, tanpa spasi" />
-          <div v-if="form.id" class="muted" style="font-size:11px;">Mengganti username = mengganti nama login user.</div>
+          <div class="muted" style="font-size:11px;">{{ usernameHint }}</div>
         </div>
         <div class="field"><label>Nama Lengkap *</label><input class="input" v-model="form.full_name" required /></div>
         <div class="field"><label>Role *</label>
