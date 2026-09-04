@@ -83,6 +83,7 @@ def ensure_overtime_schema(conn=None):
                 display_id VARCHAR(30) NOT NULL UNIQUE,
                 nama VARCHAR(150) NOT NULL,
                 posisi ENUM('OB','Security') NOT NULL DEFAULT 'OB',
+                submitted_at DATETIME NULL,
                 tanggal DATE NULL,
                 waktu_mulai VARCHAR(20) DEFAULT '',
                 waktu_selesai VARCHAR(20) DEFAULT '',
@@ -108,6 +109,12 @@ def ensure_overtime_schema(conn=None):
                 INDEX idx_oto_posisi (posisi)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
         """, cursor, "overtime_ob_security")
+
+        # v2.29.6: submitted_at (timestamp submit Google Form) — paritas Driver.
+        # Sebelumnya kolom ini tidak ada → PDF OB memakai created_at (waktu
+        # sync), detail report kolom timestamp kosong.
+        _run("ALTER TABLE overtime_ob_security ADD COLUMN submitted_at DATETIME NULL",
+             cursor, "overtime_ob_security.submitted_at")
 
         # v2.27.1/v2.28.4: kolom GPS detail — paritas Driver vs OB/Security.
         # Sebelumnya kolom ini hanya ditambah manual di DB produksi (tidak ada

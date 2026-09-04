@@ -27,6 +27,10 @@ ketemu saat mengaktifkan sumber OB/Security kedua (mirip Driver).
 - **Apps Script bridge OB/Security** (`scripts/apps_script_overtime_ob_security.gs`)
   — pola sama seperti Driver v2 (SHEET_ID `1AsBq-rHss…`), untuk sheet private.
   Deployed oleh user; `overtime_ob_sheet_url` kini mengarah ke Web App.
+- **`submitted_at` untuk OB/Security** (kolom baru, idempoten): timestamp
+  submit asli Google Form kini tersimpan & ter-backfill 599/599 — PDF
+  'TANGGAL FORM' & kolom timestamp laporan detail tidak lagi kosong/memakai
+  waktu sync. Paritas dengan `overtime_driver`.
 - **Re-seed data OB/Security dari sheet** (persetujuan user): 578 baris migrasi
   lama (beberapa tanggal korup 0026/1926 & duplikat) diganti dengan 599 sesi
   dari sheet (11 pengajuan ganda dide-dupe), semua `source='sheet'`,

@@ -49,12 +49,16 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 4. **Bug #2 — `display_id` kembar di batch besar**: suffix acak 2 digit habis
    (~100/detik) → guard break → id kembar → baris tertimpa diam-diam (hanya
    ~200/599 sesi tersimpan). Fix: `OTL-SH-` + 16 hex digest deterministik.
-5. **Re-seed OB/Security** (disetujui user): 578 migrasi → 599 sesi sheet
+5. **`submitted_at` OB/Security** — kolom baru (schema idempoten) + parse
+   Timestamp sheet → WIB; backfill 599/599. PDF 'TANGGAL FORM' & kolom
+   timestamp laporan detail kini memakai waktu submit asli Google Form
+   (sebelumnya waktu sync / kosong).
+6. **Re-seed OB/Security** (disetujui user): 578 migrasi → 599 sesi sheet
    (11 duplikat form dide-dupe), source='sheet', backup
    `/tmp/overtime_ob_migrasi_backup_20260904.sql`; 4 tanggal korup 1926
    (Edwin P) dikoreksi 2026 di DB — ⚠️ **sel sumber masih 1926**, perlu
    dibetulkan di Google Sheet lalu Refresh.
-6. **Verifikasi**: 599 baris, uid & display_id unik & konsisten, tahun
+7. **Verifikasi**: 599 baris, uid & display_id unik & konsisten, tahun
    2025–2026, refresh meta tercatat. Deploy: image rebuild ×2, `bbm_web`
    healthy. Test: 56 pytest overtime lulus (incl. anti-regresi redirect).
 

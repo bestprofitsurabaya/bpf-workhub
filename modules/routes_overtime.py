@@ -441,13 +441,15 @@ def _upsert_ob_rows(conn, rows):
             cursor.execute(
                 """INSERT INTO overtime_ob_security
                    (display_id, nama, posisi, tanggal, waktu_mulai, waktu_selesai,
-                    keterangan, foto_mulai, foto_selesai, email, source, source_uid)
-                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'sheet',%s)
+                    keterangan, foto_mulai, foto_selesai, email, submitted_at,
+                    source, source_uid)
+                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'sheet',%s)
                    ON DUPLICATE KEY UPDATE
                      nama=VALUES(nama), posisi=VALUES(posisi), tanggal=VALUES(tanggal),
                      waktu_mulai=VALUES(waktu_mulai), waktu_selesai=VALUES(waktu_selesai),
                      keterangan=VALUES(keterangan), foto_mulai=VALUES(foto_mulai),
                      foto_selesai=VALUES(foto_selesai), email=VALUES(email),
+                     submitted_at=VALUES(submitted_at),
                      gps_lat=VALUES(gps_lat), gps_lon=VALUES(gps_lon),
                      gps_address=VALUES(gps_address), gps_kelurahan=VALUES(gps_kelurahan),
                      gps_kecamatan=VALUES(gps_kecamatan), gps_kota=VALUES(gps_kota),
@@ -456,7 +458,8 @@ def _upsert_ob_rows(conn, rows):
                  row.get('tanggal', ''), row.get('waktu_mulai', ''),
                  row.get('waktu_selesai', ''), row.get('keterangan', ''),
                  row.get('foto_mulai', ''), row.get('foto_selesai', ''),
-                 row.get('email', ''), source_uid))
+                 row.get('email', ''), row.get('submitted_at', '') or None,
+                 source_uid))
             if cursor.rowcount == 1:
                 added += 1
             elif cursor.rowcount == 2:
@@ -512,6 +515,9 @@ def _normalize_ob_row(r, headers, idx, n):
         'foto_mulai': _col('foto_mulai'),
         'foto_selesai': _col('foto_selesai'),
         'email': _col('email'),
+        # Timestamp submit asli Google Form (kolom 'Timestamp' sheet) — dipakai
+        # PDF 'TANGGAL FORM' & kolom timestamp detail report. Konversi UTC→WIB.
+        'submitted_at': (parse_submitted_at_any(_col('submitted_at')) or ''),
         'display_id': '',
     }
 
