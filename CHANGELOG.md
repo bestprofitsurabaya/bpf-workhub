@@ -60,6 +60,17 @@ Format baru (semua dokumen baru): **`{PREFIX}-{BRANCH}-{YYYYMMDD}-{SEQ}`**
 - **Versi sistem disinkronkan ke v2.29.10** — sebelumnya stale `v2.22.1` di
   default identitas (kop/footer PDF, fallback UI) & `system_config` DB
   master; kini konsisten di kode + DB.
+- **Kop surat PDF kini benar-benar simetris**: baris subjudul & alamat
+  ("Kantor Pusat | Jakarta", "Equity Tower …") sebelumnya bergeser ke
+  kanan ~5 mm karena `new_x=LMARGIN` + `r_margin=0` membuat kotak teks
+  asimetris — diperbaiki dengan `set_x(0)` tiap baris. Terverifikasi via
+  bbox poppler di 5 tipe dokumen (portrait & landscape): seluruh 3 baris kop
+  tepat di tengah halaman (delta 0.0 pt).
+- **Fallback identitas offline (tanpa DB)**: saat koneksi DB gagal, kop PDF
+  kini memakai `IDENTITY_DEFAULTS` penuh (nama/subjudul/alamat/kontak),
+  bukan `{}` — PDF dari tes/script konsisten dengan produksi.
+- Sisa teks "PT. Bestprofit Surabaya" di modul app & narasi laporan
+  dikoreksi → "PT. Bestprofit Futures".
 
 ---
 

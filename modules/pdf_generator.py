@@ -4,7 +4,7 @@ import re
 import io
 from datetime import datetime, date
 from fpdf import FPDF
-from modules.company_identity import get_company_identity
+from modules.company_identity import get_company_identity, IDENTITY_DEFAULTS
 
 # ============================================================
 # CONSTANTS (fallback bila identitas belum diset di system_config)
@@ -59,7 +59,9 @@ class BPFBasePDF(FPDF):
             try:
                 self._identity = get_company_identity()
             except Exception:
-                self._identity = {}
+                # DB tidak tersedia (tes/script offline): fallback identitas
+                # default penuh (nama, subjudul, alamat, kontak) — bukan {}.
+                self._identity = dict(IDENTITY_DEFAULTS)
         return self._identity
 
     # ---- Font Setup ----
@@ -105,11 +107,16 @@ class BPFBasePDF(FPDF):
         self.set_font(self._font(), 'B', 13)
         self.set_text_color(*INK)
         self.cell(0, 6, company, align="C", new_x="LMARGIN", new_y="NEXT")
+        # set_x(0) lagi tiap baris: new_x="LMARGIN" mengembalikan x ke margin
+        # kiri, dan dengan r_margin=0 kotak cell jadi asimetris (kiri = margin,
+        # kanan = 0) — teks yang diratakan tengah akan bergeser ke kanan.
+        self.set_x(0)
         self.set_font(self._font(), '', 8)
         self.set_text_color(*GRAY_LABEL)
         self.cell(0, 4, subtitle, align="C", new_x="LMARGIN", new_y="NEXT")
         if address or phone:
             contact = ' | '.join(x for x in (address, 'Telp: ' + phone if phone else '') if x)
+            self.set_x(0)
             self.cell(0, 3.6, self.clean_text(contact)[:110], align="C", new_x="LMARGIN", new_y="NEXT")
         self.r_margin = r_margin_old
         self.set_draw_color(*RULE)
@@ -408,7 +415,7 @@ class PDFReportCompact(BPFBasePDF):
         if ga: narrative += f'Disetujui GA: {ga}. '
         if fin: narrative += f'Dana dicairkan Finance: {fin}. '
         if arc: narrative += f'Diarsipkan: {arc}. '
-        narrative += 'Klaim dinyatakan SAH sesuai prosedur PT. Bestprofit Surabaya.'
+        narrative += 'Klaim dinyatakan SAH sesuai prosedur PT. Bestprofit Futures.'
         self.set_font(self._font(), '', 6.8)
         self.set_text_color(*INK_SOFT)
         self.multi_cell(0, 3.8, narrative, align='J')

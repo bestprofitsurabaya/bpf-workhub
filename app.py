@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 BPF WorkHub - Main Application
-PT. Bestprofit Surabaya
+PT. Bestprofit Futures (Kantor Pusat: Jakarta)
 """
 import warnings, os
 warnings.filterwarnings('ignore')
