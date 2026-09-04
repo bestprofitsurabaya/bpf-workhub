@@ -86,12 +86,6 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 ### Sesi 2026-09-04 — Security server-wide + Monitoring (v2.29.2) ✅ SELESAI
 
----
-
-## 🗂️ Riwayat Sesi
-
-### Sesi 2026-09-04 — Security server-wide + Monitoring (v2.29.2) ✅ SELESAI
-
 > Konteks: lanjutan sesi sebelumnya. Workhub sudah production — sesi ini
 > mengerjakan rekomendasi #1 (amankan service lain) & #2 (monitoring) dari
 > PROGRESS. Runtime bpf-workhub TIDAK diubah.
