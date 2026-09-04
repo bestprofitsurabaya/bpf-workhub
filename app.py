@@ -102,6 +102,13 @@ from modules import branch_manager as bm
 bm.ensure_branches_table()
 bm.ensure_users_branch_column()
 bm.seed_main_branch()
+
+# Penomoran dokumen v2.29.10: tabel doc_sequences (master + tiap cabang)
+from modules.helpers import ensure_doc_sequences
+for _attempt in range(5):
+    if ensure_doc_sequences():
+        break
+    _time.sleep(3)
 try:
     for _b in bm.list_branches():
         if _b.get('is_active') and _b.get('db_name') and _b['db_name'] != os.environ.get('DB_NAME', 'bpf_asset_system'):

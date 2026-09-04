@@ -1,9 +1,9 @@
-# 📋 Daftar User & Role — BPF WorkHub v2.29.7
+# 📋 Daftar User & Role — BPF WorkHub v2.29.10
 
 Dokumen ini menjelaskan semua role yang didukung sistem, siapa yang memakainya, dan apa yang bisa dilakukan masing-masing.
 
-**PT. Bestprofit Futures — Surabaya**  
-Graha Bukopin Lantai 11, Jl. Panglima Sudirman No. 10-18, Surabaya 60271  
+**PT. Bestprofit Futures — Kantor Pusat Jakarta**  
+Equity Tower, SCBD Lot 9, Jl. Jend. Sudirman Kav. 52-53, Jakarta Selatan 12190  
 Telp: 031-5349888
 
 ---
@@ -452,8 +452,8 @@ Pada migrasi v2.5, seluruh antarmuka klasik (Jinja/HTML) dihapus dari repo dan d
 
 ## 📞 Kontak
 
-**PT. Bestprofit Futures — Surabaya**  
-Graha Bukopin Lantai 11, Jl. Panglima Sudirman No. 10-18, Surabaya 60271  
+**PT. Bestprofit Futures — Kantor Pusat Jakarta**  
+Equity Tower, SCBD Lot 9, Jl. Jend. Sudirman Kav. 52-53, Jakarta Selatan 12190  
 Telp: 031-5349888
 
 ---

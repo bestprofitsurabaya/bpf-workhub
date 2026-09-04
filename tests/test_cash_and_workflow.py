@@ -188,21 +188,24 @@ class TestHelperFunctions:
         assert result is not None, "Harus return default"
 
     def test_generate_display_id_format(self):
-        """Display ID harus format yang benar."""
-        # Test format BPF-YYYYMMDD-HHMMSSXX
+        """Display ID harus format standar v2.29.10: PREFIX-BRANCH-YYYYMMDD-SEQ."""
         display_id = generate_display_id('BPF')
         assert display_id.startswith('BPF-'), f"Harus start dengan BPF-: {display_id}"
 
         parts = display_id.split('-')
-        assert len(parts) == 3, f"Harus 3 bagian: {display_id}"
+        assert len(parts) == 4, f"Harus 4 bagian: {display_id}"
 
-        # Bagian tanggal harus valid
-        date_part = parts[1]
-        assert len(date_part) == 8, f"Date part harus 8 char: {date_part}"
+        # Cabang (isi lokal, non-kosong)
+        branch_part = parts[1]
+        assert branch_part and branch_part.isupper(), f"Cabang uppercase: {branch_part}"
 
-        # Bagian waktu harus valid
-        time_part = parts[2]
-        assert len(time_part) == 8, f"Time part harus 8 char: {time_part}"
+        # Tanggal 8 digit
+        date_part = parts[2]
+        assert len(date_part) == 8 and date_part.isdigit(), f"Date part harus 8 digit: {date_part}"
+
+        # Urut harian 4 digit
+        seq_part = parts[3]
+        assert len(seq_part) == 4 and seq_part.isdigit(), f"Seq part harus 4 digit: {seq_part}"
 
 
 # ================================================================

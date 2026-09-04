@@ -1,9 +1,9 @@
-# 📖 Panduan Pengguna BPF WorkHub v2.29.9
+# 📖 Panduan Pengguna BPF WorkHub v2.29.10
 
 > **Siapa pun kamu — sopir, OB, admin, atau pimpinan — panduan ini ditulis untuk kamu.**
 > Tidak perlu paham teknis. Cukup ikuti langkah-langkah sesuai bagianmu.
 >
-> **PT. Bestprofit Futures — Surabaya**
+> **PT. Bestprofit Futures — Kantor Pusat Jakarta** (Equity Tower, SCBD Lot 9, Jl. Jend. Sudirman Kav. 52-53, Jakarta Selatan)
 
 ---
 
@@ -532,23 +532,47 @@ Supaya identitas & lokasi setiap user langsung terbaca (dan tidak tabrakan antar
 1. Login sebagai **Admin** → menu **Users** (`/app/users`).
 2. Klik **➕ Tambah User** — pilih **Role** sesuai divisi.
 3. Isi **Username** sesuai pola `{divisi}_{cabang}` di atas (sisipkan nama bila >1 orang).
-4. Pilih **Cabang** dari dropdown — jangan dikosongkan untuk user cabang (kosong = Pusat).
+4. Pilih **Cabang** dari dropdown — jangan dikosongkan untuk user cabang (kosong = Cabang Surabaya, cabang utama yang memakai DB master).
 5. Isi **Nama Lengkap** (nama ini yang tampil di dokumen, mis. PDF tanda terima) & **PIN 6 digit** awal.
 6. Klik **💾 Simpan**, lalu beri tahu user **username & PIN** barunya.
 7. Verifikasi: user mencoba login — dashboard yang muncul harus sesuai role-nya.
 
-### 12.2 Pengaturan (Settings)
+### 12.2 Nomor Dokumen & Transaksi (Standar Penomoran, sejak v2.29.10)
+
+Setiap dokumen & transaksi baru memiliki nomor resmi berformat:
+
+**`{Jenis}-{Cabang}-{Tahun}{Bulan}{Hari}-{Nomor Urut Harian}`**
+
+Contoh nyata:
+
+- `WTR-SBY-20260904-0001` — **air minum** (WTR) cabang Surabaya, urut ke-1 hari itu.
+- `CASH-BDG-20260904-0003` — **kasbon** (CASH) cabang Bandung, urut ke-3.
+- `BPF-SBY-20260904-0007` — **transaksi BBM** (BPF).
+- `APP-MLG-20260904-0002` — **appointment/kunjungan** (APP) cabang Malang.
+- `OTL-SBY-20260904-0005` — **overtime OB/Security** (OTL).
+
+Awalan jenis: `WTR` air minum, `CASH` kasbon, `BPF` transaksi BBM, `TRIP`
+perjalanan, `APP` appointment, `PLM` pendaftaran kerja, `OTL` overtime
+OB/Security, `OTD` overtime Driver.
+
+> ℹ️ Nomor urut dihitung per **cabang + jenis + hari** — jadi tiap cabang
+> mulai dari 0001 setiap hari, dan nomor tidak pernah kembar walau banyak
+> orang mengisi bersamaan. Dokumen lama (sebelum v2.29.10) tidak diubah;
+> hanya dokumen baru yang memakai format ini. Nomor ini yang tampil di PDF
+> & laporan — sebutkan nomornya saat bertanya atau konfirmasi antar tim.
+
+### 12.3 Pengaturan (Settings)
 
 - **Manajemen Driver** — tambah/hapus data driver.
 - **Manajemen Armada** — tambah kendaraan (nopol, jenis, dll).
 - **Nama untuk Tanda Terima Air Minum** — set **nama Finance** (yang menyerahkan) & **nama GA** (yang menerima). Nama ini otomatis tercetak di PDF tanda terima air minum.
 - Pengaturan lain sesuai kebutuhan kantor.
 
-### 12.3 Audit Log (Jejak Digital)
+### 12.4 Audit Log (Jejak Digital)
 
 Semua aksi penting tercatat di **Audit Log**: siapa, melakukan apa, kapan. Berguna saat ada selisih atau pertanyaan. Bisa difilter berdasarkan aksi & peran.
 
-### 12.4 Dark Mode 🌙
+### 12.5 Dark Mode 🌙
 
 Suka tampilan gelap? Klik tombol **🌙/☀️** di pojok kanan atas. Pilihanmu tersimpan otomatis.
 
@@ -727,4 +751,4 @@ Jika upload ke WordPress gagal, pesan error sekarang menampilkan **response body
 
 Ada pertanyaan atau kendala? Hubungi **Admin** atau **tim IT** — mereka bisa melihat riwayat sistem (Audit Log) untuk membantu menyelesaikan masalahmu dengan cepat.
 
-*BPF WorkHub v2.29.9 · Panduan Pengguna · Diperbarui 4 September 2026*
+*BPF WorkHub v2.29.10 · Panduan Pengguna · Diperbarui 4 September 2026*

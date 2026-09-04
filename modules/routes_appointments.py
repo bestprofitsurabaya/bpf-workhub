@@ -23,8 +23,8 @@ from modules.geocode import geocode_address
 from modules.route_optimizer import plan_routes
 
 # Titik awal perjalanan (kantor) untuk optimasi rute — default: PT Bestprofit
-# Futures Surabaya, Graha Bukopin Lantai 11, Jl. Panglima Sudirman No. 10-18.
-# Sesuaikan via env DEPOT_LAT/DEPOT_LNG bila perlu.
+# Futures Cab. Surabaya, Graha Bukopin Lantai 11, Jl. Panglima Sudirman No. 10-18
+# (kantor pusat: Equity Tower, Jakarta). Sesuaikan via env DEPOT_LAT/DEPOT_LNG.
 DEPOT_LAT = float(os.environ.get('DEPOT_LAT', '-7.2657205'))
 DEPOT_LNG = float(os.environ.get('DEPOT_LNG', '112.7448072'))
 

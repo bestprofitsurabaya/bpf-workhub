@@ -72,46 +72,135 @@ def resolve_driver_form_context(driver_data, driver_name, nopol, vehicle_type, b
 _generated_display_ids = set()
 _display_id_lock = threading.Lock()
 
+# Penomoran standar v2.29.10: PREFIX-BRANCH-YYYYMMDD-SEQ (mis. WTR-SBY-20260904-0001)
+# SEQ dialokasikan atomik per (cabang, prefix, tanggal) via tabel doc_sequences
+# di DB yang sama dengan data (isolasi cabang). Tanpa koneksi DB (tes/script)
+# dipakai penghitung in-memory thread-safe dengan format yang sama.
+_display_seq_mem = {}          # (branch, prefix, date) -> seq terakhir
+_display_seq_mem_lock = threading.Lock()
 
-def generate_display_id(prefix='BPF', conn=None):
-    """Generate unique display ID: BPF-YYYYMMDD-HHMMSSXX (timestamp + random).
 
-    Uniqueness dijaga via dedupe in-memory thread-safe + double-check di DB
-    bila koneksi tersedia.
+def _resolve_branch_code():
+    """Kode cabang efektif sesi (untuk penomoran) — None bila di luar request."""
+    try:
+        from flask import has_request_context, session
+        if has_request_context():
+            return (session.get('branch_code') or '').strip().upper() or None
+    except Exception:
+        pass
+    return None
+
+
+def _default_branch_code():
+    """Kode cabang default saat tidak ada sesi (tes/script)."""
+    try:
+        from modules.branch_manager import DEFAULT_BRANCH_CODE
+        return DEFAULT_BRANCH_CODE
+    except Exception:
+        return 'SBY'
+
+
+def ensure_doc_sequences(conn=None):
+    """CREATE TABLE IF NOT EXISTS doc_sequences (per-DB) — idempoten.
+
+    Tabel penomoran dokumen: satu baris per (cabang, prefix, tanggal),
+    kolom seq dinaikkan atomik via LAST_INSERT_ID(seq+1). Database -nya
+    sama dengan data operasional (master untuk cabang utama, DB masing-masing
+    untuk cabang lain) sehingga isolasi cabang terjaga.
     """
-    import random, string
-    now = datetime.now()
-    date_part = now.strftime('%Y%m%d')
-    time_part = now.strftime('%H%M%S')
+    own = conn is None
+    if conn is None:
+        from modules.config import get_db_connection
+        conn = get_db_connection()
+    if not conn:
+        return False
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS doc_sequences (
+                seq_key VARCHAR(40) NOT NULL,
+                seq INT UNSIGNED NOT NULL DEFAULT 0,
+                PRIMARY KEY (seq_key)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        """)
+        conn.commit()
+        return True
+    except Exception as e:
+        print(f'⚠ doc_sequences ensure error: {e}')
+        return False
+    finally:
+        cursor.close()
+        if own and conn:
+            conn.close()
 
-    def _candidate():
-        random_part = ''.join(random.choices(string.digits, k=2))
-        return f"{prefix}-{date_part}-{time_part}{random_part}"
 
-    unique_id = _candidate()
-    guard = 0
-    with _display_id_lock:
-        while unique_id in _generated_display_ids:
-            unique_id = _candidate()
-            guard += 1
-            if guard > 500:
-                break
-        _generated_display_ids.add(unique_id)
+def _alloc_seq_db(conn, seq_key):
+    """Alokasi nomor urut atomik via doc_sequences (transaction-safe).
 
-    # Double-check uniqueness in DB (rare collision lintas-restart)
-    if conn:
+    INSERT ... ON DUPLICATE KEY UPDATE — LAST_INSERT_ID() dipaksa berisi nomor
+    baru di DUA jalur (baris baru & baris lama) lalu dibaca eksplisit:
+      INSERT VALUES (k, LAST_INSERT_ID(1))            → baris baru: seq=1
+      ON DUPLICATE KEY UPDATE seq = LAST_INSERT_ID(seq+1) → baris lama: naik
+    Dua permintaan bersamaan menunggu row-lock baris seq_key yang sama →
+    tidak ada nomor kembar. Perubahan ikut di-commit bersama transaksi
+    pemanggil (tanpa commit di sini).
+    """
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "INSERT INTO doc_sequences (seq_key, seq) VALUES (%s, LAST_INSERT_ID(1)) "
+            "ON DUPLICATE KEY UPDATE seq = LAST_INSERT_ID(seq + 1)",
+            (seq_key,))
+        # lastrowid driver tidak andal untuk SELECT/UPDATE — baca eksplisit.
+        cursor.execute("SELECT LAST_INSERT_ID()")
+        return int(cursor.fetchone()[0])
+    finally:
         try:
-            cursor = conn.cursor()
-            cursor.execute("SELECT COUNT(*) as c FROM transactions WHERE display_id = %s", (unique_id,))
-            exists = cursor.fetchone()[0]
             cursor.close()
-            if exists > 0:
-                with _display_id_lock:
-                    unique_id = _candidate()
-                    _generated_display_ids.add(unique_id)
         except Exception:
             pass
 
+
+def _alloc_seq_mem(branch, prefix, date_part):
+    """Fallback penghitung in-memory (tanpa koneksi DB) — format sama."""
+    key = (branch, prefix, date_part)
+    with _display_seq_mem_lock:
+        _display_seq_mem[key] = _display_seq_mem.get(key, 0) + 1
+        return _display_seq_mem[key]
+
+
+def generate_display_id(prefix='BPF', conn=None):
+    """Generate unique display ID: PREFIX-BRANCH-YYYYMMDD-SEQ (v2.29.10).
+
+    Contoh: WTR-SBY-20260904-0001 (air minum cabang SBY, urut harian ke-1).
+    - BRANCH  = kode cabang sesi (fallback cabang utama saat di luar request).
+    - SEQ     = urut harian per (cabang, prefix); alokasi atomik via
+      doc_sequences bila `conn` tersedia, in-memory bila tidak.
+    - Unik dalam satu hari per cabang+prefix; beda hari direset dari 1.
+    - Data lama (format timestamp lama) TIDAK diubah — penomoran baru hanya
+      berlaku untuk dokumen yang dibuat setelah v2.29.10.
+    """
+    prefix = str(prefix or 'BPF').strip().upper() or 'BPF'
+    branch = _resolve_branch_code() or _default_branch_code()
+    date_part = datetime.now().strftime('%Y%m%d')
+    seq_key = f"{branch}|{prefix}|{date_part}"
+
+    if conn is not None:
+        try:
+            seq = _alloc_seq_db(conn, seq_key)
+            if seq is not None:
+                unique_id = f"{prefix}-{branch}-{date_part}-{seq:04d}"
+                with _display_id_lock:
+                    _generated_display_ids.add(unique_id)
+                return unique_id
+        except Exception:
+            pass
+
+    # Fallback in-memory hanya saat DB tidak tersedia / error.
+    seq = _alloc_seq_mem(branch, prefix, date_part)
+    unique_id = f"{prefix}-{branch}-{date_part}-{seq:04d}"
+    with _display_id_lock:
+        _generated_display_ids.add(unique_id)
     return unique_id
 
 def generate_trip_display_id(conn=None):

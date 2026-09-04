@@ -234,9 +234,10 @@ class TestDisplayId:
         display_id = generate_appointment_display_id()
         assert display_id.startswith('APP-'), f"Harus APP-: {display_id}"
         parts = display_id.split('-')
-        assert len(parts) == 3
-        assert re.match(r'^\d{8}$', parts[1]), "Bagian tanggal 8 digit"
-        assert re.match(r'^\d{8}$', parts[2]), "Bagian waktu 8 digit"
+        assert len(parts) == 4, f"Harus 4 bagian: {display_id}"
+        assert parts[1] and parts[1].isupper(), "Cabang uppercase"
+        assert re.match(r'^\d{8}$', parts[2]), "Bagian tanggal 8 digit"
+        assert re.match(r'^\d{4}$', parts[3]), "Bagian urut 4 digit"
 
     def test_unique(self):
         ids = {generate_appointment_display_id() for _ in range(50)}

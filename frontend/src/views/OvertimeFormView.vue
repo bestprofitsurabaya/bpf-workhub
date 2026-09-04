@@ -158,8 +158,8 @@ onMounted(locate)
       <div class="apply-brand">
         <img :src="brandIcon" alt="BPF" />
         <h1>Form Overtime OB &amp; Security</h1>
-        <p>PT Bestprofit Futures · Surabaya</p>
-        <p style="font-size:11px;color:#6b7280;margin:0;">Graha Bukopin Lantai 11, Jl. Panglima Sudirman No. 10-18</p>
+        <p>PT Bestprofit Futures · Jakarta</p>
+        <p style="font-size:11px;color:#6b7280;margin:0;">Equity Tower, SCBD Lot 9, Jl. Jend. Sudirman Kav. 52-53, Jakarta Selatan</p>
       </div>
 
       <!-- SUCCESS -->

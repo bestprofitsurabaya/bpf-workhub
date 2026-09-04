@@ -1,9 +1,9 @@
-# 🎯 Lembar Latihan per Peran — BPF WorkHub v2.29.7
+# 🎯 Lembar Latihan per Peran — BPF WorkHub v2.29.10
 
 Panduan latihan singkat (±5–10 menit per peran) untuk gladi resik sebelum demo atau meeting. Tiap latihan menjelaskan langkah yang harus dilakukan dan hasil yang diharapkan.
 
-**PT. Bestprofit Futures — Surabaya**  
-Graha Bukopin Lantai 11, Jl. Panglima Sudirman No. 10-18, Surabaya 60271  
+**PT. Bestprofit Futures — Kantor Pusat Jakarta**  
+Equity Tower, SCBD Lot 9, Jl. Jend. Sudirman Kav. 52-53, Jakarta Selatan 12190  
 Telp: 031-5349888
 
 ---
@@ -179,10 +179,10 @@ Telp: 031-5349888
 
 ## 📞 Kontak
 
-**PT. Bestprofit Futures — Surabaya**  
-Graha Bukopin Lantai 11, Jl. Panglima Sudirman No. 10-18, Surabaya 60271  
+**PT. Bestprofit Futures — Kantor Pusat Jakarta**  
+Equity Tower, SCBD Lot 9, Jl. Jend. Sudirman Kav. 52-53, Jakarta Selatan 12190  
 Telp: 031-5349888
 
 ---
 
-*BPF WorkHub v2.29.9 · Lembar Latihan per Peran*
+*BPF WorkHub v2.29.10 · Lembar Latihan per Peran*

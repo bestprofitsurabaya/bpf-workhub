@@ -4,8 +4,8 @@
 >
 > Ditulis dengan bahasa sederhana agar dapat dipahami oleh siapa saja — bukan hanya tim teknis.
 
-**PT. Bestprofit Futures — Surabaya**
-Graha Bukopin Lantai 11, Jl. Panglima Sudirman No. 10-18, Surabaya 60271
+**PT. Bestprofit Futures — Kantor Pusat Jakarta**
+Equity Tower, SCBD Lot 9, Jl. Jend. Sudirman Kav. 52-53, Jakarta Selatan 12190
 📞 Telp: 031-5349888
 
 ---
@@ -122,8 +122,8 @@ Berikut ringkasan seluruh lapisan perlindungan yang dimiliki BPF WorkHub:
 
 Untuk pertanyaan, laporan kendala, atau saran perbaikan terkait keamanan BPF WorkHub:
 
-**PT. Bestprofit Futures — Surabaya**
-Graha Bukopin Lantai 11, Jl. Panglima Sudirman No. 10-18, Surabaya 60271
+**PT. Bestprofit Futures — Kantor Pusat Jakarta**
+Equity Tower, SCBD Lot 9, Jl. Jend. Sudirman Kav. 52-53, Jakarta Selatan 12190
 📞 Telp: **031-5349888**
 
 ---

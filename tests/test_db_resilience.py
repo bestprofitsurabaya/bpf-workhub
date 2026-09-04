@@ -227,7 +227,7 @@ def test_e2e_login_tetap_berhasil_saat_pool_habis(monkeypatch):
     # (fokus test ini adalah fail-open saat pool habis, bukan logika cabang).
     import modules.branch_manager as bm
     monkeypatch.setattr(bm, 'get_branch', lambda code: {
-        'code': 'SBY', 'name': 'Kantor Pusat Surabaya', 'is_active': 1,
+        'code': 'SBY', 'name': 'Cabang Surabaya', 'is_active': 1,
         'db_name': 'bpf_asset_system'})
 
     from modules.routes_spa import register_spa_routes

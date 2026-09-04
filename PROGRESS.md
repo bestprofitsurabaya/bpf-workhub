@@ -4,7 +4,7 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 **Terakhir diperbarui:** 2026-09-04  
 **Branch:** `main`  
-**Versi terbaru:** v2.29.9 (validasi username wajib awalan divisi + nama asli menonjol di tabel Users; deployed live)
+**Versi terbaru:** v2.29.10 (standar penomoran dokumen per cabang + Kantor Pusat Jakarta (Equity Tower); deployed live)
 
 ---
 
@@ -12,14 +12,14 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 | Aspek | Status |
 |-------|--------|
-| Versi | v2.29.9 (validasi username + nama asli di tabel Users) — runtime sebelumnya v2.29.8 tab Selesai Marketing |
+| Versi | v2.29.10 (standar penomoran dokumen per cabang + koreksi HO Jakarta) — runtime sebelumnya v2.29.9 |
 | Manajemen User | ✅ Admin bisa edit SEMUA detail user: fix tombol Simpan mati saat edit tanpa PIN, `branch_code` kini tersimpan, username bisa diganti (update by-id) |
 | Konvensi username | ✅ `{divisi}_{cabang}` (nama bila >1 per divisi-cabang): 12 akun produksi di-rename (`finance_sby`, `ob_faisol_sby`, `gahr_sby`, …) — driver & it_* tidak berubah; helper text contoh pola di form Users; login UI diverifikasi browser 11/11 |
 | PDF Air Minum | ✅ Foto bukti diperbesar (60–130 mm mengikuti ruang kosong), TTD lebih ke bawah, header kop simetris (teks rata tengah halaman) |
 | Sync Overtime | ✅ Driver (±8.675 sesi) & OB/Security (599 sesi) — keduanya via Apps Script Web App; auto-refresh saat login/logout GA HR/Admin; redirect & duplicate display_id bugs fixed; `submitted_at` tersimpan |
 | Urutan overtime | ✅ Terkini-di-atas di semua daftar + detail report per nama dibalik terkini-dulu (PDF/Excel, commit `733fd2f`) |
 | Data demo air minum | ✅ Dibersihkan 4 Sep — WTR-20260904-10300556, WTR-DEMO-01/02 dihapus (bpf_asset_system + bpf_restore_test); backup `/tmp/bpf_water_demo_backup_20260904.sql`; tabel `water_purchases` kini 0 baris |
-| Deploy | ✅ 4 Sep 2026 — v2.29.9 live (rebuild `bbm_web`: validasi username + tabel Users; SW cache v299); `bbm_web` healthy |
+| Deploy | ✅ 4 Sep 2026 — v2.29.10 live (rebuild `bbm_web`: penomoran dokumen + HO Jakarta; SW cache v2910); `bbm_web` healthy |
 | Dashboard Marketing | ✅ Tab "Selesai" kini memakai `/api/appointments/history` (riwayat completed marketing sendiri, lintas tanggal) — sebelumnya memanggil endpoint driver `/completed` → selalu 400/kosong |
 | Validasi username | ✅ Backend `/api/users/sync` menolak username role back-office tanpa awalan divisi (`finance_`, `ob_`, …) — Driver/Admin/`it_*` bebas; akun lama (qa/test_check/e2e_driver & (username,role) sudah ada) tetap bisa disimpan |
 | Nama asli di tabel Users | ✅ Kolom Username+Nama digabung: Nama Lengkap tebal + username kecil di bawahnya (gaya baris nasabah) — Admin mengenali orangnya |
@@ -27,10 +27,10 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 | Pool DB | ✅ Master 25 + cabang 5 (Threads_connected 206 → 26) — lihat CHANGELOG v2.29.1 |
 | Docker | `bbm_web` running on `nasbpfsby.duckdns.org:5000` |
 | App Running | `https://nasbpfsby.duckdns.org:5000` (health 200) |
-| Databases | 10 DB terpisah (1 master + 9 cabang) |
+| Databases | 10 DB terpisah (1 master + 9 cabang) — `doc_sequences` dibuat di master + tiap cabang (v2.29.10) |
 | GPS Detail | ✅ Nominatim reverse geocode + disimpan ke DB |
 | Watermark | ✅ 4 baris: perusahaan + tanggal + alamat + koordinat |
-| Test Suite | ✅ 341 pytest (335 pass + 6 skip) + 86 vitest — CI GitHub Actions hijau tiap push (Backend: pytest + service mariadb/redis; Frontend: unit test + build) |
+| Test Suite | ✅ 349 pytest (343 pass + 6 skip) + 86 vitest — CI GitHub Actions hijau tiap push (Backend: pytest + service mariadb/redis; Frontend: unit test + build) |
 | Kestabilan | ✅ bbm_web healthy — 0 restart, 0 error di log sejak deploy terakhir |
 
 ---
@@ -76,6 +76,47 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
    health 200, TST tidak ada.
 7. **Test suite container**: 335 passed + 6 skipped (341 collected); vitest
    86 passed; build sukses.
+
+---
+
+### Sesi 2026-09-04 — v2.29.10: Standar penomoran dokumen + Kantor Pusat Jakarta (HO) ✅ SELESAI
+
+> Konteks: user minta (1) standar penomoran dokumen & transaksi disepakati
+> karena sudah banyak cabang, (2) semua "Pusat Surabaya" dikoreksi — kantor
+> pusat hanya satu di Jakarta (Equity Tower), Surabaya = cabang. Keputusan
+> user: format urut harian + cabang; data lama dibiarkan apa adanya.
+
+1. **Standar penomoran v2.29.10**: `generate_display_id()` → format
+   `{PREFIX}-{BRANCH}-{YYYYMMDD}-{SEQ}` (mis. `WTR-SBY-20260904-0001`).
+   Cabang dari sesi login (fallback cabang utama); nomor urut harian per
+   (cabang, prefix) dialokasikan atomik via tabel baru `doc_sequences` di DB
+   yang sama dengan data (master + tiap cabang) — `INSERT … ON DUPLICATE
+   KEY UPDATE seq = LAST_INSERT_ID(seq+1)` → tanpa nomor kembar saat
+   permintaan bersamaan. Tanpa koneksi DB (tes/script) fallback in-memory
+   dengan format sama. `ensure_doc_sequences()` dipanggil di startup app.py
+   & di `ensure_branch_database()`.
+2. **Test**: `tests/test_doc_sequences.py` baru (format 4 segmen, unik 50,
+   seq naik, jalur DB atomic, DB-down fallback, ensure idempoten, cabang
+   dari sesi) + update format test lama (test_cash_and_workflow,
+   test_appointments 3→4 segmen).
+3. **Koreksi HO Jakarta**: kode default identitas → `Kantor Pusat | Jakarta`
+   + Equity Tower (company_identity.py, pdf_generator.py, identity.js,
+   SettingsView placeholder), ApplyView/OvertimeFormView/presentasi hardcode
+   → Jakarta; `branch_manager.DEFAULT_BRANCH_NAME` → "Cabang Surabaya";
+   init.sql SBY → Cabang Surabaya + baris JKT/JKT2; fixtures test
+   (test_branches, test_db_resilience) & semua dokumentasi disinkronkan.
+4. **DB produksi**: branches SBY → "Cabang Surabaya" (city Surabaya),
+   identitas JKT diisi (HO, Equity Tower) + ditulis ke
+   `bpf_branch_jkt.system_config`; `system_config` master → subtitle
+   "Kantor Pusat | Jakarta" & alamat Equity Tower. Nomor kontak
+   dipertahankan (031-5349888) sampai ada nomor HO baru.
+5. **Live verify** (setelah deploy, lihat bagian bawah): login UI, health,
+   cabang list (SBY Cabang Surabaya, JKT HO), identitas dari endpoint
+   `/api/system-config/identity` (Jakarta), e2e WTR dibuat memakai nomor
+   baru, PDF & cleanup (lihat catatan deploy di bawah).
+6. **Test suite**: pytest container 343 passed + 6 skipped (349 collected,
+   doc_sequences + update format) + vitest 86 + build sukses; commit & push;
+   CI hijau.
 
 ---
 
@@ -507,8 +548,8 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 | Code | Nama Cabang | Database | Kota |
 |------|-------------|----------|------|
-| SBY | Kantor Pusat Surabaya | `bpf_asset_system` (master) | Surabaya |
-| JKT | Kantor Pusat Jakarta | `bpf_branch_jkt` | Jakarta |
+| SBY | Cabang Surabaya | `bpf_asset_system` (master) | Surabaya |
+| JKT | Kantor Pusat Jakarta (HO) | `bpf_branch_jkt` | Jakarta |
 | JKT2 | Cabang Pacific Place | `bpf_branch_jkt2` | Jakarta |
 | BDG | Cabang Bandung | `bpf_branch_bdg` | Bandung |
 | SMG | Cabang Semarang | `bpf_branch_smg` | Semarang |

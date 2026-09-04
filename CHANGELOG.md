@@ -4,6 +4,65 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 
 ---
 
+## v2.29.10 — 4 September 2026
+
+### 🔢 Standar penomoran dokumen & transaksi per cabang
+
+Format baru (semua dokumen baru): **`{PREFIX}-{BRANCH}-{YYYYMMDD}-{SEQ}`**
+
+| Dokumen | Prefix | Contoh |
+|---|---|---|
+| Tanda terima air minum | `WTR` | `WTR-SBY-20260904-0001` |
+| Kasbon / LPJ | `CASH` | `CASH-BDG-20260904-0001` |
+| Transaksi BBM | `BPF` | `BPF-SBY-20260904-0001` |
+| Trip / Perjalanan | `TRIP` | `TRIP-SBY-20260904-0001` |
+| Kunjungan appointment | `APP` | `APP-MLG-20260904-0001` |
+| Pendaftaran applicant | `PLM` | `PLM-SBY-20260904-0001` |
+| Overtime OB/Security | `OTL` | `OTL-SBY-20260904-0001` |
+| Overtime Driver | `OTD` | `OTD-SBY-20260904-0001` |
+
+- Fungsional lewat `generate_display_id()`: kode cabang diambil dari sesi
+  login (fallback cabang utama), nomor urut harian per (cabang, prefix)
+  dialokasikan atomik via tabel baru `doc_sequences` di DB yang sama dengan
+  data (isolasi cabang terjaga) — `INSERT … ON DUPLICATE KEY UPDATE` +
+  `LAST_INSERT_ID()` → aman saat banyak permintaan bersamaan, tanpa nomor
+  kembar.
+- `doc_sequences` dibuat otomatis di startup (master + tiap DB cabang).
+- **Data lama tidak diubah** (riwayat tetap format lama); hanya dokumen yang
+  dibuat mulai v2.29.10 yang memakai format baru.
+- Faktor kemanusiaan: nomor tampil pendek & resmi di PDF/laporan, langsung
+  jelas asal cabangnya di laporan konsolidasi.
+
+### 🏢 Kantor Pusat = Jakarta (Equity Tower) — koreksi identitas perusahaan
+
+- **Surabaya bukan kantor pusat** — sekarang diberi label **`Cabang
+  Surabaya`** di semua tempat (DB `branches`, kode default, seed, test,
+  dokumen). Kantor Pusat hanya satu: **Jakarta (Equity Tower, SCBD Lot 9,
+  Jl. Jend. Sudirman Kav. 52-53, Jakarta Selatan 12190)**.
+- Identitas default perusahaan di kode & UI (kop surat PDF, login, Apply,
+  Overtime, presentasi) dikoreksi ke **Kantor Pusat | Jakarta**; DB produksi
+  di-update: `branches` SBY (nama/city), `system_config` master, dan
+  identitas cabang JKT di `bpf_branch_jkt`.
+- Seed `init.sql`: SBY → Cabang Surabaya + baris `JKT` & `JKT2` ditambahkan
+  agar fresh deploy konsisten dengan produksi.
+- Alamat kontak di dokumentasi (README, USER_GUIDE, daftar user, materi
+  pelatihan/presentasi, security, deployment) dikoreksi ke HO Jakarta.
+- Nomor kontak dipertahankan (031-5349888) sampai ada nomor resmi HO baru.
+- Catatan: koordinat `DEPOT_LAT/DEPOT_LNG` di docker-compose tetap titik
+  awal rute cabang SBY (bukan HO) — itu memang depot operasional Surabaya.
+
+### 🔧 Perbaikan kecil
+
+- **Alokasi urut DB untuk baris baru**: `_alloc_seq_db` kini meng-set
+  `LAST_INSERT_ID(1)` eksplisit saat `INSERT` baris baru lalu membaca
+  `LAST_INSERT_ID()` — memperbaiki nomor yang sebelumnya keluar `0000`
+  (lastrowid kosong untuk tabel non-auto-increment).
+- **Versi sistem disinkronkan ke v2.29.10** — sebelumnya stale `v2.22.1` di
+  default identitas (kop/footer PDF, fallback UI) & `system_config` DB
+  master; kini konsisten di kode + DB.
+
+---
+
 ## v2.29.9 — 4 September 2026
 
 ### 🧾 Validasi username `{divisi}_{cabang}` di backend (awalan divisi WAJIB)

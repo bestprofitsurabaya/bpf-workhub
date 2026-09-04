@@ -1,8 +1,8 @@
 # 🏢 BPF WorkHub
 
-**Sistem Manajemen Armada untuk PT. Bestprofit Futures — Surabaya**
+**Sistem Manajemen Armada untuk PT. Bestprofit Futures — Kantor Pusat Jakarta**
 
-> 📅 Versi 2.29.9 · September 2026 — Validasi username wajib awalan divisi di backend · Nama asli menonjol di tabel Users · Onboarding cabang teruji live
+> 📅 Versi 2.29.10 · September 2026 — Standar penomoran dokumen per cabang · Kantor Pusat Jakarta (Equity Tower) · Validasi username & onboarding cabang
 
 ---
 
@@ -181,7 +181,7 @@ python -m pytest tests/ -v
 cd frontend && npm test
 ```
 
-**Status:** 341 pytest + 86 vitest · Semua ✅ PASS (terakhir diverifikasi v2.29.9 — CI GitHub Actions: Backend pytest + Frontend build/unit test, hijau di tiap push)
+**Status:** 349 pytest (343 pass + 6 skip) + 86 vitest · Semua ✅ PASS (terakhir diverifikasi v2.29.10 — CI GitHub Actions: Backend pytest + Frontend build/unit test, hijau di tiap push)
 
 ---
 
@@ -196,8 +196,8 @@ cd frontend && npm test
 
 ## 📞 Kontak
 
-**PT. Bestprofit Futures — Surabaya**
-Graha Bukopin Lantai 11, Jl. Panglima Sudirman No. 10-18
+**PT. Bestprofit Futures — Kantor Pusat Jakarta**
+Equity Tower, SCBD Lot 9, Jl. Jend. Sudirman Kav. 52-53, Jakarta Selatan 12190
 📞 031-5349888
 
 ---

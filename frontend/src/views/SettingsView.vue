@@ -376,7 +376,7 @@ onMounted(() => { load(); loadWaterNames(); loadIdentityForm(); loadDemoStatus()
         <div class="form-grid" style="margin-top:12px;">
           <div class="field"><label>Nama Perusahaan</label><input class="input" v-model="identityForm.company_name" placeholder="PT BESTPROFIT FUTURES" /></div>
           <div class="field"><label>Nama Sistem / Aplikasi</label><input class="input" v-model="identityForm.system_name" placeholder="BPF WorkHub" /></div>
-          <div class="field"><label>Subjudul (kantor | kota)</label><input class="input" v-model="identityForm.company_subtitle" placeholder="Sistem Operasional Kantor | Surabaya" /></div>
+          <div class="field"><label>Subjudul (kantor | kota)</label><input class="input" v-model="identityForm.company_subtitle" placeholder="Kantor Pusat | Jakarta" /></div>
           <div class="field"><label>Versi</label><input class="input" v-model="identityForm.system_version" placeholder="v2.20.1" /></div>
           <div class="field"><label>Alamat Kantor</label><input class="input" v-model="identityForm.company_address" placeholder="Jl. Darmo 45, Surabaya" /></div>
           <div class="field"><label>Telepon</label><input class="input" v-model="identityForm.company_phone" placeholder="031-1234567" /></div>

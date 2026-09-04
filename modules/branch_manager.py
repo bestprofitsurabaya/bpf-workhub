@@ -18,7 +18,7 @@ from datetime import datetime
 from modules.config import DB_CONFIG, get_db_connection, get_master_connection
 
 DEFAULT_BRANCH_CODE = os.environ.get('BRANCH_MAIN_CODE', 'SBY')
-DEFAULT_BRANCH_NAME = os.environ.get('BRANCH_MAIN_NAME', 'Kantor Pusat Surabaya')
+DEFAULT_BRANCH_NAME = os.environ.get('BRANCH_MAIN_NAME', 'Cabang Surabaya')
 
 BRANCH_COLUMNS = (
     'code', 'name', 'db_name', 'city', 'address', 'phone',
@@ -329,6 +329,13 @@ def ensure_branch_database(code, conn=None):
         ensure_appointments_schema(conn=pool.get_connection())
     except Exception as e:
         print(f'[branch {code}] appointments schema: {e}')
+
+    # Penomoran dokumen v2.29.10: tabel doc_sequences di DB cabang
+    from modules.helpers import ensure_doc_sequences
+    try:
+        ensure_doc_sequences(conn=pool.get_connection())
+    except Exception as e:
+        print(f'[branch {code}] doc_sequences: {e}')
 
     # Tanam identitas cabang
     try:

@@ -12,10 +12,10 @@ export const IDENTITY_KEYS = ['company_name', 'company_subtitle', 'system_name',
 
 export const identity = reactive({
   company_name: 'PT BESTPROFIT FUTURES',
-  company_subtitle: 'Sistem Operasional Kantor | Surabaya',
+  company_subtitle: 'Kantor Pusat | Jakarta',
   system_name: 'BPF WorkHub',
-  system_version: 'v2.22.1',
-  company_address: 'Graha Bukopin Lantai 11, Jl. Panglima Sudirman No. 10-18, Surabaya 60271',
+  system_version: 'v2.29.10',
+  company_address: 'Equity Tower, SCBD Lot 9, Jl. Jend. Sudirman Kav. 52-53, Jakarta Selatan 12190',
   company_phone: '031-5349888',
   loaded: false,
 })

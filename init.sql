@@ -387,10 +387,17 @@ CREATE TABLE IF NOT EXISTS branches (
     UNIQUE KEY code (code)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- Default branch (Surabaya)
+-- Default branch
 INSERT IGNORE INTO branches (code, name, db_name, city, company_name, company_subtitle, system_name, system_version)
-VALUES ('SBY', 'Kantor Pusat Surabaya', 'bpf_asset_system', 'Surabaya',
-        'PT BESTPROFIT FUTURES', 'Cabang Surabaya', 'BPF WorkHub', 'v2.23.0');
+VALUES ('SBY', 'Cabang Surabaya', 'bpf_asset_system', 'Surabaya',
+        'PT BESTPROFIT FUTURES', 'Cabang Surabaya', 'BPF WorkHub', 'v2.29.10');
+
+-- Kantor Pusat Jakarta (HO) + cabang JKT kedua
+INSERT IGNORE INTO branches (code, name, db_name, city, company_name, company_subtitle, system_name, system_version)
+VALUES ('JKT', 'Kantor Pusat Jakarta', 'bpf_branch_jkt', 'Jakarta',
+        'PT BESTPROFIT FUTURES', 'Kantor Pusat | Jakarta', 'BPF WorkHub', 'v2.29.10'),
+       ('JKT2', 'Cabang Pacific Place', 'bpf_branch_jkt2', 'Jakarta',
+        'PT BESTPROFIT FUTURES', 'Cabang | Jakarta', 'BPF WorkHub', 'v2.29.10');
 
 -- Add branch_code column to users if not exists
 SET @exists = (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'branch_code');

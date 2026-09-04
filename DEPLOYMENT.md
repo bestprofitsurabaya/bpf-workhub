@@ -1,5 +1,5 @@
 # 📘 Panduan Lengkap BPF WorkHub
-### Versi 2.29.9 · PT. Bestprofit Futures — Surabaya
+### Versi 2.29.10 · PT. Bestprofit Futures — Kantor Pusat Jakarta
 
 > Dokumen ini adalah panduan untuk memasang, mengatur, dan merawat aplikasi **BPF WorkHub**.
 > Ditulis dengan bahasa sederhana agar bisa dipahami siapa saja — bukan hanya teknisi.
@@ -457,10 +457,10 @@ npm test           # 83 unit test (Vitest)
 
 ## 📞 Kontak
 
-**PT. Bestprofit Futures — Surabaya**  
-Graha Bukopin Lantai 11, Jl. Panglima Sudirman No. 10-18, Surabaya 60271  
+**PT. Bestprofit Futures — Kantor Pusat Jakarta**  
+Equity Tower, SCBD Lot 9, Jl. Jend. Sudirman Kav. 52-53, Jakarta Selatan 12190  
 Telp: 031-5349888
 
 ---
 
-*BPF WorkHub v2.29.9 · Panduan Deployment · Diperbarui 4 September 2026*
+*BPF WorkHub v2.29.10 · Panduan Deployment · Diperbarui 4 September 2026*

@@ -115,7 +115,7 @@ def _db():
                     'branch_code': 'MLG', 'is_active': 1},
         },
         'branches': {
-            'SBY': {'code': 'SBY', 'name': 'Kantor Pusat Surabaya', 'db_name': 'bpf_asset_system',
+            'SBY': {'code': 'SBY', 'name': 'Cabang Surabaya', 'db_name': 'bpf_asset_system',
                     'is_active': 1},
             'MLG': {'code': 'MLG', 'name': 'Cabang Malang', 'db_name': 'bpf_branch_malang',
                     'is_active': 1},
@@ -379,7 +379,7 @@ class TestBranchStats:
                 'eko': {'username': 'eko', 'branch_code': 'MLG'},
             },
             'branches': {
-                'SBY': {'code': 'SBY', 'name': 'Kantor Pusat Surabaya',
+                'SBY': {'code': 'SBY', 'name': 'Cabang Surabaya',
                         'db_name': 'bpf_asset_system', 'is_active': 1},
                 'MLG': {'code': 'MLG', 'name': 'Cabang Malang',
                         'db_name': 'bpf_branch_malang', 'is_active': 1},
@@ -410,7 +410,7 @@ def test_consolidated_pdf_renders(monkeypatch):
     from modules.pdf_generator import ConsolidatedReportPDF
 
     stats = [
-        {'code': 'SBY', 'name': 'Kantor Pusat', 'db_name': 'bpf_asset_system',
+        {'code': 'SBY', 'name': 'Cabang Surabaya', 'db_name': 'bpf_asset_system',
          'transactions': 10, 'appointments_today': 3, 'users': 5, 'is_active': True},
         {'code': 'MLG', 'name': 'Cabang Malang', 'db_name': 'bpf_branch_malang',
          'transactions': 2, 'appointments_today': 1, 'users': 2, 'is_active': True},
