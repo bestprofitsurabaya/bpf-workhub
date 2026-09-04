@@ -80,7 +80,7 @@ class FakeCursor:
                 return {'c': len(self.db.get('dummy_tx', []))}
             return {'c': 0}
         if 'FROM users' in s:
-            if 'Yusie' in s:
+            if 'marketing_yusie_sby' in s:
                 return {'id': 1}
             if params and params[0] in self.db['existing']:
                 return {'id': 1}

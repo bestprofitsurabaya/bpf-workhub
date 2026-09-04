@@ -68,7 +68,7 @@ class FakeCursor:
                                  if str(a.get('display_id', '')).startswith('DEMO-'))}
             return {'c': 0}
         if 'FROM users' in s:
-            if 'Yusie' in s:
+            if 'marketing_yusie_sby' in s:
                 return {'id': 1}
             if params:
                 u = self.db.get('users', {}).get(params[0])
@@ -317,7 +317,7 @@ class TestBranchSeedDemo:
         import modules.routes_branches as rb
         import modules.branch_manager as bm
         db = {
-            'users': {'Yusie': {'username': 'Yusie', 'branch_code': 'SBY'}},
+            'users': {'marketing_yusie_sby': {'username': 'marketing_yusie_sby', 'branch_code': 'SBY'}},
             'branches': {
                 'MLG': {'code': 'MLG', 'name': 'Cabang Malang', 'db_name': 'bpf_branch_malang', 'is_active': 1},
             },
