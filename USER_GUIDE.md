@@ -1,4 +1,4 @@
-# 📖 Panduan Pengguna BPF WorkHub v2.29.7
+# 📖 Panduan Pengguna BPF WorkHub v2.29.8
 
 > **Siapa pun kamu — sopir, OB, admin, atau pimpinan — panduan ini ditulis untuk kamu.**
 > Tidak perlu paham teknis. Cukup ikuti langkah-langkah sesuai bagianmu.
@@ -490,12 +490,42 @@ Tiga format PDF tersedia (didukung untuk Driver DAN OB/Security):
 
 ### 12.1 Manajemen User (Halaman Users)
 
-- **Membuat akun baru** — pilih peran (Admin, GA, Finance, Marketing, Chief Driver, Driver, OB, **Receptionist**, **Traineer**, **GA HR**, **IT Surabaya**), isi nama & PIN.
+- **Membuat akun baru** — pilih peran (Admin, GA, Finance, Marketing, Chief Driver, Driver, OB, **Receptionist**, **Traineer**, **GA HR**, **IT per cabang**), isi nama & PIN.
 - **Mengganti nama** — misalnya mengganti nama placeholder OB dengan nama asli. Nama ini yang tampil di dokumen (mis. PDF tanda terima air minum).
 - **Edit semua detail user** (sejak v2.29.7) — selain nama, Admin juga bisa mengubah **username** (nama login), **role**, **tim marketing**, **cabang**, dan **status** user dari form Edit. Mengganti username = mengganti nama login user tersebut.
 - **Reset PIN** — kalau user lupa PIN.
 - **Nonaktifkan/Aktifkan** — akun yang dinonaktifkan **tidak bisa login** (tanpa harus dihapus, supaya jejak datanya tetap aman).
 - **Hapus** — hapus akun (jika memang tidak dipakai).
+
+#### 🏷️ Konvensi Username `{divisi}_{cabang}` (sejak v2.29.8)
+
+Supaya identitas & lokasi setiap user langsung terbaca (dan tidak tabrakan antar cabang), akun **non-driver** mengikuti pola **divisi + kode cabang**. Bila ada **lebih dari satu orang** di divisi-cabang yang sama, sisipkan nama:
+
+| Divisi | Role di form | Contoh SBY | Bila >1 orang per divisi-cabang |
+|--------|--------------|------------|-------------------------------|
+| GA | GA Officer | `ga_sby` | `ga_nama_sby` |
+| Finance | Finance | `finance_sby` | `finance_nama_sby` |
+| GA HR | GA HR | `gahr_sby` | `gahr_nama_sby` |
+| OB | OB | `ob_faisol_sby` | **wajib nama** (`ob_budi_sby`) |
+| Marketing | Marketing | `marketing_yusie_sby` | **wajib nama** |
+| Receptionist | Receptionist | `receptionist_sby` | `receptionist_nama_sby` |
+| Chief Driver | Chief Driver | `chief_driver_sby` | `chief_driver_nama_sby` |
+| Traineer | Traineer | `traineer_sby` | `traineer_nama_sby` |
+| IT | IT per cabang | `it_sby`, `it_bdg`, … | username mengikuti role |
+| Driver | Driver | nama orang (`akhad`) | dibuat otomatis dari tabel Driver |
+| Admin | Admin | `admin` | biarkan "admin" |
+
+> 💡 Saat mengisi form Tambah/Edit User, kolom **Username** menampilkan contoh otomatis sesuai role & cabang yang dipilih. Gunakan **huruf kecil**, angka, dan garis bawah (`_`) saja — tanpa spasi. Username yang sudah dipakai user lain ditolak sistem.
+
+#### ✅ Checklist Membuka User / Cabang Baru (Onboarding)
+
+1. Login sebagai **Admin** → menu **Users** (`/app/users`).
+2. Klik **➕ Tambah User** — pilih **Role** sesuai divisi.
+3. Isi **Username** sesuai pola `{divisi}_{cabang}` di atas (sisipkan nama bila >1 orang).
+4. Pilih **Cabang** dari dropdown — jangan dikosongkan untuk user cabang (kosong = Pusat).
+5. Isi **Nama Lengkap** (nama ini yang tampil di dokumen, mis. PDF tanda terima) & **PIN 6 digit** awal.
+6. Klik **💾 Simpan**, lalu beri tahu user **username & PIN** barunya.
+7. Verifikasi: user mencoba login — dashboard yang muncul harus sesuai role-nya.
 
 ### 12.2 Pengaturan (Settings)
 
@@ -687,4 +717,4 @@ Jika upload ke WordPress gagal, pesan error sekarang menampilkan **response body
 
 Ada pertanyaan atau kendala? Hubungi **Admin** atau **tim IT** — mereka bisa melihat riwayat sistem (Audit Log) untuk membantu menyelesaikan masalahmu dengan cepat.
 
-*BPF WorkHub v2.29.7 · Panduan Pengguna · Diperbarui 4 September 2026*
+*BPF WorkHub v2.29.8 · Panduan Pengguna · Diperbarui 4 September 2026*

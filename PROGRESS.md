@@ -4,7 +4,7 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 **Terakhir diperbarui:** 2026-09-04  
 **Branch:** `main`  
-**Versi terbaru:** v2.29.7 (User Management edit penuh + PDF air minum dirapikan; deployed live)
+**Versi terbaru:** v2.29.8 (fix tab Selesai Marketing + dokumentasi konvensi username; deployed live)
 
 ---
 
@@ -12,14 +12,15 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 | Aspek | Status |
 |-------|--------|
-| Versi | v2.29.7 (user management + PDF air minum) — runtime sebelumnya v2.29.6 overtime sync |
+| Versi | v2.29.8 (fix tab Selesai Marketing + USER_GUIDE konvensi username) — runtime sebelumnya v2.29.7 user management + PDF air minum |
 | Manajemen User | ✅ Admin bisa edit SEMUA detail user: fix tombol Simpan mati saat edit tanpa PIN, `branch_code` kini tersimpan, username bisa diganti (update by-id) |
 | Konvensi username | ✅ `{divisi}_{cabang}` (nama bila >1 per divisi-cabang): 12 akun produksi di-rename (`finance_sby`, `ob_faisol_sby`, `gahr_sby`, …) — driver & it_* tidak berubah; helper text contoh pola di form Users; login UI diverifikasi browser 11/11 |
 | PDF Air Minum | ✅ Foto bukti diperbesar (60–130 mm mengikuti ruang kosong), TTD lebih ke bawah, header kop simetris (teks rata tengah halaman) |
 | Sync Overtime | ✅ Driver (±8.675 sesi) & OB/Security (599 sesi) — keduanya via Apps Script Web App; auto-refresh saat login/logout GA HR/Admin; redirect & duplicate display_id bugs fixed; `submitted_at` tersimpan |
 | Urutan overtime | ✅ Terkini-di-atas di semua daftar + detail report per nama dibalik terkini-dulu (PDF/Excel, commit `733fd2f`) |
 | Data demo air minum | ✅ Dibersihkan 4 Sep — WTR-20260904-10300556, WTR-DEMO-01/02 dihapus (bpf_asset_system + bpf_restore_test); backup `/tmp/bpf_water_demo_backup_20260904.sql`; tabel `water_purchases` kini 0 baris |
-| Deploy | ✅ 4 Sep 2026 — v2.29.7 live (rebuild `bbm_web`: user management + PDF air minum + header simetris); `bbm_web` healthy |
+| Deploy | ✅ 4 Sep 2026 — v2.29.8 live (rebuild `bbm_web`: tab Selesai Marketing + docs; SW cache v298); `bbm_web` healthy |
+| Dashboard Marketing | ✅ Tab "Selesai" kini memakai `/api/appointments/history` (riwayat completed marketing sendiri, lintas tanggal) — sebelumnya memanggil endpoint driver `/completed` → selalu 400/kosong |
 | Akses CI | ✅ `gh` CLI v2.100 di `~/.local/bin` (device login sbg `bestprofitsurabaya`) — run CI terbaca; semua run terbaru hijau |
 | Pool DB | ✅ Master 25 + cabang 5 (Threads_connected 206 → 26) — lihat CHANGELOG v2.29.1 |
 | Docker | `bbm_web` running on `nasbpfsby.duckdns.org:5000` |
@@ -27,12 +28,46 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 | Databases | 10 DB terpisah (1 master + 9 cabang) |
 | GPS Detail | ✅ Nominatim reverse geocode + disimpan ke DB |
 | Watermark | ✅ 4 baris: perusahaan + tanggal + alamat + koordinat |
-| Test Suite | ✅ 331 pytest (325 pass + 6 skip) + 85 vitest — CI GitHub Actions hijau tiap push (Backend: pytest + service mariadb/redis; Frontend: unit test + build) |
+| Test Suite | ✅ 336 pytest (330 pass + 6 skip) + 86 vitest — CI GitHub Actions hijau tiap push (Backend: pytest + service mariadb/redis; Frontend: unit test + build) |
 | Kestabilan | ✅ bbm_web healthy — 0 restart, 0 error di log sejak deploy terakhir |
 
 ---
 
 ## 🗂️ Riwayat Sesi
+
+### Sesi 2026-09-04 — v2.29.8: Fix tab Selesai Marketing + dokumentasi konvensi username ✅ SELESAI
+
+> Konteks: user minta semua suggestion dikerjakan + kesiapan penuh di server
+> produksi tanpa intervensi. Prioritas: hilangkan 400 konsol di tab Selesai
+> Marketing (pre-existing), dokumentasikan konvensi username, verifikasi e2e
+> alur PDF air minum memakai user hasil rename, deploy + smoke test.
+
+1. **Fix tab Selesai MarketingDashboard**: `/api/appointments/completed`
+   adalah endpoint khusus Driver PWA (scope driver_name) → untuk marketing
+   login selalu ditolak → tab kosong + 400 di console. Solusi: endpoint baru
+   **`GET /api/appointments/history`** (role marketing/chief_driver/ga/admin;
+   marketing di-scope `marketing_username` sesi sendiri; status completed
+   lintas tanggal; urut `completed_at` DESC; limit 1–100 default 50).
+   Frontend `MarketingDashboard.vue` pindah ke endpoint itu.
+2. **Test**: `tests/test_appointments_history.py` 5 unit (fake-DB: scope
+   marketing, tanpa scope utk GA/admin, order+limit, 403 role luar, limit
+   invalid fallback) + 1 vitest MarketingDashboard (tab Selesai memuat dari
+   /history, TIDAK memanggil /completed).
+3. **Dokumentasi USER_GUIDE** seksi 12.1: tabel konvensi username
+   `{divisi}_{cabang}` per role (nama bila >1 orang per divisi-cabang),
+   catatan Driver/admin/`it_*`, + checklist onboarding pembukaan user/cabang
+   baru 7 langkah; judul & footer → v2.29.8.
+4. **Deploy live**: `docker compose up -d --build web` (SW cache v298),
+   `bbm_web` healthy, log bersih.
+5. **E2E air minum user rename**: `ob_faisol_sby` submit pengajuan berfoto
+   (WTR-20260904-17484740) → `finance_sby` verifikasi → PDF tanda terima live
+   turun (62 KB): kop seimbang, seksi lengkap, TTD "Finance Officer". Data
+   uji + file foto dihapus (0 sisa).
+6. **Marketing live**: login `marketing_yusie_sby` → `/history` 200
+   `{"data":[]}` (sebelumnya 400); OB tetap ditolak `/completed` (400).
+7. **Test suite container**: 330 passed + 6 skipped; vitest 86 passed.
+
+---
 
 ### Sesi 2026-09-04 — Konvensi username `{divisi}_{cabang}` + rename massal (lanjutan v2.29.7) ✅ SELESAI
 

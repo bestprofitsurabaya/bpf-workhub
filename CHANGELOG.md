@@ -4,6 +4,45 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 
 ---
 
+## v2.29.8 — 4 September 2026
+
+### 🐛 Fix tab "Selesai" Dashboard Marketing
+
+- Tab **✅ Selesai** di dashboard Marketing memanggil `/api/appointments/
+  completed` — endpoint **khusus Driver PWA** (scope `driver_name`, tanpa
+  sesi) sehingga untuk marketing login selalu ditolak → tab selalu kosong +
+  satu error 400 di console.
+- Backend: endpoint baru **`/api/appointments/history`** (role marketing /
+  chief_driver / ga / admin) — riwayat status `completed` **lintas tanggal**
+  untuk marketing di-scope ke `marketing_username` sesi sendiri (anti bocor
+  data marketing lain), urut `completed_at` terbaru dulu, parameter `limit`
+  (default 50, maks 100, non-angka → fallback 50).
+- Frontend `MarketingDashboard.vue` kini memakai `/api/appointments/history`.
+- Test: `tests/test_appointments_history.py` (5 unit, pola fake-DB) + 1
+  vitest baru di `MarketingDashboard.test.js` (tab Selesai memuat riwayat,
+  memastikan TIDAK memanggil `/completed` lagi).
+
+### 📖 Dokumentasi konvensi username (USER_GUIDE)
+
+- Seksi 12.1 bertambah: tabel konvensi username `{divisi}_{cabang}` per role
+  (+ nama bila >1 orang per divisi-cabang), catatan Driver/admin/IT, dan
+  **checklist onboarding pembukaan user/cabang baru** 7 langkah.
+
+### ✅ Verifikasi live produksi
+
+- Rebuild + deploy (`docker compose up -d --build web`), SW cache
+  `bpf-spa-20260904-v298`, `bbm_web` healthy, log bersih.
+- **E2E air minum dengan user rename**: `ob_faisol_sby` login → submit
+  pengajuan berfoto (WTR-20260904-17484740, id 16) → `finance_sby` login →
+  verifikasi → unduh PDF tanda terima live: kop seimbang, seksi lengkap,
+  TTD "Finance Officer" (nama user yang memverifikasi). Data uji dibersihkan.
+- **Marketing live**: login `marketing_yusie_sby` → `/api/appointments/
+  history` HTTP 200 `{"data":[]}` (sebelumnya 400); OB tetap ditolak di
+  `/completed` (regresi negatif ✓).
+- Test suite container: **330 passed + 6 skipped**; vitest: **86 passed**.
+
+---
+
 ## v2.29.7 — 4 September 2026
 
 ### 👥 Manajemen User: Admin bisa edit SEMUA detail user
@@ -823,6 +862,7 @@ Versi stabil pertama dengan fitur lengkap: 10 role, 243 pytest, 82 Vitest, 10 vi
 | v2.28.7 | 236 | 82 | 318 |
 | v2.29.6 | 323 | 83 | 406 |
 | v2.29.7 | 331 | 85 | 416 |
+| v2.29.8 | 336 | 86 | 422 |
 
 ---
 

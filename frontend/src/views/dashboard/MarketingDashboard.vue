@@ -37,7 +37,9 @@ const completedLoading = ref(false)
 async function loadCompleted() {
   completedLoading.value = true
   try {
-    const d = await api('/api/appointments/completed', { params: { limit: 50 } })
+    // Riwayat selesai milik marketing sendiri (endpoint khusus marketing,
+    // bukan /completed yang khusus driver PWA) — v2.29.8
+    const d = await api('/api/appointments/history', { params: { limit: 50 } })
     completedList.value = d.data || d.list || []
   } catch { completedList.value = [] }
   finally { completedLoading.value = false }

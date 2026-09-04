@@ -951,6 +951,41 @@ def register_appointment_routes(app):
             return jsonify({'status': 'error', 'msg': str(e)}), 500
 
     # ================================================================
+    # RIWAYAT SELESAI (dashboard Marketing)
+    # Endpoint khusus /completed milik driver (PWA tanpa sesi, scope
+    # driver_name) sehingga TIDAK cocok untuk marketing login. Endpoint ini
+    # men-scope marketing_username ke sesi login dan mengembalikan status
+    # completed lintas tanggal, terbaru dulu. v2.29.8.
+    # ================================================================
+    @app.route('/api/appointments/history')
+    @role_required(['marketing', 'chief_driver', 'ga', 'admin'])
+    def api_appointment_history():
+        try:
+            try:
+                limit = min(max(int(request.args.get('limit', 50)), 1), 100)
+            except (TypeError, ValueError):
+                limit = 50
+            conn = get_db_connection()
+            if not conn:
+                return jsonify({'error': 'DB error'}), 500
+            cursor = conn.cursor(dictionary=True)
+            where = ["status = 'completed'"]
+            params = []
+            if session.get('user_role') == 'marketing':
+                where.append('marketing_username = %s')
+                params.append(session.get('user_name'))
+            cursor.execute(
+                "SELECT * FROM appointments WHERE " + " AND ".join(where) +
+                " ORDER BY COALESCE(completed_at, updated_at, appointment_date) DESC" +
+                ", appointment_date DESC, created_at DESC LIMIT " + str(limit),
+                params)
+            rows = [_clean(r) for r in cursor.fetchall()]
+            cursor.close(); conn.close()
+            return jsonify({'data': rows})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+    # ================================================================
     # COMPLETED APPOINTMENTS UNTUK DRIVER (PWA Trip Form)
     # Public GET: dipakai halaman driver tanpa session.
     # ================================================================

@@ -82,4 +82,26 @@ describe('MarketingDashboard', () => {
     expect(global.prompt).toHaveBeenCalled()
     expect(apiMock).toHaveBeenCalledWith('/api/appointments/1/cancel', { method: 'POST', body: { reason: 'Alasan uji' } })
   })
+
+  it('tab ✅ Selesai memuat riwayat dari /api/appointments/history', async () => {
+    apiMock.mockImplementation((path) => {
+      if (path === '/api/appointments') return Promise.resolve(APPS)
+      if (path === '/api/appointments/history') return Promise.resolve({
+        data: [
+          { id: 9, display_id: 'APP-9', nasabah_name: 'Nasabah Lama', marketing_member: 'M1', appointment_date: '2026-09-01', sesi: '1', area: 'Surabaya Barat', driver_name: 'Akhad', visit_result: 'ditemui' },
+        ],
+      })
+      return Promise.resolve({ status: 'success', msg: 'Tersimpan' })
+    })
+    const w = mount(MarketingDashboard)
+    await flushPromises()
+    // riwayat dimuat saat mount (endpoint khusus marketing, bukan /completed)
+    expect(apiMock).toHaveBeenCalledWith('/api/appointments/history', { params: { limit: 50 } })
+    expect(apiMock).not.toHaveBeenCalledWith('/api/appointments/completed', expect.anything())
+    // klik tab Selesai → baris riwayat tampil
+    await w.findAll('button').find((b) => b.text().includes('Selesai')).trigger('click')
+    await flushPromises()
+    expect(w.text()).toContain('Nasabah Lama')
+    expect(w.text()).toContain('APP-9')
+  })
 })

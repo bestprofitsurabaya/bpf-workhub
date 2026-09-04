@@ -2,7 +2,7 @@
 
 **Sistem Manajemen Armada untuk PT. Bestprofit Futures — Surabaya**
 
-> 📅 Versi 2.29.7 · September 2026 — Manajemen User: Admin bisa edit semua detail user · PDF Tanda Terima Air Minum dirapikan (foto diperbesar, TTD lebih ke bawah, header simetris)
+> 📅 Versi 2.29.8 · September 2026 — Fix tab "Selesai" Dashboard Marketing · Konvensi username `{divisi}_{cabang}` + checklist onboarding (USER_GUIDE)
 
 ---
 
@@ -177,7 +177,7 @@ python -m pytest tests/ -v
 cd frontend && npm test
 ```
 
-**Status:** 331 pytest + 85 vitest · Semua ✅ PASS (terakhir diverifikasi v2.29.7 — CI GitHub Actions: Backend pytest + Frontend build/unit test, hijau di tiap push)
+**Status:** 336 pytest + 86 vitest · Semua ✅ PASS (terakhir diverifikasi v2.29.8 — CI GitHub Actions: Backend pytest + Frontend build/unit test, hijau di tiap push)
 
 ---
 
