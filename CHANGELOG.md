@@ -27,6 +27,18 @@ ketemu saat mengaktifkan sumber OB/Security kedua (mirip Driver).
 - **Apps Script bridge OB/Security** (`scripts/apps_script_overtime_ob_security.gs`)
   — pola sama seperti Driver v2 (SHEET_ID `1AsBq-rHss…`), untuk sheet private.
   Deployed oleh user; `overtime_ob_sheet_url` kini mengarah ke Web App.
+- **Auto-refresh OB/Security** — sinkronisasi sheet OB kini juga berjalan di
+  background saat login/logout GA HR/admin (debounce 30 dtk, sama seperti
+  Driver), selain tombol Refresh manual.
+- **PDF overtime disempurnakan**: header tabel multi-baris diratakan (cell()
+  tak menangani `\n` → teks menyatu/terpotong); kolom WAKTU & NO. FORM
+  dilebarkan agar '18:30 - 20:00' & id `OTL-SH-…` tidak terpotong; Formulir
+  Permohonan kini menyematkan **foto sebagai gambar** (file lokal `/uploads`
+  atau URL publik; tautan Drive private → fallback link klik); en dash `–`
+  diganti ASCII `-` (clean_text membuang non-ASCII).
+- **Urutan overtime terkini-dulu** — API & PDF rekap sudah `tanggal DESC`;
+  ditambah pengaman sort di sisi klien GA HR (Driver & OB/Security) supaya
+  tanggal terbaru selalu di posisi teratas.
 - **`submitted_at` untuk OB/Security** (kolom baru, idempoten): timestamp
   submit asli Google Form kini tersimpan & ter-backfill 599/599 — PDF
   'TANGGAL FORM' & kolom timestamp laporan detail tidak lagi kosong/memakai

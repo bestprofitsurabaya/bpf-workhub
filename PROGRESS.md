@@ -59,6 +59,13 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
    (Edwin P) dikoreksi 2026 di DB — ⚠️ **sel sumber masih 1926**, perlu
    dibetulkan di Google Sheet lalu Refresh.
 7. **Verifikasi**: 599 baris, uid & display_id unik & konsisten, tahun
+8. **Auto-refresh OB + polish PDF + sorting** — auto-refresh OB di
+   login/logout (mirror Driver); header tabel PDF rata satu baris + kolom
+   WAKTU/NO. FORM dilebar; Form PDF semat foto sbg gambar (fallback link utk
+   Drive private); sort klien GA HR tanggal terbaru di atas (API sudah DESC).
+   Render PNG visual: /tmp/rekap_pg-*.png, /tmp/detail_pg-*.png,
+   /tmp/form_pg-1.png. Deploy & verifikasi live (login admin memicu
+   refresh OB: meta 12:55:00).
    2025–2026, refresh meta tercatat. Deploy: image rebuild ×2, `bbm_web`
    healthy. Test: 56 pytest overtime lulus (incl. anti-regresi redirect).
 

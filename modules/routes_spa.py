@@ -99,11 +99,15 @@ def register_spa_routes(app):
         session.permanent = True
         csrf = _ensure_csrf()
         log_activity_async(None, 'login', 'user', user['username'], ip=request.remote_addr)
-        # v2.22.1: sinkronisasi sheet Driver otomatis di background (ga_hr/admin)
+        # v2.22.1: sinkronisasi sheet Driver & OB/Security otomatis di
+        # background saat login (ga_hr/admin) — gagal tidak menghalangi login.
         try:
-            from modules.routes_overtime import trigger_driver_refresh_async
+            from modules.routes_overtime import (trigger_driver_refresh_async,
+                                                  trigger_ob_refresh_async)
             trigger_driver_refresh_async(user['role'], user['full_name'],
                                          ip=request.remote_addr)
+            trigger_ob_refresh_async(user['role'], user['full_name'],
+                                     ip=request.remote_addr)
         except Exception:
             pass  # sinkronisasi gagal tidak boleh menghalangi login
         return jsonify({
@@ -118,10 +122,13 @@ def register_spa_routes(app):
     def api_auth_logout():
         role = session.get('user_role')
         full_name = session.get('full_name') or session.get('user_name')
-        # v2.22.1: sinkronisasi sheet Driver otomatis di background (ga_hr/admin)
+        # v2.22.1: sinkronisasi sheet Driver & OB/Security di background saat
+        # logout (ga_hr/admin) — gagal tidak menghalangi logout.
         try:
-            from modules.routes_overtime import trigger_driver_refresh_async
+            from modules.routes_overtime import (trigger_driver_refresh_async,
+                                                  trigger_ob_refresh_async)
             trigger_driver_refresh_async(role, full_name, ip=request.remote_addr)
+            trigger_ob_refresh_async(role, full_name, ip=request.remote_addr)
         except Exception:
             pass  # sinkronisasi gagal tidak boleh menghalangi logout
         session.clear()

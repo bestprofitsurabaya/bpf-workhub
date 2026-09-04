@@ -168,12 +168,18 @@ class BPFBasePDF(FPDF):
 
     # ---- Tabel generik (header hitam + zebra tipis) ----
     def _table_header(self, headers, widths, font_size=7, row_h=7):
-        """Baris header tabel resmi: blok hitam pekat + teks putih."""
+        """Baris header tabel resmi: blok hitam pekat + teks putih.
+
+        Header multi-baris ('TANGGAL\\nTIMESTAMP') diratakan jadi satu baris:
+        cell() tidak menangani '\\n' (glyph hilang → peringatan font & teks
+        menyatu/terpotong antar kolom).
+        """
         self.set_font(self._font(), 'B', font_size)
         self.set_fill_color(*INK)
         self.set_text_color(255, 255, 255)
         for i, h in enumerate(headers):
-            self.cell(widths[i], row_h, h, border=1, align='C', fill=True)
+            label = re.sub(r'\s+', ' ', str(h).replace('\n', ' ')).strip()
+            self.cell(widths[i], row_h, label, border=1, align='C', fill=True)
         self.ln()
         self.set_font(self._font(), '', font_size)
         self.set_text_color(*INK)
@@ -1029,7 +1035,8 @@ class OvertimeReportPDF(BPFBasePDF):
 
     def _draw_driver(self, rows):
         headers = ['NO', 'TANGGAL', 'NAMA', 'NO. KENDARAAN', 'WAKTU', 'KETERANGAN', 'SUMBER']
-        widths = [8, 24, 45, 30, 34, 100, 25]
+        # WAKTU 34→42 agar '18:30 – 20:00' tidak terpotong (ambil dari KETERANGAN)
+        widths = [8, 24, 45, 30, 42, 92, 25]
         aligns = ['C', 'C', 'L', 'C', 'C', 'L', 'C']
         self._table_header(headers, widths)
         fill = False
@@ -1045,7 +1052,8 @@ class OvertimeReportPDF(BPFBasePDF):
 
     def _draw_ob_security(self, rows):
         headers = ['NO', 'TANGGAL', 'NAMA', 'POSISI', 'WAKTU', 'KETERANGAN', 'SUMBER']
-        widths = [8, 26, 50, 28, 36, 100, 28]
+        # WAKTU 36→46 agar '18:30 – 20:00' tidak terpotong (ambil dari KETERANGAN)
+        widths = [8, 26, 50, 28, 46, 90, 28]
         aligns = ['C', 'C', 'L', 'C', 'C', 'L', 'C']
         self._table_header(headers, widths)
         fill = False
@@ -1062,7 +1070,9 @@ class OvertimeReportPDF(BPFBasePDF):
     def _waktu(self, r):
         a = r.get('waktu_mulai') or '-'
         b = r.get('waktu_selesai') or ''
-        return f'{a} – {b}' if b else a
+        # Pakai tanda hubung ASCII: clean_text() menghapus non-ASCII (en dash
+        # '–' hilang dari output PDF).
+        return f'{a} - {b}' if b else a
 
 
 class OvertimeDetailReportPDF(BPFBasePDF):
@@ -1118,12 +1128,13 @@ class OvertimeDetailReportPDF(BPFBasePDF):
         # Table — Landscape widths (total = 267mm)
         if modul == 'ob':
             # OB/Security: ganti PLAT KENDARAAN → POSISI
-            headers = ['NO', 'TANGGAL\nTIMESTAMP', 'NO.\nFORM', 'NAMA', 'POSISI', 'TANGGAL\nOVERTIME', 'JAM\nMULAI', 'JAM\nSELESAI', 'KETERANGAN', 'LOKASI', 'BIAYA']
-            widths = [8, 32, 20, 35, 22, 22, 18, 18, 45, 30, 17]
+            headers = ['NO', 'TANGGAL TIMESTAMP', 'NO. FORM', 'NAMA', 'POSISI', 'TANGGAL OVERTIME', 'JAM MULAI', 'JAM SELESAI', 'KETERANGAN', 'LOKASI', 'BIAYA']
+            # NO. FORM 20→26 (id OTL-SH-… panjang); ambil dari KETERANGAN 45→39
+            widths = [8, 32, 26, 35, 22, 22, 18, 18, 39, 30, 17]
             aligns = ['C', 'C', 'C', 'L', 'C', 'C', 'C', 'C', 'L', 'L', 'R']
         else:
-            headers = ['NO', 'TANGGAL\nTIMESTAMP', 'NO.\nFORM', 'NAMA', 'PLAT\nKENDARAAN', 'TANGGAL\nOVERTIME', 'JAM\nMULAI', 'JAM\nSELESAI', 'KETERANGAN', 'LOKASI', 'BIAYA']
-            widths = [8, 32, 20, 32, 22, 22, 18, 18, 45, 30, 20]
+            headers = ['NO', 'TANGGAL TIMESTAMP', 'NO. FORM', 'NAMA', 'PLAT KENDARAAN', 'TANGGAL OVERTIME', 'JAM MULAI', 'JAM SELESAI', 'KETERANGAN', 'LOKASI', 'BIAYA']
+            widths = [8, 32, 26, 32, 22, 22, 18, 18, 39, 30, 20]
             aligns = ['C', 'C', 'C', 'L', 'C', 'C', 'C', 'C', 'L', 'L', 'R']
 
         self._table_header(headers, widths, font_size=7, row_h=8)
@@ -1566,33 +1577,99 @@ class OvertimeFormPDF(BPFBasePDF):
             self.line(x_start + i * col_w + 5, self.get_y(), x_start + (i + 1) * col_w - 5, self.get_y())
         self.ln(2)
 
+    # Max dimensi foto tersemat di Form PDF (mm)
+    _PHOTO_MAX_W = 170
+    _PHOTO_MAX_H = 60
+
     def _photo_links(self, row, photos=None):
-        """Tampilkan link foto (bukan gambar) untuk hematsaat cetak."""
+        """Lampiran foto: disematkan sebagai GAMBAR bila tersedia (file lokal
+        /uploads/... atau URL http publik), fallback tautan klik bila gagal.
+        Otomatis pindah halaman bila ruang tidak cukup."""
         photos = photos or {}
         foto_tujuan = photos.get('foto_selesai') or row.get('foto_selesai', '')
         foto_selfie = photos.get('foto_mulai') or row.get('foto_mulai', '')
-
-        self.set_font(self._font(), 'B', 9)
-        self.set_text_color(*INK)
-
-        if foto_tujuan:
-            self.cell(0, 5, 'FOTO DI TUJUAN', new_x='LMARGIN', new_y='NEXT')
-            self.set_font(self._font(), '', 8)
-            self.set_text_color(0, 102, 204)
-            self.cell(0, 5, f'Klik untuk lihat foto: {foto_tujuan}', link=foto_tujuan, new_x='LMARGIN', new_y='NEXT')
-            self.set_text_color(*INK)
-        else:
-            self.cell(0, 5, 'FOTO DI TUJUAN: Tidak tersedia', new_x='LMARGIN', new_y='NEXT')
-
+        for label, ref in (('FOTO DI TUJUAN', foto_tujuan),
+                           ('FOTO SELFIE @OFFICE', foto_selfie)):
+            self._photo_block(label, ref)
         self.ln(2)
 
-        if foto_selfie:
+    def _photo_block(self, label, ref):
+        ref = str(ref or '').strip()
+        if not ref:
             self.set_font(self._font(), 'B', 9)
-            self.cell(0, 5, 'FOTO SELFIE @OFFICE', new_x='LMARGIN', new_y='NEXT')
+            self.set_text_color(*INK)
+            self.cell(0, 5, f'{label}: Tidak tersedia', new_x='LMARGIN', new_y='NEXT')
+            self.ln(2)
+            return
+        img = self._load_photo_image(ref)
+        needed = 8 + (img[1] if img else 4) + 6
+        if self.get_y() + needed > self.h - 15:
+            self.add_page()
+        self.set_font(self._font(), 'B', 9)
+        self.set_text_color(*INK)
+        self.cell(0, 5, label, new_x='LMARGIN', new_y='NEXT')
+        if img is None:
             self.set_font(self._font(), '', 8)
             self.set_text_color(0, 102, 204)
-            self.cell(0, 5, f'Klik untuk lihat foto: {foto_selfie}', link=foto_selfie, new_x='LMARGIN', new_y='NEXT')
+            self.cell(0, 5, f'Klik untuk lihat foto: {ref}', link=ref, new_x='LMARGIN', new_y='NEXT')
             self.set_text_color(*INK)
-        else:
-            self.set_font(self._font(), 'B', 9)
-            self.cell(0, 5, 'FOTO SELFIE @OFFICE: Tidak tersedia', new_x='LMARGIN', new_y='NEXT')
+            self.ln(3)
+            return
+        buf, w_mm, h_mm = img
+        x = self.l_margin + (self.w - self.l_margin - self.r_margin - w_mm) / 2
+        self.image(buf, x=x, y=self.get_y(), w=w_mm, h=h_mm)
+        self.set_y(self.get_y() + h_mm)
+        self.ln(1)
+        self.set_font(self._font(), 'I', 6)
+        self.set_text_color(0, 102, 204)
+        self.cell(0, 4, f'Sumber foto: {ref}', align='C', link=ref, new_x='LMARGIN', new_y='NEXT')
+        self.set_text_color(*INK)
+        self.ln(3)
+
+    @staticmethod
+    def _load_photo_image(ref):
+        """Ambil gambar foto → (BytesIO JPEG, w_mm, h_mm) atau None bila gagal.
+
+        Mendukung file lokal (`/uploads/...` = jalur relatif root project) dan
+        URL http(s) publik (mis. tautan Google Drive). Ukuran dibatasi & format
+        divalidasi via PIL; kesalahan apa pun → None (caller fallback link).
+        """
+        try:
+            data = None
+            if ref.startswith('/') and not ref.startswith('//'):
+                base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                path = os.path.join(base, ref.lstrip('/'))
+                if not os.path.exists(path):
+                    return None
+                with open(path, 'rb') as f:
+                    data = f.read()
+            elif ref.startswith('http://') or ref.startswith('https://'):
+                import requests as _requests
+                resp = _requests.get(ref, timeout=15, headers={'User-Agent': 'Mozilla/5.0'})
+                if resp.status_code != 200:
+                    return None
+                ctype = (resp.headers.get('Content-Type') or '').lower()
+                if 'image' not in ctype:
+                    return None
+                data = resp.content
+            else:
+                return None
+            if not data or len(data) > 8 * 1024 * 1024:
+                return None
+            from PIL import Image
+            img = Image.open(io.BytesIO(data))
+            w_px, h_px = img.size
+            if w_px <= 0 or h_px <= 0:
+                return None
+            ratio = min(OvertimeFormPDF._PHOTO_MAX_W / w_px,
+                        OvertimeFormPDF._PHOTO_MAX_H / h_px)
+            w_mm, h_mm = w_px * ratio, h_px * ratio
+            if img.width > MAX_IMAGE_WIDTH:
+                r = MAX_IMAGE_WIDTH / img.width
+                img = img.resize((MAX_IMAGE_WIDTH, int(img.height * r)), Image.LANCZOS)
+            buf = io.BytesIO()
+            img.convert('RGB').save(buf, format='JPEG', quality=JPEG_QUALITY, optimize=True)
+            buf.seek(0)
+            return (buf, w_mm, h_mm)
+        except Exception:
+            return None

@@ -58,11 +58,21 @@ async function loadStats() {
   try { stats.value = await api('/api/overtime/stats') } catch { stats.value = null }
 }
 
+// Urutkan klien: tanggal terbaru di posisi teratas (pengaman — API juga sudah
+// ORDER BY tanggal DESC, id DESC). Tanggal format ISO 'YYYY-MM-DD'.
+function sortNewestFirst(list) {
+  return [...(list || [])].sort((a, b) => {
+    const ta = String(a.tanggal || ''), tb = String(b.tanggal || '')
+    if (ta !== tb) return ta < tb ? 1 : -1
+    return (Number(b.id) || 0) - (Number(a.id) || 0)
+  })
+}
+
 async function loadDriver() {
   loading.value = true
   try {
     const d = await api('/api/overtime/driver', { params: { date_from: dFrom.value, date_to: dTo.value, search: dSearch.value, source: dSource.value } })
-    dList.value = d.data || []
+    dList.value = sortNewestFirst(d.data || [])
   } catch (e) { err.value = e.message } finally { loading.value = false }
 }
 
@@ -70,7 +80,7 @@ async function loadOb() {
   loading.value = true
   try {
     const d = await api('/api/overtime/ob-security', { params: { date_from: oFrom.value, date_to: oTo.value, search: oSearch.value, posisi: oPosisi.value, source: oSource.value } })
-    oList.value = d.data || []
+    oList.value = sortNewestFirst(d.data || [])
   } catch (e) { err.value = e.message } finally { loading.value = false }
 }
 

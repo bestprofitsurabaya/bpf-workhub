@@ -291,6 +291,34 @@ def trigger_driver_refresh_async(role, full_name, ip=None):
     production_pool_executor.submit(_run)
 
 
+# Auto-refresh OB/Security (v2.29.6): debounce terpisah dari Driver.
+_last_ob_auto_refresh = {'ts': 0.0}
+
+
+def trigger_ob_refresh_async(role, full_name, ip=None):
+    """Auto-refresh sheet OB/Security di background saat login/logout.
+
+    Sama seperti Driver: hanya ga_hr & admin, debounce 30 detik, gagal
+    diam-diam agar login/logout tidak terganggu.
+    """
+    if role not in ('ga_hr', 'admin'):
+        return
+    now = time.time()
+    if now - _last_ob_auto_refresh['ts'] < _AUTO_REFRESH_MIN_INTERVAL:
+        return
+    _last_ob_auto_refresh['ts'] = now
+
+    def _run():
+        try:
+            result = _do_refresh_ob()
+            log_activity_async(None, 'overtime_ob_refresh', role, full_name,
+                               new_data=result, ip=ip)
+        except Exception as e:
+            print(f"[overtime-auto-refresh-ob] {e}")
+
+    production_pool_executor.submit(_run)
+
+
 def _check_public_url(url):
     """SSRF protection: hanya izinkan http/https menuju host publik.
 
