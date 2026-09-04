@@ -47,6 +47,13 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
    INFORMASI PENGIRIMAN + TTD Finance `FINANCE_OFFICER` (= verified_by),
    GA dari config; istilah lama tidak ada. Baris demo tanpa foto — urutan
    lampiran dikunci unit test.
+4. ✅ **Uji end-to-end ber-foto (live)** — WTR-20260904-10300556 dibuat dgn 2
+   foto dummy + diverifikasi `finance_officer`: PDF memuat LAMPIRAN FOTO,
+   'Foto SEBELUM diisi' & 'SESUDAH diisi' (3 XObject gambar), urutan benar
+   (foto sebelum TTD); TTD Finance = full name user verifier ('FINANCE
+   OFFICER'). Render PNG sanity A4 non-blank (`/tmp`).
+5. ✅ **SW cache dibersihkan** — `CACHE` → `bpf-spa-20260904`, deploy ulang +
+   health 200; browser pengguna akan otomatis membuang shell lama.
 
 ---
 
