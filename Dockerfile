@@ -21,6 +21,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     default-mysql-client \
     cron \
+    poppler-utils \
     && rm -rf /var/lib/apt/lists/*
 
 # Setup cron: cleanup foto overtime > 6 bulan

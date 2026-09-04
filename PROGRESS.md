@@ -30,7 +30,7 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 | Databases | 10 DB terpisah (1 master + 9 cabang) — `doc_sequences` dibuat di master + tiap cabang (v2.29.10) |
 | GPS Detail | ✅ Nominatim reverse geocode + disimpan ke DB |
 | Watermark | ✅ 4 baris: perusahaan + tanggal + alamat + koordinat |
-| Test Suite | ✅ 349 pytest (343 pass + 6 skip) + 86 vitest — CI GitHub Actions hijau tiap push (Backend: pytest + service mariadb/redis; Frontend: unit test + build) |
+| Test Suite | ✅ 358 pytest (352 pass + 6 skip) + 86 vitest — CI GitHub Actions hijau tiap push (Backend: pytest + service mariadb/redis; Frontend: unit test + build) |
 | Kestabilan | ✅ bbm_web healthy — 0 restart, 0 error di log sejak deploy terakhir |
 
 ---
@@ -114,9 +114,9 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
    cabang list (SBY Cabang Surabaya, JKT HO), identitas dari endpoint
    `/api/system-config/identity` (Jakarta), e2e WTR dibuat memakai nomor
    baru, PDF & cleanup (lihat catatan deploy di bawah).
-6. **Test suite**: pytest container 343 passed + 6 skipped (349 collected,
-   doc_sequences + update format) + vitest 86 + build sukses; commit & push;
-   CI hijau.
+6. **Test suite**: pytest container 352 passed + 6 skipped (358 collected,
+   termasuk `tests/test_pdf_header_layout.py` — geometri kop via poppler) +
+   vitest 86 + build sukses; commit & push; CI hijau.
 
 ---
 

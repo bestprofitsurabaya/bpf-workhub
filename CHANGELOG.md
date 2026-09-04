@@ -72,6 +72,27 @@ Format baru (semua dokumen baru): **`{PREFIX}-{BRANCH}-{YYYYMMDD}-{SEQ}`**
 - Sisa teks "PT. Bestprofit Surabaya" di modul app & narasi laporan
   dikoreksi → "PT. Bestprofit Futures".
 
+### ✅ Verifikasi menyeluruh & test regresi kop PDF
+
+- **E2E live penomoran modul lain** (produksi): `APP-SBY-20260905-0001`
+  (kunjungan marketing), `PLM-SBY-20260905-0001/0002` (pendaftaran publik —
+  membuktikan nomor urut naik & fallback cabang utama di luar sesi),
+  `OTL-SBY-20260905-0001` (overtime OB publik), `CASH-SBY-20260905-0001`
+  (kasbon) — semua format `PREFIX-SBY-TANGGAL-SEQ` benar. Cleanup penuh
+  (data + aktivitas + counter seq + daily-code), DB kembali baseline 0 sisa.
+- **Identitas HO sisi JKT lengkap**: `branches` JKT = "Kantor Pusat Jakarta"
+  (DB `bpf_branch_jkt`), `system_config` JKT kini berisi nama/subjudul/
+  alamat Equity Tower + `system_version v2.29.10`.
+- **UI terverifikasi (browser)**: halaman login menampilkan "BPF WorkHub ·
+  PT BESTPROFIT FUTURES · Jakarta"; form Identitas di `/app/settings`
+  terisi Subjudul "Kantor Pusat | Jakarta", Alamat Equity Tower, Versi
+  v2.29.10.
+- **Test regresi geometri kop** `tests/test_pdf_header_layout.py` (8 tipe
+  PDF portrait/landscape): 3 baris kop wajib tepat di tengah halaman
+  (toleransi ±1,5 pt via `pdftotext -bbox`) + subjudul/alamat HO Jakarta
+  hadir tanpa DB. `poppler-utils` ditambahkan ke Dockerfile & CI supaya
+  test ini benar-benar berjalan (skip bila binary tidak ada).
+
 ---
 
 ## v2.29.9 — 4 September 2026
