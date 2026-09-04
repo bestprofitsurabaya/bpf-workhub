@@ -1,4 +1,4 @@
-# 📋 Daftar User & Role — BPF WorkHub v2.29.6
+# 📋 Daftar User & Role — BPF WorkHub v2.29.7
 
 Dokumen ini menjelaskan semua role yang didukung sistem, siapa yang memakainya, dan apa yang bisa dilakukan masing-masing.
 
@@ -26,8 +26,8 @@ Akun berikut dibuat otomatis saat inisialisasi database:
 | # | Username | Nama Lengkap | Role | PIN | Keterangan |
 |---|----------|--------------|------|-----|------------|
 | 1 | `admin` | Administrator | `admin` | `123456` | Akses penuh ke seluruh sistem |
-| 2 | `ga_officer` | GA Officer | `ga` | `123456` | General Affairs Officer |
-| 3 | `finance_officer` | Finance Officer | `finance` | `123456` | Finance Officer |
+| 2 | `ga_sby` | GA Officer | `ga` | `123456` | General Affairs Officer (Surabaya) |
+| 3 | `finance_sby` | Finance Officer | `finance` | `123456` | Finance Officer (Surabaya) |
 
 > ⚠️ **Segera ganti PIN bawaan** setelah login pertama kali.
 
@@ -45,6 +45,10 @@ Setiap divisi back-office punya user unik per cabang dengan format `{divisi}_{ko
 
 > PIN default semua user: `123456`. Role di DB tetap sama (misal `finance_sby` → role `finance`),
 > hanya username yang unik. Label di UI otomatis menyesuaikan (Finance Surabaya, GA Bandung, dst).
+>
+> Bila **lebih dari satu orang** di divisi & cabang yang sama (mis. 3 OB Surabaya),
+> username memakai nama: `ob_faisol_sby`, `ob_febri_sby`, `ob_edwin_sby` — bukan `ob1/ob2/ob3`.
+> Khusus Driver: username = nama orang (`akhad`) — dipakai login PWA pendek di HP.
 
 ---
 

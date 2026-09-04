@@ -1,4 +1,4 @@
-# 🎤 Materi Presentasi — BPF WorkHub v2.29.6
+# 🎤 Materi Presentasi — BPF WorkHub v2.29.7
 
 Panduan demo lengkap untuk presentasi di depan audiens. Urutan disusun dari yang paling berkesan ke yang paling teknis. Tiap bagian berisi tujuan, apa yang ditampilkan di layar, poin yang dibicarakan, dan satu kalimat kunci.
 
@@ -100,10 +100,10 @@ Telp: 031-5349888
 
 | Langkah | Layar | Yang Dilakukan | Yang Dibicarakan |
 |---------|-------|---------------|-----------------|
-| 1 | Login OB (`ob1` / `123456`) | Masuk → otomatis ke Halaman Air Minum | "Tiap OB punya halaman sendiri." |
+| 1 | Login OB (`ob_faisol_sby` / `123456`) | Masuk → otomatis ke Halaman Air Minum | "Tiap OB punya halaman sendiri." |
 | 2 | Form Air Minum | Isi tanggal, jumlah, pilih jenis & merk, unggah 2 foto | "Dua foto wajib — bukti dengan tanda waktu." |
 | 3 | Kirim | Klik Ajukan | Status berubah jadi "Menunggu Verifikasi" |
-| 4 | Login Finance (`finance_officer`) | Buka Dashboard Finance | "Finance langsung melihat antrean verifikasi." |
+| 4 | Login Finance (`finance_sby`) | Buka Dashboard Finance | "Finance langsung melihat antrean verifikasi." |
 | 5 | Verifikasi | Periksa foto → isi remark → verifikasi | "Finance bisa menambah catatan — semua tercatat." |
 | 6 | PDF | Klik 📄 PDF | "Tanda terima resmi yang ditandatangani Finance & GA." |
 
@@ -319,4 +319,4 @@ Telp: 031-5349888
 
 ---
 
-*BPF WorkHub v2.29.6 · Materi Presentasi · Diperbarui 4 September 2026*
+*BPF WorkHub v2.29.7 · Materi Presentasi · Diperbarui 4 September 2026*

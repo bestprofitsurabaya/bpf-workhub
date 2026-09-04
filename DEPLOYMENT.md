@@ -1,5 +1,5 @@
 # 📘 Panduan Lengkap BPF WorkHub
-### Versi 2.29.6 · PT. Bestprofit Futures — Surabaya
+### Versi 2.29.7 · PT. Bestprofit Futures — Surabaya
 
 > Dokumen ini adalah panduan untuk memasang, mengatur, dan merawat aplikasi **BPF WorkHub**.
 > Ditulis dengan bahasa sederhana agar bisa dipahami siapa saja — bukan hanya teknisi.
@@ -145,8 +145,8 @@ startup). Akun awal (seed):
 | Role | Username | PIN |
 |------|----------|-----|
 | Admin | `admin` | `123456` |
-| GA | `ga_officer` | `123456` |
-| Finance | `finance_officer` | `123456` |
+| GA | `ga_sby` | `123456` |
+| Finance | `finance_sby` | `123456` |
 
 > ⚠️ **Segera ganti PIN bawaan** setelah login pertama. User per-cabang (`{divisi}_{cabang}`,
 > mis. `ga_sby`) dibuat Admin saat onboarding — jangan andalkan PIN `123456` untuk akun itu.
@@ -463,4 +463,4 @@ Telp: 031-5349888
 
 ---
 
-*BPF WorkHub v2.29.6 · Panduan Deployment · Diperbarui 4 September 2026*
+*BPF WorkHub v2.29.7 · Panduan Deployment · Diperbarui 4 September 2026*

@@ -142,7 +142,7 @@ try {
 // ============ 2. OB (Faisol) ============
 let obErrs = []
 try {
-  const p = await loginAs('ob1', '123456', '/app/water')
+  const p = await loginAs('ob_faisol_sby', '123456', '/app/water')
   await new Promise((r) => setTimeout(r, 2000))
   const body = await txt(p, 'body')
   report('OB login → Halaman Air Minum', body.includes('Air Minum'))
@@ -157,7 +157,7 @@ try {
 // ============ 3. FINANCE ============
 let finErrs = []
 try {
-  const p = await loginAs('finance_officer', '123456', '/app/finance')
+  const p = await loginAs('finance_sby', '123456', '/app/finance')
   const body = await txt(p, 'body')
   report('Finance login → Dashboard Finance', body.includes('Dashboard Finance'))
   report('Finance: rekap per OB (Faisol & Febri)', body.includes('Faisol') && body.includes('Febri'))
@@ -179,7 +179,7 @@ try {
 // ============ 4. GA ============
 let gaErrs = []
 try {
-  const p = await loginAs('ga_officer', '123456', '/app/ga')
+  const p = await loginAs('ga_sby', '123456', '/app/ga')
   const body = await txt(p, 'body')
   report('GA login → Dashboard GA', body.includes('Dashboard GA'))
   report('GA: antrean klaim demo tampil', body.includes('BPF-DEMO'))
@@ -193,7 +193,7 @@ try {
 // ============ 5. MARKETING ============
 let mktErrs = []
 try {
-  const p = await loginAs('Yusie', '123456', '/app/marketing')
+  const p = await loginAs('marketing_yusie_sby', '123456', '/app/marketing')
   const body = await txt(p, 'body')
   report('Marketing login → Marketing Hub', body.includes('Marketing'))
   report('Marketing: appointment demo tampil', body.includes('Marketing Hub') || body.includes('Input Appointment'))

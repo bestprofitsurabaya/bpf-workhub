@@ -1,5 +1,5 @@
 // Verifikasi UI alur lengkap GA HR (v2.22.1) via Chrome nyata (puppeteer-core).
-// Cek: login akun ga_hr_officer → dashboard /app/ga-hr (statistik Driver & OB),
+// Cek: login akun gahr_sby → dashboard /app/ga-hr (statistik Driver & OB),
 // tombol ✏️ Edit & 🗑️ Hapus di tab Driver & OB/Security, modal edit terbuka,
 // konfirmasi hapus muncul (lalu dibatalkan — tidak menghapus data asli),
 // bell notifikasi ada, 0 error konsol.
@@ -58,8 +58,8 @@ async function waitFor(page, fn, tries = 20, gap = 1000, ...args) {
   page.on('console', (m) => { if (m.type() === 'error') errors.push('CONSOLE ' + m.text().slice(0, 160)) })
   page.on('pageerror', (e) => errors.push('PAGEERROR ' + String(e).slice(0, 160)))
 
-  const cookie = await login(page, 'ga_hr_officer', '123456')
-  ok('Login ga_hr_officer berhasil (session cookie)', !!cookie)
+  const cookie = await login(page, 'gahr_sby', '123456')
+  ok('Login gahr_sby berhasil (session cookie)', !!cookie)
   const landed = await waitFor(page, () => location.pathname.includes('/app/'))
   ok('Landed di area /app/', landed, await page.url())
 
@@ -159,7 +159,7 @@ async function waitFor(page, fn, tries = 20, gap = 1000, ...args) {
   const page = await ctx1.newPage()
   page.on('console', (m) => { if (m.type() === 'error') errors.push('NOTIF ' + m.text().slice(0, 160)) })
   page.on('pageerror', (e) => errors.push('NOTIF PAGEERROR ' + String(e).slice(0, 160)))
-  await login(page, 'ga_hr_officer', '123456')
+  await login(page, 'gahr_sby', '123456')
   await page.goto(BASE + '/app/ga-hr', { waitUntil: 'networkidle2', timeout: 30000 })
   await waitFor(page, () => document.querySelectorAll('.stat-card').length >= 2)
   // Pastikan socket terhubung
@@ -236,7 +236,7 @@ async function waitFor(page, fn, tries = 20, gap = 1000, ...args) {
   const ctx = await browser.createBrowserContext()
   const page = await ctx.newPage()
   page.on('console', (m) => { if (m.type() === 'error') errors.push('GA ' + m.text().slice(0, 160)) })
-  await login(page, 'ga_officer', '123456')
+  await login(page, 'ga_sby', '123456')
   await sleep(1500)
   await page.goto(BASE + '/app/ga-hr', { waitUntil: 'domcontentloaded', timeout: 60000 })
   await sleep(2500)

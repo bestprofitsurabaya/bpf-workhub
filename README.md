@@ -95,13 +95,26 @@ Akun seed yang dibuat otomatis saat inisialisasi database (terverifikasi login):
 | Login | PIN | Role |
 |-------|-----|------|
 | `admin` | `123456` | Admin |
-| `ga_officer` | `123456` | GA Officer |
-| `finance_officer` | `123456` | Finance Officer |
+| `ga_sby` | `123456` | GA Officer |
+| `finance_sby` | `123456` | Finance Officer |
 
-> ⚠️ User per-cabang (`ga_sby`, `finance_sby`, `it_sby`, dst.) **bukan akun demo
-> publik** — dibuat oleh Admin saat onboarding dengan konvensi `{divisi}_{cabang}`
-> dan PIN-nya dikelola Admin (ganti setelah login pertama). Jangan andalkan PIN
-> `123456` untuk akun tersebut.
+> ⚠️ User per-cabang (`ga_sby`, `finance_sby`, `ob_faisol_sby`, `it_sby`, dst.)
+> **bukan akun demo publik** — dibuat oleh Admin saat onboarding dan PIN-nya
+> dikelola Admin (ganti setelah login pertama). Jangan andalkan PIN `123456`
+> untuk akun tersebut.
+
+### ✍️ Konvensi Username (sejak v2.29.7)
+
+Username dibuat agar **langsung terbaca divisi & cabang pemiliknya**:
+
+- Satu orang per divisi di cabang → `{divisi}_{cabang}` — contoh: `finance_sby`,
+  `ga_sby`, `gahr_sby`, `receptionist_sby`, `it_bdg`.
+- Lebih dari satu orang per divisi di cabang yang sama → `{divisi}_{nama}_{cabang}`
+  — contoh: `ob_faisol_sby`, `ob_febri_sby` (bukan `ob1`/`ob2`), `marketing_yusie_sby`.
+- Khusus **Driver** username tetap nama orang (`akhad`, `wicak`, …) karena
+  dipakai login PWA di HP (form pendek) & dibuat otomatis dari tabel `drivers`.
+- Divisi `it` memakai cabang sebagai role (`it_sby` … `it_lpg`) — pola lama yang
+  dipertahankan; divisi lain cukup 1 role + kolom `branch_code`.
 >
 > Semua login memakai **PIN**, bukan password. Endpoint login: `POST /api/auth/login`
 > (JSON `{username, pin}` + header `X-CSRF-Token` dari `GET /api/auth/me`).

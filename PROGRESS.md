@@ -14,6 +14,7 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 |-------|--------|
 | Versi | v2.29.7 (user management + PDF air minum) — runtime sebelumnya v2.29.6 overtime sync |
 | Manajemen User | ✅ Admin bisa edit SEMUA detail user: fix tombol Simpan mati saat edit tanpa PIN, `branch_code` kini tersimpan, username bisa diganti (update by-id) |
+| Konvensi username | ✅ `{divisi}_{cabang}` (nama bila >1 per divisi-cabang): 12 akun produksi di-rename (`finance_sby`, `ob_faisol_sby`, `gahr_sby`, …) — driver & it_* tidak berubah |
 | PDF Air Minum | ✅ Foto bukti diperbesar (60–130 mm mengikuti ruang kosong), TTD lebih ke bawah, header kop simetris (teks rata tengah halaman) |
 | Sync Overtime | ✅ Driver (±8.675 sesi) & OB/Security (599 sesi) — keduanya via Apps Script Web App; auto-refresh saat login/logout GA HR/Admin; redirect & duplicate display_id bugs fixed; `submitted_at` tersimpan |
 | Urutan overtime | ✅ Terkini-di-atas di semua daftar + detail report per nama dibalik terkini-dulu (PDF/Excel, commit `733fd2f`) |
@@ -32,6 +33,32 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 ---
 
 ## 🗂️ Riwayat Sesi
+
+### Sesi 2026-09-04 — Konvensi username `{divisi}_{cabang}` + rename massal (lanjutan v2.29.7) ✅ SELESAI
+
+> Konteks: user minta saran user management multi-cabang — username harus
+> terbaca divisi & cabang (`finance_sby`, `ob_nama_sby`). Keputusan user:
+> pola `{divisi}_{cabang}` (+ nama bila >1 orang), rename akun lama sekarang,
+> bantuan form cukup contoh/placeholder.
+
+1. **Saran & keputusan**: pola `{divisi}_{cabang}` — satu orang per
+   divisi-cabang; `{divisi}_{nama}_{cabang}` bila >1 (3 OB SBY →
+   `ob_faisol_sby`/`ob_febri_sby`/`ob_edwin_sby` dari full_name asli).
+   IT (`it_*`) & driver (login PWA nama orang) tidak diubah; `it_*` adalah
+   role per cabang (pola lama dipertahankan — jangan ditiru divisi lain).
+2. **Rename 12 akun produksi** via `/api/users/sync` by-id (fitur v2.29.7):
+   finance_officer→finance_sby, ga_officer→ga_sby, ga_hr_officer→gahr_sby,
+   ob1/2/3→ob_{faisol,febri,edwin}_sby, receptionis→receptionist_sby
+   (typo), driver→chief_driver_sby, traineer_a→traineer_sby,
+   Icang/Yusie/dewi→marketing_{icang,yusie}_sby & marketing_dewi_mlg.
+   PIN/role/cabang dipertahankan — verifikasi login 5 akun OK. Dibiarkan:
+   admin, it_*, driver, akun test (qa/test_check/e2e_driver).
+3. **Selaras repo**: scripts record/rehearsal/verify_*, seed_demo_routes,
+   init.sql (seed ga_sby/finance_sby + branch_code SBY), README/USER_LIST/
+   USER_GUIDE/PELATIHAN/PRESENTASI/presentasi/DEPLOYMENT/DEPLOY_FRESH.
+   ⚠️ Pemilik akun perlu tahu username baru (PIN tetap).
+
+---
 
 ### Sesi 2026-09-04 — User Management edit penuh + PDF air minum dirapikan (v2.29.7) ✅ SELESAI + DEPLOY
 

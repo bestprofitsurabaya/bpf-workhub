@@ -30,6 +30,32 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
   rename username + ganti cabang (SBY→BDG) → toggle nonaktif tanpa
   branch/pin → cabang tetap BDG ✓ (data uji dibersihkan kembali ke 33 user).
 
+### ✍️ Konvensi Username `{divisi}_{cabang}` + rename massal produksi
+
+Keputusan user (4 Sep): username dibuat agar terbaca **divisi & cabang**.
+
+- Pola: satu orang per divisi-cabang → `{divisi}_{cabang}` (`finance_sby`,
+  `ga_sby`, `gahr_sby`, `receptionist_sby`); bila >1 orang per divisi-cabang →
+  `{divisi}_{nama}_{cabang}` (`ob_faisol_sby`, `ob_febri_sby`, `ob_edwin_sby`,
+  `marketing_yusie_sby`, `marketing_icang_sby`).
+- 12 akun produksi di-rename via API `/api/users/sync` (id-based, v2.29.7):
+  `finance_officer→finance_sby`, `ga_officer→ga_sby`, `ga_hr_officer→gahr_sby`,
+  `ob1/ob2/ob3→ob_faisol_sby/ob_febri_sby/ob_edwin_sby` (full_name asli),
+  `receptionis→receptionist_sby` (typo diperbaiki),
+  `driver→chief_driver_sby` (username 'driver' membingungkan),
+  `traineer_a→traineer_sby`, `Icang→marketing_icang_sby`, `Yusie→
+  marketing_yusie_sby`, `dewi→marketing_dewi_mlg`. PIN, cabang & role
+  dipertahankan (verifikasi login 5 akun OK).
+- **Tidak diubah**: `admin`; `it_*` (sudah `it_{cabang}`); **Driver**
+  (username = nama orang utk login PWA pendek di HP); akun test (`qa`,
+  `test_check`, `e2e_driver`).
+- Script demo/UI & dokumentasi diselaraskan: record/rehearsal/verify_*,
+  seed_demo_routes, init.sql seed (`ga_sby`/`finance_sby` + branch_code SBY),
+  README (akun demo + seksi konvensi), USER_LIST, USER_GUIDE, PELATIHAN,
+  PRESENTASI, presentasi/index.html, DEPLOYMENT, DEPLOY_FRESH.
+- ⚠️ User yang akunnya di-rename perlu tahu username barunya (PIN tidak
+  berubah). Appointment lama marketing tetap tercatat di bawah username lama.
+
 ### 💧 PDF Tanda Terima Air Minum dirapikan
 
 - **Foto bukti diperbesar** — sel foto tidak lagi terkunci di tinggi 52 mm:

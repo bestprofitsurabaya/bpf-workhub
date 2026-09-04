@@ -304,13 +304,12 @@ docker network ls | grep nextcloud_net
 | Role | Username | PIN |
 |------|----------|-----|
 | Admin | admin | 123456 |
-| GA | ga_officer | 123456 |
-| Finance | finance_officer | 123456 |
-| **Per-Cabang** | Format: `{divisi}_{kode_cabang}` | 123456 |
 | GA Surabaya | ga_sby | 123456 |
 | Finance Surabaya | finance_sby | 123456 |
+| GA HR Surabaya | gahr_sby | 123456 |
 | IT Surabaya | it_sby | 123456 |
 | IT Jakarta HO | it_hu | 123456 |
+| **Per-Cabang Lain** | Format: `{divisi}_{kode_cabang}`; bila >1 orang per divisi-cabang: `{divisi}_{nama}_{kode_cabang}` (mis. `ob_faisol_sby`) | 123456 |
 | IT Jakarta 2 | it_jkt2 | 123456 |
 | IT Bandung | it_bdg | 123456 |
 | IT Semarang | it_smg | 123456 |
@@ -322,4 +321,4 @@ docker network ls | grep nextcloud_net
 
 ---
 
-*BPF WorkHub v2.29.6 — Deployment Guide · Diperbarui 4 September 2026*
+*BPF WorkHub v2.29.7 — Deployment Guide · Diperbarui 4 September 2026*

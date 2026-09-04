@@ -438,7 +438,7 @@ Semua perubahan papan berjalan realtime — saat driver menyelesaikan tugas, sta
 
 ### Akun GA HR
 
-- Akun demo tersedia: **username `ga_hr_officer`, PIN `123456`** (role GA HR) — atau buat sendiri di Manajemen User (`/app/users`) oleh Admin.
+- Akun demo tersedia: **username `gahr_sby`, PIN `123456`** (role GA HR) — atau buat sendiri di Manajemen User (`/app/users`) oleh Admin.
 
 ### 🗑️ Foto OT Auto-Cleanup (v2.28.2)
 

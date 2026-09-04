@@ -113,7 +113,7 @@ async function login(page, username, pin) {
   const page = await ctx.newPage()
   page.on('console', (m) => { if (m.type() === 'error') errors.push('REC ' + m.text().slice(0, 160)) })
   page.on('pageerror', (e) => errors.push('REC PAGEERROR: ' + String(e).slice(0, 160)))
-  await login(page, 'receptionis', '123456')
+  await login(page, 'receptionist_sby', '123456')
   await page.goto(BASE + '/app/receptionist', { waitUntil: 'networkidle2', timeout: 30000 })
   await sleep(3000)
 
@@ -175,7 +175,7 @@ async function login(page, username, pin) {
   const page = await ctx.newPage()
   page.on('console', (m) => { if (m.type() === 'error') errors.push('TR ' + m.text().slice(0, 160)) })
   page.on('pageerror', (e) => errors.push('TR PAGEERROR: ' + String(e).slice(0, 160)))
-  await login(page, 'traineer_a', '123456')
+  await login(page, 'traineer_sby', '123456')
   await page.goto(BASE + '/app/traineer', { waitUntil: 'networkidle2', timeout: 30000 })
   await sleep(3000)
 

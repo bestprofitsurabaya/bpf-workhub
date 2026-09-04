@@ -1,4 +1,4 @@
-# 🎯 Lembar Latihan per Peran — BPF WorkHub v2.29.6
+# 🎯 Lembar Latihan per Peran — BPF WorkHub v2.29.7
 
 Panduan latihan singkat (±5–10 menit per peran) untuk gladi resik sebelum demo atau meeting. Tiap latihan menjelaskan langkah yang harus dilakukan dan hasil yang diharapkan.
 
@@ -28,7 +28,7 @@ Telp: 031-5349888
 
 | # | Langkah | Hasil yang Diharapkan |
 |---|---------|----------------------|
-| 1 | Login `ob1` / PIN `123456` | Langsung masuk Halaman Air Minum, nama Faisol tampil |
+| 1 | Login `ob_faisol_sby` / PIN `123456` | Langsung masuk Halaman Air Minum, nama Faisol tampil |
 | 2 | Klik **➕ Ajukan Pembelian** | Form muncul: tanggal, jumlah, jenis, merk, 2 kolom foto |
 | 3 | Pilih jenis Galon, merk AQUA Galon, isi jumlah, unggah foto | Form terisi, tombol kirim aktif |
 | 4 | Klik kirim | Pengajuan muncul di daftar dengan status Menunggu Verifikasi |
@@ -56,7 +56,7 @@ Telp: 031-5349888
 
 | # | Langkah | Hasil yang Diharapkan |
 |---|---------|----------------------|
-| 1 | Login `ga_officer` / PIN `123456` | Langsung masuk Dashboard GA |
+| 1 | Login `ga_sby` / PIN `123456` | Langsung masuk Dashboard GA |
 | 2 | Lihat antrean klaim | Klaim demo (BPF-DEMO-…) tampil |
 | 3 | Klik **✅ Approve** satu klaim | Klaim pindah status (ke Finance) |
 | 4 | Klik **✕ Tolak** tanpa alasan | Tombol terkunci — alasan wajib |
@@ -75,7 +75,7 @@ Telp: 031-5349888
 
 | # | Langkah | Hasil yang Diharapkan |
 |---|---------|----------------------|
-| 1 | Login `finance_officer` / PIN `123456` | Langsung masuk Dashboard Finance |
+| 1 | Login `finance_sby` / PIN `123456` | Langsung masuk Dashboard Finance |
 | 2 | Lihat Rekap Air Minum | Kartu statistik + ringkasan per OB terisi |
 | 3 | Buka antrean verifikasi | Pengajuan pending (WTR-DEMO-01) tampil |
 | 4 | Klik **✅ Verifikasi** → isi remark | Status jadi Terverifikasi |
@@ -89,7 +89,7 @@ Telp: 031-5349888
 
 | # | Langkah | Hasil yang Diharapkan |
 |---|---------|----------------------|
-| 1 | Login akun Marketing (`Yusie`) | Masuk Marketing Hub |
+| 1 | Login akun Marketing (`marketing_yusie_sby`) | Masuk Marketing Hub |
 | 2 | Buat appointment baru (tanggal, sesi, jam kunjungan, alamat) | Tersimpan, muncul di papan |
 | 3 | Lihat jadwal hari ini | Appointment demo tampil |
 | 4 | (Opsional) edit/batal | Status berubah, notifikasi keluar |
@@ -185,4 +185,4 @@ Telp: 031-5349888
 
 ---
 
-*BPF WorkHub v2.29.6 · Lembar Latihan per Peran*
+*BPF WorkHub v2.29.7 · Lembar Latihan per Peran*

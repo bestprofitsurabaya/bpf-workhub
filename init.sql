@@ -273,10 +273,13 @@ CREATE TABLE IF NOT EXISTS appointments (
 -- ============================================================
 -- DEFAULT USERS (PIN: 123456)
 -- ============================================================
-INSERT INTO users (username, full_name, role, pin) VALUES 
-('admin', 'Administrator', 'admin', '123456'),
-('ga_officer', 'GA Officer', 'ga', '123456'),
-('finance_officer', 'Finance Officer', 'finance', '123456');
+-- Konvensi username (v2.29.7): {divisi}_{cabang} — user tahu divisi & cabang
+-- dari nama loginnnya. Contoh: ga_sby, finance_sby. Bila >1 orang per divisi di
+-- cabang yang sama, username memakai nama: ob_faisol_sby (dibuat manual Admin).
+INSERT INTO users (username, full_name, role, pin, branch_code) VALUES 
+('admin', 'Administrator', 'admin', '123456', 'SBY'),
+('ga_sby', 'GA Officer', 'ga', '123456', 'SBY'),
+('finance_sby', 'Finance Officer', 'finance', '123456', 'SBY');
 
 -- Default system config
 INSERT INTO system_config (config_key, config_value) VALUES 

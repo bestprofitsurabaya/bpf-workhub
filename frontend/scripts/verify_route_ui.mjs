@@ -70,7 +70,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
   const page = await ctx.newPage()
   page.on('console', (m) => { if (m.type() === 'error') errors.push('MKT ' + m.text().slice(0, 160)) })
   page.on('pageerror', (e) => errors.push('MKT PAGEERROR: ' + String(e).slice(0, 160)))
-  await login(page, 'Yusie', '123456')
+  await login(page, 'marketing_yusie_sby', '123456')
   await page.goto(BASE + '/app/marketing', { waitUntil: 'networkidle2', timeout: 30000 })
   await sleep(3000)
   let hasJam = false

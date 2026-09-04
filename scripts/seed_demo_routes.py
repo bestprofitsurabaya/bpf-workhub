@@ -71,13 +71,14 @@ def seed_demo_appointments(conn=None, commit=True):
     try:
         # Prasyarat: akun marketing Yusie — users tinggal di DB MASTER
         # (multi-cabang: DB cabang tidak punya tabel users terisi).
+        # Konvensi username v2.29.7: marketing_yusie_sby.
         from modules.config import get_master_connection
         mconn = get_master_connection()
         mcur = mconn.cursor(dictionary=True) if mconn else None
         yusie_ok = False
         if mcur:
             try:
-                mcur.execute("SELECT id FROM users WHERE username='Yusie' AND is_active=1")
+                mcur.execute("SELECT id FROM users WHERE username='marketing_yusie_sby' AND is_active=1")
                 yusie_ok = bool(mcur.fetchone())
             finally:
                 mcur.close()
@@ -85,7 +86,7 @@ def seed_demo_appointments(conn=None, commit=True):
                     mconn.close()
         if not yusie_ok:
             return {'created': 0, 'skipped': 0,
-                    'error': 'User marketing "Yusie" belum ada — buat dulu di menu Users (role marketing, tim "Yusie").'}
+                    'error': 'User marketing "marketing_yusie_sby" belum ada — buat dulu di menu Users (role marketing, tim "Yusie").'}
         cursor.execute(
             "INSERT INTO marketing_members (team_name, member_name, is_active) "
             "VALUES ('Yusie','Icang',1) ON DUPLICATE KEY UPDATE is_active=1")
@@ -103,7 +104,7 @@ def seed_demo_appointments(conn=None, commit=True):
                    (display_id, marketing_username, marketing_name, marketing_member, team_name,
                     nasabah_name, nasabah_phone, alamat, area, appointment_date, sesi, visit_time,
                     lat, lng, status, driver_name, route_order, notes)
-                   VALUES (%s,'Yusie','Yusie Marlina','Icang','Yusie',
+                   VALUES (%s,'marketing_yusie_sby','Yusie Marlina','Icang','Yusie',
                            %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
                 (display_id, nasabah, phone, alamat, area, today, sesi, jam,
                  lat, lng, status, driver, 1 if driver else None,

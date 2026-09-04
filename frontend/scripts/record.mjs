@@ -35,7 +35,7 @@ const ROLES = {
     ],
   },
   ob: {
-    user: 'ob1', home: '/app/water',
+    user: 'ob_faisol_sby', home: '/app/water',
     title: 'OB — Air Minum',
     subtitle: 'Faisol · bukti foto sebelum & sesudah',
     scenes: [
@@ -44,7 +44,7 @@ const ROLES = {
     ],
   },
   finance: {
-    user: 'finance_officer', home: '/app/finance',
+    user: 'finance_sby', home: '/app/finance',
     title: 'Finance',
     subtitle: 'Verifikasi air minum · rekap · kasbon',
     scenes: [
@@ -55,7 +55,7 @@ const ROLES = {
     ],
   },
   ga: {
-    user: 'ga_officer', home: '/app/ga',
+    user: 'ga_sby', home: '/app/ga',
     title: 'GA',
     subtitle: 'Antrean klaim BBM · kasbon · trip',
     scenes: [
@@ -65,7 +65,7 @@ const ROLES = {
     ],
   },
   marketing: {
-    user: 'Yusie', home: '/app/marketing',
+    user: 'marketing_yusie_sby', home: '/app/marketing',
     title: 'Marketing',
     subtitle: 'Input appointment · deteksi area otomatis',
     scenes: [
@@ -81,7 +81,7 @@ const ROLES = {
     ],
   },
   chief: {
-    user: 'driver', home: '/app/chief-driver',
+    user: 'chief_driver_sby', home: '/app/chief-driver',
     title: 'Chief Driver',
     subtitle: 'Board penugasan · saran load-balancing',
     scenes: [
@@ -102,7 +102,7 @@ const ROLES = {
     ],
   },
   receptionist: {
-    user: 'receptionis', home: '/app/receptionist',
+    user: 'receptionist_sby', home: '/app/receptionist',
     title: 'Receptionist',
     subtitle: 'Verifikasi pelamar · kehadiran interview',
     scenes: [
@@ -111,7 +111,7 @@ const ROLES = {
     ],
   },
   traineer: {
-    user: 'traineer_a', home: '/app/traineer',
+    user: 'traineer_sby', home: '/app/traineer',
     title: 'Traineer / Upline',
     subtitle: 'Pantau kehadiran rekrutan',
     scenes: [
@@ -119,7 +119,7 @@ const ROLES = {
     ],
   },
   ga_hr: {
-    user: 'ga_hr_officer', home: '/app/ga-hr',
+    user: 'gahr_sby', home: '/app/ga-hr',
     title: 'GA HR — Overtime',
     subtitle: 'Driver & OB/Security · foto bukti · GPS',
     scenes: [
