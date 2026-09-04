@@ -12,6 +12,7 @@ Jalankan:
 
 import sys
 import os
+import re
 from datetime import datetime, date
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
@@ -132,6 +133,52 @@ class TestWaterReceiptPDF:
         pdf_bytes = raw.encode('latin-1') if isinstance(raw, str) else bytes(raw)
         text = _pdf_text(pdf_bytes)
         assert 'Menunggu verifikasi Finance' in text
+
+    @staticmethod
+    def _pages_of(pdf_bytes):
+        """Pisahkan teks PDF per halaman (footer 'Page x/y' sebagai pemisah)."""
+        return re.split(r'Page \d+/\d+', _pdf_text(pdf_bytes))
+
+    def test_konten_panjang_judul_seksi_tidak_orphan(self, tmp_path):
+        """Dokumen panjang (banyak item + foto): judul seksi harus satu halaman
+        dengan konten pertamanya — tidak boleh tertinggal (orphan) di dasar
+        halaman sebelumnya saat blok TTD/lampiran pindah ke halaman baru."""
+        from PIL import Image
+        from modules.pdf_generator import WaterReceiptPDF
+        before_path = tmp_path / 'wtr_long_before.jpg'
+        after_path = tmp_path / 'wtr_long_after.jpg'
+        Image.new('RGB', (120, 80), (200, 60, 60)).save(before_path, 'JPEG')
+        Image.new('RGB', (120, 80), (60, 120, 200)).save(after_path, 'JPEG')
+        p = _sample_purchase('verified')
+        p['remark'] = 'Dicek: ' + 'galon tersegel, merk sesuai nota supplier, ' * 6
+        p['foto_before'] = before_path.name
+        p['foto_after'] = after_path.name
+        items = [{'drink_type': 'Galon', 'brand': f'Brand {i}',
+                  'satuan': 'galon', 'quantity': i} for i in range(1, 26)]
+        pdf = WaterReceiptPDF()
+        pdf.add_page()
+        pdf.generate(p, items, ga_name='ANDI', finance_name='RINA',
+                     upload_folder=str(tmp_path))
+        raw = pdf.output(dest='S')
+        pdf_bytes = raw.encode('latin-1') if isinstance(raw, str) else bytes(raw)
+        pages = self._pages_of(pdf_bytes)
+        assert len(pages) >= 2  # pastikan skenario benar-benar multi-halaman
+
+        def page_of(needle):
+            for i, pg in enumerate(pages):
+                if needle in pg:
+                    return i
+            return -1
+
+        for heading, anchor in [
+            ('HASIL VERIFIKASI FINANCE', 'TERVERIFIKASI'),
+            ('TANDA TANGAN', 'Menyerahkan'),
+            ('LAMPIRAN FOTO (TIMESTAMP)', 'Foto SEBELUM diisi'),
+        ]:
+            assert page_of(heading) != -1, f'judul tidak ditemukan: {heading}'
+            assert page_of(heading) == page_of(anchor), \
+                f'judul orphan: "{heading}" di halaman {page_of(heading)}, ' \
+                f'kontennya di halaman {page_of(anchor)}'
 
 
 class TestGetTtdNames:

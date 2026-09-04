@@ -596,13 +596,15 @@ class WaterReceiptPDF(BPFBasePDF):
 
     # ---- Tanda tangan ----
     def _draw_signatures(self, p, ga_name, finance_name):
-        self.section_title('TANDA TANGAN')
-        self.ln(4)
         # Blok TTD memakai posisi absolut (set_xy) yang tidak memicu page-break —
         # paksa pindah halaman dulu bila sisa ruang tidak cukup agar TTD tidak
-        # terpotong/terpecah di antara dua halaman.
-        if self.get_y() + 45 > self.h - 25:
+        # terpotong/terpecah di antara dua halaman. Cek dilakukan SEBELUM judul
+        # seksi digambar supaya judul 'TANDA TANGAN' tidak terpisah (orphan) di
+        # dasar halaman sebelumnya (+12 mm = tinggi judul seksi + jarak ln 4).
+        if self.get_y() + 45 + 12 > self.h - 25:
             self.add_page()
+        self.section_title('TANDA TANGAN')
+        self.ln(4)
         col_w = (self.w - self.l_margin - self.r_margin) / 2
         self.set_font(self._font(), 'B', 8)
         self.set_text_color(*INK)
@@ -642,6 +644,12 @@ class WaterReceiptPDF(BPFBasePDF):
         if p.get('foto_after'):
             photos.append({'path': p['foto_after'], 'label': 'Foto SESUDAH diisi'})
         if photos:
+            # Cek ruang sebelum judul seksi (pola sama dengan blok TTD): bila foto
+            # tidak muat di halaman ini, add_photo_grid pindah halaman sendiri —
+            # judul 'LAMPIRAN FOTO' tidak boleh tertinggal (orphan) di halaman lama.
+            # Air minum maks. 2 foto (1 baris grid) → tinggi = judul + 1 baris.
+            if self.get_y() + 8 + GRID_CELL_HEIGHT + 12 > self.h - 25:
+                self.add_page()
             self.section_title('LAMPIRAN FOTO (TIMESTAMP)')
             self.add_photo_grid(photos, upload_folder)
 
