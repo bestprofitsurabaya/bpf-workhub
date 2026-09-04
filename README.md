@@ -2,7 +2,7 @@
 
 **Sistem Manajemen Armada untuk PT. Bestprofit Futures — Surabaya**
 
-> 📅 Versi 2.29.6 · September 2026 — Sinkronisasi overtime Google Sheet (Driver & OB/Security), PDF Finance, hardening produksi
+> 📅 Versi 2.29.7 · September 2026 — Manajemen User: Admin bisa edit semua detail user · PDF Tanda Terima Air Minum dirapikan (foto diperbesar, TTD lebih ke bawah, header simetris)
 
 ---
 
@@ -47,7 +47,7 @@ BPF WorkHub adalah aplikasi web yang membantu tim operasional PT Bestprofit Futu
 
 ### 💧 Air Minum
 - OB mengajukan pengiriman air minum (galon/botol/gelas) + **foto bukti sebelum & sesudah diisi**
-- Finance memverifikasi → **PDF Tanda Terima** (Informasi Pengiriman → Rincian Barang → Lampiran Foto → Tanda Tangan Finance & GA)
+- Finance memverifikasi → **PDF Tanda Terima** (Informasi Pengiriman → Rincian Barang → Lampiran Foto → Tanda Tangan Finance & GA) — foto bukti ditampilkan besar (mengikuti ruang kosong di bawah blok TTD)
 
 ---
 
@@ -164,7 +164,7 @@ python -m pytest tests/ -v
 cd frontend && npm test
 ```
 
-**Status:** 323 pytest + 83 vitest · Semua ✅ PASS (terakhir diverifikasi v2.29.6 — CI GitHub Actions: Backend pytest + Frontend build/unit test, hijau di tiap push)
+**Status:** 331 pytest + 84 vitest · Semua ✅ PASS (terakhir diverifikasi v2.29.7 — CI GitHub Actions: Backend pytest + Frontend build/unit test, hijau di tiap push)
 
 ---
 

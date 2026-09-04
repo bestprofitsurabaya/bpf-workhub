@@ -4,7 +4,7 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 **Terakhir diperbarui:** 2026-09-04  
 **Branch:** `main`  
-**Versi terbaru:** v2.29.6 (overtime Google Sheet sync — Driver & OB/Security; deployed live)
+**Versi terbaru:** v2.29.7 (User Management edit penuh + PDF air minum dirapikan; deployed live)
 
 ---
 
@@ -12,11 +12,13 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 | Aspek | Status |
 |-------|--------|
-| Versi | v2.29.6 (overtime sheet sync fix) — runtime sebelumnya v2.29.4 · v2.29.5 housekeeping |
+| Versi | v2.29.7 (user management + PDF air minum) — runtime sebelumnya v2.29.6 overtime sync |
+| Manajemen User | ✅ Admin bisa edit SEMUA detail user: fix tombol Simpan mati saat edit tanpa PIN, `branch_code` kini tersimpan, username bisa diganti (update by-id) |
+| PDF Air Minum | ✅ Foto bukti diperbesar (60–130 mm mengikuti ruang kosong), TTD lebih ke bawah, header kop simetris (teks rata tengah halaman) |
 | Sync Overtime | ✅ Driver (±8.675 sesi) & OB/Security (599 sesi) — keduanya via Apps Script Web App; auto-refresh saat login/logout GA HR/Admin; redirect & duplicate display_id bugs fixed; `submitted_at` tersimpan |
 | Urutan overtime | ✅ Terkini-di-atas di semua daftar + detail report per nama dibalik terkini-dulu (PDF/Excel, commit `733fd2f`) |
 | Data demo air minum | ✅ Dibersihkan 4 Sep — WTR-20260904-10300556, WTR-DEMO-01/02 dihapus (bpf_asset_system + bpf_restore_test); backup `/tmp/bpf_water_demo_backup_20260904.sql`; tabel `water_purchases` kini 0 baris |
-| Deploy | ✅ 4 Sep 2026 — runtime v2.29.6 live (rebuild ×4 `bbm_web`: PDF air minum → overtime sync); `bbm_web` healthy |
+| Deploy | ✅ 4 Sep 2026 — v2.29.7 live (rebuild `bbm_web`: user management + PDF air minum + header simetris); `bbm_web` healthy |
 | Akses CI | ✅ `gh` CLI v2.100 di `~/.local/bin` (device login sbg `bestprofitsurabaya`) — run CI terbaca; semua run terbaru hijau |
 | Pool DB | ✅ Master 25 + cabang 5 (Threads_connected 206 → 26) — lihat CHANGELOG v2.29.1 |
 | Docker | `bbm_web` running on `nasbpfsby.duckdns.org:5000` |
@@ -24,12 +26,61 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 | Databases | 10 DB terpisah (1 master + 9 cabang) |
 | GPS Detail | ✅ Nominatim reverse geocode + disimpan ke DB |
 | Watermark | ✅ 4 baris: perusahaan + tanggal + alamat + koordinat |
-| Test Suite | ✅ 323 pytest + 83 vitest — CI GitHub Actions hijau tiap push (Backend: pytest + service mariadb/redis; Frontend: unit test + build) |
+| Test Suite | ✅ 331 pytest (325 pass + 6 skip) + 84 vitest — CI GitHub Actions hijau tiap push (Backend: pytest + service mariadb/redis; Frontend: unit test + build) |
 | Kestabilan | ✅ bbm_web healthy — 0 restart, 0 error di log sejak deploy terakhir |
 
 ---
 
 ## 🗂️ Riwayat Sesi
+
+### Sesi 2026-09-04 — User Management edit penuh + PDF air minum dirapikan (v2.29.7) ✅ SELESAI + DEPLOY
+
+> Konteks: user minta (1) Admin bisa edit detail semua data user, dan
+> (2) PDF tanda terima air minum dirapikan: foto bukti terlalu kecil →
+> diperbesar & memanfaatkan ruang kosong di bawah TTD, header tidak simetris.
+
+#### 🔑 Yang dikerjakan
+
+1. **User management — edit semua detail user**:
+   - **Bug nyata ditemukan**: tombol 💾 Simpan di modal Edit User SELALU
+     nonaktif bila PIN dikosongkan — `(form.pin && form.pin.length !== 6)`
+     mengembalikan `''` (truthy untuk atribut boolean Vue) → Admin praktis
+     tidak bisa edit user tanpa ganti PIN. Diperbaiki jadi `!!form.pin && …`.
+   - **`branch_code` tidak pernah disimpan** oleh `/api/users/sync`
+     (INSERT/UPDATE tanpa kolom itu) — pilihan Cabang di form tidak berlaku.
+     Kini disimpan dengan pola eksplisit-saja (paritas PIN/team_name) agar
+     toggle & bulk action tidak menghapus cabang.
+   - **Username bisa diganti** saat edit (update by-id; username adalah kunci
+     login, bukan PK) + pesan 400 ramah bila username sudah dipakai user lain.
+   - Frontend: form kirim `id` & `branch_code`; test vitest baru (edit user).
+2. **PDF Tanda Terima Air Minum**:
+   - Foto bukti (SEBELUM/SESUDAH) diperbesar: tinggi sel foto kini 60–130 mm
+     mengikuti sisa ruang halaman (dicadangkan ±60 mm utk blok TTD), lebar
+     sel dihitung per jumlah foto (2 foto @93 mm, 1 foto selebar halaman).
+     Sebelumnya terkunci 52 mm — foto potret HP tampil jauh lebih besar.
+   - Tanda tangan terdorong ke bawah; ruang kosong dasar halaman terpakai.
+   - **Header kop tidak simetris diperbaiki**: nama perusahaan diratakan ke
+     tengah LEBAR HALAMAN (sebelumnya terhadap sisa area setelah logo, geser
+     ~7 mm ke kanan). Berlaku untuk semua PDF berlogo BPF.
+3. **Verifikasi**: 20 pytest (water + pin protection) + 33 pytest PDF/upload +
+   84 vitest semua lulus. Geometri PDF dicek numerik: teks kop di tengah
+   297.6 pt (= 105 mm) portrait & 420.9 pt landscape, foto 93×78 mm
+   (dokumen pendek) / s.d. 130 mm (halaman baru), garis TTD di ±243 mm dari
+   atas. Semua PDF lain (BBM, overtime, detail, aset AC/kendaraan,
+   konsolidasi, ringkasan cabang, pelamar, compact) ter-generate tanpa error
+   dengan kop simetris.
+4. **Unit test backend baru** `tests/test_users_sync.py` (8 test, fake DB —
+   pola test_bulk_accounts_manual_route): branch_code tersimpan, username
+   diganti via id, toggle/bulk tidak menghapus branch/PIN, duplikat username
+   → 400 + rollback, id tidak ada → 404, non-admin → 403.
+5. **Deploy live (4 Sep)** — server = perangkat ini (`bbm_web` healthy):
+   `docker compose up -d --build web`; health `/api/health` ok (DB/pool/redis);
+   login admin e2e 200; test suite container 325 passed + 6 skipped;
+   logs bersih. E2E user management live: buat → rename username + ganti
+   cabang (SBY→BDG) → toggle nonaktif tanpa branch → branch tetap BDG ✓;
+   data uji dibersihkan dari DB (kembali 33 user).
+
+---
 
 ### Sesi 2026-09-04 — Detail report terkini-dulu + sinkronisasi dokumentasi (v2.29.6) ✅ SELESAI
 
@@ -604,4 +655,4 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 ---
 
-*BPF WorkHub v2.29.6 · Progres Tracker · Last updated: 2026-09-04*
+*BPF WorkHub v2.29.7 · Progres Tracker · Last updated: 2026-09-04*

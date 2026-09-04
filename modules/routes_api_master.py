@@ -1,5 +1,6 @@
 """API Routes - Master Data (Vehicles, BBM, Drivers, Users)"""
 from flask import request, jsonify, session
+from mysql.connector import IntegrityError
 from modules.config import get_db_connection, get_master_connection
 from modules.helpers import (finalize_pin, log_activity_async, resolve_user_pin, role_required,
                              pin_rate_check, pin_fail, pin_success, client_ip)
@@ -170,17 +171,44 @@ def register_master_api(app):
                     from modules.helpers import get_or_create_team
                     team = get_or_create_team(team)
 
+            # Cabang hanya diubah bila dikirim eksplisit (paritas team_name/pin):
+            # toggle aktif/nonaktif atau bulk action tidak menghapus branch_code.
+            branch = None
+            if 'branch_code' in data:
+                branch = str(data.get('branch_code', '') or '').strip() or None
+
             conn = get_master_connection(); cursor = conn.cursor()
-            if team is None or pin is None:
-                cursor.execute("SELECT team_name, pin FROM users WHERE username=%s", (u,))
+            if team is None or pin is None or branch is None:
+                cursor.execute("SELECT team_name, pin, branch_code FROM users WHERE username=%s OR id=%s", (u, data.get('id')))
                 row = cursor.fetchone()
                 if team is None:
                     team = row[0] if row else ''
                 if pin is None:
                     pin = finalize_pin(None, row[1] if row else None)
-            cursor.execute("INSERT INTO users (username, full_name, role, pin, team_name, is_active) VALUES (%s,%s,%s,%s,%s,%s) ON DUPLICATE KEY UPDATE full_name=VALUES(full_name), role=VALUES(role), pin=VALUES(pin), team_name=VALUES(team_name), is_active=VALUES(is_active)", (u, f, r, pin, team, a))
+                if branch is None:
+                    branch = row[2] if row else None
+
+            # Edit user lama dipakai id (bila dikirim) supaya username juga bisa
+            # diganti — username adalah kunci login, bukan primary key. Update
+            # by-id ini juga menyimpan branch_code yang dipilih Admin.
+            uid = data.get('id')
+            if uid is not None:
+                try:
+                    cursor.execute(
+                        "UPDATE users SET username=%s, full_name=%s, role=%s, pin=%s, "
+                        "team_name=%s, branch_code=%s, is_active=%s WHERE id=%s",
+                        (u, f, r, pin, team, branch, 1 if a else 0, uid))
+                except IntegrityError:
+                    conn.rollback()
+                    cursor.close(); conn.close()
+                    return jsonify({'status': 'error', 'msg': 'Username sudah dipakai user lain'}), 400
+                if cursor.rowcount == 0:
+                    cursor.close(); conn.close()
+                    return jsonify({'status': 'error', 'msg': 'User tidak ditemukan'}), 404
+            else:
+                cursor.execute("INSERT INTO users (username, full_name, role, pin, team_name, branch_code, is_active) VALUES (%s,%s,%s,%s,%s,%s,%s) ON DUPLICATE KEY UPDATE full_name=VALUES(full_name), role=VALUES(role), pin=VALUES(pin), team_name=VALUES(team_name), branch_code=VALUES(branch_code), is_active=VALUES(is_active)", (u, f, r, pin, team, branch, 1 if a else 0))
             conn.commit(); cursor.close(); conn.close()
-            log_activity_async(0, 'user_sync', 'admin', 'Admin', new_data={'username': u, 'role': r, 'team': team}, ip=request.remote_addr)
+            log_activity_async(0, 'user_sync', 'admin', 'Admin', new_data={'username': u, 'role': r, 'team': team, 'branch_code': branch}, ip=request.remote_addr)
             return jsonify({'status': 'success', 'msg': f'User {u} saved'})
         except Exception as e:
             return jsonify({'status': 'error', 'msg': str(e)}), 500

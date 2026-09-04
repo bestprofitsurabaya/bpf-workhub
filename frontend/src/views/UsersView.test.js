@@ -8,8 +8,8 @@ const { apiMock } = vi.hoisted(() => ({ apiMock: vi.fn() }))
 vi.mock('../api', () => ({ api: apiMock }))
 
 const USERS = [
-  { id: 1, username: 'ga1', full_name: 'GA Satu', role: 'ga', team_name: '', is_active: true, last_login: null },
-  { id: 2, username: 'fin1', full_name: 'FIN Satu', role: 'finance', team_name: '', is_active: false, last_login: '2026-08-10' },
+  { id: 1, username: 'ga1', full_name: 'GA Satu', role: 'ga', team_name: '', branch_code: '', is_active: true, last_login: null },
+  { id: 2, username: 'fin1', full_name: 'FIN Satu', role: 'finance', team_name: '', branch_code: 'SBY', is_active: false, last_login: '2026-08-10' },
 ]
 
 async function mountView() {
@@ -19,7 +19,7 @@ async function mountView() {
   auth.user = { role: 'admin', full_name: 'Administrator', user_name: 'admin' }
   apiMock.mockImplementation((path) => {
     if (path === '/api/users') return Promise.resolve(USERS)
-    if (path === '/api/branches') return Promise.resolve([])
+    if (path === '/api/branches') return Promise.resolve({ branches: [{ code: 'SBY', name: 'Surabaya' }] })
     return Promise.resolve({ status: 'success', msg: 'saved' })
   })
   const w = mount(UsersView, {
@@ -70,6 +70,37 @@ describe('UsersView', () => {
     const call = apiMock.mock.calls.find((c) => c[0] === '/api/users/sync')
     expect(call[1].body.is_active).toBe(false)
     expect('pin' in call[1].body).toBe(false)
+  })
+
+  it('edit user: username bisa diganti, simpan mengirim id & branch_code', async () => {
+    const w = await mountView()
+    const rows = w.findAll('tbody tr')
+    const editBtn = rows[0].findAll('button').find(b => b.text() === '✏️')
+    expect(editBtn).toBeTruthy()
+    await editBtn.trigger('click')
+    await flushPromises()
+
+    // Username TIDAK disabled saat edit (admin boleh mengganti nama login)
+    const usernameInput = w.findAll('input').find(i => i.attributes('placeholder')?.includes('huruf kecil'))
+    expect(usernameInput).toBeTruthy()
+    expect(usernameInput.attributes('disabled')).toBeUndefined()
+    await usernameInput.setValue('ga1_baru')
+
+    // Ganti cabang user
+    const branchSelect = w.findAll('select').find(s => [...s.findAll('option')].some(o => o.text() === 'Pusat'))
+    expect(branchSelect).toBeTruthy()
+    await branchSelect.setValue('SBY')
+
+    const saveBtn = w.findAll('button').find(b => b.text().includes('Simpan'))
+    expect(saveBtn.attributes('disabled')).toBeUndefined()
+    await saveBtn.trigger('click')
+    await flushPromises()
+
+    const call = apiMock.mock.calls.find((c) => c[0] === '/api/users/sync')
+    expect(call).toBeTruthy()
+    expect(call[1].body.id).toBe(1)
+    expect(call[1].body.username).toBe('ga1_baru')
+    expect(call[1].body.branch_code).toBe('SBY')
   })
 
   it('tambah user: simpan mengirim pin saat diisi', async () => {

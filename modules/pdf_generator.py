@@ -95,7 +95,13 @@ class BPFBasePDF(FPDF):
                 self.image(logo, x=self.l_margin, y=5, w=11)
             except Exception:
                 pass
-        self.set_x(self.l_margin + 14)
+        # Teks kop diratakan ke tengah LEBAR HALAMAN (bukan sisa area setelah
+        # logo) supaya header simetris: logo di kiri, nama perusahaan tepat di
+        # tengah halaman. r_margin ditahan sementara agar cell() membentang
+        # penuh 0..w; posisi x di-reset ke l_margin oleh new_x="LMARGIN".
+        r_margin_old = self.r_margin
+        self.r_margin = 0
+        self.set_x(0)
         self.set_font(self._font(), 'B', 13)
         self.set_text_color(*INK)
         self.cell(0, 6, company, align="C", new_x="LMARGIN", new_y="NEXT")
@@ -105,6 +111,7 @@ class BPFBasePDF(FPDF):
         if address or phone:
             contact = ' | '.join(x for x in (address, 'Telp: ' + phone if phone else '') if x)
             self.cell(0, 3.6, self.clean_text(contact)[:110], align="C", new_x="LMARGIN", new_y="NEXT")
+        self.r_margin = r_margin_old
         self.set_draw_color(*RULE)
         self.set_line_width(0.4)
         self.line(self.l_margin, self.get_y() + 2, self.w - self.r_margin, self.get_y() + 2)
@@ -653,15 +660,47 @@ class WaterReceiptPDF(BPFBasePDF):
             photos.append({'path': p['foto_before'], 'label': 'Foto SEBELUM diisi'})
         if p.get('foto_after'):
             photos.append({'path': p['foto_after'], 'label': 'Foto SESUDAH diisi'})
-        if photos:
-            # Cek ruang sebelum judul seksi (pola sama dengan blok TTD): bila foto
-            # tidak muat di halaman ini, add_photo_grid pindah halaman sendiri —
-            # judul 'LAMPIRAN FOTO' tidak boleh tertinggal (orphan) di halaman lama.
-            # Air minum maks. 2 foto (1 baris grid) → tinggi = judul + 1 baris.
-            if self.get_y() + 8 + GRID_CELL_HEIGHT + 12 > self.h - 25:
-                self.add_page()
-            self.section_title('LAMPIRAN FOTO (TIMESTAMP)')
-            self.add_photo_grid(photos, upload_folder)
+        if not photos:
+            return
+
+        # v2.29.7: foto bukti diperbesar — tinggi sel foto mengikuti ruang kosong
+        # yang tersedia di halaman (ruang blok TTD dicadangkan ±60 mm) sehingga
+        # foto lebih tinggi & lebih lebar, dan tanda tangan terdorong ke bawah.
+        # Judul seksi digambar SETELAH cek ruang agar tidak orphan di dasar halaman.
+        bottom = self.h - 25
+        photo_chrome = 16    # judul seksi (8) + label foto & jarak bawah (8)
+        sig_reserve = 60     # tinggi blok TTD (cek serupa di _draw_signatures: 57)
+
+        def _fit_height():
+            return min(max((bottom - self.get_y()) - photo_chrome - sig_reserve, 60), 130)
+
+        cell_h = _fit_height()
+        if self.get_y() + photo_chrome + cell_h > bottom:
+            self.add_page()
+            cell_h = _fit_height()
+
+        self.section_title('LAMPIRAN FOTO (TIMESTAMP)')
+        margin = self.l_margin
+        page_w = self.w - self.l_margin - self.r_margin
+        n = len(photos)
+        gap = 4
+        cell_w = (page_w - gap * (n - 1)) / n
+        y = self.get_y()
+        for i, ph in enumerate(photos):
+            x = margin + i * (cell_w + gap)
+            self.set_draw_color(*BORDER)
+            self.set_line_width(0.3)
+            self.rect(x, y, cell_w, cell_h)
+            if ph.get('path'):
+                filepath = os.path.join(upload_folder, ph['path'])
+                if os.path.exists(filepath):
+                    self._place_image(filepath, x, y, cell_w, cell_h)
+            self.set_xy(x, y + cell_h + 1)
+            self.set_font(self._font(), 'B', 6.5)
+            self.set_text_color(*GRAY_LABEL)
+            self.cell(cell_w, 4, ph.get('label', ''), align='C')
+            self.set_text_color(*INK)
+        self.set_y(y + cell_h + 8)
 
 
 class BBMReportPDF(BPFBasePDF):

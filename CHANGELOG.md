@@ -4,6 +4,50 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 
 ---
 
+## v2.29.7 — 4 September 2026
+
+### 👥 Manajemen User: Admin bisa edit SEMUA detail user
+
+- **Fix tombol Simpan selalu nonaktif saat edit tanpa PIN baru** — ekspresi
+  `(form.pin && form.pin.length !== 6)` mengembalikan string kosong `''` saat
+  PIN dibiarkan kosong; Vue memperlakukan `''` sebagai *truthy* untuk atribut
+  boolean → tombol 💾 Simpan selalu `disabled`. Admin praktis tidak bisa
+  mengedit user tanpa mengganti PIN. Kini `!!form.pin && …` — edit data user
+  (nama, role, tim, cabang, status) bisa disimpan tanpa menyentuh PIN.
+- **`branch_code` kini benar-benar tersimpan** — form Edit User sudah punya
+  pilihan Cabang, tapi backend `/api/users/sync` tidak pernah menulisnya ke
+  DB (INSERT/UPDATE tanpa kolom `branch_code`). Kini cabang ikut disimpan,
+  dengan pola yang sama seperti PIN/team (hanya diubah bila dikirim eksplisit,
+  agar toggle aktif/nonaktif & bulk action tidak menghapus cabang user).
+- **Username bisa diganti saat edit** — sebelumnya input Username di-disable
+  untuk user lama. Kini Admin bisa mengubah nama login lewat update by-id
+  (username adalah kunci login, bukan primary key); bila username baru sudah
+  dipakai user lain, backend menolak dengan pesan jelas (400).
+- Audit log `user_sync` kini mencatat `branch_code`.
+- **Deploy live 4 Sep 2026** — server = perangkat kerja (`docker compose up
+  -d --build web`): health `/api/health` ok, login admin e2e 200, test suite
+  container 325 passed + 6 skipped, logs bersih. Uji e2e live: buat user →
+  rename username + ganti cabang (SBY→BDG) → toggle nonaktif tanpa
+  branch/pin → cabang tetap BDG ✓ (data uji dibersihkan kembali ke 33 user).
+
+### 💧 PDF Tanda Terima Air Minum dirapikan
+
+- **Foto bukti diperbesar** — sel foto tidak lagi terkunci di tinggi 52 mm:
+  tingginya mengikuti ruang kosong yang tersedia di halaman (ruang blok TTD
+  dicadangkan ±60 mm), dengan rentang 60–130 mm. Foto lebih tinggi & lebih
+  lebar; foto potret (rasio HP) tampil jauh lebih besar dari sebelumnya.
+  Lebar sel dihitung ulang per jumlah foto (2 foto: 93 mm masing-masing;
+  1 foto: selebar halaman).
+- **Tanda tangan lebih ke bawah** — blok TANDA TANGAN terdorong turun mengikuti
+  posisi foto, sehingga ruang kosong di dasar halaman terpakai optimal.
+- **Header kop tidak lagi tidak simetris** — nama perusahaan & subjudul
+  sebelumnya diratakan terhadap sisa lebar *setelah* logo (geser ~7 mm ke
+  kanan dari tengah halaman). Kini teks kop diratakan ke **tengah lebar
+  halaman** (`r_margin` ditahan sementara + `set_x(0)`), logo tetap di kiri.
+  Berlaku untuk semua dokumen PDF berlogo BPF.
+
+---
+
 ## v2.29.6 — 4 September 2026
 
 ### ⏰ Sinkronisasi Overtime Google Sheet diperbaiki (Driver & OB/Security)
@@ -741,7 +785,8 @@ Versi stabil pertama dengan fitur lengkap: 10 role, 243 pytest, 82 Vitest, 10 vi
 | v2.28.3 | 236 | 82 | 318 |
 | v2.28.7 | 236 | 82 | 318 |
 | v2.29.6 | 323 | 83 | 406 |
+| v2.29.7 | 331 | 84 | 415 |
 
 ---
 
-*BPF WorkHub v2.29.6 · Diperbarui 4 September 2026*
+*BPF WorkHub v2.29.7 · Diperbarui 4 September 2026*

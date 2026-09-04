@@ -125,10 +125,10 @@ function toggleSelect(id) {
 
 function openForm(u) {
   form.value = u ? { 
-    username: u.username, full_name: u.full_name, role: u.role, 
+    id: u.id, username: u.username, full_name: u.full_name, role: u.role, 
     pin: '', team_name: u.team_name || '', branch_code: u.branch_code || '', 
     is_active: !!u.is_active 
-  } : { username: '', full_name: '', role: 'ga', pin: '123456', team_name: '', branch_code: auth.user?.branch_code || '', is_active: true }
+  } : { id: null, username: '', full_name: '', role: 'ga', pin: '123456', team_name: '', branch_code: auth.user?.branch_code || '', is_active: true }
   showForm.value = true
 }
 
@@ -137,6 +137,7 @@ async function save() {
   try {
     const body = { ...form.value }
     if (!body.pin) delete body.pin
+    if (!body.id) delete body.id
     await api('/api/users/sync', { method: 'POST', body })
     msg.value = '✅ User berhasil disimpan'
     showForm.value = false; load()
@@ -377,7 +378,9 @@ onMounted(load)
     <!-- Modal: Add/Edit User -->
     <Modal v-if="showForm" :title="form.username ? '✏️ Edit User' : '➕ Tambah User'" @close="showForm = false">
       <div class="form-grid">
-        <div class="field"><label>Username *</label><input class="input" v-model="form.username" :disabled="!!form.username" required placeholder=" huruf kecil, tanpa spasi" /></div>
+        <div class="field"><label>Username *</label><input class="input" v-model="form.username" required placeholder=" huruf kecil, tanpa spasi" />
+          <div v-if="form.id" class="muted" style="font-size:11px;">Mengganti username = mengganti nama login user.</div>
+        </div>
         <div class="field"><label>Nama Lengkap *</label><input class="input" v-model="form.full_name" required /></div>
         <div class="field"><label>Role *</label>
           <select class="select" v-model="form.role"><option v-for="r in ROLES" :key="r[0]" :value="r[0]">{{ r[1] }}</option></select>
@@ -399,7 +402,7 @@ onMounted(load)
       </div>
       <div class="row" style="justify-content:flex-end;margin-top:12px;gap:8px;">
         <button class="btn" @click="showForm = false">Batal</button>
-        <button class="btn btn-primary" :disabled="busy || !form.username || !form.full_name || (form.pin && form.pin.length !== 6)" @click="save">💾 Simpan</button>
+        <button class="btn btn-primary" :disabled="busy || !form.username || !form.full_name || (!!form.pin && form.pin.length !== 6)" @click="save">💾 Simpan</button>
       </div>
     </Modal>
 

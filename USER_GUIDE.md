@@ -1,4 +1,4 @@
-# 📖 Panduan Pengguna BPF WorkHub v2.29.6
+# 📖 Panduan Pengguna BPF WorkHub v2.29.7
 
 > **Siapa pun kamu — sopir, OB, admin, atau pimpinan — panduan ini ditulis untuk kamu.**
 > Tidak perlu paham teknis. Cukup ikuti langkah-langkah sesuai bagianmu.
@@ -492,6 +492,7 @@ Tiga format PDF tersedia (didukung untuk Driver DAN OB/Security):
 
 - **Membuat akun baru** — pilih peran (Admin, GA, Finance, Marketing, Chief Driver, Driver, OB, **Receptionist**, **Traineer**, **GA HR**, **IT Surabaya**), isi nama & PIN.
 - **Mengganti nama** — misalnya mengganti nama placeholder OB dengan nama asli. Nama ini yang tampil di dokumen (mis. PDF tanda terima air minum).
+- **Edit semua detail user** (sejak v2.29.7) — selain nama, Admin juga bisa mengubah **username** (nama login), **role**, **tim marketing**, **cabang**, dan **status** user dari form Edit. Mengganti username = mengganti nama login user tersebut.
 - **Reset PIN** — kalau user lupa PIN.
 - **Nonaktifkan/Aktifkan** — akun yang dinonaktifkan **tidak bisa login** (tanpa harus dihapus, supaya jejak datanya tetap aman).
 - **Hapus** — hapus akun (jika memang tidak dipakai).
@@ -686,4 +687,4 @@ Jika upload ke WordPress gagal, pesan error sekarang menampilkan **response body
 
 Ada pertanyaan atau kendala? Hubungi **Admin** atau **tim IT** — mereka bisa melihat riwayat sistem (Audit Log) untuk membantu menyelesaikan masalahmu dengan cepat.
 
-*BPF WorkHub v2.29.6 · Panduan Pengguna · Diperbarui 4 September 2026*
+*BPF WorkHub v2.29.7 · Panduan Pengguna · Diperbarui 4 September 2026*
