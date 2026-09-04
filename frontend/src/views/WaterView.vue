@@ -183,10 +183,10 @@ onMounted(() => { form.value.items.push(newItem()); load() })
       <div class="grow">
         <h3 style="margin:0;">🚰 Tanda Terima Air Minum</h3>
         <p class="muted" style="font-size:11px;">
-          {{ isOB ? 'Ajukan pembelian air minum — Finance akan memverifikasi' : 'Verifikasi pengajuan & kelola merk air minum' }}
+          {{ isOB ? 'Ajukan pengiriman air minum — Finance akan memverifikasi' : 'Verifikasi pengajuan & kelola merk air minum' }}
         </p>
       </div>
-      <button v-if="isOB" class="btn btn-primary" @click="showForm = true">➕ Ajukan Pembelian</button>
+      <button v-if="isOB" class="btn btn-primary" @click="showForm = true">➕ Ajukan Pengiriman</button>
       <button v-if="isFinance" class="btn" @click="openBrandModal">🏷️ Kelola Merk</button>
     </div>
 
@@ -287,10 +287,10 @@ onMounted(() => { form.value.items.push(newItem()); load() })
     </Modal>
 
     <!-- Modal form pengajuan (OB) -->
-    <Modal v-if="showForm" title="➕ Ajukan Pembelian Air Minum" @close="showForm = false" wide>
+    <Modal v-if="showForm" title="➕ Ajukan Pengiriman Air Minum" @close="showForm = false" wide>
       <div class="field"><label>Tanggal Pengiriman *</label><input class="input" type="date" v-model="form.purchase_date" /></div>
       <div class="row" style="justify-content:space-between;align-items:center;margin-top:10px;">
-        <b style="font-size:13px;">📦 Item Pembelian</b>
+        <b style="font-size:13px;">📦 Item Pengiriman</b>
         <button class="btn btn-sm" @click="addItem">➕ Tambah Item</button>
       </div>
       <div v-for="(it, i) in form.items" :key="i" class="row" style="gap:6px;margin-top:6px;align-items:flex-end;flex-wrap:wrap;">
