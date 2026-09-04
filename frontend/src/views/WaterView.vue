@@ -76,7 +76,7 @@ async function load() {
 }
 
 async function submitForm() {
-  if (!form.value.purchase_date) { msg.value = '❌ Tanggal pembelian wajib diisi'; return }
+  if (!form.value.purchase_date) { msg.value = '❌ Tanggal pengiriman wajib diisi'; return }
   if (!form.value.items.length) { msg.value = '❌ Minimal satu item'; return }
   for (const it of form.value.items) {
     if (!it.brand || !(Number(it.quantity) > 0)) { msg.value = '❌ Setiap item wajib: merk & kuantitas > 0'; return }
@@ -288,7 +288,7 @@ onMounted(() => { form.value.items.push(newItem()); load() })
 
     <!-- Modal form pengajuan (OB) -->
     <Modal v-if="showForm" title="➕ Ajukan Pembelian Air Minum" @close="showForm = false" wide>
-      <div class="field"><label>Tanggal Pembelian *</label><input class="input" type="date" v-model="form.purchase_date" /></div>
+      <div class="field"><label>Tanggal Pengiriman *</label><input class="input" type="date" v-model="form.purchase_date" /></div>
       <div class="row" style="justify-content:space-between;align-items:center;margin-top:10px;">
         <b style="font-size:13px;">📦 Item Pembelian</b>
         <button class="btn btn-sm" @click="addItem">➕ Tambah Item</button>

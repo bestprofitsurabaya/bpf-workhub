@@ -285,7 +285,7 @@ def register_water_routes(app):
             if not isinstance(items, list) or not items:
                 return jsonify({'status': 'error', 'msg': 'Minimal satu item wajib diisi'}), 400
             if not tanggal:
-                return jsonify({'status': 'error', 'msg': 'Tanggal pembelian wajib diisi'}), 400
+                return jsonify({'status': 'error', 'msg': 'Tanggal pengiriman wajib diisi'}), 400
             if len(items) > 20:
                 return jsonify({'status': 'error', 'msg': 'Maksimal 20 item per pengajuan'}), 400
             normalized = []
@@ -526,6 +526,12 @@ def register_water_routes(app):
             cur.close(); conn.close()
 
             ga_name, finance_name = _get_ttd_names()
+            # v2.29.4: nama di blok TTD Finance ('Menyerahkan') = user yang
+            # benar-benar memverifikasi (verified_by saat approve/tolak). Nama
+            # TTD system_config dipakai hanya sebagai fallback (mis. pending).
+            verified_by = (row.get('verified_by') or '').strip()
+            if verified_by:
+                finance_name = verified_by
             from modules.pdf_generator import WaterReceiptPDF
             pdf = WaterReceiptPDF()
             pdf.add_page()

@@ -71,6 +71,9 @@ class TestWaterReceiptPDF:
         # Judul resmi dokumen (bukan varian lama 'SERAH TERIMA')
         assert 'TANDA TERIMA AIR MINUM' in text
         assert 'SERAH TERIMA AIR MINUM' not in text
+        # Seksi informasi memakai istilah Pengiriman (v2.29.4)
+        assert 'INFORMASI PENGIRIMAN' in text
+        assert 'INFORMASI PENGAJUAN' not in text
         assert 'AQUA' in text
         assert 'Le Minerale' in text
         # Label tanggal pengiriman (bukan 'Tanggal Pembelian')
@@ -133,6 +136,35 @@ class TestWaterReceiptPDF:
         pdf_bytes = raw.encode('latin-1') if isinstance(raw, str) else bytes(raw)
         text = _pdf_text(pdf_bytes)
         assert 'Menunggu verifikasi Finance' in text
+
+    def test_urutan_seksi_sesuai_format_finance(self, tmp_path):
+        """Urutan dokumen (v2.29.4): Informasi Pengiriman → Rincian Barang →
+        Verifikasi/Remark → Lampiran Foto (sebelum/sesudah dari form OB) →
+        Tanda Tangan."""
+        from PIL import Image
+        from modules.pdf_generator import WaterReceiptPDF
+        before_path = tmp_path / 'wtr_before.jpg'
+        after_path = tmp_path / 'wtr_after.jpg'
+        Image.new('RGB', (120, 80), (200, 60, 60)).save(before_path, 'JPEG')
+        Image.new('RGB', (120, 80), (60, 120, 200)).save(after_path, 'JPEG')
+        p = _sample_purchase('verified')
+        p['foto_before'] = before_path.name
+        p['foto_after'] = after_path.name
+        pdf = WaterReceiptPDF()
+        pdf.add_page()
+        pdf.generate(p, _sample_items(), ga_name='ANDI', finance_name='RINA',
+                     upload_folder=str(tmp_path))
+        raw = pdf.output(dest='S')
+        pdf_bytes = raw.encode('latin-1') if isinstance(raw, str) else bytes(raw)
+        text = _pdf_text(pdf_bytes)
+        marks = ['INFORMASI PENGIRIMAN', 'RINCIAN BARANG',
+                 'HASIL VERIFIKASI FINANCE', 'LAMPIRAN FOTO (TIMESTAMP)',
+                 'TANDA TANGAN']
+        positions = [text.find(m) for m in marks]
+        assert all(i >= 0 for i in positions), f'section hilang: {[m for m, i in zip(marks, positions) if i < 0]}'
+        # Foto bukti OB tampil SEBELUM blok TTD
+        assert positions == sorted(positions), 'urutan seksi tidak sesuai format Finance'
+        assert 'Foto SEBELUM diisi' in text and 'Foto SESUDAH diisi' in text
 
     @staticmethod
     def _pages_of(pdf_bytes):

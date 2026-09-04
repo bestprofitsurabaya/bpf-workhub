@@ -511,14 +511,18 @@ class WaterReceiptPDF(BPFBasePDF):
         self.set_margins(10, 7, 10)
 
     def generate(self, p, items, ga_name='', finance_name='', upload_folder='uploads'):
-        """p = dict pengajuan; items = list rincian; nama TTD dari system_config.
-        upload_folder dipakai untuk melampirkan foto bukti OB (default 'uploads')."""
+        """p = dict pengajuan; items = list rincian.
+        finance_name = nama user yang memverifikasi (fallback ke nama TTD
+        system_config di route). upload_folder dipakai untuk melampirkan foto
+        bukti OB (default 'uploads').
+        Urutan (sesuai format Finance v2.29.4): Informasi Pengiriman → Rincian
+        Barang → Hasil Verifikasi (Remark) → Lampiran Foto → Tanda Tangan."""
         self._draw_title(p)
         self._draw_info(p)
         self._draw_items_table(items)
         self._draw_verification(p)
-        self._draw_signatures(p, ga_name, finance_name)
         self._draw_photos(p, upload_folder)
+        self._draw_signatures(p, ga_name, finance_name)
 
     # ---- Judul ----
     def _draw_title(self, p):
@@ -531,9 +535,9 @@ class WaterReceiptPDF(BPFBasePDF):
         self.ln(3)
         self.set_text_color(*INK)
 
-    # ---- Info pengajuan ----
+    # ---- Info pengiriman ----
     def _draw_info(self, p):
-        self.section_title('INFORMASI PENGAJUAN')
+        self.section_title('INFORMASI PENGIRIMAN')
         rows = [
             ('Nomor', p.get('display_id', '-')),
             ('Tanggal Pengiriman', (p.get('purchase_date') or '').strftime('%d-%m-%Y') if getattr(p.get('purchase_date'), 'strftime', None) else p.get('purchase_date') or '-'),
