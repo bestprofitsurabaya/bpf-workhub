@@ -1,5 +1,5 @@
 # 📘 Panduan Lengkap BPF WorkHub
-### Versi 2.29.8 · PT. Bestprofit Futures — Surabaya
+### Versi 2.29.9 · PT. Bestprofit Futures — Surabaya
 
 > Dokumen ini adalah panduan untuk memasang, mengatur, dan merawat aplikasi **BPF WorkHub**.
 > Ditulis dengan bahasa sederhana agar bisa dipahami siapa saja — bukan hanya teknisi.
@@ -463,4 +463,4 @@ Telp: 031-5349888
 
 ---
 
-*BPF WorkHub v2.29.8 · Panduan Deployment · Diperbarui 4 September 2026*
+*BPF WorkHub v2.29.9 · Panduan Deployment · Diperbarui 4 September 2026*

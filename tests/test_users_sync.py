@@ -129,7 +129,7 @@ class TestUsersSync:
         db = {'existing_row': self._existing(pin='777333')}
         client, conn = self._register(monkeypatch, db)
         r = client.post('/api/users/sync', json={
-            'id': 5, 'username': 'ga1', 'full_name': 'GA Satu', 'role': 'ga',
+            'id': 5, 'username': 'ga_satu', 'full_name': 'GA Satu', 'role': 'ga',
             'pin': '', 'team_name': 'Tim A', 'branch_code': 'SBY', 'is_active': True,
         })
         assert r.status_code == 200, r.get_json()
@@ -162,7 +162,7 @@ class TestUsersSync:
         db = {'existing_row': None}
         client, conn = self._register(monkeypatch, db)
         r = client.post('/api/users/sync', json={
-            'username': 'ob2', 'full_name': 'OB Dua', 'role': 'ob',
+            'username': 'ob_baru', 'full_name': 'OB Baru', 'role': 'ob',
             'pin': '123456', 'team_name': '', 'branch_code': '', 'is_active': True,
         })
         assert r.status_code == 200, r.get_json()
@@ -181,7 +181,7 @@ class TestUsersSync:
         db = {'existing_row': self._existing(), 'on_update': boom}
         client, conn = self._register(monkeypatch, db)
         r = client.post('/api/users/sync', json={
-            'id': 5, 'username': 'admin', 'full_name': 'GA Satu', 'role': 'ga',
+            'id': 5, 'username': 'ga_sby', 'full_name': 'GA Satu', 'role': 'ga',
             'team_name': 'Tim A', 'branch_code': 'SBY', 'is_active': True,
         })
         assert r.status_code == 400
@@ -192,10 +192,80 @@ class TestUsersSync:
         db = {'existing_row': self._existing(), 'update_rowcount': 0}
         client, _ = self._register(monkeypatch, db)
         r = client.post('/api/users/sync', json={
-            'id': 999, 'username': 'ghost', 'full_name': 'Hantu', 'role': 'ga',
+            'id': 999, 'username': 'ga_ghost', 'full_name': 'Hantu', 'role': 'ga',
             'team_name': '', 'branch_code': '', 'is_active': True,
         })
         assert r.status_code == 404
+
+    # ------------------------------------------------------------
+    # v2.29.9: username wajib diawali token divisi (konvensi {divisi}_{cabang})
+    # ------------------------------------------------------------
+    def test_role_marketing_username_tanpa_awalan_ditolak_400(self, monkeypatch):
+        """User BARU role marketing harus diawali marketing_ (mis. dewi → ditolak)."""
+        db = {'existing_row': None}
+        client, _ = self._register(monkeypatch, db)
+        r = client.post('/api/users/sync', json={
+            'username': 'dewi', 'full_name': 'Dewi', 'role': 'marketing',
+            'pin': '123456', 'team_name': 'Tim Dewi', 'branch_code': 'MLG', 'is_active': True,
+        })
+        assert r.status_code == 400
+        assert 'marketing_' in r.get_json()['msg']
+
+    def test_role_finance_username_tanpa_awalan_ditolak_400(self, monkeypatch):
+        """User BARU role finance harus diawali finance_ (mis. uang → ditolak)."""
+        db = {'existing_row': None}
+        client, _ = self._register(monkeypatch, db)
+        r = client.post('/api/users/sync', json={
+            'username': 'uang', 'full_name': 'Keuangan', 'role': 'finance',
+            'pin': '123456', 'team_name': '', 'branch_code': 'SBY', 'is_active': True,
+        })
+        assert r.status_code == 400
+        assert 'finance_' in r.get_json()['msg']
+
+    def test_akun_lama_nonkonform_masih_bisa_disimpan(self, monkeypatch):
+        """Akun lama (username+role sama sudah ada) tetap boleh di-save/toggle
+        tanpa rename — mis. hasil bulk-create marketing lama bernama orang."""
+        db = {'existing_row': self._existing()}
+        client, conn = self._register(monkeypatch, db)
+        r = client.post('/api/users/sync', json={
+            'username': 'dewi', 'full_name': 'Dewi', 'role': 'marketing',
+            'is_active': False,
+        })
+        assert r.status_code == 200, r.get_json()
+        upserts = [sql for sql, _ in _all_log(conn)
+                   if sql.lstrip().upper().startswith('INSERT')]
+        assert len(upserts) == 1
+
+    def test_username_legacy_qa_diperbolehkan(self, monkeypatch):
+        """Akun sistem lama (qa, test_check, e2e_driver) tetap bisa dibuat/simpan."""
+        db = {'existing_row': None}
+        client, _ = self._register(monkeypatch, db)
+        r = client.post('/api/users/sync', json={
+            'username': 'qa', 'full_name': 'QA System', 'role': 'ga',
+            'pin': '123456', 'team_name': '', 'branch_code': '', 'is_active': True,
+        })
+        assert r.status_code == 200, r.get_json()
+
+    def test_username_driver_dan_it_bebas_awalan(self, monkeypatch):
+        """Driver (username = nama orang) & role it_* bebas dari aturan awalan."""
+        db = {'existing_row': None}
+        client, conn = self._register(monkeypatch, db)
+        r = client.post('/api/users/sync', json={
+            'username': 'akhad', 'full_name': 'Akhad', 'role': 'driver',
+            'pin': '123456', 'team_name': '', 'branch_code': 'SBY', 'is_active': True,
+        })
+        assert r.status_code == 200, r.get_json()
+        inserts = [sql for sql, _ in _all_log(conn)
+                   if sql.lstrip().upper().startswith('INSERT')]
+        assert len(inserts) == 1
+        # role it per-cabang: username = role (it_sby …) — bebas
+        db2 = {'existing_row': None}
+        client2, _ = self._register(monkeypatch, db2)
+        r2 = client2.post('/api/users/sync', json={
+            'username': 'it_bdg', 'full_name': 'IT Bandung', 'role': 'it_bdg',
+            'pin': '123456', 'team_name': '', 'branch_code': 'BDG', 'is_active': True,
+        })
+        assert r2.status_code == 200, r2.get_json()
 
     def test_non_admin_ditolak_403(self, monkeypatch):
         db = {'existing_row': None}

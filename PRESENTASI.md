@@ -319,4 +319,4 @@ Telp: 031-5349888
 
 ---
 
-*BPF WorkHub v2.29.8 · Materi Presentasi · Diperbarui 4 September 2026*
+*BPF WorkHub v2.29.9 · Materi Presentasi · Diperbarui 4 September 2026*

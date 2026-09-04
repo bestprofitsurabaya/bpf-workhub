@@ -5,6 +5,62 @@ from modules.config import get_db_connection, get_master_connection
 from modules.helpers import (finalize_pin, log_activity_async, resolve_user_pin, role_required,
                              pin_rate_check, pin_fail, pin_success, client_ip)
 
+# ================================================================
+# Konvensi username v2.29.8/9: `{divisi}_{cabang}` — username WAJIB
+# diawali token divisi untuk role back-office. Pengecualian:
+#   - driver   : username = nama orang (login PWA pendek di HP)
+#   - admin    : tetap "admin"
+#   - it_*     : role per-cabang, username mengikuti role (it_sby, ...)
+#   - legacy   : akun sistem/test lama yang masih dipakai (qa, test_check,
+#                e2e_driver) — harus tetap bisa disimpan/ditoggle apa adanya.
+# Username yang SUDAH ADA di DB dengan role sama (mis. hasil bulk-create
+# marketing lama bernama orang) juga tetap boleh disimpan tanpa rename.
+# ================================================================
+_USERNAME_LEGACY = ('qa', 'test_check', 'e2e_driver')
+_ROLE_USERNAME_PREFIX = {
+    'ga': 'ga_',
+    'finance': 'finance_',
+    'marketing': 'marketing_',
+    'ob': 'ob_',
+    'chief_driver': 'chief_driver_',
+    'receptionist': 'receptionist_',
+    'traineer': 'traineer_',
+    'ga_hr': 'gahr_',
+}
+
+
+def _username_prefix_error(username, role):
+    """Pesan error bila username tidak diawali token divisi; None bila valid.
+
+    Hanya berlaku untuk role ber-awalan divisi (lihat peta di atas). Role
+    driver/admin/it_* dan akun legacy dibebaskan dari aturan awalan.
+    """
+    prefix = _ROLE_USERNAME_PREFIX.get(role)
+    if not prefix:
+        return None
+    if username in _USERNAME_LEGACY:
+        return None
+    if username.startswith(prefix):
+        return None
+    return (f"Username wajib diawali '{prefix}' sesuai konvensi "
+            f"{{divisi}}_{{cabang}} — mis. {prefix}sby (1 orang) / "
+            f"{prefix}nama_sby (bila >1 orang per cabang). "
+            f"Huruf kecil, angka, dan underscore saja.")
+
+
+def _username_exists(conn, username, role):
+    """True bila (username, role) sudah ada — akun lama tetap boleh disimpan."""
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT 1 FROM users WHERE username=%s AND role=%s LIMIT 1",
+                       (username, role))
+        found = cursor.fetchone() is not None
+        cursor.close()
+        return found
+    except Exception:
+        return False
+
+
 def register_master_api(app):
 
     @app.route('/api/vehicles')
@@ -155,6 +211,18 @@ def register_master_api(app):
                          'receptionist', 'traineer', 'ga_hr', 'it_sby', 'it_hu', 'it_jkt2', 'it_bdg', 'it_smg', 'it_mlg', 'it_mdn', 'it_bjm', 'it_plm', 'it_lpg'):
                 return jsonify({'status': 'error', 'msg': 'Role tidak valid'}), 400
             if not u or not f: return jsonify({'status': 'error', 'msg': 'Username dan nama wajib'}), 400
+
+            # v2.29.9: username wajib mengikuti konvensi {divisi}_{cabang}
+            # (awalan divisi) utk role back-office. Simpan/toggle akun lama
+            # yang sudah ada dgn (username, role) sama tetap diperbolehkan.
+            prefix_err = _username_prefix_error(u, r)
+            if prefix_err:
+                conn = get_master_connection()
+                ok_existing = _username_exists(conn, u, r) if conn else False
+                if conn:
+                    conn.close()
+                if not ok_existing:
+                    return jsonify({'status': 'error', 'msg': prefix_err}), 400
 
             # PIN hanya diubah bila dikirim eksplisit & tidak kosong (agar
             # toggle is_active / update role / delete tidak menimpa PIN user).

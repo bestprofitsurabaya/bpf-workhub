@@ -368,8 +368,7 @@ onMounted(load)
           <thead>
             <tr>
               <th style="width:40px;"><input type="checkbox" v-model="selectAll" @change="toggleSelectAll" /></th>
-              <th>Username</th>
-              <th>Nama</th>
+              <th>User <span class="muted" style="font-weight:400;">(nama &amp; login)</span></th>
               <th>Role</th>
               <th>Tim</th>
               <th>Cabang</th>
@@ -381,8 +380,7 @@ onMounted(load)
           <tbody>
             <tr v-for="u in filteredUsers" :key="u.id" :class="{ 'row-inactive': !u.is_active }">
               <td><input type="checkbox" :checked="selected.includes(u.id)" @change="toggleSelect(u.id)" /></td>
-              <td><b>{{ u.username }}</b></td>
-              <td>{{ u.full_name }}</td>
+              <td><b>{{ u.full_name }}</b><div class="muted" style="font-size:11px;">{{ u.username }}</div></td>
               <td><span class="badge badge-purple">{{ roleLabel(u.role) }}</span></td>
               <td>{{ u.team_name || '—' }}</td>
               <td><span class="badge badge-blue" v-if="u.branch_code">{{ branchName(u.branch_code) }}</span><span v-else class="muted">—</span></td>
@@ -396,7 +394,7 @@ onMounted(load)
                 <button class="btn btn-sm btn-danger" :disabled="busy" @click="openDeleteConfirm(u)" title="🗑 Nonaktifkan">🗑</button>
               </td>
             </tr>
-            <tr v-if="!filteredUsers.length"><td colspan="9" class="empty">Tidak ada user ditemukan.</td></tr>
+            <tr v-if="!filteredUsers.length"><td colspan="8" class="empty">Tidak ada user ditemukan.</td></tr>
           </tbody>
         </table>
       </div>

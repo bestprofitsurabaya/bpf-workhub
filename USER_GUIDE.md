@@ -1,4 +1,4 @@
-# 📖 Panduan Pengguna BPF WorkHub v2.29.8
+# 📖 Panduan Pengguna BPF WorkHub v2.29.9
 
 > **Siapa pun kamu — sopir, OB, admin, atau pimpinan — panduan ini ditulis untuk kamu.**
 > Tidak perlu paham teknis. Cukup ikuti langkah-langkah sesuai bagianmu.
@@ -497,7 +497,7 @@ Tiga format PDF tersedia (didukung untuk Driver DAN OB/Security):
 - **Nonaktifkan/Aktifkan** — akun yang dinonaktifkan **tidak bisa login** (tanpa harus dihapus, supaya jejak datanya tetap aman).
 - **Hapus** — hapus akun (jika memang tidak dipakai).
 
-#### 🏷️ Konvensi Username `{divisi}_{cabang}` (sejak v2.29.8)
+#### 🏷️ Konvensi Username `{divisi}_{cabang}` (sejak v2.29.8; awalan divisi WAJIB sejak v2.29.9)
 
 Supaya identitas & lokasi setiap user langsung terbaca (dan tidak tabrakan antar cabang), akun **non-driver** mengikuti pola **divisi + kode cabang**. Bila ada **lebih dari satu orang** di divisi-cabang yang sama, sisipkan nama:
 
@@ -516,6 +516,16 @@ Supaya identitas & lokasi setiap user langsung terbaca (dan tidak tabrakan antar
 | Admin | Admin | `admin` | biarkan "admin" |
 
 > 💡 Saat mengisi form Tambah/Edit User, kolom **Username** menampilkan contoh otomatis sesuai role & cabang yang dipilih. Gunakan **huruf kecil**, angka, dan garis bawah (`_`) saja — tanpa spasi. Username yang sudah dipakai user lain ditolak sistem.
+>
+> ⚠️ **Awalan divisi WAJIB** (sejak v2.29.9) — sistem menolak username role
+> back-office yang tidak diawali divisinya (mis. membuat user Finance tanpa
+> `finance_` → ditolak dengan pesan). Pengecualian: **Driver** (username =
+> nama orang), **Admin**, dan **IT per cabang** (`it_*`); akun lama yang
+> sudah ada tetap bisa disimpan tanpa rename.
+>
+> 👤 **Nama asli lebih menonjol** (sejak v2.29.9) — di tabel Users, **Nama
+> Lengkap** tampil tebal sebagai identitas utama dengan username kecil di
+> bawahnya, supaya Admin cepat mengenali orangnya, bukan kode loginnya.
 
 #### ✅ Checklist Membuka User / Cabang Baru (Onboarding)
 
@@ -717,4 +727,4 @@ Jika upload ke WordPress gagal, pesan error sekarang menampilkan **response body
 
 Ada pertanyaan atau kendala? Hubungi **Admin** atau **tim IT** — mereka bisa melihat riwayat sistem (Audit Log) untuk membantu menyelesaikan masalahmu dengan cepat.
 
-*BPF WorkHub v2.29.8 · Panduan Pengguna · Diperbarui 4 September 2026*
+*BPF WorkHub v2.29.9 · Panduan Pengguna · Diperbarui 4 September 2026*

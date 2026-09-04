@@ -2,7 +2,7 @@
 
 **Sistem Manajemen Armada untuk PT. Bestprofit Futures — Surabaya**
 
-> 📅 Versi 2.29.8 · September 2026 — Fix tab "Selesai" Dashboard Marketing · Konvensi username `{divisi}_{cabang}` + checklist onboarding (USER_GUIDE)
+> 📅 Versi 2.29.9 · September 2026 — Validasi username wajib awalan divisi di backend · Nama asli menonjol di tabel Users · Onboarding cabang teruji live
 
 ---
 
@@ -115,6 +115,10 @@ Username dibuat agar **langsung terbaca divisi & cabang pemiliknya**:
   dipakai login PWA di HP (form pendek) & dibuat otomatis dari tabel `drivers`.
 - Divisi `it` memakai cabang sebagai role (`it_sby` … `it_lpg`) — pola lama yang
   dipertahankan; divisi lain cukup 1 role + kolom `branch_code`.
+- **Divalidasi backend sejak v2.29.9**: role back-office WAJIB diawali divisi
+  (`finance_`, `ob_`, …) — username `uang` utk Finance ditolak sistem.
+  Pengecualian: Driver (nama orang), Admin, `it_*`; akun lama yang sudah ada
+  tetap bisa disimpan tanpa rename.
 >
 > Semua login memakai **PIN**, bukan password. Endpoint login: `POST /api/auth/login`
 > (JSON `{username, pin}` + header `X-CSRF-Token` dari `GET /api/auth/me`).
@@ -177,7 +181,7 @@ python -m pytest tests/ -v
 cd frontend && npm test
 ```
 
-**Status:** 336 pytest + 86 vitest · Semua ✅ PASS (terakhir diverifikasi v2.29.8 — CI GitHub Actions: Backend pytest + Frontend build/unit test, hijau di tiap push)
+**Status:** 341 pytest + 86 vitest · Semua ✅ PASS (terakhir diverifikasi v2.29.9 — CI GitHub Actions: Backend pytest + Frontend build/unit test, hijau di tiap push)
 
 ---
 

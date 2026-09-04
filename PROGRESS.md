@@ -4,7 +4,7 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 **Terakhir diperbarui:** 2026-09-04  
 **Branch:** `main`  
-**Versi terbaru:** v2.29.8 (fix tab Selesai Marketing + dokumentasi konvensi username; deployed live)
+**Versi terbaru:** v2.29.9 (validasi username wajib awalan divisi + nama asli menonjol di tabel Users; deployed live)
 
 ---
 
@@ -12,15 +12,17 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 | Aspek | Status |
 |-------|--------|
-| Versi | v2.29.8 (fix tab Selesai Marketing + USER_GUIDE konvensi username) — runtime sebelumnya v2.29.7 user management + PDF air minum |
+| Versi | v2.29.9 (validasi username + nama asli di tabel Users) — runtime sebelumnya v2.29.8 tab Selesai Marketing |
 | Manajemen User | ✅ Admin bisa edit SEMUA detail user: fix tombol Simpan mati saat edit tanpa PIN, `branch_code` kini tersimpan, username bisa diganti (update by-id) |
 | Konvensi username | ✅ `{divisi}_{cabang}` (nama bila >1 per divisi-cabang): 12 akun produksi di-rename (`finance_sby`, `ob_faisol_sby`, `gahr_sby`, …) — driver & it_* tidak berubah; helper text contoh pola di form Users; login UI diverifikasi browser 11/11 |
 | PDF Air Minum | ✅ Foto bukti diperbesar (60–130 mm mengikuti ruang kosong), TTD lebih ke bawah, header kop simetris (teks rata tengah halaman) |
 | Sync Overtime | ✅ Driver (±8.675 sesi) & OB/Security (599 sesi) — keduanya via Apps Script Web App; auto-refresh saat login/logout GA HR/Admin; redirect & duplicate display_id bugs fixed; `submitted_at` tersimpan |
 | Urutan overtime | ✅ Terkini-di-atas di semua daftar + detail report per nama dibalik terkini-dulu (PDF/Excel, commit `733fd2f`) |
 | Data demo air minum | ✅ Dibersihkan 4 Sep — WTR-20260904-10300556, WTR-DEMO-01/02 dihapus (bpf_asset_system + bpf_restore_test); backup `/tmp/bpf_water_demo_backup_20260904.sql`; tabel `water_purchases` kini 0 baris |
-| Deploy | ✅ 4 Sep 2026 — v2.29.8 live (rebuild `bbm_web`: tab Selesai Marketing + docs; SW cache v298); `bbm_web` healthy |
+| Deploy | ✅ 4 Sep 2026 — v2.29.9 live (rebuild `bbm_web`: validasi username + tabel Users; SW cache v299); `bbm_web` healthy |
 | Dashboard Marketing | ✅ Tab "Selesai" kini memakai `/api/appointments/history` (riwayat completed marketing sendiri, lintas tanggal) — sebelumnya memanggil endpoint driver `/completed` → selalu 400/kosong |
+| Validasi username | ✅ Backend `/api/users/sync` menolak username role back-office tanpa awalan divisi (`finance_`, `ob_`, …) — Driver/Admin/`it_*` bebas; akun lama (qa/test_check/e2e_driver & (username,role) sudah ada) tetap bisa disimpan |
+| Nama asli di tabel Users | ✅ Kolom Username+Nama digabung: Nama Lengkap tebal + username kecil di bawahnya (gaya baris nasabah) — Admin mengenali orangnya |
 | Akses CI | ✅ `gh` CLI v2.100 di `~/.local/bin` (device login sbg `bestprofitsurabaya`) — run CI terbaca; semua run terbaru hijau |
 | Pool DB | ✅ Master 25 + cabang 5 (Threads_connected 206 → 26) — lihat CHANGELOG v2.29.1 |
 | Docker | `bbm_web` running on `nasbpfsby.duckdns.org:5000` |
@@ -28,12 +30,54 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 | Databases | 10 DB terpisah (1 master + 9 cabang) |
 | GPS Detail | ✅ Nominatim reverse geocode + disimpan ke DB |
 | Watermark | ✅ 4 baris: perusahaan + tanggal + alamat + koordinat |
-| Test Suite | ✅ 336 pytest (330 pass + 6 skip) + 86 vitest — CI GitHub Actions hijau tiap push (Backend: pytest + service mariadb/redis; Frontend: unit test + build) |
+| Test Suite | ✅ 341 pytest (335 pass + 6 skip) + 86 vitest — CI GitHub Actions hijau tiap push (Backend: pytest + service mariadb/redis; Frontend: unit test + build) |
 | Kestabilan | ✅ bbm_web healthy — 0 restart, 0 error di log sejak deploy terakhir |
 
 ---
 
 ## 🗂️ Riwayat Sesi
+
+### Sesi 2026-09-04 — v2.29.9: Validasi username wajib awalan divisi + nama asli di tabel Users + uji onboarding cabang ✅ SELESAI
+
+> Konteks: lanjutan suggestion — user minta semua dikerjakan KECUALI "wajibkan
+> ganti PIN awal" (tidak wajib). Jawaban klarifikasi: (1) uji onboarding
+> cabang = KEDUANYA (user baru cabang lain + cabang baru utuh dari nol);
+> (2) nama asli = nama orang lebih menonjol di tabel; (3) validasi = wajib
+> awalan divisi.
+
+1. **Validasi username backend (wajib awalan divisi)** di `/api/users/sync`:
+   peta role→awalan (`ga_`, `finance_`, `marketing_`, `ob_`,
+   `chief_driver_`, `receptionist_`, `traineer_`, `gahr_`). Pengecualian:
+   Driver (nama orang), Admin, `it_*`; akun sistem lama (`qa`,
+   `test_check`, `e2e_driver`) & akun dengan (username, role) yang SUDAH ada
+   di DB (mis. hasil bulk-create marketing lama bernama orang) tetap bisa
+   disimpan/di-toggle — tidak ada akun terkunci. Pesan error ramah berisi
+   contoh pola.
+2. **Nama asli menonjol di tabel Users**: kolom Username+Nama digabung →
+   Nama Lengkap tebal, username kecil di bawahnya; header "User (nama &
+   login)", colspan 9→8. CSV export & pencarian tidak berubah. Browser live:
+   header & urutan visual terverifikasi, 0 error JS.
+3. **Test**: `tests/test_users_sync.py` 8→13 (5 baru: tolak tanpa awalan
+   utk marketing & finance, akun lama nonkonform tetap bisa, legacy qa
+   boleh, driver/it_* bebas); vitest UsersView +1 (urutan nama→username).
+4. **Deploy live**: rebuild `bbm_web` (SW cache v299) → healthy; validasi
+   terverifikasi live (buat finance `uang` → 400 pesan awalan).
+5. **E2E onboarding (a) user baru cabang lain**: buat `finance_bdg` (cabang
+   BDG) → login → sesi branch BDG "Cabang Bandung" → endpoint finance 200
+   (scope DB cabang BDG). Akun dihapus.
+6. **E2E onboarding (b) cabang baru utuh dari nol**: `POST
+   /api/branches/save` + `ensure_db` → cabang TST terdaftar (branches 10→11),
+   database `bpf_tst_onboard_v299` dibuat (salinan skema) → user pertama
+   `finance_tst` dibuat & login → sesi cabang TST "Cabang Uji Onboarding" →
+   endpoint 200 dari DB baru. **Cleanup penuh**: 2 user uji dihapus, cabang
+   TST dinonaktifkan + baris branches dihapus, DB uji di-drop, container
+   di-restart (pool koneksi bersih). Verifikasi: branches kembali 10,
+   DB bpf_ kembali 11 (master+9 cabang+restore_test), users kembali 33,
+   health 200, TST tidak ada.
+7. **Test suite container**: 335 passed + 6 skipped (341 collected); vitest
+   86 passed; build sukses.
+
+---
 
 ### Sesi 2026-09-04 — v2.29.8: Fix tab Selesai Marketing + dokumentasi konvensi username ✅ SELESAI
 

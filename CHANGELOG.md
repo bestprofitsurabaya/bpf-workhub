@@ -4,6 +4,41 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 
 ---
 
+## v2.29.9 — 4 September 2026
+
+### 🧾 Validasi username `{divisi}_{cabang}` di backend (awalan divisi WAJIB)
+
+- `/api/users/sync` kini **menolak username role back-office yang tidak
+  diawali divisi** — mis. membuat user Finance `uang` atau Marketing `dewi`
+  baru → 400 dengan pesan: wajib `finance_…` / `marketing_…` (mis.
+  `finance_sby`, `finance_nama_sby`).
+- Pengecualian: **Driver** (username = nama orang untuk PWA HP), **Admin**
+  (`admin`), dan **IT per cabang** (`it_sby` …). Akun sistem lama
+  (`qa`, `test_check`, `e2e_driver`) dan akun yang **sudah ada** dgn
+  (username, role) sama (mis. hasil bulk-create marketing lama bernama
+  orang) tetap bisa di-simpan/di-toggle tanpa rename — tidak ada akun yang
+  "terkunci".
+
+### 👤 Nama asli lebih menonjol di tabel Users
+
+- Kolom Username & Nama Lengkap digabung jadi satu kolom **User**: Nama
+  Lengkap tampil **tebal** sebagai identitas utama, username kecil di
+  bawahnya — Admin mengenali orangnya (Faisol), bukan kode loginnya
+  (`ob_faisol_sby`). CSV export & pencarian tidak berubah.
+
+### 🚀 Uji onboarding cabang (live, 4 Sep)
+
+- (a) **User baru di cabang lain**: admin membuat `finance_bdg` (cabang
+  Bandung) → login → sesi branch BDG + dashboard finance; akun dihapus
+  setelah verifikasi.
+- (b) **Cabang baru utuh dari nol**: `POST /api/branches/save` + ensure-db
+  → database cabang baru dibuat (salinan skema) → user pertama dibuat &
+  login dengan scope cabang baru → **cleanup penuh**: cabang dinonaktifkan,
+  baris branches dihapus, database test di-drop, container di-restart agar
+  pool koneksi bersih. (Detail angka verifikasi di PROGRESS.)
+
+---
+
 ## v2.29.8 — 4 September 2026
 
 ### 🐛 Fix tab "Selesai" Dashboard Marketing
@@ -863,6 +898,7 @@ Versi stabil pertama dengan fitur lengkap: 10 role, 243 pytest, 82 Vitest, 10 vi
 | v2.29.6 | 323 | 83 | 406 |
 | v2.29.7 | 331 | 85 | 416 |
 | v2.29.8 | 336 | 86 | 422 |
+| v2.29.9 | 341 | 86 | 427 |
 
 ---
 

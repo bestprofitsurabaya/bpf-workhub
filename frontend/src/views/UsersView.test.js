@@ -32,11 +32,19 @@ async function mountView() {
 describe('UsersView', () => {
   beforeEach(() => { vi.clearAllMocks() })
 
-  it('menampilkan daftar user dengan role & status', async () => {
+  it('menampilkan daftar user dengan nama asli menonjol + username di bawahnya', async () => {
     const w = await mountView()
+    const rows = w.findAll('tbody tr')
+    // Nama orang tampil sebagai teks utama; username login tetap terlihat di sel yang sama
+    expect(w.text()).toContain('GA Satu')
     expect(w.text()).toContain('ga1')
-    expect(w.text()).toContain('GA Officer')
+    expect(w.text()).toContain('FIN Satu')
     expect(w.text()).toContain('fin1')
+    // teks nama tampil SEBELUM username dalam sel pertama baris (urutan visual)
+    const firstCell = rows[0].find('td:nth-child(2)')
+    const cellText = firstCell.text()
+    expect(cellText.indexOf('GA Satu')).toBeLessThan(cellText.indexOf('ga1'))
+    expect(w.text()).toContain('GA Officer')
     expect(w.text()).toContain('Nonaktif')
   })
 
