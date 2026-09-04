@@ -13,7 +13,7 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 | Aspek | Status |
 |-------|--------|
 | Versi | v2.29.4 (PDF air minum: Informasi Pengiriman, TTD verifier, foto sebelum TTD) |
-| Deploy | ⏳ v2.29.4 BELUM di-deploy — butuh rebuild image + restart `bbm_web` (deploy terakhir v2.29.3) |
+| Deploy | ✅ 4 Sep 2026 — v2.29.4 rebuild + restart `bbm_web` (PDF air minum + label SPA) |
 | Pool DB | ✅ Master 25 + cabang 5 (Threads_connected 206 → 26) — lihat CHANGELOG v2.29.1 |
 | Docker | `bbm_web` running on `nasbpfsby.duckdns.org:5000` |
 | App Running | `https://nasbpfsby.duckdns.org:5000` (health 200) |
@@ -42,8 +42,11 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
    WaterView lulus.
 2. **CI backend** — job pytest pakai service mariadb+redis + env DB/SECRET_KEY
    (mirror compose). Commit `1e12feb`.
-3. ⏳ **Belum deploy** — v2.29.4 belum di-build ke image (backend `routes_water`
-   + PDF + label SPA).
+3. ✅ **Deploy & verifikasi live** — image di-rebuild + `bbm_web` healthy
+   (health 200). PDF asli WTR-DEMO-02 diunduh sbg `finance_officer`: berisi
+   INFORMASI PENGIRIMAN + TTD Finance `FINANCE_OFFICER` (= verified_by),
+   GA dari config; istilah lama tidak ada. Baris demo tanpa foto — urutan
+   lampiran dikunci unit test.
 
 ---
 
