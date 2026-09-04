@@ -4,6 +4,28 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 
 ---
 
+## v2.29.5 — 4 September 2026
+
+### 🧹 Pembersihan data demo modul air minum (production)
+
+Data demo dari pengujian sesi v2.29.4 dihapus dari DB produksi agar evaluasi
+dokumen air minum oleh user Finance dimulai dari daftar bersih. **Tidak ada
+perubahan kode — tanpa redeploy.**
+
+- Dihapus dari `bpf_asset_system` (DB master): `WTR-20260904-10300556`
+  (id 11, verified, foto) + `WTR-DEMO-02` (id 10, verified) + `WTR-DEMO-01`
+  (id 9, pending) — termasuk item terkait (cascade `water_purchase_items`),
+  9 entri `activity_logs`, dan 2 file foto di `./uploads`.
+- Dihapus dari `bpf_restore_test` (DB uji-restore, bukan produksi): salinan
+  `WTR-DEMO-02`.
+- Backup SQL lengkap (purchase + item + log + nama file foto) disimpan di
+  `/tmp/bpf_water_demo_backup_20260904.sql` (di luar repo) — dapat dipulihkan
+  bila diperlukan.
+- Verifikasi live sbg `finance_officer` (HTTPS): daftar pengajuan air minum
+  kini kosong.
+
+---
+
 ## v2.29.4 — 4 September 2026
 
 ### 📄 PDF Tanda Terima Air Minum — format Finance

@@ -4,7 +4,7 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 **Terakhir diperbarui:** 2026-09-04  
 **Branch:** `main`  
-**Versi terbaru:** v2.29.4 (Format PDF air minum Finance; CI backend mariadb+redis)
+**Versi terbaru:** v2.29.5 (housekeeping: pembersihan data demo air minum — runtime tetap v2.29.4)
 
 ---
 
@@ -12,7 +12,8 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 | Aspek | Status |
 |-------|--------|
-| Versi | v2.29.4 (PDF air minum: Informasi Pengiriman, TTD verifier, foto sebelum TTD) |
+| Versi | v2.29.4 runtime (PDF air minum: Informasi Pengiriman, TTD verifier, foto sebelum TTD) · v2.29.5 housekeeping |
+| Data demo air minum | ✅ Dibersihkan 4 Sep — WTR-20260904-10300556, WTR-DEMO-01/02 dihapus (bpf_asset_system + bpf_restore_test); backup `/tmp/bpf_water_demo_backup_20260904.sql` |
 | Deploy | ✅ 4 Sep 2026 — v2.29.4 rebuild + restart `bbm_web` (PDF air minum + label SPA) |
 | Pool DB | ✅ Master 25 + cabang 5 (Threads_connected 206 → 26) — lihat CHANGELOG v2.29.1 |
 | Docker | `bbm_web` running on `nasbpfsby.duckdns.org:5000` |
@@ -22,6 +23,30 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 | Watermark | ✅ 4 baris: perusahaan + tanggal + alamat + koordinat |
 | Test Suite | ✅ 313 pytest + vitest auth store (7) |
 | Kestabilan | ✅ bbm_web healthy — 0 restart, 0 error di log sejak deploy terakhir |
+
+---
+
+## 🗂️ Riwayat Sesi
+
+### Sesi 2026-09-04 — Pembersihan data demo air minum (v2.29.5) ✅ SELESAI
+
+> Konteks: setelah verifikasi e2e v2.29.4, user Finance ingin evaluasi dokumen
+> air minum oleh user sungguhan — daftar demo dibersihkan dulu dari produksi.
+
+#### 🔑 Yang dikerjakan
+
+1. **Hapus data demo dari `bpf_asset_system`** (DB master produksi):
+   `WTR-20260904-10300556` (id 11), `WTR-DEMO-02` (id 10), `WTR-DEMO-01`
+   (id 9) + item (cascade) + 9 entri `activity_logs` + 2 file foto
+   (`WTR_BEFORE/AFTER_Administrator_20260904_103005_*.jpg` di `./uploads`).
+2. **Hapus salinan `WTR-DEMO-02`** di `bpf_restore_test` (DB uji-restore).
+   ⚠️ `WTR-DEMO-01` masih ada di DB itu (bukan produksi — sengaja dibiarkan).
+3. **Backup** SQL lengkap → `/tmp/bpf_water_demo_backup_20260904.sql`
+   (purchase + item + log + nama foto; di luar repo).
+4. **Verifikasi live** sbg `finance_officer` (HTTPS): daftar pengajuan air
+   minum kosong ✓.
+5. ⏳ **CI status di GitHub Actions** — repo privat; tanpa `gh`/token sesi ini
+   tidak bisa membaca run. Setup akses CI menyusul.
 
 ---
 
