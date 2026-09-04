@@ -529,7 +529,8 @@ def register_water_routes(app):
             from modules.pdf_generator import WaterReceiptPDF
             pdf = WaterReceiptPDF()
             pdf.add_page()
-            pdf.generate(row, items, ga_name=ga_name, finance_name=finance_name)
+            pdf.generate(row, items, ga_name=ga_name, finance_name=finance_name,
+                         upload_folder=app.config['UPLOAD_FOLDER'])
             pdf_raw = pdf.output(dest='S')
             pdf_bytes = pdf_raw.encode('latin-1') if isinstance(pdf_raw, str) else bytes(pdf_raw)
             response = make_response(pdf_bytes)

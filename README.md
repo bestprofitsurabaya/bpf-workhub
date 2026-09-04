@@ -2,7 +2,7 @@
 
 **Sistem Manajemen Armada untuk PT. Bestprofit Futures — Surabaya**
 
-> 📅 Versi 2.28.7 · Agustus 2026
+> 📅 Versi 2.29.1 · September 2026 — Production hardening (gunicorn, pool DB, keamanan port)
 
 ---
 
@@ -76,21 +76,29 @@ BPF WorkHub adalah aplikasi web yang membantu tim operasional PT Bestprofit Futu
 git clone https://github.com/bestprofitsurabaya/bpf-workhub.git
 cd bpf-workhub
 
-# Jalankan dengan Docker
-docker-compose up -d
+# Jalankan dengan Docker (port host sudah localhost-only sejak v2.29.1)
+docker compose up -d --build
 
-# Buka browser
-http://localhost:5001
+# Akses dari mesin yang sama / SSH tunnel:
+#   ssh -L 5001:127.0.0.1:5001 user@server
+# Buka browser → http://localhost:5001
+#
+# Catatan: port 5001 (web) & 3307 (DB) sengaja di-bind ke 127.0.0.1 —
+# produksi dilayani lewat nextcloud_nginx (HTTPS), bukan port host.
 ```
 
-### Akun Demo
+### Akun Demo (PIN-based)
 
-| Login | Password | Role |
-|-------|----------|------|
-| `admin` | `admin123` | Admin |
+| Login | PIN | Role |
+|-------|-----|------|
+| `admin` | `123456` | Admin |
+| `ga_sby` | `123456` | GA Surabaya |
+| `finance_sby` | `123456` | Finance Surabaya |
+| `it_sby` | `123456` | IT Surabaya |
 | `AKHAD` | `123456` | Driver |
-| `GA` | `123456` | GA |
-| `FINANCE` | `123456` | Finance |
+
+> Semua login memakai **PIN**, bukan password. Endpoint login: `POST /api/auth/login`
+> (JSON `{username, pin}` + header `X-CSRF-Token` dari `GET /api/auth/me`).
 
 ---
 
@@ -99,7 +107,8 @@ http://localhost:5001
 | Komponen | Teknologi | Fungsi |
 |----------|-----------|--------|
 | Backend | Python Flask | Server & API |
-| Frontend | Vue 3 + Vite | Tampilan SPA |
+| Runtime | Gunicorn (eventlet) | WSGI production (sejak v2.29.1) |
+| Frontend | Vue 3 + Vite | Tampilan SPA (di-build ke dalam image) |
 | Database | MariaDB | Penyimpanan data |
 | Cache | Redis | Session & real-time |
 | Realtime | Socket.IO | Notifikasi langsung |
@@ -149,7 +158,7 @@ python -m pytest tests/ -v
 cd frontend && npm test
 ```
 
-**Status:** 236 pytest · 82 vitest · Semua ✅ PASS
+**Status:** 313 pytest · Semua ✅ PASS (terakhir diverifikasi di container rebuilt v2.29.1)
 
 ---
 

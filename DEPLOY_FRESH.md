@@ -120,14 +120,15 @@ sudo cp /etc/letsencrypt/live/your-domain.com/fullchain.pem certs/server.crt
 sudo cp /etc/letsencrypt/live/your-domain.com/privkey.pem certs/server.key
 sudo chmod 600 certs/server.key
 
-# 2. Build & Start (dengan nginx standalone)
-docker compose --profile standalone-nginx build
-docker compose --profile standalone-nginx up -d
-
-# Atau tanpa profile (hanya web + db + redis):
+# 2. Build & Start
 docker compose build
 docker compose up -d
-# Akses via: http://your-server-ip:5001
+
+# Akses: port host 5001/3307 sudah localhost-only (v2.29.1+).
+# Untuk akses dev dari laptop: SSH tunnel
+#   ssh -L 5001:127.0.0.1:5001 user@server   → http://localhost:5001
+# Untuk akses publik HTTPS: pasang reverse proxy (mis. Caddy/Nginx) ke
+# container bbm_web port 5000, atau ikuti Skenario A (nextcloud_nginx).
 ```
 
 ---
@@ -152,10 +153,13 @@ docker compose ps
 # bbm_redis      running
 # bbm_backup     running
 
-# Test login
+# Test login — WAJIB pakai CSRF token (diambil dari /api/auth/me)
+CSRF=$(curl -sk https://your-server:5000/api/auth/me | python3 -c "import sys,json;print(json.load(sys.stdin)['csrf_token'])")
 curl -sk https://your-server:5000/api/auth/login -X POST \
   -H "Content-Type: application/json" \
+  -H "X-CSRF-Token: $CSRF" \
   -d '{"username":"admin","pin":"123456"}'
+# Respons sukses: {"status":"success","user":{...},"csrf_token":"..."}
 ```
 
 ---
@@ -310,4 +314,4 @@ docker network ls | grep nextcloud_net
 
 ---
 
-*BPF WorkHub v2.28.2 — Deployment Guide*
+*BPF WorkHub v2.29.1 — Deployment Guide*

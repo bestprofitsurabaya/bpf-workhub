@@ -66,7 +66,7 @@ export const useAuthStore = defineStore('auth', {
       const base = ROLE_META[s.user.role] || {}
       return {
         ...base,
-        label: deriveLabel(s.user.username, s.user.role),
+        label: deriveLabel(s.user.user_name, s.user.role),
       }
     },
   },
@@ -74,17 +74,30 @@ export const useAuthStore = defineStore('auth', {
     /** Pulihkan sesi saat SPA dimuat. */
     async bootstrap() {
       try {
-        const data = await api('/api/auth/me')
-        this.user = data.user || null
+        const me = await api('/api/auth/me')
+        if (me?.authenticated) {
+          this.user = me.user
+        } else {
+          this.user = null
+        }
+        if (me?.csrf_token) localStorage.setItem('bpf_csrf', me.csrf_token)
       } catch {
         this.user = null
       } finally {
         this.ready = true
       }
+      return !!this.user
+    },
+    async login(username, pin) {
+      const d = await api('/api/auth/login', { method: 'POST', body: { username, pin } })
+      this.user = d.user
+      if (d.csrf_token) localStorage.setItem('bpf_csrf', d.csrf_token)
+      return d
     },
     async logout() {
-      try { await api('/api/auth/logout', { method: 'POST' }) } catch {}
+      try { await api('/api/auth/logout', { method: 'POST' }) } catch { /* noop */ }
       this.user = null
+      localStorage.removeItem('bpf_csrf')
       window.location.href = '/app/login'
     },
   },

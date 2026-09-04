@@ -1,8 +1,5 @@
-Berikut hasil penulisan ulang file markdown secara keseluruhan. Saya pertahankan semua informasi teknis penting (perintah, tabel, konfigurasi), namun saya balut dengan bahasa yang lebih ramah, penjelasan sederhana untuk istilah teknis, serta struktur visual yang konsisten. Anda bisa langsung menyalin blok di bawah ini sebagai file `.md` baru:
-
-````markdown
 # 📘 Panduan Lengkap BPF WorkHub
-### Versi 2.28.2 · PT. Bestprofit Futures — Surabaya
+### Versi 2.29.1 · PT. Bestprofit Futures — Surabaya
 
 > Dokumen ini adalah panduan untuk memasang, mengatur, dan merawat aplikasi **BPF WorkHub**.
 > Ditulis dengan bahasa sederhana agar bisa dipahami siapa saja — bukan hanya teknisi.
@@ -78,6 +75,10 @@ Bayangkan BPF WorkHub sebagai sebuah kantor kecil dengan beberapa ruangan:
 
 | Komponen | Nama Kotak | Port di Server | Tugasnya |
 |----------|------------|----------------|----------|
-| 🌐 Aplikasi Web | `bbm_web` | `5000` (produksi) · `5001` (untuk uji coba/dev) | Otak aplikasi. Sekalian menjadwalkan pembersihan foto lembur tiap 30 menit. |
-| 🗄️ Database | `bbm_mariadb` | `3307` (di luar) · `3306` (di dalam) | Menyimpan semua data: user, transaksi, riwayat, dsb. |
+| 🌐 Aplikasi Web | `bbm_web` | `5000` (di dalam network) · `5001` host (localhost-only) | Otak aplikasi, jalan di gunicorn. Sekalian menjadwalkan pembersihan foto lembur tiap 30 menit. |
+| 🗄️ Database | `bbm_mariadb` | `3306` (di dalam network) · `3307` host (localhost-only) | Menyimpan semua data: user, transaksi, riwayat, dsb. |
+
+> 🔒 **Sejak v2.29.1:** port host `5001` (web) dan `3307` (DB) di-bind ke `127.0.0.1` —
+> tidak lagi terbuka ke internet. Akses publik (HTTPS) lewat `nextcloud_nginx` (port 5000).
+> Akses dev: SSH tunnel `ssh -L 5001:127.0.0.1:5001 user@server`.
 | ⚡ Cache | `bbm_redis` | Hanya internal | "Catatan tempel cepat" — memb

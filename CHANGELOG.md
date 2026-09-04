@@ -4,6 +4,130 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 
 ---
 
+## v2.29.2 — 4 September 2026
+
+### 🛡️ Security & Monitoring: Audit server-wide + Uptime Kuma
+
+Sesi lanjutan: amankan service lain di server NAS & pasang monitoring. Tidak ada
+perubahan pada runtime aplikasi workhub (v2.29.1 tetap berjalan, 0 restart).
+
+#### 🔒 Perbaikan keamanan server (bukan hanya workhub)
+
+- **EcoPowerID (proyek lain di NAS):** port app `0.0.0.0:3000` (HTTP polos, tanpa
+  TLS) dibuka ke publik padahal sudah ada akses TLS via nginx `:8444`.
+  → bind `127.0.0.1:3000` + tambah healthcheck (node fetch, interval 30s).
+  Akses publik tetap via `https://nasbpfsby.duckdns.org:8444` (nginx → nama
+  container, tidak terpengaruh). Terverifikasi: 8444 = 200, port host 3000
+  hanya localhost, container healthy.
+- **Proses vite preview orphan (bpf-trader-pro):** `node vite preview --port 5299`
+  jalan di host (PPID 1, tanpa tmux/systemd) sejak sebelum container
+  chart-trader-pro di-rebuild — duplikat basi dari build Docker yang sudah live
+  via nginx `:8445`. Tidak ada config yang mereferensikan 5299.
+  → dihentikan; port 5299 tertutup; trader tetap 200 via 8445.
+- **Audit port menyeluruh (ss -tlnp):** semua DB (mariadb/postgres) hanya internal
+  docker network ✓; publik yang tersisa memang disengaja: nginx 80/443/5000/
+  8443-8445 (TLS), talk TURN 3478, SSH 22. Semua vhost nginx memakai proxy ke
+  nama container + Host-header check anti-scan (return 444 utk non-domain).
+
+#### 📊 Monitoring: Uptime Kuma (proyek baru `/home/it-ef/uptime-kuma`)
+
+- Container `uptime_kuma` (louislam/uptime-kuma:1, 1.23.17), port
+  `127.0.0.1:3001` (localhost-only), join `nextcloud_net` agar bisa reach semua
+  container, volume `uptime-kuma-data`, TZ Asia/Jakarta, healthcheck sendiri.
+- Setup diotomasi via socket API (node + socket.io-client): admin user dibuat,
+  5 monitor HTTP aktif — semuanya **UP (200)**:
+  Nextcloud (443), BPF WorkHub (5000 `/api/health`), Karaoke (8443),
+  EcoPowerID (8444), Chart Trader Pro (8445) — interval 60s.
+- Kredensial admin: `/home/it-ef/uptime-kuma/.admin-credentials` (chmod 600).
+  Akses: SSH tunnel → `http://localhost:3001`.
+- Utilitas: `scripts/audit_endpoints.py` (baru) — audit statis read-only:
+  endpoint backend vs referensi frontend/scripts/tests. Hasil: 217 endpoint
+  backend terdaftar; tool menandai kandidat tanpa referensi untuk ditinjau
+  manual (lihat PROGRESS.md — banyak yang legacy/internal, jangan hapus tanpa
+  verifikasi log runtime).
+
+#### 🔎 Audit endpoint (read-only, temuan utk tech-debt)
+
+Kandidat duplikat/legacy yang tidak dipanggil SPA (perlu verifikasi log runtime
+sebelum dihapus): `/api/vehicle_bbm/<vt>` (duplikat `vehicle-allowed-bbm`),
+`/api/vehicles/with-nopol`, `/api/dummy-data/*` (duplikat `/api/demo/*`),
+`/api/verify-pin`, `/api/get-feedback`, `/api/get-performance`,
+`/api/trips/verify|reject`, `/api/assignment-remark`,
+`/api/assignments/confirm|history|pending|swap|swap-history`,
+`/api/scraper/schedule/create|list`, `/api/scraper/notify`,
+`/api/scraper/hyperlinks`, `/api/scraper/upload-multi`, `/api/teams*`.
+Halaman `/admin/*` (routes_admin) sudah terdokumentasi legacy — penggantinya
+`/api/queue/*` di SPA.
+
+---
+
+## v2.29.1 — 3 September 2026
+
+### ⚙️ Produksi: Debug & Hardening (gunicorn, pool DB, keamanan port)
+
+Audit + optimasi produksi menyeluruh. Semua 313 pytest lulus di container baru.
+
+#### 🚀 Runtime: Dev Server → Gunicorn (eventlet)
+
+- **Sebelum:** `CMD python3 -u app.py` — Werkzeug dev server (`allow_unsafe_werkzeug`).
+- **Sesudah:** `gunicorn --worker-class eventlet -w 1 --timeout 300` — WSGI server
+  produksi (gunicorn sudah ada di requirements tapi tidak pernah dipakai).
+- 1 worker eventlet = benar untuk flask-socketio (room in-memory, green thread).
+- Access log gunicorn dimatikan (app sudah cetak JSON via after_request).
+
+#### 🐛 Fix: DB Pool Exhausted (`⚠ Pool exhausted`)
+
+- **Root cause:** MariaDB default `max_connections=151`, tapi Max_used_connections
+  sempat **152**. Pool BPF 15 koneksi × 10 DB (master + 9 cabang) menembus batas.
+- **Fix:** `command: --max-connections=500` di db service + `DB_POOL_SIZE=25` +
+  retry ber-backoff (0.15s/0.3s/0.45s) di `get_db_connection()` sebelum fallback
+  ke koneksi non-pool (`DB_POOL_RETRIES=3`).
+
+#### ⚙️ Optimasi: Pool Cabang Diperkecil (follow-up)
+
+- mysql.connector membuka **semua** koneksi pool saat init → `DB_POOL_SIZE=25` ×
+  10 DB = 250 koneksi idle (Threads_connected sempat **206**) di host 3.8GB.
+- Master tetap 25 (`DB_POOL_SIZE`); 9 DB cabang pakai pool kecil
+  `BRANCH_POOL_SIZE=5` (cabang sepi, master sibuk).
+- Hasil terukur setelah recreate container: Threads_connected 206 → **26**,
+  tanpa kehilangan fungsi (313 pytest tetap lulus).
+
+#### 🔒 Keamanan: Port Tidak Lagi Terbuka ke Internet
+
+- MariaDB `3307` → `127.0.0.1:3307` (sebelumnya `0.0.0.0` — DB bisa diakses publik).
+- Web `5001` → `127.0.0.1:5001` (akses produksi via nextcloud_nginx, bukan port host).
+- HTTPS publik tetap jalan via nextcloud_nginx di container network.
+
+#### 🐛 Fix: Fresh Deploy SPA Rusak (bind mount `./static`)
+
+- `./static:/app/static` menimpa SPA hasil build image, padahal `static/app/`
+  **tidak di-commit** (gitignore) → fresh deploy melayani SPA kosong/rusak.
+- Bind mount `./static` dihapus; SPA kini murni dari Dockerfile (stage
+  frontend-build) — selalu sinkron dengan source `frontend/`.
+- `build-spa.sh` (copy ke host static/app) tidak lagi diperlukan untuk deploy.
+
+#### 🐛 Fix: Access Log JSON Tidak Pernah Tercetak
+
+- `log_access_json()` pakai `app.logger.info()`, tapi level default Flask logger
+  = WARNING di production → log akses diam-diam dibuang.
+- Fix: handler eksplisit + `app.logger.setLevel(INFO)` + `propagate=False`.
+
+#### 🔧 Fix Lain
+
+- **Google Sheets overtime sync**: retry 3× (backoff 1s/2s) untuk SSLEOFError /
+  ConnectionError / Timeout dari Apps Script (`_fetch_sheet_rows`).
+- **`_redis_ping()`** (health check): baca `REDIS_URL` env, bukan URL hardcoded.
+- **Scraper log flood**: level default INFO (`SCRAPER_LOG_LEVEL` env, opsional
+  DEBUG untuk troubleshooting) — ribuan baris per-tag tidak lagi membanjiri log.
+
+#### 🩺 Healthcheck & Resource
+
+- Healthcheck web (`GET /api/health`) + redis (`redis-cli ping`) di compose.
+- Log rotation semua service (`json-file`, max 20m × 3 file) — cegah disk penuh.
+- Mem limit: web 1g, db 2g, redis 128m, backup 512m (host 3.8GB bersama 5 proyek).
+
+---
+
 ## v2.29.0 — 27 Agustus 2026
 
 ### 📰 Scraper: Pre-Filter, Retry Logic & Progress Bar Fix

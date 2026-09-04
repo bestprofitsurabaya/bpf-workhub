@@ -499,31 +499,32 @@ class PDFReportCompact(BPFBasePDF):
 
 
 # ============================================================
-# TANDA TERIMA PEMBELIAN AIR MINUM (v2.6)
+# TANDA TERIMA AIR MINUM (v2.6)
 # Diisi OB -> diverifikasi Finance -> PDF TTD Finance (penyerah) & GA (penerima)
 # ============================================================
 class WaterReceiptPDF(BPFBasePDF):
-    """Tanda terima serah terima air minum (gelas/botol/galon)."""
+    """Tanda terima air minum (gelas/botol/galon)."""
 
     def __init__(self):
         super().__init__(orientation='P', unit='mm', format='A4')
         self.set_auto_page_break(auto=True, margin=7)
         self.set_margins(10, 7, 10)
 
-    def generate(self, p, items, ga_name='', finance_name=''):
-        """p = dict pengajuan; items = list rincian; nama TTD dari system_config."""
+    def generate(self, p, items, ga_name='', finance_name='', upload_folder='uploads'):
+        """p = dict pengajuan; items = list rincian; nama TTD dari system_config.
+        upload_folder dipakai untuk melampirkan foto bukti OB (default 'uploads')."""
         self._draw_title(p)
         self._draw_info(p)
         self._draw_items_table(items)
         self._draw_verification(p)
         self._draw_signatures(p, ga_name, finance_name)
-        self._draw_photos(p)
+        self._draw_photos(p, upload_folder)
 
     # ---- Judul ----
     def _draw_title(self, p):
         self.set_font(self._font(), 'B', 12.5)
         self.set_text_color(*INK)
-        self.cell(0, 7, 'TANDA TERIMA SERAH TERIMA AIR MINUM', align='C', new_x="LMARGIN", new_y="NEXT")
+        self.cell(0, 7, 'TANDA TERIMA AIR MINUM', align='C', new_x="LMARGIN", new_y="NEXT")
         self.set_font(self._font(), '', 8)
         self.set_text_color(*GRAY_LABEL)
         self.cell(0, 4, f'No. {p.get("display_id", "-")}', align='C', new_x="LMARGIN", new_y="NEXT")
@@ -535,9 +536,8 @@ class WaterReceiptPDF(BPFBasePDF):
         self.section_title('INFORMASI PENGAJUAN')
         rows = [
             ('Nomor', p.get('display_id', '-')),
-            ('Tanggal Pembelian', (p.get('purchase_date') or '').strftime('%d-%m-%Y') if getattr(p.get('purchase_date'), 'strftime', None) else p.get('purchase_date') or '-'),
+            ('Tanggal Pengiriman', (p.get('purchase_date') or '').strftime('%d-%m-%Y') if getattr(p.get('purchase_date'), 'strftime', None) else p.get('purchase_date') or '-'),
             ('Diajukan oleh (OB)', self.clean_text(str(p.get('ob_name', '-')).upper())),
-            ('Diajukan pada', p.get('created_at').strftime('%d-%m-%Y %H:%M') if p.get('created_at') else '-'),
         ]
         col1_x, col2_x = self.l_margin, self.w / 2 + 5
         y_start = self.get_y()
@@ -634,8 +634,8 @@ class WaterReceiptPDF(BPFBasePDF):
         self.set_text_color(*INK)
         self.ln(8)
 
-    # ---- Lampiran foto ----
-    def _draw_photos(self, p):
+    # ---- Lampiran foto (bukti unggahan OB) ----
+    def _draw_photos(self, p, upload_folder='uploads'):
         photos = []
         if p.get('foto_before'):
             photos.append({'path': p['foto_before'], 'label': 'Foto SEBELUM diisi'})
@@ -643,7 +643,7 @@ class WaterReceiptPDF(BPFBasePDF):
             photos.append({'path': p['foto_after'], 'label': 'Foto SESUDAH diisi'})
         if photos:
             self.section_title('LAMPIRAN FOTO (TIMESTAMP)')
-            self.add_photo_grid(photos, 'uploads')
+            self.add_photo_grid(photos, upload_folder)
 
 
 class BBMReportPDF(BPFBasePDF):

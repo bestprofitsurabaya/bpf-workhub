@@ -109,8 +109,10 @@ def health_payload(branches=False):
 
 def _redis_ping():
     try:
+        import os
         import redis
-        r = redis.from_url('redis://redis:6379/0', socket_timeout=2)
+        url = os.environ.get('REDIS_URL', 'redis://redis:6379/0')
+        r = redis.from_url(url, socket_timeout=2)
         return bool(r.ping())
     except Exception:
         return False

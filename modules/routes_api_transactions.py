@@ -1,5 +1,5 @@
 """API Routes - Transactions, Cross-Check, Analytics, Stats"""
-from flask import request, jsonify
+from flask import request, jsonify, session
 from modules.config import get_db_connection
 from modules.helpers import log_activity_async, safe_float, role_required
 from modules.engine import generate_human_insight
@@ -55,7 +55,8 @@ def register_transaction_api(app):
                 'summary': {'total_nominal': float(s['total_nominal'])}
             })
         except Exception as e:
-            return jsonify({'error': str(e)}), 500
+            print(f'[ERROR] api_archive_transactions: {e}')
+            return jsonify({'error': 'Terjadi kesalahan server'}), 500
 
     @app.route('/api/stats')
     @role_required(['ga', 'finance', 'admin'])
@@ -83,7 +84,8 @@ def register_transaction_api(app):
                 'today_pending': tp, 'today_verified_ga': tg, 'today_os_finance': tos, 'today_archived': ta,
             })
         except Exception as e:
-            return jsonify({'error': str(e)}), 500
+            print(f'[ERROR] api_stats: {e}')
+            return jsonify({'error': 'Terjadi kesalahan server'}), 500
 
     @app.route('/api/audit-logs')
     @role_required(['ga', 'finance', 'admin'])
@@ -99,7 +101,8 @@ def register_transaction_api(app):
             logs = cursor.fetchall(); cursor.close(); conn.close()
             return jsonify(logs)
         except Exception as e:
-            return jsonify({'error': str(e)}), 500
+            print(f'[ERROR] api_audit_logs: {e}')
+            return jsonify({'error': 'Terjadi kesalahan server'}), 500
 
     @app.route('/api/cross-check/<int:tx_id>')
     @role_required(['ga', 'finance', 'admin'])
@@ -153,7 +156,8 @@ def register_transaction_api(app):
                 'recommendation': 'AMAN' if overall=='success' else ('PERLU PERHATIAN' if overall=='warning' else 'INVESTIGASI!')
             })
         except Exception as e:
-            return jsonify({'error': str(e)}), 500
+            print(f'[ERROR] api_cross_check: {e}')
+            return jsonify({'error': 'Terjadi kesalahan server'}), 500
 
     @app.route('/api/transaction-flags')
     @role_required(['ga', 'finance', 'admin'])
@@ -178,7 +182,8 @@ def register_transaction_api(app):
             cursor.close(); conn.close()
             return jsonify(result)
         except Exception as e:
-            return jsonify({'error': str(e)}), 500
+            print(f'[ERROR] api_transaction_flags: {e}')
+            return jsonify({'error': 'Terjadi kesalahan server'}), 500
 
     @app.route('/api/vehicle-health')
     @role_required(['ga', 'finance', 'admin'])
@@ -199,9 +204,11 @@ def register_transaction_api(app):
             cursor.close(); conn.close()
             return jsonify({'units': units, 'total_active_units': len(units), 'avg_fleet_health': round(sum(u['health_score'] for u in units)/len(units)) if units else 0})
         except Exception as e:
-            return jsonify({'error': str(e)}), 500
+            print(f'[ERROR] api_vehicle_health: {e}')
+            return jsonify({'error': 'Terjadi kesalahan server'}), 500
 
     @app.route('/api/get-performance/<plat_nomor>')
+    @role_required(['ga', 'finance', 'admin'])
     def get_performance(plat_nomor):
         try:
             conn = get_db_connection(); cursor = conn.cursor(dictionary=True)
@@ -212,9 +219,11 @@ def register_transaction_api(app):
             total_apt = sum([d['jumlah_appointment'] for d in data if d['jumlah_appointment']])
             return jsonify({"nopol": plat_nomor, "status": "BAIK" if avg_kml>=10 else "BOROS", "avg_kml": round(avg_kml,2), "total_appointment": total_apt})
         except Exception as e:
-            return jsonify({"error": str(e)}), 500
+            print(f'[ERROR] get_performance: {e}')
+            return jsonify({"error": 'Terjadi kesalahan server'}), 500
 
     @app.route('/api/get-feedback/<nopol>')
+    @role_required(['ga', 'finance', 'admin'])
     def get_vehicle_feedback(nopol):
         try:
             conn = get_db_connection(); cursor = conn.cursor(dictionary=True)
@@ -228,7 +237,8 @@ def register_transaction_api(app):
             msg = generate_human_insight(performa, avg_kpl, 12.0, 0, len(km_values))
             return jsonify({"status": "success", "avg_km_per_liter": round(avg_kpl,2), "performa": performa, "msg": msg})
         except Exception as e:
-            return jsonify({"status": "error", "msg": str(e)}), 500
+            print(f'[ERROR] get_vehicle_feedback: {e}')
+            return jsonify({"status": "error", "msg": 'Terjadi kesalahan server'}), 500
 
     @app.route('/api/analytics/data')
     @role_required(['ga', 'finance', 'admin'])
@@ -317,7 +327,8 @@ def register_transaction_api(app):
                 }
             })
         except Exception as e:
-            return jsonify({'error': str(e)}), 500
+            print(f'[ERROR] api_analytics_data: {e}')
+            return jsonify({'error': 'Terjadi kesalahan server'}), 500
 
     @app.route('/api/finance-review/<int:tx_id>')
     @role_required(['finance', 'admin'])
@@ -366,14 +377,16 @@ def register_transaction_api(app):
                 'photos': photos
             })
         except Exception as e:
-            return jsonify({'error': str(e)}), 500
+            print(f'[ERROR] api_finance_review: {e}')
+            return jsonify({'error': 'Terjadi kesalahan server'}), 500
 
     @app.route('/api/finance-remark', methods=['POST'])
     @role_required(['finance', 'admin'])
     def api_finance_remark():
         try:
             data = request.get_json()
-            tx_id = data.get('tx_id'); remark = data.get('remark', '').strip(); username = data.get('username', 'Finance Officer')
+            tx_id = data.get('tx_id'); remark = data.get('remark', '').strip()
+            username = session.get('full_name', 'Finance Officer')
             if not tx_id or not remark: return jsonify({'status': 'error', 'msg': 'ID transaksi dan remark wajib'}), 400
             conn = get_db_connection(); cursor = conn.cursor()
             cursor.execute("UPDATE transactions SET transaction_notes = CONCAT(COALESCE(transaction_notes,''), '\n[', NOW(), '] ', %s, ': ', %s) WHERE id = %s", (username, remark, tx_id))
@@ -381,7 +394,8 @@ def register_transaction_api(app):
             log_activity_async(tx_id, 'finance_remark', 'finance', username, new_data={'remark': remark}, ip=request.remote_addr)
             return jsonify({'status': 'success', 'msg': 'Remark berhasil disimpan'})
         except Exception as e:
-            return jsonify({'status': 'error', 'msg': str(e)}), 500
+            print(f'[ERROR] api_finance_remark: {e}')
+            return jsonify({'status': 'error', 'msg': 'Terjadi kesalahan server'}), 500
 
     @app.route('/api/trip-detail/<int:trip_id>')
     @role_required(['ga', 'finance', 'admin'])
@@ -405,7 +419,8 @@ def register_transaction_api(app):
                 if d.get('pukul_tujuan'): d['pukul_tujuan'] = str(d['pukul_tujuan'])
             return jsonify({'master': master, 'details': details})
         except Exception as e:
-            return jsonify({'error': str(e)}), 500
+            print(f'[ERROR] api_trip_detail: {e}')
+            return jsonify({'error': 'Terjadi kesalahan server'}), 500
 
     @app.route('/api/queue/export-excel')
     @role_required(['ga', 'finance', 'admin'])
@@ -471,4 +486,5 @@ def register_transaction_api(app):
             resp.headers['Content-Disposition'] = f'attachment; filename=antrean_{tab}_{datetime.now().strftime("%Y%m%d_%H%M")}.xlsx'
             return resp
         except Exception as e:
-            return jsonify({'error': str(e)}), 500
+            print(f'[ERROR] api_queue_export_excel: {e}')
+            return jsonify({'error': 'Terjadi kesalahan server'}), 500

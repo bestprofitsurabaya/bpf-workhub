@@ -192,7 +192,7 @@ class TestFetchSheetRows:
                 import json as _j
                 return _j.loads(body)
 
-        def fake_get(url_, timeout=30, headers=None):
+        def fake_get(url_, timeout=30, headers=None, **kwargs):
             assert url_ == url
             return FakeResp()
 

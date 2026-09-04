@@ -11,15 +11,30 @@ services:
       MYSQL_PASSWORD: bpf_pass
       TZ: Asia/Jakarta
     ports:
-      - "3307:3306"
+      # v2.29: bind localhost saja — DB tidak boleh terbuka ke internet.
+      # Akses admin dari host tetap bisa via 127.0.0.1:3307.
+      - "127.0.0.1:3307:3306"
     volumes:
       - bbm_db_data:/var/lib/mysql
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql
     restart: unless-stopped
+    mem_limit: 2g
+    mem_reservation: 256m
+    # v2.29: max_connections dinaikkan dari default 151 → 500. Pool BPF
+    # (15-25 koneksi × 10 DB) + koneksi fallback sebelumnya menembus 151
+    # (Max_used_connections=152) → "Pool exhausted" di log aplikasi.
+    command: --max-connections=500
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "bpf_user", "-pbpf_pass"]
+      interval: 30s
       timeout: 10s
       retries: 5
+      start_period: 40s
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "3"
     networks:
       - default
 
@@ -27,10 +42,15 @@ services:
     build: .
     container_name: bbm_web
     ports:
-      - "5001:5000"
+      # v2.29: bind localhost saja. HTTPS publik dilayani nextcloud_nginx
+      # (container network), bukan port host. Akses dev via SSH tunnel.
+      - "127.0.0.1:5001:5000"
     volumes:
       - ./uploads:/app/uploads
-      - ./static:/app/static
+      # v2.29: bind ./static DIHAPUS — dulu menimpa SPA hasil build image,
+      # padahal static/app tidak di-commit (gitignore) → fresh deploy SPA rusak.
+      # SPA kini murni dari Dockerfile (stage frontend-build), selalu sinkron
+      # dengan source frontend/ saat image di-build.
       - ./data/news_scraper:/app/data/news_scraper
       - ./fonts:/app/fonts
     environment:
@@ -40,13 +60,20 @@ services:
       - DB_USER=bpf_user
       - DB_PASSWORD=bpf_pass
       - DB_NAME=bpf_asset_system
-      - DB_POOL_SIZE=15
+      - DB_POOL_SIZE=25
+      # Cabang: pool kecil (5) — master sibuk, cabang sepi. Pool mysql.connector
+      # membuka semua koneksi saat init → 25×10 DB = 250 koneksi idle di host
+      # 3.8GB. Master 25 + 9 cabang × 5 = 70 koneksi maksimal.
+      - BRANCH_POOL_SIZE=5
+      # Retry singkat saat pool penuh (menghindari koneksi non-pool baru)
+      - DB_POOL_RETRIES=3
       - SECRET_KEY=${SECRET_KEY:?SECRET_KEY wajib di .env}
       # Secure cookie: WAJIB true jika diakses via HTTPS (produksi). Jika ada
       # user mengakses via http://IP:5001 di LAN, cookie tidak akan dikirim
       # browser -> login loop. Matikan hanya untuk dev http lokal.
       - SESSION_COOKIE_SECURE=${SESSION_COOKIE_SECURE:-true}
       - REDIS_URL=redis://redis:6379/0
+      - SCRAPER_LOG_LEVEL=${SCRAPER_LOG_LEVEL:-INFO}
       # Titik awal rute appointment (kantor): PT Bestprofit Futures Cab. Surabaya
       # Graha Bukopin Lantai 11, Jl. Panglima Sudirman No. 10-18, Surabaya 60271
       - DEPOT_LAT=-7.2657205
@@ -54,7 +81,24 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:5000/api/health', timeout=5).status==200 else 1)"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
     restart: unless-stopped
+    # Server bersama (3.8GB total + Nextcloud & project lain) — batasi agar
+    # satu container tidak menghabiskan RAM host.
+    mem_limit: 1g
+    mem_reservation: 256m
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "3"
     networks:
       - default            # Terhubung ke bbm_mariadb
       - nextcloud_net      # Terhubung ke nextcloud_nginx (HTTPS proxy)
@@ -63,9 +107,22 @@ services:
     image: redis:7-alpine
     container_name: bbm_redis
     restart: unless-stopped
+    mem_limit: 128m
     command: redis-server --appendonly no --maxmemory 64mb --maxmemory-policy allkeys-lru
     volumes:
       - bbm_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - default
 
   # ------------------------------------------------------------
   # BACKUP DB OTOMATIS (v2.21)
@@ -99,6 +156,12 @@ services:
       db:
         condition: service_healthy
     restart: unless-stopped
+    mem_limit: 512m
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     networks:
       - default
 

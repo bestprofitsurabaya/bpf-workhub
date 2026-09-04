@@ -680,4 +680,4 @@ Jika upload ke WordPress gagal, pesan error sekarang menampilkan **response body
 
 Ada pertanyaan atau kendala? Hubungi **Admin** atau **tim IT** — mereka bisa melihat riwayat sistem (Audit Log) untuk membantu menyelesaikan masalahmu dengan cepat.
 
-*BPF WorkHub v2.28.2 · Panduan Pengguna*
+*BPF WorkHub v2.29.1 · Panduan Pengguna*

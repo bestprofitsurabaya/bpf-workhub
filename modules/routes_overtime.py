@@ -316,8 +316,23 @@ def _fetch_sheet_rows(url, since=None):
     if since:
         separator = '&' if '?' in url else '?'
         fetch_url = f'{url}{separator}since={since}'
-    resp = requests.get(fetch_url, timeout=60, headers={'User-Agent': 'Mozilla/5.0'}, allow_redirects=False)
-    resp.raise_for_status()
+    # Retry transien (SSLEOFError/timeout dari Google Apps Script sering terjadi
+    # sesaat — v2.29: 3 percobaan dengan backoff 1s/2s).
+    resp = None
+    for attempt in range(3):
+        try:
+            resp = requests.get(fetch_url, timeout=60,
+                                headers={'User-Agent': 'Mozilla/5.0'},
+                                allow_redirects=False)
+            resp.raise_for_status()
+            break
+        except (requests.exceptions.SSLError,
+                requests.exceptions.ConnectionError,
+                requests.exceptions.Timeout) as exc:
+            if attempt == 2:
+                raise
+            print(f"[overtime-sheet] retry {attempt + 1}/2 ({type(exc).__name__}): {exc}")
+            time.sleep(1 + attempt)
     text = resp.content.decode('utf-8-sig', errors='replace')
     stripped = text.lstrip()
     if stripped.startswith('{'):

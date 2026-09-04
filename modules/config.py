@@ -48,6 +48,11 @@ def _pool_for(db_name):
     cfg = dict(DB_CONFIG)
     cfg['database'] = db_name
     cfg['pool_name'] = 'pool_' + db_name.replace('.', '_')
+    # DB cabang jauh lebih sepi dari master (data 1-2MB vs ratusan MB) — pakai
+    # pool kecil (default 5) agar total koneksi idle tidak menggerus RAM host.
+    # mysql.connector membuka SEMUA koneksi pool saat init (eager), jadi
+    # DB_POOL_SIZE besar × 10 DB = ratusan koneksi menganggur.
+    cfg['pool_size'] = int(os.environ.get('BRANCH_POOL_SIZE', 5))
     try:
         pool = pooling.MySQLConnectionPool(**cfg)
         _branch_pools[db_name] = pool
@@ -92,10 +97,19 @@ def get_db_connection(branch_code=None, master=False):
     db_name = DB_CONFIG['database'] if master else resolve_db_name(branch_code)
     pool = db_pool if db_name == DB_CONFIG['database'] else _pool_for(db_name)
     if pool:
-        try:
-            return pool.get_connection()
-        except Error as pool_err:
-            print(f"⚠ Pool exhausted ({db_name}): {pool_err}")
+        # Retry singkat sebelum menyerah: pool mysql.connector memakai
+        # block=False (langsung PoolError saat semua koneksi dipakai sesaat).
+        # Retry ber-backoff menghindari pembukaan koneksi non-pool baru yang
+        # justru membebani MariaDB (batas max_connections).
+        retries = int(os.environ.get('DB_POOL_RETRIES', '3'))
+        for attempt in range(retries + 1):
+            try:
+                return pool.get_connection()
+            except Error as pool_err:
+                if attempt == retries:
+                    print(f"⚠ Pool exhausted ({db_name}): {pool_err}")
+                else:
+                    time.sleep(0.15 * (attempt + 1))
 
     # Fallback: koneksi langsung NON-POOL (sama seperti sebelumnya).
     max_retries = 5

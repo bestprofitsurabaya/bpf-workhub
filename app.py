@@ -27,6 +27,18 @@ warnings.filterwarnings('ignore')
 # Init Flask
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
+
+# v2.29: pastikan access log JSON (after_request, INFO) benar-benar tercetak
+# ke stdout/docker logs. Default Flask: app.logger level WARNING di production
+# → info access log diam-diam dibuang. Handler eksplisit + level INFO + no
+# propagate (log akses tidak dobel via root logger gunicorn).
+import logging as _logging
+if not app.logger.handlers:
+    _h = _logging.StreamHandler()
+    _h.setFormatter(_logging.Formatter('%(message)s'))
+    app.logger.addHandler(_h)
+app.logger.setLevel(_logging.INFO)
+app.logger.propagate = False
 _secret = os.environ.get('SECRET_KEY')
 if not _secret:
     _env = os.environ.get('FLASK_ENV', 'production')

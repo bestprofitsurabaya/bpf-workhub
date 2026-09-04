@@ -2,9 +2,9 @@
 
 File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks saat sesi baru dimulai.
 
-**Terakhir diperbarui:** 2026-08-27  
+**Terakhir diperbarui:** 2026-09-04  
 **Branch:** `main`  
-**Versi terbaru:** v2.28.9 (News Scraper improvements + WP auth + deploy)
+**Versi terbaru:** v2.29.2 (Security server-wide + Uptime Kuma monitoring; runtime workhub tetap v2.29.1)
 
 ---
 
@@ -12,13 +12,125 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 | Aspek | Status |
 |-------|--------|
-| Versi | v2.28.9 (News Scraper improvements + WP auth + deploy) |
-| Deploy | ✅ bbm_web di-rebuild & restart 27 Aug — source badge, newsmaker URL, branch_code |
+| Versi | v2.29.1 (Production hardening — gunicorn, pool DB, keamanan port) |
+| Deploy | ✅ 3 Sep 2026 — gunicorn eventlet, pool retry, port lokal, healthcheck |
+| Pool DB | ✅ Master 25 + cabang 5 (Threads_connected 206 → 26) — lihat CHANGELOG v2.29.1 |
 | Docker | `bbm_web` running on `nasbpfsby.duckdns.org:5000` |
 | App Running | `https://nasbpfsby.duckdns.org:5000` |
 | Databases | 10 DB terpisah (1 master + 9 cabang) |
 | GPS Detail | ✅ Nominatim reverse geocode + disimpan ke DB |
 | Watermark | ✅ 4 baris: perusahaan + tanggal + alamat + koordinat |
+| Test Suite | ✅ 313 pytest lulus di container rebuilt v2.29.1 |
+| Kestabilan | ✅ 0 restart, 0 error di log sejak deploy terakhir |
+
+---
+
+## 🗂️ Riwayat Sesi
+
+### Sesi 2026-09-04 — Security server-wide + Monitoring (v2.29.2) ✅ SELESAI
+
+> Konteks: lanjutan sesi sebelumnya. Workhub sudah production — sesi ini
+> mengerjakan rekomendasi #1 (amankan service lain) & #2 (monitoring) dari
+> PROGRESS. Runtime bpf-workhub TIDAK diubah.
+
+#### 🔑 Akses Server (BERUBAH — penting)
+
+- ⚠️ **SSH kini via LAN `192.168.2.31:22`** (port 2211 hanya forward WAN &
+  duckdns resolve ke IP LAN dulu → timeout dari jaringan internal).
+- Host publik tetap `nasbpfsby.duckdns.org` (port 2211 untuk akses luar).
+- Semua perintah sesi ini pakai `ssh -p 22 it-ef@192.168.2.31`.
+
+#### 🛡️ Yang Dikerjakan
+
+1. **Audit port server (read-only, `ss -tlnp` + docker ps)** — hasil: semua DB
+   internal ✓; publik yang tersisa memang disengaja (nginx TLS 80/443/5000/
+   8443-8445, talk 3478, SSH). Semua vhost nginx proxy ke nama container +
+   Host-check anti-scan.
+2. **EcoPowerID hardening** — `0.0.0.0:3000` (HTTP polos publik) →
+   `127.0.0.1:3000` + healthcheck node-fetch. TLS publik via nginx :8444 tetap
+   200. Backup compose: `docker-compose.yml.bak-20260904`.
+3. **Kill proses orphan** — `vite preview --port 5299` (bpf-trader-pro, host,
+   PPID 1, basi dari sebelum container di-rebuild). Port 5299 tertutup; trader
+   via 8445 tetap 200.
+4. **Uptime Kuma deployed** — `/home/it-ef/uptime-kuma/` (compose + kredensial
+   `.admin-credentials` chmod 600). Localhost:3001, join nextcloud_net.
+   Setup otomatis via socket API: admin + **5 monitor UP (200)**: Nextcloud,
+   BPF WorkHub `/api/health`, Karaoke, EcoPowerID, Chart Trader Pro.
+   Verifikasi: monitorList + DB heartbeat status=1 semua.
+5. **Audit endpoint (read-only)** — tool baru `scripts/audit_endpoints.py`:
+   217 endpoint terdaftar; daftar kandidat unused → CHANGELOG v2.29.2. Semua
+   masih PERLU verifikasi log runtime sebelum dihapus (banyak endpoint internal
+   cron/sheet/legacy yang sah). Jangan hapus tanpa data.
+
+#### 📄 File yang Diubah/Ditambah
+
+- Server: `/home/it-ef/EcoPowerID/docker-compose.yml` (bukan repo workhub),
+  `/home/it-ef/uptime-kuma/` (baru).
+- Repo workhub: `scripts/audit_endpoints.py` (baru), `CHANGELOG.md`,
+  `PROGRESS.md` (lokal + perlu sync ke server).
+
+---
+
+### Sesi 2026-09-03 — Debug & Optimasi Production (v2.29.1) ✅ SELESAI
+
+> Konteks: sesi ini melakukan debug + optimasi menyeluruh sampai level production
+> atas perintah user. Semua pekerjaan tuntas, terverifikasi, dan ter-deploy.
+
+#### 🔑 Akses Server
+
+| Item | Nilai |
+|------|-------|
+| Host | `nasbpfsby.duckdns.org` |
+| SSH port | `2211` |
+| User | `it-ef` |
+| Lokasi codebase | `/home/it-ef/bpf-workhub` |
+| Compose project | `bpf-bbm-system` (containers: `bbm_web`, `bbm_mariadb`, `bbm_redis`, `bbm_backup`) |
+| App URL | `https://nasbpfsby.duckdns.org:5000` (via nextcloud_nginx) |
+| Web host port | `127.0.0.1:5001` (localhost-only, akses dev via SSH tunnel) |
+| DB host port | `127.0.0.1:3307` (localhost-only) |
+
+#### 🔍 Temuan & Perbaikan
+
+1. **DB pool exhaustion (`Pool exhausted`)** — MariaDB `max_connections=151` tapi
+   `Max_used_connections=152`; pool 15×10 DB menembus batas, lalu code fallback
+   bikin koneksi non-pool baru (makin parah).
+   → `--max-connections=500` + retry ber-backoff (`DB_POOL_RETRIES=3`) di
+   `get_db_connection()`, tanpa fallback non-pool.
+2. **Dev server di production** — Dockerfile CMD `python3 -u app.py` (Werkzeug,
+   `allow_unsafe_werkzeug=True`). Gunicorn ada di requirements tapi tak pernah dipakai.
+   → `gunicorn --worker-class eventlet -w 1 --timeout 300` (benar untuk flask-socketio).
+3. **Keamanan port** — MariaDB `0.0.0.0:3307` & web `0.0.0.0:5001` terbuka ke internet.
+   → keduanya di-bind `127.0.0.1`; HTTPS publik tetap via nextcloud_nginx.
+4. **Fresh-deploy SPA rusak** — bind mount `./static` menimpa SPA hasil build image
+   (padahal `static/app/` gitignored). → bind mount dihapus; SPA murni dari image.
+5. **Access log JSON tak pernah tercetak** — Flask logger default WARNING di production.
+   → `app.logger.setLevel(INFO)` + handler eksplisit.
+6. **Google Sheets overtime sync error (SSL EOF)** — tanpa retry.
+   → retry 3× (backoff 1s/2s) di `_fetch_sheet_rows()`.
+7. **`_redis_ping()` hardcoded URL** → baca `REDIS_URL` env.
+8. **Scraper DEBUG log flood** → default `INFO` (`SCRAPER_LOG_LEVEL` env).
+9. **Pool idle berlebih** — mysql.connector buka SEMUA koneksi saat init:
+   `DB_POOL_SIZE=25` × 10 DB = 250 (Threads_connected sempat 206).
+   → `BRANCH_POOL_SIZE=5` untuk 9 DB cabang; master tetap 25.
+   Hasil terukur: **Threads_connected 206 → 26**.
+
+#### ✅ Verifikasi Akhir (setelah deploy)
+
+- Semua container `Up` + `(healthy)`; `bbm_web` restart count 0.
+- Gunicorn master + eventlet worker jalan (cek via `docker top bbm_web`).
+- Health `GET /api/health` → 200.
+- Login end-to-end: `GET /api/auth/me` (ambil csrf_token) → `POST /api/auth/login`
+  (`admin`/`123456` + header `X-CSRF-Token`) → `status: success` (role admin, SBY).
+- SPA `/app/login` → 200.
+- `docker logs bbm_web --since 5m` → 0 baris error/traceback/pool exhausted.
+- Test suite di container rebuilt: **313 passed, 6 skipped**.
+
+#### 📄 File yang Diubah (semua sudah ter-deploy + tersinkron)
+
+`Dockerfile`, `docker-compose.yml`, `app.py`, `modules/config.py`,
+`modules/security.py`, `modules/routes_overtime.py`,
+`modules/news_scraper/scraper_logger.py`, `CHANGELOG.md`, `PROGRESS.md`,
+`README.md`, `DEPLOYMENT.md`, `DEPLOY_FRESH.md`.
 
 ---
 
@@ -265,7 +377,44 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 ## 📝 Catatan untuk Sesi Berikutnya
 
-> "Baca `PROGRESS.md` dan `CHANGELOG.md`, lalu lanjutkan."
+> Mulai dari sini: baca `PROGRESS.md` + `CHANGELOG.md` (bagian v2.29.1), lalu
+> lanjutkan ke item di bawah. Semua pekerjaan v2.29.1 sudah live di server.
+
+### 🏗️ State Saat Ini (harus diketahui sebelum ubah apa pun)
+- Codebase: `/home/it-ef/bpf-workhub` (SSH port 2211, user `it-ef` — kredensial dari tim).
+- Compose project `bpf-bbm-system`; container: `bbm_web` (gunicorn), `bbm_mariadb`
+  (max_connections=500), `bbm_redis`, `bbm_backup` (cron 03:00 WIB).
+- Port host 5001/3307 **localhost-only** — akses dev via SSH tunnel
+  (`ssh -L 5001:127.0.0.1:5001 -p 2211 it-ef@nasbpfsby.duckdns.org`).
+- SPA di-serve dari image (build via Dockerfile, stage frontend-build) —
+  **jangan** pasang bind mount `./static` lagi.
+- Env pool: `DB_POOL_SIZE=25` (master), `BRANCH_POOL_SIZE=5` (cabang),
+  `DB_POOL_RETRIES=3`.
+- Login API butuh CSRF: `GET /api/auth/me` → token → `POST /api/auth/login`
+  dengan header `X-CSRF-Token`. Akun test: `admin`/`123456`.
+- Deploy cara cepat: edit → sync ke server → `docker compose up -d --build` →
+  verifikasi health + login + `docker logs`. Test: `docker exec bbm_web python3 -m pytest tests/ -q`.
+
+### 🎯 Status Rekomendasi Sebelumnya
+- ✅ **#1 Amankan service lain** — selesai sesi 2026-09-04 (EcoPowerID port +
+  healthcheck, vite orphan 5299, audit port menyeluruh). Karaoke/snipe-it
+  belum punya healthcheck di compose — nilai saat deploy ulang berikutnya.
+- ✅ **#2 Monitoring** — Uptime Kuma live (5 monitor UP), akses localhost:3001.
+  Belum: notifikasi alert (email/Telegram) & watchtower — konfigurasi via UI.
+- ⏳ **#3 Roadmap fitur** — approval berjenjang, dashboard mobile admin,
+  laporan mingguan email. Butuh keputusan produk dulu.
+- ⏳ **#4 Tech debt** — audit endpoint sudah (tool + temuan CHANGELOG v2.29.2);
+  upgrade MariaDB & migrasi Vue masih terbuka (butuh window + keputusan).
+
+### 🎯 Rekomendasi Langkah Berikutnya
+1. **Verifikasi endpoint legacy via log runtime** — grep `docker logs bbm_web`
+   (JSON access log) 1-2 minggu utk endpoint kandidat unused di CHANGELOG
+   v2.29.2; baru hapus yang benar-benar nol pemanggilan.
+2. **Notifikasi Uptime Kuma** — login UI (tunnel :3001) → set alert email/
+   Telegram utk 5 monitor.
+3. **Roadmap fitur** (lihat "Yang Sedang Dikerjakan") — pilih 1, butuh spesifikasi.
+4. **Tech debt besar** (butuh window + backup): MariaDB 10.11 → 11.x,
+   migrasi Vue Options → Composition API.
 
 ### DB Architecture
 - Master: `bpf_asset_system` (SBY + shared)
@@ -300,4 +449,4 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 ---
 
-*BPF WorkHub v2.28.5 · Progres Tracker · Last updated: 2026-08-25*
+*BPF WorkHub v2.29.2 · Progres Tracker · Last updated: 2026-09-04*

@@ -180,8 +180,15 @@ class ScraperLogger:
         self.log("ERROR", category, msg, **extra)
 
 
-def get_logger(filepath="scraper.log", min_level="DEBUG", use_color=True) -> ScraperLogger:
-    """Singleton accessor."""
+def get_logger(filepath="scraper.log", min_level=None, use_color=True) -> ScraperLogger:
+    """Singleton accessor.
+
+    Level default: env SCRAPER_LOG_LEVEL (default INFO — DEBUG membanjiri log
+    dengan baris per-tag saat upload puluhan artikel). Set SCRAPER_LOG_LEVEL=DEBUG
+    hanya untuk troubleshooting.
+    """
+    if min_level is None:
+        min_level = os.environ.get('SCRAPER_LOG_LEVEL', 'INFO')
     return ScraperLogger(filepath=filepath, min_level=min_level, use_color=use_color)
 
 

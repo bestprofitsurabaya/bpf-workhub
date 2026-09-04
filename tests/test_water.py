@@ -67,15 +67,46 @@ class TestWaterReceiptPDF:
         pdf_bytes = raw.encode('latin-1') if isinstance(raw, str) else bytes(raw)
         assert pdf_bytes[:4] == b'%PDF'
         text = _pdf_text(pdf_bytes)
-        assert 'TANDA TERIMA SERAH TERIMA AIR MINUM' in text
+        # Judul resmi dokumen (bukan varian lama 'SERAH TERIMA')
+        assert 'TANDA TERIMA AIR MINUM' in text
+        assert 'SERAH TERIMA AIR MINUM' not in text
         assert 'AQUA' in text
         assert 'Le Minerale' in text
+        # Label tanggal pengiriman (bukan 'Tanggal Pembelian')
+        assert 'Tanggal Pengiriman' in text
+        assert 'Tanggal Pembelian' not in text
+        # 'Diajukan pada' tidak lagi ditulis di dokumen
+        assert 'Diajukan pada' not in text
         # Nama penandatangan
         assert 'RINA' in text
         assert 'ANDI' in text
         # Status verifikasi & remark
         assert 'TERVERIFIKASI' in text
         assert 'Barang diterima sesuai pesanan' in text
+
+    def test_generate_foto_ob_terlampir(self, tmp_path):
+        """Foto yang diunggah OB (sebelum/sesudah) terlampir di dokumen PDF."""
+        from PIL import Image
+        from modules.pdf_generator import WaterReceiptPDF
+        # Buat dua gambar bukti dummy
+        before_path = tmp_path / 'wtr_before.jpg'
+        after_path = tmp_path / 'wtr_after.jpg'
+        Image.new('RGB', (120, 80), (200, 60, 60)).save(before_path, 'JPEG')
+        Image.new('RGB', (120, 80), (60, 120, 200)).save(after_path, 'JPEG')
+        p = _sample_purchase('verified')
+        p['foto_before'] = before_path.name
+        p['foto_after'] = after_path.name
+        pdf = WaterReceiptPDF()
+        pdf.add_page()
+        pdf.generate(p, _sample_items(), ga_name='ANDI', finance_name='RINA',
+                     upload_folder=str(tmp_path))
+        raw = pdf.output(dest='S')
+        pdf_bytes = raw.encode('latin-1') if isinstance(raw, str) else bytes(raw)
+        # Foto benar-benar disematkan sebagai gambar XObject di PDF
+        assert b'/Subtype /Image' in pdf_bytes
+        text = _pdf_text(pdf_bytes)
+        assert 'LAMPIRAN FOTO' in text
+        assert 'SEBELUM' in text and 'SESUDAH' in text
 
     def test_generate_rejected_menampilkan_alasan(self):
         """PDF berstatus ditolak menampilkan alasan penolakan."""
