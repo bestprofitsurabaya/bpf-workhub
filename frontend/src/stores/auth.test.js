@@ -27,6 +27,16 @@ describe('useAuthStore', () => {
     vi.restoreAllMocks()
   })
 
+  it('menyediakan aksi yang dipakai LoginView (kontrak anti-regresi)', () => {
+    // Regresi 27 Agu 2026: aksi login hilang dari store (refactor username
+    // per-cabang) tapi LoginView tetap memanggil auth.login() → runtime error
+    // "login is not a function". Test ini gagal di unit-test bila aksi hilang.
+    const auth = useAuthStore()
+    expect(typeof auth.login).toBe('function')
+    expect(typeof auth.bootstrap).toBe('function')
+    expect(typeof auth.logout).toBe('function')
+  })
+
   it('login menyimpan user + csrf token', async () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: true, status: 200,
