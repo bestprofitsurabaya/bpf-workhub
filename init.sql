@@ -65,9 +65,14 @@ CREATE TABLE IF NOT EXISTS users (
     id INT AUTO_INCREMENT PRIMARY KEY,
     username VARCHAR(50) NOT NULL UNIQUE,
     full_name VARCHAR(100) NOT NULL,
-    role ENUM('admin','ga','finance','marketing','chief_driver','driver','ob') NOT NULL DEFAULT 'ga',
+    -- v2.29.11: enum role lengkap + branch_code — init.sql harus
+    -- self-sufficient (migrasi ALTER di startup TIDAK jalan saat seed ini
+    -- dieksekusi oleh entrypoint MariaDB, sehingga INSERT users di bawah
+    -- gagal 'Unknown column branch_code' di fresh deploy tanpa ini).
+    role ENUM('admin','ga','finance','marketing','chief_driver','driver','ob','receptionist','traineer','ga_hr','it_sby','it_hu','it_jkt2','it_bdg','it_smg','it_mlg','it_mdn','it_bjm','it_plm','it_lpg') NOT NULL DEFAULT 'ga',
     pin VARCHAR(255) NOT NULL,
     team_name VARCHAR(100) DEFAULT '',
+    branch_code VARCHAR(20) DEFAULT NULL,
     is_active TINYINT(1) DEFAULT 1,
     last_login DATETIME DEFAULT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
