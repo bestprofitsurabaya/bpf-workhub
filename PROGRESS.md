@@ -4,7 +4,7 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 **Terakhir diperbarui:** 2026-09-05  
 **Branch:** `main`  
-**Versi terbaru:** v2.31.0 (Tahap 2/6 ISO — step-up auth selesai di repo, belum deploy) · v2.30.0 Tahap 1 live
+**Versi terbaru:** v2.32.0 (Tahap 3/6 ISO — access review; di repo) · v2.31.0 Tahap 2 LIVE · v2.30.0 Tahap 1 live
 
 ---
 
@@ -12,8 +12,9 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 | Aspek | Status |
 |-------|--------|
-| Versi | v2.31.0 (Tahap 2/6 ISO — step-up auth; di repo, BELUM deploy) — runtime live v2.30.0 (Tahap 1) |
-| Step-up auth (Tahap 2) | ✅ **SELESAI di repo (5 Sep)**: 8 endpoint uang di-protect (kasbon approve-ga/finance/handover/approve-lpj, BBM approve-ga/payout/verify, air minum verify) → 428 `STEPUP_REQUIRED` tanpa grant; modal PIN SPA; grant 10 menit; logout hilangkan grant; 24 pytest + 14 vitest baru. ⚠️ Belum di-deploy (butuh konfirmasi user) |
+| Versi | v2.32.0 (Tahap 3/6 ISO — access review; di repo, BELUM deploy) — runtime live v2.31.0 (Tahap 2) |
+| Step-up auth (Tahap 2) | ✅ **SELESAI + DEPLOY live (5 Sep)**: 8 endpoint uang di-protect → 428 tanpa grant; modal PIN SPA; smoke test live lulus (428→PIN→lolos; logout hilangkan grant; 5 langkah terverifikasi) |
+| Access review (Tahap 3) | ✅ **SELESAI di repo (5 Sep)**: halaman `/app/access-review` admin — klasifikasi akun ok/stale/never_login/inactive (ambang 90 hr), ringkasan, export CSV, tandai review selesai + audit, tombol nonaktifkan akun basi; 14 pytest + 6 vitest. ⚠️ Belum di-deploy |
 | Manajemen User | ✅ Admin bisa edit SEMUA detail user: fix tombol Simpan mati saat edit tanpa PIN, `branch_code` kini tersimpan, username bisa diganti (update by-id) |
 | Konvensi username | ✅ `{divisi}_{cabang}` (nama bila >1 per divisi-cabang): 12 akun produksi di-rename (`finance_sby`, `ob_faisol_sby`, `gahr_sby`, …) — driver & it_* tidak berubah; helper text contoh pola di form Users; login UI diverifikasi browser 11/11 |
 | PDF Air Minum | ✅ Foto bukti diperbesar (60–130 mm mengikuti ruang kosong), TTD lebih ke bawah, header kop simetris (teks rata tengah halaman) |
@@ -37,6 +38,43 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 ---
 
 ## 🗂️ Riwayat Sesi
+
+### Sesi 2026-09-05 — v2.32.0: Tahap 3/6 ISO — Access review triwulanan + laporan akun basi ✅ SELESAI DI REPO (belum deploy)
+
+> Konteks: lanjutan Program Perbaikan Standar Bertahap. User minta semua
+> suggestion dikerjakan: (1) commit Tahap 1+2, (2) deploy Tahap 2 + smoke
+> test, (3) mulai Tahap 3 (Access review). Tahap 3 dikerjakan tuntas di
+> repo sesuai standar (modul + UI + test + dokumentasi); deploy menyusul
+> dengan konfirmasi eksplisit.
+
+1. **Commit Tahap 1+2** (`4fc4bca`, 37 file): secrets ke .env (v2.30) +
+   step-up auth (v2.31) — termasuk `.gitignore` baru `.env.bak-*` agar
+   backup .env lama (berisi kredensial) tidak pernah ter-commit.
+2. **Deploy Tahap 2 LIVE** (`docker compose up -d --build web`): health ok
+   (DB/Redis/10 pool cabang), log bersih, SPA baru ter-deploy.
+3. **Smoke test step-up live 5 langkah lulus**: (a) approve tanpa grant →
+   428 `STEPUP_REQUIRED`; (b) PIN salah → 401; (c) PIN benar → grant
+   600 dtk; (d) aksi berikutnya lolos step-up (409 = data uji tak ada,
+   bukan 428); (e) logout → login ulang → grant hilang (428 lagi).
+4. **Tahap 3 — Backend**: `modules/routes_accessreview.py` — klasifikasi
+   akun `ok`/`stale` (>90 hari, env `STALE_ACCOUNT_DAYS`)/`never_login`/
+   `inactive`; 3 endpoint admin-only (`GET review`, `POST complete` →
+   system_config + audit `access_review_complete`, `GET export` CSV);
+   `last_login` kolom users yang sudah ada dipakai sebagai dasar.
+5. **Tahap 3 — Frontend**: halaman `AccessReviewView.vue` (`/app/
+   access-review`, menu Admin 🛂) — kartu ringkasan, badge REVIEW
+   TERLAMBAT (>90 hr), tabel status + filter (status/role/cabang/cari),
+   tombol 🚫 Nonaktifkan akun basi (A.8.3), Export CSV, Tandai Review
+   Selesai.
+6. **Test**: `tests/test_access_review.py` (+14, fake-DB pola docseq) +
+   `AccessReviewView.test.js` (+6 vitest). Suite: **403 pytest passed +
+   6 skipped** (host; security-headers butuh container DB — pre-existing)
+   + **104 vitest** + build sukses.
+7. **Dokumentasi**: CHANGELOG v2.32.0, PROGRESS (tabel tahap 3 → ✅,
+   status terakhir, riwayat), README & SECURITY (menyusul/ikut update).
+8. ⏳ **Belum deploy Tahap 3** — butuh konfirmasi user.
+
+---
 
 ### Sesi 2026-09-05 — v2.31.0: Tahap 2/6 ISO — Step-up auth (PIN ulang sebelum approve/pay) ✅ SELESAI DI REPO (belum deploy)
 
@@ -757,8 +795,8 @@ tes & verifikasi; perubahan produksi butuh konfirmasi eksplisit.
 | Tahap | Fokus | Status |
 |-------|-------|--------|
 | 1 | Secrets: kredensial DB pindah ke `.env`, fail-fast, tes hygiene (A.8.2/A.8.13) | ✅ **SELESAI + rotasi produksi dijalankan 5 Sep** (health/login/backup OK, password lama mati) |
-| 2 | Step-up auth: konfirmasi PIN sebelum aksi approve/pay berisiko (A.8.2/A.8.3/A.8.5) | ✅ **SELESAI 5 Sep (v2.31.0)** — 8 endpoint uang di-protect, modal PIN SPA, 24 pytest + 14 vitest baru; BELUM di-deploy (butuh konfirmasi) |
-| 3 | Access review triwulanan + laporan akun basi (A.5.15/A.8.2/A.8.3) | ⏳ Belum |
+| 2 | Step-up auth: konfirmasi PIN sebelum aksi approve/pay berisiko (A.8.2/A.8.3/A.8.5) | ✅ **SELESAI 5 Sep + DEPLOY live (v2.31.0)** — 8 endpoint uang di-protect; smoke test live: 428 tanpa grant → PIN → lolos, logout hilangkan grant |
+| 3 | Access review triwulanan + laporan akun basi (A.5.15/A.8.2/A.8.3) | ✅ **SELESAI 5 Sep (v2.32.0)** — halaman Access Review admin, klasifikasi ok/stale/never/inactive, CSV export, tandai review selesai; 14 pytest + 6 vitest; BELUM deploy (butuh konfirmasi) |
 | 4 | Vulnerability mgmt: audit dependensi di CI + scan image + runbook insiden (A.8.8/A.5.24–28) | ⏳ Belum |
 | 5 | Retensi & pemusnahan dokumen per kelas + arsip audit trail (ISO 15489, UU PDP) | ⏳ Belum |
 | 6 | Integritas tanda tangan & siklus hidup dokumen (hash + signer + timestamp) | ⏳ Belum |

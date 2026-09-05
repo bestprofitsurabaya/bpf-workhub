@@ -4,6 +4,54 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 
 ---
 
+## v2.32.0 — 5 September 2026 (Tahap 3/6 — Access review & akun basi)
+
+### 🛂 Access review triwulanan + laporan akun basi (ISO/IEC 27001 A.5.15/A.8.2/A.8.3)
+
+Tahap 3 dari Program Perbaikan Standar Bertahap: hak akses kini bisa
+direview berkala (triwulanan) dengan laporan akun yang tidak terpakai.
+
+#### Backend — `modules/routes_accessreview.py` (baru, admin-only)
+
+- **`GET /api/admin/access-review`** — semua user master + klasifikasi status
+  akun otomatis:
+  - `ok` — aktif & login dalam ambang batas
+  - `stale` (**Basi**) — aktif tapi login terakhir > N hari (default 90,
+    env `STALE_ACCOUNT_DAYS`) → kandidat pencabutan akses
+  - `never_login` (**Belum Login**) — aktif tapi belum pernah login
+  - `inactive` — sudah dinonaktifkan
+  + ringkasan jumlah per status, `review` terakhir (siapa+kapan), ambang hari.
+- **`POST /api/admin/access-review/complete`** — tandai review selesai:
+  simpan ke `system_config` (siapa + kapan) + audit `access_review_complete`.
+- **`GET /api/admin/access-review/export`** — CSV (UTF-8 BOM) arsip review
+  triwulanan.
+- Audit view/export ikut tercatat (`access_review_view/export`).
+
+#### Frontend — halaman baru **Access Review** (`/app/access-review`, admin)
+
+- Menu samping Admin + route baru.
+- Kartu ringkasan (total/aktif/nonaktif/OK/Basi/Belum Login), badge
+  **REVIEW TERLAMBAT** bila review terakhir > 90 hari atau belum pernah.
+- Tabel semua akun dengan badge status warna + info kapan review terakhir;
+  filter pencarian/status/role/cabang.
+- Aksi cepat **🚫 Nonaktifkan** pada akun Basi & Belum Login (A.8.3 —
+  pencabutan akses) dengan konfirmasi; tombol **Export CSV** & **Tandai
+  Review Selesai**.
+
+#### Test
+
+- `tests/test_access_review.py` (+14): klasifikasi (nonaktif/never/stale/ok,
+  ambang custom, string ISO, tanggal rusak → stale), ringkasan & label,
+  CSV, route admin-only (403/401), list + review info, complete (config +
+  commit), export, DB down → 500.
+- Vitest `AccessReviewView.test.js` (+6): render ringkasan/klasifikasi,
+  badge REVIEW TERLAMBAT, filter status, complete → API, nonaktifkan akun
+  basi → `/api/users/sync`, export → download URL.
+- **403 pytest + 104 vitest** lulus (host; 5 test security-headers butuh
+  container DB — pre-existing).
+
+---
+
 ## v2.31.0 — 5 September 2026 (Tahap 2/6 — Step-up authentication)
 
 ### 🔐 Step-up auth: konfirmasi PIN ulang sebelum aksi approve/pay berisiko

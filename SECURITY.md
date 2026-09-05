@@ -41,6 +41,7 @@ Sistem menggunakan dua prinsip utama:
 | **Hak khusus admin** | Halaman-halaman paling sensitif — Manajemen User, Pengaturan, dan Audit Log — **hanya bisa dibuka oleh Admin**. Pembatasan ini diberlakukan di dua lapis: di server dan di tampilan aplikasi. |
 | **Cara masuk yang aman** | PIN tersimpan aman di database. Akun yang sudah dinonaktifkan tidak bisa login. Sesi login memiliki masa kedaluwarsa otomatis, dan sistem menolak upaya manipulasi alamat tujuan setelah login. |
 | **Verifikasi ulang aksi berisiko** | Aksi yang menggerakkan uang (approve kasbon, serah terima dana, payout klaim BBM, verifikasi air minum) wajib dikonfirmasi dengan **PIN ulang user yang sedang login** sebelum dijalankan (step-up auth, ISO/IEC 27001 A.8.5). Grant verifikasi hanya berlaku sementara (10 menit) dan hilang saat logout. |
+| **Review hak akses berkala** | Admin punya halaman **Access Review** untuk meninjau hak akses secara triwulanan (ISO/IEC 27001 A.5.15): setiap akun diklasifikasikan otomatis (OK / Basi bila tidak login > 90 hari / Belum Pernah Login / Nonaktif), bisa di-export sebagai arsip, dan setiap review tercatat siapa & kapan. Akun basi bisa langsung dinonaktifkan (A.8.3). |
 | **Catatan aktivitas** | **Setiap perubahan data tercatat**: siapa yang melakukannya, apa yang diubah, kapan, dan dari perangkat/IP mana. Semua ini bisa dilihat Admin di halaman Audit Log. |
 | **Pemantauan berkala** | Ada indikator status koneksi secara *real-time* (⚡ terhubung / 🔴 terputus) di bilah atas aplikasi. Log teknis juga dapat dipantau oleh tim IT. |
 | **Perlindungan dari celah umum** | Data yang dikirim selalu divalidasi; permintaan yang mengubah data wajib menyertakan token keamanan (proteksi *CSRF*); halaman dilindungi dari penyimpanan cache yang tidak diinginkan; dan kode ditulis dengan teknik yang tahan terhadap serangan umum seperti *SQL injection*. |
@@ -114,6 +115,7 @@ Berikut ringkasan seluruh lapisan perlindungan yang dimiliki BPF WorkHub:
 | 📜 **Jejak Audit** | 30+ jenis aktivitas tercatat lengkap: siapa, kapan, dan apa yang dilakukan. |
 | 🚧 **Anti Tebak Paksa** | Percobaan login berulang kali yang mencurigakan akan dibatasi otomatis (melalui *rate limiting*). |
 | 🧬 **Verifikasi PIN Ulang (Step-up)** | Aksi approve/pay berisiko wajib konfirmasi PIN ulang user yang sedang login — modal PIN muncul otomatis, grant sementara 10 menit, hilang saat logout. |
+| 🛂 **Access Review Triwulanan** | Laporan otomatis akun basi (tidak login > 90 hari) & belum pernah login — Admin meninjau berkala, mengekspor arsip CSV, dan menonaktifkan akun yang tidak dipakai. |
 | 📍 **Watermark Foto** | Foto bukti lapangan dilengkapi stempel lokasi GPS dan waktu — sulit dipalsukan. |
 | 🏰 **Pengaturan Keamanan Browser** | Standar pelindung aktif: CSP, X-Frame-Options, Referrer-Policy, dan Permissions-Policy (mencegah halaman disalahgunakan oleh situs lain). |
 | 💾 **Cadangan Data Harian** | Database dicadangkan otomatis setiap hari pukul **03.00 WIB**, dan disimpan selama **30 hari**. |

@@ -30,6 +30,7 @@ const MENU = [
   { label: 'Marketing Hub', path: '/marketing', icon: '📣', roles: ['marketing'] },
   { label: 'Chief Driver', path: '/chief-driver', icon: '🚛', roles: ['chief_driver', 'ga', 'admin'] },
   { label: 'Manajemen User', path: '/users', icon: '👥', roles: ['admin'] },
+  { label: 'Access Review', path: '/access-review', icon: '🛂', roles: ['admin'] },
   { label: 'Pengaturan', path: '/settings', icon: '⚙️', roles: ['admin'] },
   { label: 'Audit Log', path: '/logs', icon: '📝', roles: ['admin'] },
   { label: 'Air Minum', path: '/water', icon: '🚰', roles: ['ob', 'finance', 'admin'] },
