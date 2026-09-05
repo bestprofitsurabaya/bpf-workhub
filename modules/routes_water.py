@@ -547,6 +547,18 @@ def register_water_routes(app):
             response.headers['Content-Disposition'] = f'attachment; filename={fname}'
             log_activity_async(0, 'water_purchase_pdf', role, _session_name(),
                                new_data={'display_id': row.get('display_id')}, ip=client_ip())
+            # v2.35.0 (Tahap 6/6 ISO): catat integritas dokumen ke registri —
+            # SHA-256 + penandatangan (TTD Finance) + timestamp (best-effort).
+            try:
+                from modules.doc_integrity import register_pdf
+                register_pdf('water_receipt', row.get('display_id') or f'id-{purchase_id}',
+                             pdf_bytes, signer_name=finance_name, signer_role='finance',
+                             branch_code=session.get('branch_code') or '',
+                             filename=fname, meta={'ga_name': ga_name,
+                                                   'purchase_id': purchase_id,
+                                                   'status': row.get('status')})
+            except Exception:
+                pass  # registri tidak boleh menggagalkan unduhan PDF
             return response
         except Exception as e:
             return make_response(f'Error: {str(e)}', 500)

@@ -331,7 +331,82 @@ async function addVehicle() {
   finally { busy.value = false }
 }
 
-onMounted(() => { load(); loadWaterNames(); loadIdentityForm(); loadDemoStatus(); loadBranches(); loadDocSequences() })
+// Retensi & arsip dokumen (v2.34.0, Tahap 5/6 ISO) — kebijakan per kelas + arsip audit trail
+const retention = ref(null)
+const retentionBusy = ref(false)
+const retentionMsg = ref('')
+const archiveDays = ref(1825)
+
+const retentionRows = computed(() => (retention.value?.classes || []).map((c) => {
+  const perDb = c.per_db || []
+  const expired = perDb.reduce((s, d) => s + (d.expired || 0), 0)
+  const olds = perDb.filter((d) => d.oldest).map((d) => d.oldest).sort()
+  const news = perDb.filter((d) => d.newest).map((d) => d.newest).sort()
+  return { ...c, total: c.total || 0, expired, oldest: olds[0] || '', newest: news[news.length - 1] || '' }
+}))
+
+function fmtDays(d) { return d == null ? '♾ Permanen' : `${Number(d).toLocaleString('id-ID')} hari` }
+
+async function loadRetention() {
+  retentionBusy.value = true
+  try { retention.value = await api('/api/admin/retention/overview') } catch { retention.value = null }
+  finally { retentionBusy.value = false }
+}
+
+async function archiveAuditLogs() {
+  const n = Number(archiveDays.value)
+  if (!n || n < 30) { retentionMsg.value = '❌ Minimal 30 hari (anti salah-klik).'; return }
+  if (!confirm(`Arsipkan SEMUA jejak audit lebih tua dari ${n} hari di seluruh database (master + cabang)?\n\nBaris dipindah ke tabel arsip activity_logs_archive (tetap utuh & bisa dibuka), lalu dihapus dari tabel aktif. Tindakan ini dicatat di register retensi + audit log.`)) return
+  retentionBusy.value = true; retentionMsg.value = ''
+  try {
+    const r = await api('/api/admin/retention/archive-audit', { method: 'POST', body: { days: n } })
+    retentionMsg.value = '✅ ' + (r.msg || 'Audit trail diarsipkan')
+    loadRetention()
+  } catch (e) { retentionMsg.value = '❌ ' + e.message }
+  finally { retentionBusy.value = false }
+}
+
+// Verifikasi & registri dokumen (v2.35.0, Tahap 6/6 ISO) — integritas PDF via hash SHA-256
+const docs = ref([])
+const docFile = ref(null)
+const docVerifyBusy = ref(false)
+const docVerifyResult = ref(null)
+
+async function loadDocs() {
+  try {
+    const d = await api('/api/admin/documents?limit=50')
+    docs.value = Array.isArray(d?.documents) ? d.documents : []
+  } catch { docs.value = [] }
+}
+
+function onDocFile(e) { docFile.value = e.target.files?.[0] || null; docVerifyResult.value = null }
+
+async function verifyDoc() {
+  if (!docFile.value) { docVerifyResult.value = { error: 'Pilih file PDF dulu.' }; return }
+  docVerifyBusy.value = true; docVerifyResult.value = null
+  try {
+    const fd = new FormData()
+    fd.append('file', docFile.value)
+    const csrf = localStorage.getItem('bpf_csrf') || sessionStorage.getItem('bpf_csrf')
+    const headers = { Accept: 'application/json' }
+    if (csrf) headers['X-CSRF-Token'] = csrf
+    const r = await fetch('/api/documents/verify', { method: 'POST', headers, body: fd })
+    const d = await r.json().catch(() => null)
+    if (!r.ok) throw new Error((d && (d.msg || d.error)) || `HTTP ${r.status}`)
+    docVerifyResult.value = d
+    loadDocs()
+  } catch (e) { docVerifyResult.value = { error: e.message } }
+  finally { docVerifyBusy.value = false }
+}
+
+function shortSha(s) { return s ? String(s).slice(0, 12) + '…' : '—' }
+function fmtDT(s) {
+  if (!s) return '—'
+  const t = s.includes('T') ? s : s.replace(' ', 'T')
+  return new Date(t).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })
+}
+
+onMounted(() => { load(); loadWaterNames(); loadIdentityForm(); loadDemoStatus(); loadBranches(); loadDocSequences(); loadRetention(); loadDocs() })
 </script>
 
 <template>
@@ -443,6 +518,101 @@ onMounted(() => { load(); loadWaterNames(); loadIdentityForm(); loadDemoStatus()
               </tr>
               <tr v-if="docseqLoading"><td colspan="6" class="empty">Memuat…</td></tr>
               <tr v-if="!docseqLoading && !docseqRows.length"><td colspan="6" class="empty">Belum ada nomor dokumen — semua counter bersih.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card card-pad" style="margin-bottom:16px;">
+        <h3 style="margin:0;">🗄️ Retensi &amp; Arsip Dokumen <span class="badge" style="font-size:10px;vertical-align:middle;">Tahap 5/6 ISO · A.8.2 · ISO 15489</span></h3>
+        <p class="muted" style="font-size:11px;">
+          Kebijakan retensi per kelas dokumen (detail: <code>RETENTION_POLICY.md</code>).
+          Baris yang lewat masa retensi dihitung dari tanggal kolom masing-masing (tanggal transaksi / dibuat).
+          <b>TIDAK ada penghapusan otomatis</b> — penghancuran data bisnis butuh persetujuan manajemen &amp; dieksekusi manual.
+          Satu-satunya tindakan di sini: <b>arsipkan audit trail</b> yang sudah lewat masa aktif (dipindah ke tabel arsip, bukan dihapus).
+        </p>
+        <div class="row" style="margin-top:10px;gap:8px;align-items:center;flex-wrap:wrap;">
+          <button class="btn btn-sm" :disabled="retentionBusy" @click="loadRetention">🔄 Muat Inventaris</button>
+          <label class="muted" style="font-size:12px;">Arsipkan audit log &gt; <input type="number" min="30" v-model="archiveDays" style="width:90px;padding:3px 6px;" /> hari:</label>
+          <button class="btn btn-sm" :disabled="retentionBusy" @click="archiveAuditLogs">🗜 Arsipkan Audit Trail</button>
+          <span v-if="retentionMsg" class="alert" :class="retentionMsg.startsWith('✅') ? 'alert-success' : 'alert-error'" style="margin:0;padding:6px 10px;">{{ retentionMsg }}</span>
+        </div>
+        <div class="table-wrap" style="margin-top:10px;">
+          <table class="tbl">
+            <thead><tr><th>Kelas Dokumen</th><th>Masa Retensi</th><th>Total Baris</th><th>Estimasi &gt; Retensi</th><th>Rentang Data</th></tr></thead>
+            <tbody>
+              <tr v-for="c in retentionRows" :key="c.key">
+                <td><b>{{ c.label }}</b><br><span class="muted" style="font-size:11px;">{{ c.note }}</span></td>
+                <td>{{ fmtDays(c.retention_days) }}</td>
+                <td>{{ Number(c.total || 0).toLocaleString('id-ID') }}</td>
+                <td>
+                  <span v-if="c.expired"><b style="color:#b45309;">{{ Number(c.expired).toLocaleString('id-ID') }}</b></span>
+                  <span v-else class="muted">0</span>
+                </td>
+                <td class="muted" style="font-size:11px;">{{ c.oldest ? c.oldest.slice(0, 10) : '—' }} s/d {{ c.newest ? c.newest.slice(0, 10) : '—' }}</td>
+              </tr>
+              <tr v-if="retentionBusy && !retentionRows.length"><td colspan="5" class="empty">Memuat…</td></tr>
+              <tr v-if="!retentionBusy && !retentionRows.length"><td colspan="5" class="empty">Klik “Muat Inventaris” untuk melihat status retensi.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <details v-if="retention?.actions?.length" style="margin-top:8px;">
+          <summary class="muted" style="font-size:12px;cursor:pointer;">Riwayat tindakan retensi ({{ retention.actions.length }})</summary>
+          <div class="table-wrap" style="margin-top:6px;">
+            <table class="tbl">
+              <thead><tr><th>Waktu</th><th>Kelas</th><th>Aksi</th><th>DB</th><th>Baris</th><th>Oleh</th></tr></thead>
+              <tbody>
+                <tr v-for="a in retention.actions" :key="a.id">
+                  <td style="font-size:11px;">{{ fmtDT(a.created_at) }}</td>
+                  <td>{{ a.class_key }}</td>
+                  <td>{{ a.action }}</td>
+                  <td class="muted" style="font-size:11px;">{{ a.db_name }}</td>
+                  <td>{{ a.rows_affected }}</td>
+                  <td>{{ a.actor }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </details>
+      </div>
+
+      <div class="card card-pad" style="margin-bottom:16px;">
+        <h3 style="margin:0;">🔏 Verifikasi &amp; Registri Dokumen <span class="badge" style="font-size:10px;vertical-align:middle;">Tahap 6/6 ISO · A.8.2</span></h3>
+        <p class="muted" style="font-size:11px;">
+          Setiap PDF resmi (Tanda Terima Air Minum, Form Permohonan Overtime, dll.) dicatat hash SHA-256-nya
+          + penandatangan + waktu terbit di registri. Unggah PDF untuk membuktikan dokumen <b>utuh</b>
+          (tidak diubah sejak diterbitkan) dan melihat siapa yang menerbitkannya.
+        </p>
+        <div class="row" style="margin-top:10px;gap:8px;align-items:center;flex-wrap:wrap;">
+          <input type="file" accept=".pdf,application/pdf" @change="onDocFile" style="font-size:12px;" />
+          <button class="btn btn-primary btn-sm" :disabled="docVerifyBusy || !docFile" @click="verifyDoc">🔍 Verifikasi Dokumen</button>
+          <button class="btn btn-sm" @click="loadDocs">🔄 Registri</button>
+        </div>
+        <div v-if="docVerifyResult" class="alert" style="margin-top:10px;"
+             :class="docVerifyResult.error ? 'alert-error' : (docVerifyResult.found ? 'alert-success' : 'alert-error')">
+          <template v-if="docVerifyResult.error">❌ {{ docVerifyResult.error }}</template>
+          <template v-else-if="docVerifyResult.found">
+            ✅ <b>{{ docVerifyResult.document.doc_type }} {{ docVerifyResult.document.doc_no }}</b>
+            — diterbitkan {{ fmtDT(docVerifyResult.document.created_at) }} oleh
+            <b>{{ docVerifyResult.document.signer_name || '—' }}</b> ({{ docVerifyResult.document.signer_role || '—' }}) ·
+            cabang {{ docVerifyResult.document.branch_code || '—' }} ·
+            SHA-256 <code>{{ shortSha(docVerifyResult.document.sha256) }}</code>
+          </template>
+          <template v-else>{{ docVerifyResult.msg }}</template>
+        </div>
+        <div class="table-wrap" style="margin-top:10px;">
+          <table class="tbl">
+            <thead><tr><th>Waktu Terbit</th><th>Jenis</th><th>No. Dokumen</th><th>Cabang</th><th>Penandatangan</th><th>Hash (SHA-256)</th></tr></thead>
+            <tbody>
+              <tr v-for="doc in docs" :key="doc.id">
+                <td style="font-size:11px;">{{ fmtDT(doc.created_at) }}</td>
+                <td>{{ doc.doc_type }}</td>
+                <td><code>{{ doc.doc_no }}</code></td>
+                <td>{{ doc.branch_code || '—' }}</td>
+                <td>{{ doc.signer_name || '—' }} <span class="muted" style="font-size:11px;">({{ doc.signer_role || '—' }})</span></td>
+                <td><code style="font-size:11px;">{{ shortSha(doc.sha256) }}</code></td>
+              </tr>
+              <tr v-if="!docs.length"><td colspan="6" class="empty">Belum ada dokumen terdaftar — PDF resmi otomatis tercatat saat diunduh.</td></tr>
             </tbody>
           </table>
         </div>

@@ -4,6 +4,93 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 
 ---
 
+## v2.35.0 — 5 September 2026 (Tahap 6/6 — Integritas & siklus hidup dokumen)
+
+### 🔏 Verifikasi keaslian dokumen: hash SHA-256 + penandatangan + timestamp
+
+Tahap terakhir Program Perbaikan Standar Bertahap (ISO/IEC 27001 A.8.2 /
+A.8.9 + ISO 15489 keaslian dokumen).
+
+#### Backend — registri integritas `document_registry` (DB master)
+
+- `modules/doc_integrity.py` (baru): `ensure_document_registry()` (DDL
+  idempoten), `register_pdf(doc_type, doc_no, bytes, signer_name,
+  signer_role, branch_code, filename, meta)` — hash SHA-256 + ukuran byte +
+  penandatangan + timestamp tersimpan; `lookup_pdf(bytes)` — cari berdasar
+  hash. Pencatatan **best-effort** (gagal DB tidak menggagalkan unduhan PDF).
+- Hook di titik terbit dokumen resmi bertanda tangan:
+  - **Tanda Terima Air Minum** (`/api/water/purchases/<id>/pdf`) — signer =
+    TTD Finance (user yang memverifikasi), meta: GA + status.
+  - **Form Permohonan Overtime** (`/api/overtime/form-pdf`, driver & OB) —
+    signer = user GA HR/Admin yang mencetak.
+- `modules/routes_documents.py` (baru):
+  - `POST /api/documents/verify` — upload PDF (multipart, maks 20 MB); hash
+    dihitung ulang → cocokkan registri → buktikan utuh + siapa/kapan terbit.
+    Semua role login boleh (verifikasi dipakai penerima dokumen).
+  - `GET /api/admin/documents` — daftar registri (admin, filter q/limit).
+- Tabel dibuat otomatis saat startup (master) + `app.py` registrasi route.
+
+#### Frontend — Pengaturan → 🔏 Verifikasi & Registri Dokumen
+
+- Upload PDF → hasil VALID (jenis/no. dokumen, waktu terbit, penandatangan,
+  hash) atau TIDAK terdaftar (belum dicatat / sudah diubah).
+- Tabel registri 50 terbaru (jenis, no. dokumen, cabang, penandatangan, hash).
+
+#### Test
+
+- `tests/test_doc_integrity.py` (+13, fake-DB): DDL idempoten, register
+  menyimpan sha256/signer, DB-down tidak fatal, lookup cocok/tidak,
+  verify valid & not-found & validasi non-PDF/kosong & butuh login,
+  list admin-only 403.
+
+---
+
+## v2.34.0 — 5 September 2026 (Tahap 5/6 — Retensi & pemusnahan dokumen)
+
+### 🗄️ Retensi per kelas dokumen + arsip audit trail (ISO 15489 / UU PDP)
+
+Tahap 5 Program Perbaikan Standar Bertahap: data hanya disimpan selama
+perlu, arsip audit trail utuh, dan setiap tindakan disposisi tercatat.
+
+#### Kebijakan & dokumentasi
+
+- **`RETENTION_POLICY.md`** (baru) — kelas dokumen, jadwal retensi default
+  (audit trail 5 th, pelamar 2 th, BBM permanen, dsb.), prosedur arsip,
+  prosedur pemusnahan (wajib persetujuan manajemen + backup dulu), peran,
+  review tahunan. Nilai retensi bisa diubah via env `RETENTION_DAYS_*`.
+
+#### Backend — `modules/routes_retention.py` (baru, admin-only)
+
+- 6 kelas dokumen terdefinisi (audit_logs, transactions, water, overtime
+  driver/ob, applicants) — label, masa retensi, catatan, tindakan.
+- `GET /api/admin/retention/overview` — kebijakan + **inventaris live
+  lintas DB** (master + 9 cabang): jumlah baris, tanggal tertua/terbaru,
+  estimasi baris lewat masa retensi (anti-gagal per DB).
+- `POST /api/admin/retention/archive-audit` — **arsipkan audit trail**
+  lebih tua dari N hari (min. 30) di semua DB: baris dipindah ke
+  `activity_logs_archive` (INSERT…SELECT + DELETE, satu transaksi) — utuh,
+  ikut backup harian, tetap bisa dibuka. Tiap DB dicatat di
+  `retention_actions` + audit `retention_audit_archive`.
+- Tidak ada penghapusan otomatis data bisnis — pemusnahan manual &
+  disetujui (lihat kebijakan bagian 6).
+- Tabel `activity_logs_archive` & `retention_actions` dibuat otomatis di
+  master + tiap cabang saat startup; route diregistrasi di `app.py`.
+
+#### Frontend — Pengaturan → 🗄️ Retensi & Arsip Dokumen
+
+- Tabel kebijakan+inventaris (masa retensi, total baris, estimasi lewat
+  masa, rentang data), input ambang hari + tombol **Arsipkan Audit Trail**
+  (konfirmasi), riwayat 20 tindakan retensi terakhir.
+
+#### Test
+
+- `tests/test_retention.py` (+20, fake-DB): cutoff/env override/kelas,
+  DDL idempoten, arsip INSERT+DELETE+commit, tanpa-baris tidak DELETE,
+  overview admin & anti-gagal & 403, arsip route sukses / days min 30 /
+  days invalid 400 / non-admin 403.
+
+---
+
 ## v2.33.0 — 5 September 2026 (Tahap 4/6 — Vulnerability management)
 
 ### 🛡️ Manajemen kerentanan: audit dependensi otomatis + scan image + runbook insiden

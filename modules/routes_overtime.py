@@ -1085,10 +1085,23 @@ def register_overtime_routes(app):
             buf = io.BytesIO()
             pdf.output(buf)
             buf.seek(0)
+            pdf_bytes = buf.read()
             fname = f'Form_OT_{modul.upper()}_{row.get("display_id", row.get("id", "unknown"))}.pdf'
-            response = make_response(buf.read())
+            response = make_response(pdf_bytes)
             response.headers['Content-Type'] = 'application/pdf'
             response.headers['Content-Disposition'] = f'attachment; filename={fname}'
+            # v2.35.0 (Tahap 6/6 ISO): catat integritas ke registri (best-effort).
+            try:
+                from modules.doc_integrity import register_pdf
+                doc_no = row.get('display_id') or f'{modul}-id-{row.get("id")}'
+                register_pdf(f'ot_form_{modul}', doc_no, pdf_bytes,
+                             signer_name=session.get('full_name') or session.get('user_name') or '',
+                             signer_role=session.get('user_role') or '',
+                             branch_code=session.get('branch_code') or '',
+                             filename=fname, meta={'nama': row.get('nama'),
+                                                   'tanggal': str(row.get('tanggal') or '')})
+            except Exception:
+                pass  # registri tidak boleh menggagalkan unduhan PDF
             return response
         except Exception as e:
             return jsonify({'error': str(e)}), 500

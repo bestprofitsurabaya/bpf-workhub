@@ -1,5 +1,5 @@
 /* BPF WorkHub SPA — Service Worker (scope /app/) */
-const CACHE = 'bpf-spa-20260905-v232';
+const CACHE = 'bpf-spa-20260905-v235';
 const SHELL = ['/app/index.html'];
 
 self.addEventListener('install', (event) => {

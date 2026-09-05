@@ -2,7 +2,7 @@
 
 **Sistem Manajemen Armada untuk PT. Bestprofit Futures — Kantor Pusat Jakarta**
 
-> 📅 Versi 2.33.0 · September 2026 — Vulnerability management (Tahap 4/6 ISO 27001) · Access review (Tahap 3) · Step-up auth (Tahap 2) · Kantor Pusat Jakarta (Equity Tower)
+> 📅 Versi 2.35.0 · September 2026 — Retensi dokumen (Tahap 5) & Integritas dokumen (Tahap 6/6 ISO 27001) — program 6 tahap ISO 27001 selesai · Kantor Pusat Jakarta (Equity Tower)
 
 ---
 
@@ -181,6 +181,12 @@ bpf-workhub/
   scan image, A.8.8) + Dependabot mingguan + **Runbook Tanggap Insiden**
   (A.5.24–28, lihat `INCIDENT_RUNBOOK.md`); semua dependensi di-patch ke
   versi aman, image runtime dibersihkan dari tooling build
+- 🗄️ **Retensi & Arsip (v2.34, Tahap 5/6 ISO 27001)** — kebijakan retensi
+  per kelas dokumen (lihat `RETENTION_POLICY.md`), inventaris live lintas
+  cabang, dan arsip audit trail ke tabel arsip (ISO 15489 · UU PDP)
+- 🔏 **Integritas Dokumen (v2.35, Tahap 6/6 ISO 27001)** — setiap PDF resmi
+  dicatat hash SHA-256 + penandatangan + waktu terbit; verifikasi keaslian
+  dengan mengunggah PDF (A.8.2 · keaslian dokumen)
 
 ---
 
@@ -194,13 +200,14 @@ python -m pytest tests/ -v
 cd frontend && npm test
 ```
 
-**Status:** 410 pytest (pass) + 6 skip + 104 vitest · Semua ✅ PASS + audit dependensi bersih (v2.33.0 — CI GitHub Actions: Backend pytest + pip-audit, Frontend unit test/build + npm audit, Image scan Trivy; hijau di tiap push)
+**Status:** 443 pytest (pass) + 6 skip + 104 vitest · Semua ✅ PASS + audit dependensi bersih (v2.35.0 — CI GitHub Actions: Backend pytest + pip-audit, Frontend unit test/build + npm audit, Image scan Trivy; hijau di tiap push)
 
 ---
 
 ## 📚 Dokumen Lainnya
 
 - [🛡️ Keamanan & Standar](SECURITY.md)
+- [🗄️ Kebijakan Retensi & Pemusnahan](RETENTION_POLICY.md)
 - [🚨 Runbook Tanggap Insiden](INCIDENT_RUNBOOK.md)
 - [🚀 Panduan Deploy](DEPLOYMENT.md)
 - [📖 Panduan User](USER_GUIDE.md)

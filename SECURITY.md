@@ -43,11 +43,13 @@ Sistem menggunakan dua prinsip utama:
 | **Verifikasi ulang aksi berisiko** | Aksi yang menggerakkan uang (approve kasbon, serah terima dana, payout klaim BBM, verifikasi air minum) wajib dikonfirmasi dengan **PIN ulang user yang sedang login** sebelum dijalankan (step-up auth, ISO/IEC 27001 A.8.5). Grant verifikasi hanya berlaku sementara (10 menit) dan hilang saat logout. |
 | **Review hak akses berkala** | Admin punya halaman **Access Review** untuk meninjau hak akses secara triwulanan (ISO/IEC 27001 A.5.15): setiap akun diklasifikasikan otomatis (OK / Basi bila tidak login > 90 hari / Belum Pernah Login / Nonaktif), bisa di-export sebagai arsip, dan setiap review tercatat siapa & kapan. Akun basi bisa langsung dinonaktifkan (A.8.3). |
 | **Pengelolaan kerentanan teknis** | Kerentanan pada dependensi (library Python/JavaScript) dan image container **diaudit otomatis di setiap push** (ISO/IEC 27001 A.8.8): `pip-audit` + `npm audit` + pemindaian image dengan Trivy di CI, ditambah Dependabot yang membuka PR pembaruan tiap minggu. Semua dependensi dijaga pada versi ter-patch; image runtime dibersihkan dari peralatan build yang tidak terpakai. |
+| **Retensi & pemusnahan data** | Data hanya disimpan selama dibutuhkan (ISO/IEC 27001 A.8.2/A.8.10, ISO 15489, UU PDP): kebijakan retensi per kelas dokumen (`RETENTION_POLICY.md`), inventaris & arsip audit trail terkelola, pemusnahan data bisnis hanya dengan persetujuan manajemen dan tercatat. |
+| **Keaslian & integritas dokumen** | PDF resmi yang diterbitkan (Tanda Terima Air, Form Overtime, dll.) dicatat **hash SHA-256 + penandatangan + waktu terbit**; siapa pun bisa memverifikasi keaslian file dengan mengunggahnya kembali — perubahan sekecil apa pun terdeteksi (A.8.2, keaslian dokumen ISO 15489). |
 | **Tanggap insiden siap pakai** | Ada **Runbook Tanggap Insiden** (ISO/IEC 27001 A.5.24–28) yang menjabarkan peran, klasifikasi tingkat keparahan, prosedur per jenis insiden (akun terkompromi, kebocoran data, layanan down, dll.), pengumpulan bukti, pemulihan, dan pembelajaran pasca-insiden — lihat `INCIDENT_RUNBOOK.md`. |
 | **Catatan aktivitas** | **Setiap perubahan data tercatat**: siapa yang melakukannya, apa yang diubah, kapan, dan dari perangkat/IP mana. Semua ini bisa dilihat Admin di halaman Audit Log. |
 | **Pemantauan berkala** | Ada indikator status koneksi secara *real-time* (⚡ terhubung / 🔴 terputus) di bilah atas aplikasi. Log teknis juga dapat dipantau oleh tim IT. |
 | **Perlindungan dari celah umum** | Data yang dikirim selalu divalidasi; permintaan yang mengubah data wajib menyertakan token keamanan (proteksi *CSRF*); halaman dilindungi dari penyimpanan cache yang tidak diinginkan; dan kode ditulis dengan teknik yang tahan terhadap serangan umum seperti *SQL injection*. |
-| **Konfigurasi & rilis terkendali** | Kredensial penting (kunci rahasia, akses database) tidak dituliskan di kode, melainkan diatur lewat konfigurasi terpisah. Sebelum setiap versi dirilis, wajib lolos **391 pengujian otomatis** (pytest) + **98 uji antarmuka** (vitest) terlebih dahulu. |
+| **Konfigurasi & rilis terkendali** | Kredensial penting (kunci rahasia, akses database) tidak dituliskan di kode, melainkan diatur lewat konfigurasi terpisah. Sebelum setiap versi dirilis, wajib lolos **443 pengujian otomatis** (pytest) + **104 uji antarmuka** (vitest) + audit dependensi & scan image terlebih dahulu. |
 
 ---
 
@@ -99,7 +101,7 @@ Standar internasional tentang cara sebuah organisasi **memastikan produk dan lay
 | **Klausul 4–5** — Konteks & Kepemimpinan | Ruang lingkup dan pembagian peran tertulis dengan jelas. | Panduan lengkap tersedia dalam dokumen README, USER_GUIDE, dan DEPLOYMENT. |
 | **Klausul 7.5** — Informasi Terdokumentasi | Semua hal penting didokumentasikan, tidak bergantung pada ingatan orang. | Dokumentasi lengkap: CHANGELOG (catatan perubahan), DEPLOYMENT.md (panduan rilis), USER_GUIDE.md (panduan pengguna), SECURITY.md (dokumen ini). |
 | **Klausul 8.1** — Perencanaan Operasional | Proses kerja dirancang dan diikuti secara konsisten. | Alur rilis baku: catat perubahan di CHANGELOG → beri nomor versi → publikasikan sebagai *GitHub Release* (diotomatisasi lewat `scripts/release.sh`). |
-| **Klausul 8.6** — Rilis Produk | Tidak ada produk keluar tanpa pemeriksaan. | Sebelum setiap rilis wajib lolos: **323 pengujian otomatis** (`pytest`) + **83 uji frontend** (`vitest`), proses build aplikasi, serta uji coba langsung fitur HTTP & WebSocket (diverifikasi otomatis di GitHub Actions tiap push). |
+| **Klausul 8.6** — Rilis Produk | Tidak ada produk keluar tanpa pemeriksaan. | Sebelum setiap rilis wajib lolos: **443 pengujian otomatis** (`pytest`) + **104 uji frontend** (`vitest`), proses build aplikasi, audit dependensi (pip-audit/npm audit/Trivy), serta uji coba langsung fitur HTTP & WebSocket (diverifikasi otomatis di GitHub Actions tiap push). |
 | **Klausul 10** — Peningkatan Berkelanjutan | Selalu ada ruang untuk menjadi lebih baik. | Masukan pengguna dan jejak audit menjadi dasar perbaikan di setiap versi — lihat CHANGELOG untuk riwayatnya. |
 
 ---
@@ -120,6 +122,8 @@ Berikut ringkasan seluruh lapisan perlindungan yang dimiliki BPF WorkHub:
 | 🛂 **Access Review Triwulanan** | Laporan otomatis akun basi (tidak login > 90 hari) & belum pernah login — Admin meninjau berkala, mengekspor arsip CSV, dan menonaktifkan akun yang tidak dipakai. |
 | 🛡️ **Audit Kerentanan Otomatis** | Setiap perubahan kode diaudit di CI (`pip-audit`, `npm audit`, Trivy scan image) + Dependabot mingguan — kerentanan library diketahui & diperbaiki cepat. |
 | 🚨 **Runbook Insiden** | Prosedur tanggap insiden tertulis: siapa berbuat apa, bukti diamankan, pemulihan, dan pelajaran — siap dipakai saat keadaan darurat. |
+| 🗄️ **Retensi & Arsip Dokumen** | Kebijakan retensi per kelas + inventaris lintas cabang; audit trail diarsipkan otomatis-terkontrol; pemusnahan hanya dengan persetujuan & backup. |
+| 🔏 **Verifikasi Keaslian Dokumen** | Hash SHA-256 tiap PDF resmi (siapa menandatangani & kapan) — unggah file untuk membuktikan dokumen utuh / terdeteksi bila diubah. |
 | 📍 **Watermark Foto** | Foto bukti lapangan dilengkapi stempel lokasi GPS dan waktu — sulit dipalsukan. |
 | 🏰 **Pengaturan Keamanan Browser** | Standar pelindung aktif: CSP, X-Frame-Options, Referrer-Policy, dan Permissions-Policy (mencegah halaman disalahgunakan oleh situs lain). |
 | 💾 **Cadangan Data Harian** | Database dicadangkan otomatis setiap hari pukul **03.00 WIB**, dan disimpan selama **30 hari**. |
@@ -136,7 +140,7 @@ Equity Tower, SCBD Lot 9, Jl. Jend. Sudirman Kav. 52-53, Jakarta Selatan 12190
 
 ---
 
-*BPF WorkHub v2.33.0 · Dokumen Keamanan & Kepatuhan · Diperbarui 5 September 2026*
+*BPF WorkHub v2.35.0 · Dokumen Keamanan & Kepatuhan · Diperbarui 5 September 2026*
 
 ---
 

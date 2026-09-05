@@ -117,6 +117,47 @@ try:
 except Exception as _be:
     print(f'[branches] startup sync error: {_be}')
 
+# Integritas dokumen v2.35.0 (Tahap 6/6): registri hash di DB master.
+from modules.doc_integrity import ensure_document_registry
+ensure_document_registry()
+
+# Retensi v2.34.0 (Tahap 5/6): tabel arsip audit + register tindakan retensi
+# dibuat di master & setiap DB cabang (activity_logs tersebar per-cabang).
+from modules.routes_retention import ensure_retention_tables
+from modules.config import get_master_connection as _ret_master, _pool_for as _ret_pool
+for _attempt in range(5):
+    _rconn = _ret_master()
+    if _rconn:
+        try:
+            if ensure_retention_tables(_rconn):
+                break
+        except Exception as _re:
+            print(f'[retention] master ensure error: {_re}')
+        finally:
+            try:
+                _rconn.close()
+            except Exception:
+                pass
+    _time.sleep(3)
+try:
+    for _b in bm.list_branches():
+        if _b.get('is_active') and _b.get('db_name') and _b['db_name'] != os.environ.get('DB_NAME', 'bpf_asset_system'):
+            _bp = _ret_pool(_b['db_name'])
+            if _bp:
+                try:
+                    _bc = _bp.get_connection()
+                    try:
+                        ensure_retention_tables(_bc)
+                    finally:
+                        try:
+                            _bc.close()
+                        except Exception:
+                            pass
+                except Exception as _re:
+                    print(f'[retention] {_b["code"]} ensure error: {_re}')
+except Exception as _be:
+    print(f'[retention] branch ensure error: {_be}')
+
 # Register all route modules
 from modules.routes_driver import register_driver_routes
 from modules.routes_api_master import register_master_api
@@ -140,6 +181,8 @@ from modules.news_scraper import register_news_scraper_routes
 from modules.security import register_health_routes
 from modules.stepup import register_stepup_routes
 from modules.routes_accessreview import register_access_review_routes
+from modules.routes_retention import register_retention_routes
+from modules.routes_documents import register_document_routes
 
 register_driver_routes(app, socketio)
 register_auth_routes(app)
@@ -163,6 +206,8 @@ register_news_scraper_routes(app)
 register_health_routes(app)
 register_stepup_routes(app)
 register_access_review_routes(app)
+register_retention_routes(app)
+register_document_routes(app)
 
 # ================================================================
 # AUTO-CLEANUP: Hapus foto overtime > 6 bulan (180 hari)

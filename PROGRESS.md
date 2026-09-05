@@ -4,7 +4,7 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 **Terakhir diperbarui:** 2026-09-05  
 **Branch:** `main`  
-**Versi terbaru:** v2.33.0 (Tahap 4/6 ISO — vulnerability mgmt) LIVE · v2.32.0 Tahap 3 LIVE · v2.31.0 Tahap 2 live
+**Versi terbaru:** v2.35.0 (Tahap 6/6 ISO — integritas dokumen; di repo, BELUM deploy) · v2.34.0 (Tahap 5 — retensi; di repo, BELUM deploy) · v2.33.0 Tahap 4 LIVE
 
 ---
 
@@ -12,7 +12,7 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 | Aspek | Status |
 |-------|--------|
-| Versi | **v2.33.0 (Tahap 4/6 ISO — vulnerability mgmt) LIVE** — runtime live v2.32.0 → v2.33.0 (deploy sesi ini) |
+| Versi | v2.35.0 (Tahap 6 — integritas dokumen; di repo) · v2.34.0 (Tahap 5 — retensi; di repo) — runtime live v2.33.0 (Tahap 4) |
 | Step-up auth (Tahap 2) | ✅ **SELESAI + DEPLOY live (5 Sep)**: 8 endpoint uang di-protect → 428 tanpa grant; modal PIN SPA; smoke test live lulus (428→PIN→lolos; logout hilangkan grant; 5 langkah terverifikasi) |
 | Access review (Tahap 3) | ✅ **SELESAI + DEPLOY LIVE sesi ini (rebuild + smoke test)**: `/app/access-review` 200, login admin OK, 30 akun terklasifikasi (3 ok / 26 never_login / 1 inactive / 0 stale), export CSV OK, 401 tanpa login; bundle SPA berisi access-review, SW cache v232 |
 | Vulnerability mgmt (Tahap 4) | ✅ **SELESAI + DEPLOY LIVE sesi ini**: dependensi di-patch (pip-audit & npm audit 0 temuan), image runtime tanpa tooling build (Trivy 0 HIGH/CRITICAL), CI hijau (Backend + pip-audit 1m24s, Frontend + npm audit 42s, Image-scan Trivy 1m52s), Dependabot aktif, `INCIDENT_RUNBOOK.md` (A.5.24–28); smoke test live: health OK, Flask 3.1.3/mysql-connector 9.7.0 aktif, pip tidak ada, login+access review+users+SPA 200, log bersih |
@@ -33,12 +33,59 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 | Databases | 10 DB terpisah (1 master + 9 cabang) — `doc_sequences` dibuat di master + tiap cabang (v2.29.10) |
 | GPS Detail | ✅ Nominatim reverse geocode + disimpan ke DB |
 | Watermark | ✅ 4 baris: perusahaan + tanggal + alamat + koordinat |
-| Test Suite | ✅ 410 pytest (pass; 6 skip; 5 security-headers butuh container DB — pre-existing) + 104 vitest — CI GitHub Actions hijau tiap push (Backend: pytest + pip-audit + service mariadb/redis; Frontend: unit test + build + npm audit; Image scan Trivy) |
+| Retensi & arsip (Tahap 5) | ✅ **SELESAI di repo (5 Sep)**: RETENTION_POLICY.md, `routes_retention.py` (6 kelas, overview lintas-DB master+cabang, arsip audit trail → `activity_logs_archive` + register `retention_actions`), seksi UI di Settings, 20 pytest. ⚠️ Belum deploy |
+| Integritas dokumen (Tahap 6) | ✅ **SELESAI di repo (5 Sep)**: `doc_integrity.py` (registri SHA-256 + signer + timestamp) + hook di PDF Tanda Terima Air & Form OT, `routes_documents.py` (verify upload + list admin), seksi UI di Settings, 13 pytest. ⚠️ Belum deploy |
+| Test Suite | ✅ 443 pytest (pass; 6 skip; 5 security-headers butuh container DB — pre-existing) + 104 vitest — CI GitHub Actions hijau tiap push (Backend: pytest + pip-audit + service mariadb/redis; Frontend: unit test + build + npm audit; Image scan Trivy) |
 | Kestabilan | ✅ bbm_web healthy — 0 restart, 0 error di log sejak deploy terakhir |
 
 ---
 
 ## 🗂️ Riwayat Sesi
+
+### Sesi 2026-09-05 — v2.34.0 + v2.35.0: Tahap 5 (Retensi) + Tahap 6 (Integritas dokumen) ✅ SELESAI DI REPO (belum deploy)
+
+> Konteks: user memerintahkan semua suggestion dikerjakan: lanjut Tahap 5
+> (retensi & pemusnahan per kelas + arsip audit trail) DAN Tahap 6
+> (integritas & siklus hidup dokumen) + melengkapi Lampiran B runbook.
+> Kedua tahap (5 & 6) dituntaskan di repo sesuai standar: modul + UI +
+> test + dokumentasi. Deploy menyusul dengan konfirmasi eksplisit.
+
+1. **Tahap 5 (v2.34.0) — Retensi & arsip**: `modules/routes_retention.py`
+   — 6 kelas dokumen (audit_logs 5 th, transactions permanen, water 5 th,
+   overtime driver/ob 5 th, applicants 2 th; env `RETENTION_DAYS_*`);
+   `GET /api/admin/retention/overview` (inventaris live master+9 cabang:
+   jumlah, tertua/terbaru, estimasi lewat masa, anti-gagal per DB);
+   `POST /api/admin/retention/archive-audit` (arsip `activity_logs` →
+   `activity_logs_archive` di DB sama, satu transaksi, min 30 hari;
+   register `retention_actions` + audit). Pemusnahan data bisnis TIDAK
+   diotomasi (persetujuan manajemen — kebijakan bagian 6). Tabel dibuat
+   otomatis di master + tiap cabang saat startup.
+2. **Tahap 5 — dokumen**: `RETENTION_POLICY.md` (prinsip, kelas, jadwal
+   default, prosedur arsip & pemusnahan, peran, review tahunan) + UI
+   Settings → 🗄️ Retensi & Arsip (tabel kebijakan+inventaris, tombol
+   arsip dgn konfirmasi, riwayat tindakan). Test `test_retention.py` (+20).
+3. **Tahap 6 (v2.35.0) — Integritas dokumen**: `modules/doc_integrity.py`
+   — registri `document_registry` (master): SHA-256 + bytes_size + signer
+   + role + branch + timestamp + meta; best-effort. Hook di titik terbit
+   PDF resmi: Tanda Terima Air (signer = TTD Finance) & Form Permohonan OT
+   (driver & ob). `modules/routes_documents.py`: `POST /api/documents/verify`
+   (upload PDF → hash → cocokkan; semua role login) + `GET
+   /api/admin/documents` (list admin). UI Settings → 🔏 Verifikasi &
+   Registri Dokumen. Test `test_doc_integrity.py` (+13).
+4. **Runbook Lampiran B** dilengkapi: pemetaan peran insiden ke akun
+   sistem nyata (`admin`, `it_hu`, `it_sby`, …) + catatan isi nomor oleh
+   manajemen (kontak pribadi tidak tersimpan di sistem).
+5. **Verifikasi**: container 443 pytest passed + 6 skip (33 baru) + 104
+   vitest + build SPA sukses; host 438 pass + 6 skip (5 errors
+   security-headers butuh DB container — pre-existing).
+6. **Dokumentasi**: CHANGELOG v2.34.0 & v2.35.0, PROGRESS (roadmap 5 & 6 →
+   ✅, status, riwayat), README & SECURITY mengikuti.
+7. ⏳ **Belum deploy Tahap 5+6** — tabel baru dibuat otomatis saat
+   startup (document_registry, activity_logs_archive, retention_actions);
+   butuh `docker compose up -d --build web` + smoke test; menunggu
+   konfirmasi eksplisit.
+
+---
 
 ### Sesi 2026-09-05 — v2.33.0: Tahap 4/6 ISO — Vulnerability management ✅ SELESAI DI REPO (belum deploy) + Deploy Tahap 3 LIVE
 
@@ -860,8 +907,8 @@ tes & verifikasi; perubahan produksi butuh konfirmasi eksplisit.
 | 2 | Step-up auth: konfirmasi PIN sebelum aksi approve/pay berisiko (A.8.2/A.8.3/A.8.5) | ✅ **SELESAI 5 Sep + DEPLOY live (v2.31.0)** — 8 endpoint uang di-protect; smoke test live: 428 tanpa grant → PIN → lolos, logout hilangkan grant |
 | 3 | Access review triwulanan + laporan akun basi (A.5.15/A.8.2/A.8.3) | ✅ **SELESAI 5 Sep (v2.32.0)** — halaman Access Review admin, klasifikasi ok/stale/never/inactive, CSV export, tandai review selesai; 14 pytest + 6 vitest; ⏳ **belum deploy — ditunda user ke sesi berikutnya** |
 | 4 | Vulnerability mgmt: audit dependensi di CI + scan image + runbook insiden (A.8.8/A.5.24–28) | ✅ **SELESAI 5 Sep + DEPLOY LIVE (v2.33.0, commit `6ace8cb`)** — dependensi di-patch ke versi aman (pip-audit/npm audit 0 temuan), image runtime tanpa tooling build (Trivy 0 HIGH/CRITICAL), CI: pip-audit + npm audit + job Trivy scan (semua hijau), Dependabot mingguan, `INCIDENT_RUNBOOK.md` (A.5.24–28); 410 pytest + 104 vitest; smoke test live lulus |
-| 5 | Retensi & pemusnahan dokumen per kelas + arsip audit trail (ISO 15489, UU PDP) | ⏳ Belum |
-| 6 | Integritas tanda tangan & siklus hidup dokumen (hash + signer + timestamp) | ⏳ Belum |
+| 5 | Retensi & pemusnahan dokumen per kelas + arsip audit trail (ISO 15489, UU PDP) | ✅ **SELESAI 5 Sep (v2.34.0)** — RETENTION_POLICY.md, 6 kelas dokumen + overview inventaris lintas-DB, arsip audit trail → `activity_logs_archive` (register `retention_actions` + audit), pemusnahan bisnis manual dgn persetujuan; 20 pytest; ⏳ belum deploy |
+| 6 | Integritas tanda tangan & siklus hidup dokumen (hash + signer + timestamp) | ✅ **SELESAI 5 Sep (v2.35.0)** — registri `document_registry` (SHA-256+signer+timestamp) di PDF Tanda Terima Air & Form OT, `POST /api/documents/verify` (upload PDF → cocokkan hash), list admin, UI Settings; 13 pytest; ⏳ belum deploy |
 
 **Tahap 1 selesai di repo (5 Sep):**
 - `docker-compose.yml` baca `MYSQL_ROOT_PASSWORD`/`MYSQL_PASSWORD`/`DB_PASSWORD`

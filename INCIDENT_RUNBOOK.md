@@ -266,12 +266,17 @@ memperparah (mis. celah spesifik) di komunikasi publik.
 
 ## Lampiran B — Kontak On-Call (isi & jaga mutakhir)
 
-| Peran | Nama | Kontak |
+Pemegang peran mengikuti **akun sistem yang ada** (bukan nama generik) —
+pastikan nomor HP/WA diisi Manajemen & diverifikasi tiap access review.
+
+| Peran | Akun sistem (role) | Nama / Kontak |
 |---|---|---|
-| Komandan Insiden | *(isi)* | *(isi)* |
-| Teknisi On-Call 1 | *(isi)* | *(isi)* |
-| Teknisi On-Call 2 | *(isi)* | *(isi)* |
-| Penghubung Bisnis | *(isi)* | *(isi)* |
+| Komandan Insiden | `admin` (Administrator) | *(isi nama + HP)* |
+| Teknisi On-Call (HO Jakarta) | `it_hu` (IT Head Office Jakarta) | *(isi nama + HP)* |
+| Teknisi On-Call (Surabaya) | `it_sby` (IT Surabaya) | *(isi nama + HP)* |
+| Teknisi cadangan cabang | `it_bdg` / `it_smg` / `it_mlg` / `it_mdn` / `it_bjm` / `it_plm` / `it_lpg` / `it_jkt2` | *(sesuai lokasi)* |
+| Penghubung Bisnis | Manajer cabang / GA (`ga_*`) | *(isi nama + HP)* |
+| Telp kantor | — | 031-5349888 |
 
 ---
 
