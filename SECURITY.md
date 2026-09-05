@@ -42,6 +42,8 @@ Sistem menggunakan dua prinsip utama:
 | **Cara masuk yang aman** | PIN tersimpan aman di database. Akun yang sudah dinonaktifkan tidak bisa login. Sesi login memiliki masa kedaluwarsa otomatis, dan sistem menolak upaya manipulasi alamat tujuan setelah login. |
 | **Verifikasi ulang aksi berisiko** | Aksi yang menggerakkan uang (approve kasbon, serah terima dana, payout klaim BBM, verifikasi air minum) wajib dikonfirmasi dengan **PIN ulang user yang sedang login** sebelum dijalankan (step-up auth, ISO/IEC 27001 A.8.5). Grant verifikasi hanya berlaku sementara (10 menit) dan hilang saat logout. |
 | **Review hak akses berkala** | Admin punya halaman **Access Review** untuk meninjau hak akses secara triwulanan (ISO/IEC 27001 A.5.15): setiap akun diklasifikasikan otomatis (OK / Basi bila tidak login > 90 hari / Belum Pernah Login / Nonaktif), bisa di-export sebagai arsip, dan setiap review tercatat siapa & kapan. Akun basi bisa langsung dinonaktifkan (A.8.3). |
+| **Pengelolaan kerentanan teknis** | Kerentanan pada dependensi (library Python/JavaScript) dan image container **diaudit otomatis di setiap push** (ISO/IEC 27001 A.8.8): `pip-audit` + `npm audit` + pemindaian image dengan Trivy di CI, ditambah Dependabot yang membuka PR pembaruan tiap minggu. Semua dependensi dijaga pada versi ter-patch; image runtime dibersihkan dari peralatan build yang tidak terpakai. |
+| **Tanggap insiden siap pakai** | Ada **Runbook Tanggap Insiden** (ISO/IEC 27001 A.5.24–28) yang menjabarkan peran, klasifikasi tingkat keparahan, prosedur per jenis insiden (akun terkompromi, kebocoran data, layanan down, dll.), pengumpulan bukti, pemulihan, dan pembelajaran pasca-insiden — lihat `INCIDENT_RUNBOOK.md`. |
 | **Catatan aktivitas** | **Setiap perubahan data tercatat**: siapa yang melakukannya, apa yang diubah, kapan, dan dari perangkat/IP mana. Semua ini bisa dilihat Admin di halaman Audit Log. |
 | **Pemantauan berkala** | Ada indikator status koneksi secara *real-time* (⚡ terhubung / 🔴 terputus) di bilah atas aplikasi. Log teknis juga dapat dipantau oleh tim IT. |
 | **Perlindungan dari celah umum** | Data yang dikirim selalu divalidasi; permintaan yang mengubah data wajib menyertakan token keamanan (proteksi *CSRF*); halaman dilindungi dari penyimpanan cache yang tidak diinginkan; dan kode ditulis dengan teknik yang tahan terhadap serangan umum seperti *SQL injection*. |
@@ -116,6 +118,8 @@ Berikut ringkasan seluruh lapisan perlindungan yang dimiliki BPF WorkHub:
 | 🚧 **Anti Tebak Paksa** | Percobaan login berulang kali yang mencurigakan akan dibatasi otomatis (melalui *rate limiting*). |
 | 🧬 **Verifikasi PIN Ulang (Step-up)** | Aksi approve/pay berisiko wajib konfirmasi PIN ulang user yang sedang login — modal PIN muncul otomatis, grant sementara 10 menit, hilang saat logout. |
 | 🛂 **Access Review Triwulanan** | Laporan otomatis akun basi (tidak login > 90 hari) & belum pernah login — Admin meninjau berkala, mengekspor arsip CSV, dan menonaktifkan akun yang tidak dipakai. |
+| 🛡️ **Audit Kerentanan Otomatis** | Setiap perubahan kode diaudit di CI (`pip-audit`, `npm audit`, Trivy scan image) + Dependabot mingguan — kerentanan library diketahui & diperbaiki cepat. |
+| 🚨 **Runbook Insiden** | Prosedur tanggap insiden tertulis: siapa berbuat apa, bukti diamankan, pemulihan, dan pelajaran — siap dipakai saat keadaan darurat. |
 | 📍 **Watermark Foto** | Foto bukti lapangan dilengkapi stempel lokasi GPS dan waktu — sulit dipalsukan. |
 | 🏰 **Pengaturan Keamanan Browser** | Standar pelindung aktif: CSP, X-Frame-Options, Referrer-Policy, dan Permissions-Policy (mencegah halaman disalahgunakan oleh situs lain). |
 | 💾 **Cadangan Data Harian** | Database dicadangkan otomatis setiap hari pukul **03.00 WIB**, dan disimpan selama **30 hari**. |
@@ -132,7 +136,7 @@ Equity Tower, SCBD Lot 9, Jl. Jend. Sudirman Kav. 52-53, Jakarta Selatan 12190
 
 ---
 
-*BPF WorkHub v2.29.6 · Dokumen Keamanan & Kepatuhan · Diperbarui 4 September 2026*
+*BPF WorkHub v2.33.0 · Dokumen Keamanan & Kepatuhan · Diperbarui 5 September 2026*
 
 ---
 

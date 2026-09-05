@@ -1,0 +1,37 @@
+# Dependabot — pembaruan otomatis dependensi (Tahap 4/6 ISO/IEC 27001 — A.8.8).
+#
+# - pip  : requirements.txt di root (versi di-pin `==` agar rilis terkontrol;
+#          Dependabot membuka PR saat versi aman tersedia, termasuk security fix).
+# - npm  : package-lock.json di frontend/ (semua dependency adalah devDependency
+#          untuk toolchain build/test — tidak ikut ke bundle produksi).
+#
+# Jadwal mingguan + `open-pull-requests-limit` agar tidak membanjiri notifikasi.
+version: 2
+updates:
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Asia/Jakarta"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "security"
+    commit-message:
+      prefix: "chore(deps)"
+
+  - package-ecosystem: "npm"
+    directory: "/frontend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Asia/Jakarta"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "security"
+    commit-message:
+      prefix: "chore(deps)"

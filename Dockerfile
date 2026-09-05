@@ -33,7 +33,8 @@ RUN chmod +x /app/scripts/overtime-cleanup.sh && \
     touch /var/log/overtime-cleanup.log
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt \
+    && pip uninstall -y pip setuptools wheel jaraco.context 2>/dev/null || true
 COPY . .
 COPY static/ /app/static/
 

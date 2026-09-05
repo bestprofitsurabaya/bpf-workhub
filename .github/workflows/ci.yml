@@ -20,6 +20,11 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
+      # Audit keamanan dependensi frontend (Tahap 4/6 ISO 27001 — A.8.8).
+      # Gagal bila ada vuln high/critical (semua devDependencies, tidak
+      # ikut ke bundle produksi).
+      - name: Audit dependencies (npm audit)
+        run: npm audit --audit-level=high
       - run: npm test
       - run: npm run build
 
@@ -69,5 +74,27 @@ jobs:
           sudo apt-get update && sudo apt-get install -y poppler-utils
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+      # Audit keamanan dependensi backend (Tahap 4/6 ISO 27001 — A.8.8).
+      # Gagal bila ada vuln diketahui pada versi ter-pin di requirements.txt.
+      - name: Audit dependencies (pip-audit)
+        run: pip install pip-audit && pip-audit -r requirements.txt
       - name: Run tests (unit, DB service tersedia)
         run: python -m pytest tests/ -q
+
+  image-scan:
+    name: Image security scan (Trivy)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build -t bpf-workhub:ci .
+      # Scan image container (Tahap 4/6 ISO 27001 — A.8.8). Gagal bila ada
+      # vuln HIGH/CRITICAL yang sudah punya fix. --ignore-unfixed: CVE OS
+      # base image tanpa upstream fix tidak menggagalkan build (tidak ada
+      # aksi yang bisa diambil).
+      - name: Trivy scan (HIGH/CRITICAL)
+        run: |
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+            aquasec/trivy:0.74.0 image \
+            --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 \
+            bpf-workhub:ci

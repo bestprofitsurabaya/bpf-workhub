@@ -4,6 +4,63 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 
 ---
 
+## v2.33.0 — 5 September 2026 (Tahap 4/6 — Vulnerability management)
+
+### 🛡️ Manajemen kerentanan: audit dependensi otomatis + scan image + runbook insiden
+
+Tahap 4 dari Program Perbaikan Standar Bertahap (ISO/IEC 27001 A.8.8
+[teknikal vulnerability management] & A.5.24–28 [manajemen insiden]). Semua
+kerentanan dependensi yang terdeteksi **diperbaiki**, bukan sekadar diaudit.
+
+#### 🔧 Perbaikan kerentanan dependensi (hasil audit awal)
+
+- **Backend `requirements.txt`** — dipindah ke versi ter-patch (pip-audit
+  awal: 30+ temuan):
+  - Flask 3.0.0 → **3.1.3**, Werkzeug 3.0.0 → **3.1.8**
+  - mysql-connector-python 8.2.0 → **9.7.0** (protobuf rentan transitif ikut hilang)
+  - Pillow 10.0.1 → **12.3.0**, requests 2.31.0 → **2.34.2**
+  - scikit-learn 1.3.1 → **1.6.1** (tetap kompatibel numpy 1.26/pandas 2.1)
+  - Hasil: `pip-audit -r requirements.txt` → **No known vulnerabilities found**.
+- **Frontend `package.json`** (semua devDependencies — tidak ikut bundle
+  produksi): vite ^5.3.3 → **^7.2.0**, vitest ^1.6.0 → **^3.2.7**, happy-dom
+  ^14.12.3 → **^20.14.0**, @vitejs/plugin-vue ^5.0.5 → **^6.0.8**.
+  Hasil: `npm audit` → **0 vulnerabilities** (sebelumnya 5: 2 critical,
+  1 high — esbuild/vite/vitest/happy-dom).
+- **Dockerfile** — tooling build (pip, setuptools, wheel, jaraco.context)
+  dihapus setelah `pip install` → image runtime lebih ramping & scan Trivy
+  bersih (sebelumnya 2 HIGH di build-tooling).
+
+#### 🤖 Audit otomatis di CI (A.8.8)
+
+- Job **Backend** kini menjalankan `pip-audit -r requirements.txt` (gagal
+  bila ada vuln pada versi ter-pin).
+- Job **Frontend** kini menjalankan `npm audit --audit-level=high`.
+- Job baru **Image security scan (Trivy)** — `docker build` + scan image
+  severity HIGH/CRITICAL (Trivy 0.74.0, `--ignore-unfixed`), gagal bila ada
+  temuan dengan fix tersedia.
+- **`.github/dependabot.yml`** (baru) — update otomatis mingguan untuk pip
+  (root) & npm (frontend), limit 5 PR, label `dependencies`/`security`.
+
+#### 🚨 Runbook insiden (A.5.24–28)
+
+- **`INCIDENT_RUNBOOK.md`** (baru) — prosedur tanggap insiden lengkap:
+  peran & kontak, klasifikasi severity (SEV-1/2/3), sumber deteksi,
+  alur tanggap, prosedur per jenis insiden (akun terkompromi, kebocoran
+  data pribadi [termasuk kewajiban UU PDP 3×24 jam], layanan down,
+  defacement/injeksi, brute-force/DDoS, insider threat, temuan audit),
+  preservasi bukti & chain of custody (A.5.28), pemulihan & verifikasi,
+  komunikasi, review pasca-insiden (A.5.27), template log insiden &
+  cheat-sheet terminal.
+
+#### Test
+
+- **410 pytest passed + 6 skipped** (container, DB service) + **104 vitest
+  passed** + build SPA sukses — semua dengan versi dependensi baru;
+  runtime container terverifikasi (import + gunicorn).
+- Trivy image scan: **0 temuan HIGH/CRITICAL**.
+
+---
+
 ## v2.32.0 — 5 September 2026 (Tahap 3/6 — Access review & akun basi)
 
 ### 🛂 Access review triwulanan + laporan akun basi (ISO/IEC 27001 A.5.15/A.8.2/A.8.3)

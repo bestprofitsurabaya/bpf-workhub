@@ -2,7 +2,7 @@
 
 **Sistem Manajemen Armada untuk PT. Bestprofit Futures — Kantor Pusat Jakarta**
 
-> 📅 Versi 2.32.0 · September 2026 — Access review & akun basi (Tahap 3/6 ISO 27001) · Step-up auth (Tahap 2) · Kantor Pusat Jakarta (Equity Tower)
+> 📅 Versi 2.33.0 · September 2026 — Vulnerability management (Tahap 4/6 ISO 27001) · Access review (Tahap 3) · Step-up auth (Tahap 2) · Kantor Pusat Jakarta (Equity Tower)
 
 ---
 
@@ -176,6 +176,11 @@ bpf-workhub/
   review hak akses triwulanan: klasifikasi akun otomatis (OK / Basi >90 hari /
   Belum Login / Nonaktif), export CSV arsip, dan pencatatan review selesai
   (A.5.15 · A.8.2 · A.8.3)
+- 🛡️ **Vulnerability Management (v2.33, Tahap 4/6 ISO 27001)** — audit
+  kerentanan dependensi otomatis di CI (`pip-audit` + `npm audit` + Trivy
+  scan image, A.8.8) + Dependabot mingguan + **Runbook Tanggap Insiden**
+  (A.5.24–28, lihat `INCIDENT_RUNBOOK.md`); semua dependensi di-patch ke
+  versi aman, image runtime dibersihkan dari tooling build
 
 ---
 
@@ -189,13 +194,14 @@ python -m pytest tests/ -v
 cd frontend && npm test
 ```
 
-**Status:** 371 pytest (365 pass + 6 skip) + 86 vitest · Semua ✅ PASS (terakhir diverifikasi v2.29.11 — CI GitHub Actions: Backend pytest + Frontend build/unit test, hijau di tiap push)
+**Status:** 410 pytest (pass) + 6 skip + 104 vitest · Semua ✅ PASS + audit dependensi bersih (v2.33.0 — CI GitHub Actions: Backend pytest + pip-audit, Frontend unit test/build + npm audit, Image scan Trivy; hijau di tiap push)
 
 ---
 
 ## 📚 Dokumen Lainnya
 
 - [🛡️ Keamanan & Standar](SECURITY.md)
+- [🚨 Runbook Tanggap Insiden](INCIDENT_RUNBOOK.md)
 - [🚀 Panduan Deploy](DEPLOYMENT.md)
 - [📖 Panduan User](USER_GUIDE.md)
 - [📋 Changelog](CHANGELOG.md)
