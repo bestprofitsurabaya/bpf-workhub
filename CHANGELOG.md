@@ -4,6 +4,32 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 
 ---
 
+## v2.29.11 — 5 September 2026
+
+### 🔢 Admin: Kelola Nomor Dokumen per Cabang
+
+- Halaman **Settings → Nomor Dokumen** (Admin): daftar counter nomor urut
+  per cabang & jenis dokumen (prefix) — format `PREFIX-CABANG-TANGGAL-0001`
+  (mis. `WTR-SBY-20260905-0001`), lengkap dengan label jenis dokumen.
+- Tombol **Reset** per baris untuk memulai nomor dari 0001 lagi (awal hari /
+  selesai uji coba / koreksi) — dengan konfirmasi peringatan.
+- API baru (admin-only + audit trail `doc_seq_reset`):
+  - `GET  /api/admin/doc-sequences` — daftar counter semua cabang
+  - `POST /api/admin/doc-sequences/reset` — reset per (cabang, prefix, tanggal)
+- Test: +13 (`tests/test_docseq_admin.py` — logika parse/reset + route admin).
+
+### 🧹 Operasional produksi
+
+- **Akun uji lama dibersihkan** dari DB produksi: `qa`, `e2e_driver`,
+  `test_check` (tidak pernah dipakai operasional; jejak login e2e dihapus).
+- **E2E penomoran lintas cabang** terverifikasi live: `WTR-BDG-*` (OB
+  Bandung) & `CASH-MLG-*` (Finance Malang) — isolasi nomor per cabang.
+- **Fresh deploy diuji** dari klon GitHub bersih: init.sql (admin + cabang
+  JKT/JKT2 HO Jakarta), `doc_sequences` dibuat otomatis di startup, dan
+  penomoran `WTR-SBY-…-0001` bekerja sejak hari pertama.
+
+---
+
 ## v2.29.10 — 4 September 2026
 
 ### 🔢 Standar penomoran dokumen & transaksi per cabang

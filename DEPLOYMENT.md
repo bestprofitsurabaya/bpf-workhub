@@ -463,4 +463,4 @@ Telp: 031-5349888
 
 ---
 
-*BPF WorkHub v2.29.10 · Panduan Deployment · Diperbarui 4 September 2026*
+*BPF WorkHub v2.29.11 · Panduan Deployment · Diperbarui 5 September 2026*

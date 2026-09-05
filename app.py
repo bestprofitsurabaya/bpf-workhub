@@ -133,6 +133,7 @@ from modules.routes_water import register_water_routes
 from modules.routes_applicants import register_applicant_routes
 from modules.routes_assets import register_asset_routes
 from modules.routes_branches import register_branch_routes
+from modules.routes_docseq import register_docseq_routes
 from modules.routes_overtime import register_overtime_routes
 from modules.routes_spa import register_spa_routes
 from modules.news_scraper import register_news_scraper_routes
@@ -153,6 +154,7 @@ register_water_routes(app)
 register_applicant_routes(app)
 register_asset_routes(app)
 register_branch_routes(app)
+register_docseq_routes(app)
 register_overtime_routes(app)
 register_spa_routes(app)
 register_news_scraper_routes(app)

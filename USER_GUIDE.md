@@ -1,4 +1,4 @@
-# 📖 Panduan Pengguna BPF WorkHub v2.29.10
+# 📖 Panduan Pengguna BPF WorkHub v2.29.11
 
 > **Siapa pun kamu — sopir, OB, admin, atau pimpinan — panduan ini ditulis untuk kamu.**
 > Tidak perlu paham teknis. Cukup ikuti langkah-langkah sesuai bagianmu.
@@ -561,6 +561,14 @@ OB/Security, `OTD` overtime Driver.
 > hanya dokumen baru yang memakai format ini. Nomor ini yang tampil di PDF
 > & laporan — sebutkan nomornya saat bertanya atau konfirmasi antar tim.
 
+**Mengelola nomor dokumen (Admin):** buka **Settings → Nomor Dokumen**.
+Di sana tampil counter nomor urut per cabang & jenis dokumen beserta nomor
+terakhir yang terpakai. Tombol **🔄 Reset** memulai nomor dari 0001 lagi
+untuk cabang+jenis+tanggal tersebut — misalnya setelah selesai uji coba.
+> ⚠️ Reset hanya aman bila **belum ada dokumen** dengan nomor itu hari ini;
+> nomor tidak boleh kembar dalam satu hari (kolom nomor unik di database).
+> Setiap reset tercatat di riwayat aktivitas (audit).
+
 ### 12.3 Pengaturan (Settings)
 
 - **Manajemen Driver** — tambah/hapus data driver.
@@ -751,4 +759,4 @@ Jika upload ke WordPress gagal, pesan error sekarang menampilkan **response body
 
 Ada pertanyaan atau kendala? Hubungi **Admin** atau **tim IT** — mereka bisa melihat riwayat sistem (Audit Log) untuk membantu menyelesaikan masalahmu dengan cepat.
 
-*BPF WorkHub v2.29.10 · Panduan Pengguna · Diperbarui 4 September 2026*
+*BPF WorkHub v2.29.11 · Panduan Pengguna · Diperbarui 5 September 2026*

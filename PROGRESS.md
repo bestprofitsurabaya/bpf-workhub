@@ -4,7 +4,7 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 **Terakhir diperbarui:** 2026-09-04  
 **Branch:** `main`  
-**Versi terbaru:** v2.29.10 (standar penomoran dokumen per cabang + Kantor Pusat Jakarta (Equity Tower); deployed live)
+**Versi terbaru:** v2.29.11 (Admin kelola nomor dokumen per cabang + cleanup akun uji + fresh deploy test; deployed live)
 
 ---
 
@@ -12,14 +12,14 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 | Aspek | Status |
 |-------|--------|
-| Versi | v2.29.10 (standar penomoran dokumen per cabang + koreksi HO Jakarta) — runtime sebelumnya v2.29.9 |
+| Versi | v2.29.11 (Admin kelola nomor dokumen per cabang + operasional) — runtime sebelumnya v2.29.10 |
 | Manajemen User | ✅ Admin bisa edit SEMUA detail user: fix tombol Simpan mati saat edit tanpa PIN, `branch_code` kini tersimpan, username bisa diganti (update by-id) |
 | Konvensi username | ✅ `{divisi}_{cabang}` (nama bila >1 per divisi-cabang): 12 akun produksi di-rename (`finance_sby`, `ob_faisol_sby`, `gahr_sby`, …) — driver & it_* tidak berubah; helper text contoh pola di form Users; login UI diverifikasi browser 11/11 |
 | PDF Air Minum | ✅ Foto bukti diperbesar (60–130 mm mengikuti ruang kosong), TTD lebih ke bawah, header kop simetris (teks rata tengah halaman) |
 | Sync Overtime | ✅ Driver (±8.675 sesi) & OB/Security (599 sesi) — keduanya via Apps Script Web App; auto-refresh saat login/logout GA HR/Admin; redirect & duplicate display_id bugs fixed; `submitted_at` tersimpan |
 | Urutan overtime | ✅ Terkini-di-atas di semua daftar + detail report per nama dibalik terkini-dulu (PDF/Excel, commit `733fd2f`) |
 | Data demo air minum | ✅ Dibersihkan 4 Sep — WTR-20260904-10300556, WTR-DEMO-01/02 dihapus (bpf_asset_system + bpf_restore_test); backup `/tmp/bpf_water_demo_backup_20260904.sql`; tabel `water_purchases` kini 0 baris |
-| Deploy | ✅ 4 Sep 2026 — v2.29.10 live (rebuild `bbm_web`: penomoran dokumen + HO Jakarta; SW cache v2910); `bbm_web` healthy |
+| Deploy | ✅ 5 Sep 2026 — v2.29.11 live (rebuild `bbm_web`: admin nomor dokumen; SW cache v2911); `bbm_web` healthy |
 | Dashboard Marketing | ✅ Tab "Selesai" kini memakai `/api/appointments/history` (riwayat completed marketing sendiri, lintas tanggal) — sebelumnya memanggil endpoint driver `/completed` → selalu 400/kosong |
 | Validasi username | ✅ Backend `/api/users/sync` menolak username role back-office tanpa awalan divisi (`finance_`, `ob_`, …) — Driver/Admin/`it_*` bebas; akun lama (qa/test_check/e2e_driver & (username,role) sudah ada) tetap bisa disimpan |
 | Nama asli di tabel Users | ✅ Kolom Username+Nama digabung: Nama Lengkap tebal + username kecil di bawahnya (gaya baris nasabah) — Admin mengenali orangnya |
@@ -117,6 +117,39 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 6. **Test suite**: pytest container 352 passed + 6 skipped (358 collected,
    termasuk `tests/test_pdf_header_layout.py` — geometri kop via poppler) +
    vitest 86 + build sukses; commit & push; CI hijau.
+
+---
+
+### Sesi 2026-09-05 — v2.29.11: Admin kelola nomor dokumen + operasional produksi ✅ SELESAI
+
+> Konteks: user minta 4 suggestion dikerjakan: (1) cleanup akun uji lama,
+> (2) e2e penomoran lintas cabang, (3) fresh deploy test dari nol,
+> (4) UI admin kelola nomor dokumen (doc_sequences).
+
+1. **Fitur Admin — Nomor Dokumen**: modul baru `modules/routes_docseq.py`:
+   `GET /api/admin/doc-sequences` (daftar counter per cabang dari DB master
+   + tiap DB cabang) & `POST /api/admin/doc-sequences/reset` (hapus baris
+   seq_key cabang+prefix+tanggal → nomor berikutnya mulai 0001; admin-only
+   + audit `doc_seq_reset`). UI: seksi **🔢 Nomor Dokumen** di SettingsView
+   (filter cabang, tabel prefix/tanggal/nomor terakhir, tombol Reset dgn
+   konfirmasi peringatan). SW cache v2911.
+2. **Test**: `tests/test_docseq_admin.py` (+13): parse_seq_key,
+   read_sequences/reset_sequences (SQL & commit), route list/reset
+   (admin-only 401/403, validasi 400, cabang tak dikenal 404).
+3. **Fresh deploy test**: klon bersih dari GitHub (state ter-commit) ke
+   `/tmp/bpf_fresh`, compose terpisah (port 3308/5002, container prefiks
+   fresh, volume baru) → init.sql jalan (admin + JKT/JKT2), startup membuat
+   `doc_sequences`, e2e `WTR-SBY-…-0001` + identitas Jakarta terverifikasi;
+   teardown penuh (`down -v` + hapus direktori).
+4. **E2E lintas cabang live**: user uji sementara per cabang → WTR cabang
+   BDG (`WTR-BDG-…-0001` di bpf_branch_bdg) & CASH cabang MLG
+   (`CASH-MLG-…-0001` di bpf_branch_malang) → format & isolasi nomor
+   terbukti; seluruh data uji + counter + user uji dihapus.
+5. **Cleanup akun uji**: `qa` (aktif, tak pernah login), `e2e_driver`
+   (nonaktif), `test_check` (nonaktif) dihapus dari users master + 2 jejak
+   login e2e di activity_logs; diverifikasi tanpa referensi data operasional.
+6. **Test suite**: pytest container 365 passed + 6 skipped + vitest 86 +
+   build sukses; commit & push; CI hijau.
 
 ---
 

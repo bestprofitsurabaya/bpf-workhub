@@ -152,6 +152,51 @@ async function switchBranch(code) {
   finally { branchBusy.value = false }
 }
 
+// Nomor dokumen (v2.29.11) — lihat & reset counter doc_sequences per cabang
+const docseqs = ref([])
+const docseqLoading = ref(false)
+const docseqMsg = ref('')
+const docseqFilter = ref('')
+
+function fmtSeqDate(d) {
+  if (!d || d.length !== 8) return d || '—'
+  return `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6, 8)}`
+}
+
+const docseqRows = computed(() => {
+  const rows = []
+  for (const b of docseqs.value) {
+    for (const s of b.sequences || []) {
+      rows.push({ ...s, branchName: b.name })
+    }
+  }
+  if (docseqFilter.value) return rows.filter((r) => r.branch === docseqFilter.value)
+  return rows
+})
+
+async function loadDocSequences() {
+  docseqLoading.value = true
+  try {
+    const d = await api('/api/admin/doc-sequences')
+    docseqs.value = Array.isArray(d?.branches) ? d.branches : []
+  } catch { docseqs.value = [] }
+  finally { docseqLoading.value = false }
+}
+
+async function resetSeq(row) {
+  const scope = row.date ? `tanggal ${fmtSeqDate(row.date)}` : 'SEMUA tanggal'
+  if (!confirm(`Reset counter ${row.prefix} cabang ${row.branch} (${scope})?\n\nNomor berikutnya akan mulai dari 0001. HANYA lakukan bila belum ada dokumen dgn nomor tsb yang masih dipakai hari ini.`)) return
+  docseqMsg.value = ''
+  try {
+    const r = await api('/api/admin/doc-sequences/reset', {
+      method: 'POST',
+      body: { branch_code: row.branch, prefix: row.prefix, date: row.date || '' },
+    })
+    docseqMsg.value = '✅ ' + (r.msg || 'Counter direset')
+    loadDocSequences()
+  } catch (e) { docseqMsg.value = '❌ ' + e.message }
+}
+
 // Data demo (v2.19.2) — dibuat & dibersihkan Admin
 const demoStatus = ref(null)
 const demoBusy = ref(false)
@@ -286,7 +331,7 @@ async function addVehicle() {
   finally { busy.value = false }
 }
 
-onMounted(() => { load(); loadWaterNames(); loadIdentityForm(); loadDemoStatus(); loadBranches() })
+onMounted(() => { load(); loadWaterNames(); loadIdentityForm(); loadDemoStatus(); loadBranches(); loadDocSequences() })
 </script>
 
 <template>
@@ -362,6 +407,42 @@ onMounted(() => { load(); loadWaterNames(); loadIdentityForm(); loadDemoStatus()
                 </td>
               </tr>
               <tr v-if="!branches.length"><td colspan="6" class="empty">Belum ada cabang.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card card-pad" style="margin-bottom:16px;">
+        <h3 style="margin:0;">🔢 Nomor Dokumen (Penomoran)</h3>
+        <p class="muted" style="font-size:11px;">
+          Nomor urut harian per cabang &amp; jenis dokumen — format <code>PREFIX-CABANG-TANGGAL-0001</code>
+          (mis. <code>WTR-SBY-20260905-0001</code>). Daftar ini hanya menampilkan counter yang sudah terpakai.
+          <b>Reset</b> dipakai untuk memulai dari 0001 lagi (mis. selesai uji coba / awal hari) —
+          hati-hati: jangan reset bila masih ada dokumen dengan nomor tersebut hari ini.
+        </p>
+        <div class="row" style="margin-top:10px;gap:8px;align-items:center;flex-wrap:wrap;">
+          <label class="muted" style="font-size:12px;">Filter cabang:</label>
+          <select class="select" style="width:auto;" v-model="docseqFilter">
+            <option value="">Semua cabang</option>
+            <option v-for="b in docseqs" :key="b.code" :value="b.code">{{ b.name }} ({{ b.code }})</option>
+          </select>
+          <button class="btn btn-sm" :disabled="docseqLoading" @click="loadDocSequences">🔄 Muat Ulang</button>
+          <span v-if="docseqMsg" class="alert" :class="docseqMsg.startsWith('✅') ? 'alert-success' : 'alert-error'" style="margin:0;padding:6px 10px;">{{ docseqMsg }}</span>
+        </div>
+        <div class="table-wrap" style="margin-top:10px;">
+          <table class="tbl">
+            <thead><tr><th>Cabang</th><th>Jenis Dokumen</th><th>Prefix</th><th>Tanggal</th><th>Nomor Terakhir</th><th></th></tr></thead>
+            <tbody>
+              <tr v-for="(r, i) in docseqRows" :key="r.seq_key + i">
+                <td><b>{{ r.branch }}</b><br><span class="muted" style="font-size:11px;">{{ r.branchName }}</span></td>
+                <td>{{ r.prefix_label }}</td>
+                <td><code>{{ r.prefix }}</code></td>
+                <td>{{ fmtSeqDate(r.date) }}</td>
+                <td><b>{{ String(r.seq).padStart(4, '0') }}</b></td>
+                <td><button class="btn btn-sm" @click="resetSeq(r)">🔄 Reset</button></td>
+              </tr>
+              <tr v-if="docseqLoading"><td colspan="6" class="empty">Memuat…</td></tr>
+              <tr v-if="!docseqLoading && !docseqRows.length"><td colspan="6" class="empty">Belum ada nomor dokumen — semua counter bersih.</td></tr>
             </tbody>
           </table>
         </div>
