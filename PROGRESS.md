@@ -4,7 +4,7 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 **Terakhir diperbarui:** 2026-09-05  
 **Branch:** `main`  
-**Versi terbaru:** v2.33.0 (Tahap 4/6 ISO — vulnerability mgmt; di repo, BELUM deploy) · v2.32.0 Tahap 3 LIVE (deploy sesi ini) · v2.31.0 Tahap 2 live
+**Versi terbaru:** v2.33.0 (Tahap 4/6 ISO — vulnerability mgmt) LIVE · v2.32.0 Tahap 3 LIVE · v2.31.0 Tahap 2 live
 
 ---
 
@@ -12,10 +12,10 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 | Aspek | Status |
 |-------|--------|
-| Versi | v2.33.0 (Tahap 4/6 ISO — vulnerability mgmt; di repo, BELUM deploy) — runtime live v2.32.0 (Tahap 3, deploy sesi ini) |
+| Versi | **v2.33.0 (Tahap 4/6 ISO — vulnerability mgmt) LIVE** — runtime live v2.32.0 → v2.33.0 (deploy sesi ini) |
 | Step-up auth (Tahap 2) | ✅ **SELESAI + DEPLOY live (5 Sep)**: 8 endpoint uang di-protect → 428 tanpa grant; modal PIN SPA; smoke test live lulus (428→PIN→lolos; logout hilangkan grant; 5 langkah terverifikasi) |
 | Access review (Tahap 3) | ✅ **SELESAI + DEPLOY LIVE sesi ini (rebuild + smoke test)**: `/app/access-review` 200, login admin OK, 30 akun terklasifikasi (3 ok / 26 never_login / 1 inactive / 0 stale), export CSV OK, 401 tanpa login; bundle SPA berisi access-review, SW cache v232 |
-| Vulnerability mgmt (Tahap 4) | ✅ **SELESAI di repo (5 Sep)**: dependensi di-patch (pip-audit & npm audit bersih), Dockerfile buang tooling build (Trivy 0 temuan HIGH/CRITICAL), CI + job image-scan Trivy + Dependabot config, `INCIDENT_RUNBOOK.md` (A.5.24–28); 410 pytest + 104 vitest lulus. ⚠️ **Belum deploy — image baru butuh rebuild kontainer** |
+| Vulnerability mgmt (Tahap 4) | ✅ **SELESAI + DEPLOY LIVE sesi ini**: dependensi di-patch (pip-audit & npm audit 0 temuan), image runtime tanpa tooling build (Trivy 0 HIGH/CRITICAL), CI hijau (Backend + pip-audit 1m24s, Frontend + npm audit 42s, Image-scan Trivy 1m52s), Dependabot aktif, `INCIDENT_RUNBOOK.md` (A.5.24–28); smoke test live: health OK, Flask 3.1.3/mysql-connector 9.7.0 aktif, pip tidak ada, login+access review+users+SPA 200, log bersih |
 | Manajemen User | ✅ Admin bisa edit SEMUA detail user: fix tombol Simpan mati saat edit tanpa PIN, `branch_code` kini tersimpan, username bisa diganti (update by-id) |
 | Konvensi username | ✅ `{divisi}_{cabang}` (nama bila >1 per divisi-cabang): 12 akun produksi di-rename (`finance_sby`, `ob_faisol_sby`, `gahr_sby`, …) — driver & it_* tidak berubah; helper text contoh pola di form Users; login UI diverifikasi browser 11/11 |
 | PDF Air Minum | ✅ Foto bukti diperbesar (60–130 mm mengikuti ruang kosong), TTD lebih ke bawah, header kop simetris (teks rata tengah halaman) |
@@ -83,9 +83,14 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 8. **Dokumentasi**: CHANGELOG v2.33.0, PROGRESS (tabel roadmap tahap 4 →
    ✅, status, riwayat sesi ini), README & SECURITY (A.8.8 + runbook +
    angka test baru).
-9. ⏳ **Belum deploy Tahap 4** — image baru (dependensi ter-patch + tanpa
-   tooling build) butuh `docker compose up -d --build web` + smoke test;
-   menunggu konfirmasi eksplisit.
+9. **Deploy Tahap 4 LIVE** (setelah konfirmasi user "Ya, deploy Tahap 4
+   sekarang"): `docker compose up -d --build web` → `bbm_web` healthy,
+   health OK (db/redis), dependensi baru terverifikasi aktif di container
+   (Flask 3.1.3 / Pillow 12.3.0 / sklearn 1.6.1 / mysql-connector 9.7.0 /
+   requests 2.34.2), pip tidak ada di runtime, log bersih. Smoke test:
+   login admin OK, access review tetap jalan (30 akun), `/api/users` 200,
+   SPA 200. CI hijau 3/3 job. Commit `6ace8cb` + commit berikutnya
+   (dokumentasi deploy).
 
 ---
 
@@ -854,7 +859,7 @@ tes & verifikasi; perubahan produksi butuh konfirmasi eksplisit.
 | 1 | Secrets: kredensial DB pindah ke `.env`, fail-fast, tes hygiene (A.8.2/A.8.13) | ✅ **SELESAI + rotasi produksi dijalankan 5 Sep** (health/login/backup OK, password lama mati) |
 | 2 | Step-up auth: konfirmasi PIN sebelum aksi approve/pay berisiko (A.8.2/A.8.3/A.8.5) | ✅ **SELESAI 5 Sep + DEPLOY live (v2.31.0)** — 8 endpoint uang di-protect; smoke test live: 428 tanpa grant → PIN → lolos, logout hilangkan grant |
 | 3 | Access review triwulanan + laporan akun basi (A.5.15/A.8.2/A.8.3) | ✅ **SELESAI 5 Sep (v2.32.0)** — halaman Access Review admin, klasifikasi ok/stale/never/inactive, CSV export, tandai review selesai; 14 pytest + 6 vitest; ⏳ **belum deploy — ditunda user ke sesi berikutnya** |
-| 4 | Vulnerability mgmt: audit dependensi di CI + scan image + runbook insiden (A.8.8/A.5.24–28) | ✅ **SELESAI 5 Sep (v2.33.0, commit menyusul)** — dependensi di-patch ke versi aman (pip-audit/npm audit 0 temuan), image runtime bersih (Trivy 0 HIGH/CRITICAL), CI: pip-audit + npm audit + job Trivy scan, Dependabot mingguan, `INCIDENT_RUNBOOK.md` (A.5.24–28); 410 pytest + 104 vitest; ⏳ **belum deploy — tunggu konfirmasi** |
+| 4 | Vulnerability mgmt: audit dependensi di CI + scan image + runbook insiden (A.8.8/A.5.24–28) | ✅ **SELESAI 5 Sep + DEPLOY LIVE (v2.33.0, commit `6ace8cb`)** — dependensi di-patch ke versi aman (pip-audit/npm audit 0 temuan), image runtime tanpa tooling build (Trivy 0 HIGH/CRITICAL), CI: pip-audit + npm audit + job Trivy scan (semua hijau), Dependabot mingguan, `INCIDENT_RUNBOOK.md` (A.5.24–28); 410 pytest + 104 vitest; smoke test live lulus |
 | 5 | Retensi & pemusnahan dokumen per kelas + arsip audit trail (ISO 15489, UU PDP) | ⏳ Belum |
 | 6 | Integritas tanda tangan & siklus hidup dokumen (hash + signer + timestamp) | ⏳ Belum |
 
