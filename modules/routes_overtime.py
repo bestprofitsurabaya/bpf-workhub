@@ -1095,9 +1095,9 @@ def register_overtime_routes(app):
                 from modules.doc_integrity import register_pdf
                 doc_no = row.get('display_id') or f'{modul}-id-{row.get("id")}'
                 register_pdf(f'ot_form_{modul}', doc_no, pdf_bytes,
-                             signer_name=session.get('full_name') or session.get('user_name') or '',
-                             signer_role=session.get('user_role') or '',
-                             branch_code=session.get('branch_code') or '',
+                             signer_name=session_user('full_name', session_user('user_name', '')),
+                             signer_role=session_user('user_role', ''),
+                             branch_code=session_user('branch_code', ''),
                              filename=fname, meta={'nama': row.get('nama'),
                                                    'tanggal': str(row.get('tanggal') or '')})
             except Exception:

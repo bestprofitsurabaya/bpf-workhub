@@ -317,31 +317,39 @@ def ensure_branch_database(code, conn=None):
         bc.commit()
     finally:
         bcursor.close()
+        # v2.35.1: koneksi ini TIDAK pernah ditutup → bocor 1/panggilan.
+        try:
+            bc.close()
+        except Exception:
+            pass
 
-    # Migrasi aplikasi (notifications + appointments schema) terhadap DB cabang
+    # Migrasi aplikasi terhadap DB cabang. PENTING (v2.35.1): tiap helper
+    # menerima koneksi pool yang WAJIB ditutup setelah dipakai. Sebelumnya
+    # tiap helper dipanggil dengan `pool.get_connection()` inline tanpa
+    # close → bocor hingga 5 koneksi per cabang per startup → pool cabang
+    # (ukuran 5) langsung habis & semua operasi DB cabang gagal
+    # ("pool exhausted") sampai container di-restart.
     from modules.notifications import ensure_notifications_table
     from modules.appointments_schema import ensure_appointments_schema
-    try:
-        ensure_notifications_table(conn=pool.get_connection())
-    except Exception as e:
-        print(f'[branch {code}] notifications: {e}')
-    try:
-        ensure_appointments_schema(conn=pool.get_connection())
-    except Exception as e:
-        print(f'[branch {code}] appointments schema: {e}')
-
-    # Penomoran dokumen v2.29.10: tabel doc_sequences di DB cabang
     from modules.helpers import ensure_doc_sequences
-    try:
-        ensure_doc_sequences(conn=pool.get_connection())
-    except Exception as e:
-        print(f'[branch {code}] doc_sequences: {e}')
 
-    # Tanam identitas cabang
-    try:
-        write_branch_identity(branch, conn=pool.get_connection())
-    except Exception as e:
-        print(f'[branch {code}] identity: {e}')
+    def _run_ensure(fn, label):
+        try:
+            c2 = pool.get_connection()
+            try:
+                fn(c2)
+            finally:
+                try:
+                    c2.close()
+                except Exception:
+                    pass
+        except Exception as e:
+            print(f'[branch {code}] {label}: {e}')
+
+    _run_ensure(lambda c: ensure_notifications_table(conn=c), 'notifications')
+    _run_ensure(lambda c: ensure_appointments_schema(conn=c), 'appointments schema')
+    _run_ensure(lambda c: ensure_doc_sequences(conn=c), 'doc_sequences')
+    _run_ensure(lambda c: write_branch_identity(branch, conn=c), 'identity')
 
     return True, f'Database {db_name} untuk cabang {code} siap'
 

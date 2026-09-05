@@ -4,6 +4,30 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 
 ---
 
+## v2.35.1 — 5 September 2026 (Fix kritis produksi — pool DB cabang & hook integritas)
+
+Dua bug ditemukan & diperbaiki saat verifikasi live Tahap 5+6 (deploy sesi ini):
+
+1. **Kebocoran koneksi pool DB cabang** (`modules/branch_manager.py`,
+   `ensure_branch_database`): tiap helper migrasi (notifications, appointments
+   schema, doc_sequences, identitas) dipanggil dengan `pool.get_connection()`
+   inline yang TIDAK pernah ditutup + koneksi penyalin skema `bc` juga bocor →
+   hingga 5 koneksi per cabang per startup → pool cabang (ukuran 5) langsung
+   habis setelah restart & **semua operasi DB cabang gagal** ("pool exhausted").
+   Fix: satu koneksi per helper dipakai lalu ditutup (try/finally) + `bc.close()`.
+   Verifikasi: setelah restart, 6× get/close pool cabang OK; retention overview
+   membaca 10/10 DB.
+2. **Hook integritas dokumen mati-senyap** di Form Permohonan Overtime
+   (`routes_overtime.py`): hook memakai `session.get(...)` tapi modul tidak
+   mengimpor `session` → `NameError` tertelan `except: pass` → PDF tetap
+   terbit tapi TIDAK tercatat di registri. Fix: pakai helper modul
+   `session_user(...)`. Verifikasi live: Form OT → registri terisi →
+   `POST /api/documents/verify` found=True → tamper 1 byte → found=False.
+
+Suite: 443 pytest + 6 skip + 104 vitest lulus.
+
+---
+
 ## v2.35.0 — 5 September 2026 (Tahap 6/6 — Integritas & siklus hidup dokumen)
 
 ### 🔏 Verifikasi keaslian dokumen: hash SHA-256 + penandatangan + timestamp
