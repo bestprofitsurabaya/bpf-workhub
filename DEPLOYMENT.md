@@ -159,7 +159,7 @@ Didefinisikan di `docker-compose.yml` (bagian `web`) atau file `.env` (gitignore
 
 | Variabel | Default | Keterangan |
 |----------|---------|------------|
-| `DB_HOST` / `DB_USER` / `DB_PASSWORD` / `DB_NAME` | `db` / `bpf_user` / `bpf_pass` / `bpf_asset_system` | Koneksi MariaDB (master) |
+| `DB_HOST` / `DB_USER` / `DB_PASSWORD` / `DB_NAME` | `db` / `bpf_user` / **wajib dari `.env`** / `bpf_asset_system` | Koneksi MariaDB (master). v2.30: kredensial DB hanya di `.env` (gitignored) — lihat `.env.example` |
 | `DB_POOL_SIZE` | `25` | Ukuran pool koneksi DB **master** (v2.29.1) |
 | `BRANCH_POOL_SIZE` | `5` | Ukuran pool untuk 9 DB cabang (v2.29.1 — hemat koneksi idle) |
 | `DB_POOL_RETRIES` | `3` | Retry ber-backoff (0.15s/0.3s/0.45s) sebelum koneksi dianggap gagal |
@@ -252,8 +252,9 @@ docker exec bbm_web sh /app/scripts/overtime-cleanup.sh      # cleanup manual
 ### 7.3 Backup Manual & Restore
 
 ```bash
-# Backup DB master
-docker exec bbm_web sh -c 'mysqldump -h db -u bpf_user -pbpf_pass bpf_asset_system \
+# Backup DB master — baca password dari .env (jangan hardcode)
+set -a; source .env; set +a
+docker exec bbm_web sh -c 'mysqldump -h db -u bpf_user -p"$DB_PASSWORD" bpf_asset_system \
   --single-transaction --routines --triggers' > backup_$(date +%Y%m%d_%H%M%S).sql
 
 # Backup uploads (foto & bukti)
@@ -261,7 +262,7 @@ tar czf uploads_$(date +%Y%m%d).tar.gz uploads/
 
 # Restore (hentikan web dulu)
 docker compose stop web
-docker exec -i bbm_mariadb mysql -uroot -ppassword_db bpf_asset_system < backup.sql
+docker exec -i bbm_mariadb mysql -uroot -p"$MYSQL_ROOT_PASSWORD" bpf_asset_system < backup.sql
 docker compose start web
 ```
 
@@ -290,11 +291,13 @@ service: `json-file`, max 20 MB × 3 file.
 ### 8.3 Contoh Query Monitoring (langsung ke DB)
 
 ```bash
-docker exec bbm_mariadb mysql -uroot -ppassword_db bpf_asset_system \
+# Password root dari .env (jangan hardcode)
+ROOT_PW=$(grep -E '^MYSQL_ROOT_PASSWORD=' .env | cut -d= -f2-)
+docker exec bbm_mariadb mysql -uroot -p"$ROOT_PW" bpf_asset_system \
   -e "SELECT status, COUNT(*) FROM transactions GROUP BY status;"
 
 # Sinkronisasi overtime (meta refresh terakhir)
-docker exec bbm_mariadb mysql -uroot -ppassword_db bpf_asset_system \
+docker exec bbm_mariadb mysql -uroot -p"$ROOT_PW" bpf_asset_system \
   -e "SELECT * FROM system_config WHERE config_key LIKE 'overtime_%_last_refresh';"
 ```
 

@@ -14,11 +14,30 @@ import mysql.connector
 from mysql.connector import Error, pooling
 from mysql.connector.connection import MySQLConnection
 
+# v2.30 (ISO/IEC 27001 A.8.2/A.8.13): kredensial DB HANYA dari environment
+# (docker-compose membacanya dari .env) — TIDAK ada fallback password default
+# yang dikenal publik di kode/repo. Bila env hilang di luar mode development,
+# app gagal start (fail-fast) alih-alih diam-diam memakai kredensial lama.
+def _resolve_db_password():
+    pw = os.environ.get('DB_PASSWORD')
+    if pw:
+        return pw
+    env = os.environ.get('FLASK_ENV', '')
+    if env == 'production':
+        raise RuntimeError(
+            'DB_PASSWORD environment variable is required in production. '
+            'Set it before starting the app (lihat .env.example).')
+    # Dev/test tanpa env: pakai dummy agar jelas GAGAL connect (bukan diam-diam
+    # memakai kredensial default yang dikenal publik).
+    print('[SECURITY] WARNING: DB_PASSWORD tidak diset — memakai nilai dev-only '
+          '(tidak akan connect ke DB).')
+    return 'dev-only-insecure-db-password-not-for-production'
+
 DB_CONFIG = {
     'host': os.environ.get('DB_HOST', 'db'),
     'port': int(os.environ.get('DB_PORT', 3306)),
     'user': os.environ.get('DB_USER', 'bpf_user'),
-    'password': os.environ.get('DB_PASSWORD', 'bpf_pass'),
+    'password': _resolve_db_password(),
     'database': os.environ.get('DB_NAME', 'bpf_asset_system'),
     'pool_name': 'bbm_pool',
     'pool_size': int(os.environ.get('DB_POOL_SIZE', 10)),

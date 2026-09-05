@@ -4,6 +4,103 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 
 ---
 
+## v2.31.0 — 5 September 2026 (Tahap 2/6 — Step-up authentication)
+
+### 🔐 Step-up auth: konfirmasi PIN ulang sebelum aksi approve/pay berisiko
+
+Tahap 2 dari Program Perbaikan Standar Bertahap (ISO/IEC 27001 A.8.2/A.8.3/
+A.8.5 — lihat PROGRESS.md). Aksi yang **menggerakkan uang** kini wajib
+didahului verifikasi PIN ulang user yang sedang login — menutup celah "sesi
+menyala di komputer bersama" dan menambah peristiwa autentikasi kedua yang
+dekat waktunya dengan aksi.
+
+#### Backend
+
+- **`modules/stepup.py`** (baru):
+  - `POST /api/step-up` — verifikasi PIN user **sesi** (username diambil dari
+    sesi, TIDAK dari body — anti verifikasi PIN orang lain), rate-limited
+    anti brute-force (jalur `pin_*` terpisah dari login), grant sesi
+    berumur pendek `stepup_until` (env `STEPUP_TTL_SECONDS`, default 600 s).
+  - Decorator `@stepup_required` — menjawab **428 `STEPUP_REQUIRED`** saat
+    sesi tidak punya grant yang masih berlaku; dipasang DI BAWAH
+    `@role_required` (cek role dulu, lalu step-up).
+  - Grant hilang otomatis saat `session.clear()` (logout) atau kedaluwarsa;
+    audit `step_up` dicatat di activity_logs.
+- **Endpoint berisiko yang kini di-protect** (8 total):
+  - Kasbon: `approve-ga`, `approve-finance`, **`handover`** (serah terima
+    dana ke driver — sebelumnya TIDAK di-protect), `approve-lpj`
+  - Klaim BBM: `queue/approve-ga`, `queue/payout`, `queue/verify`
+  - Air minum: `water/purchases/<id>/verify`
+  - Aksi non-uang (reject, cancel, archive, edit, reset) sengaja TIDAK
+    di-protect — sesuai fokus tahap "approve/pay berisiko" (friction minimal).
+
+#### Frontend
+
+- **`stores/stepup.js`** (baru): `require(actionFn, label)` mencoba aksi →
+  bila 428 `STEPUP_REQUIRED`, buka modal PIN & simpan aksi tertunda →
+  setelah PIN valid, aksi dijalankan ulang otomatis → promise terselesaikan
+  sesuai hasil akhir.
+- **`components/StepUpModal.vue`** (baru, dipasang global di `App.vue`):
+  modal PIN 6 digit, nama user sesi dari auth store, error inline, tombol
+  Batal = resolve kosong (bukan gagal).
+- **View yang memakai step-up**: CashView (approve GA/Finance/handover/LPJ),
+  WaterView (verify), GaDashboard (approve + verify anomali), AdminDashboard
+  (approve, payout, verifikasi anomali ber-foto via FormData — seluruh
+  request dijalankan ulang utuh setelah PIN, tidak dipecah).
+
+#### Test
+
+- **`tests/test_stepup.py`** (24): endpoint (login wajib, PIN wajib, PIN
+  salah 401 + rate-limit, PIN benar → grant, username selalu dari sesi,
+  user nonaktif, lockout 429), decorator (401/428/lolos/kedaluwarsa,
+  clear saat logout, sisa waktu grant), dan **anti-regresi endpoint NYATA**:
+  8 rute produksi berisiko wajib 428 tanpa grant + role tidak sesuai tetap
+  403 walau grant ada + tanpa login 401 (bukan 428).
+- Vitest: `stores/stepup.test.js` (7), `StepUpModal.test.js` (5),
+  `GaDashboard.test.js` (+1 alur 428 → PIN → retry), `WaterView.test.js`
+  (mock store). **98 vitest + 391 pytest** lulus (host; 5 test
+  security-headers tetap butuh container DB — pre-existing).
+
+---
+
+## v2.30.0 — 5 September 2026 (Tahap 1/6 — Keamanan kredensial)
+
+### 🔐 Kredensial DB tidak lagi di-hardcode (ISO/IEC 27001 A.8.2/A.8.13/A.8.23)
+
+Mulai program perbaikan standar bertahap (lihat PROGRESS.md — roadmap 6 tahap).
+Tahap 1: menghapus kredensial DB dari file yang di-commit & fail-fast bila env
+hilang di produksi.
+
+- **docker-compose.yml**: `MYSQL_ROOT_PASSWORD`, `MYSQL_PASSWORD`, `DB_PASSWORD`
+  dibaca dari `.env` (gitignored) dengan fail-fast `${VAR:?...}` — bila env
+  tidak ada, compose menolak start (bukan diam-diam pakai password default).
+  Healthcheck MariaDB juga memakai env container, bukan password hardcoded.
+- **`.env.example`** (baru): template lengkap + cara generate password acak.
+- **modules/config.py**: `DB_PASSWORD` wajib dari env; di `FLASK_ENV=production`
+  tanpa env → `RuntimeError` saat start. Di dev/test → nilai dev-only yang jelas
+  GAGAL connect (tidak pernah fallback ke kredensial produksi).
+- **modules/routes_reports.py** (fix bug): baca `DB_PASSWORD` (sebelumnya salah
+  baca `DB_PASS` yang tidak pernah diset → selalu fallback); password mysqldump
+  dikirim via env `MYSQL_PWD`, bukan argv (tidak tampil di `ps`).
+- **modules/excel_generator.py**: koneksi DB baca `DB_PASSWORD` dari env, tanpa
+  fallback hardcoded.
+- **Script & dokumentasi**: contoh perintah DB di DEPLOYMENT.md / DEPLOY_FRESH.md /
+  PELATIHAN.md / seed_demo_routes / tidy_driver_accounts / demo_cleanup /
+  auto_cleanup_demo kini membaca dari `.env` — password lama dihapus dari repo.
+- **CI**: kredensial service test diganti nilai throwaway (`ci_*_x9`) agar jelas
+  bukan kredensial produksi.
+- **`scripts/rotate-db-credentials.sh`** (baru): rotasi idempoten password root &
+  `bpf_user` via `ALTER USER` (stdin, bukan argv) + backup `.env` sebelum menimpa.
+- ✅ **Rotasi produksi DIJALANKAN 5 Sep 2026** (persetujuan user): backup 11 DB OK →
+  `ALTER USER` root@localhost/root@%/bpf_user@% (hex 24 acak) → `docker compose
+  up -d` recreate (db/web/backup) → verifikasi: health `ok`, pool 10 DB ready,
+  login e2e admin sukses, password lama ditolak (1045), backup otomatis OK.
+  Backup `.env` lama: `.env.bak-20260905_105155`.
+- **Test** `tests/test_secret_hygiene.py` (+7): pola password lama dilarang muncul
+  di file ter-commit; compose wajib baca dari env; config fail-fast production.
+
+---
+
 ## v2.29.11 — 5 September 2026
 
 ### 🔢 Admin: Kelola Nomor Dokumen per Cabang

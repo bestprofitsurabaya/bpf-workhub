@@ -11,6 +11,7 @@ from flask import jsonify, request, session, send_from_directory
 
 from modules.helpers import role_required, log_activity_async, home_for_role, login_rate_check, login_fail, login_success, client_ip, save_file, safe_float
 from modules.config import get_db_connection, get_master_connection
+from modules.stepup import stepup_required
 
 SPA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'static', 'app')
 
@@ -243,6 +244,7 @@ def register_spa_routes(app):
 
     @app.route('/api/queue/approve-ga/<int:tx_id>', methods=['POST'])
     @role_required(['ga', 'admin'])
+    @stepup_required
     def api_queue_approve_ga(tx_id):
         actor = _queue_actor()
         try:
@@ -279,6 +281,7 @@ def register_spa_routes(app):
 
     @app.route('/api/queue/payout/<int:tx_id>', methods=['POST'])
     @role_required(['finance', 'admin'])
+    @stepup_required
     def api_queue_payout(tx_id):
         actor = _queue_actor()
         try:
@@ -367,6 +370,7 @@ def register_spa_routes(app):
 
     @app.route('/api/queue/verify/<int:tx_id>', methods=['POST'])
     @role_required(['ga', 'admin'])
+    @stepup_required
     def api_queue_verify(tx_id):
         """Verifikasi mendalam dari SPA (pengganti form klasik /admin action=verify).
         Termasuk jalur verifikasi transaksi ber-flag anomali ML: GA/Admin memeriksa

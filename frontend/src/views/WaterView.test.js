@@ -7,6 +7,14 @@ vi.mock('../api', () => ({ api: apiMock }))
 vi.mock('../stores/auth', () => ({
   useAuthStore: () => ({ role: 'finance' }),
 }))
+vi.mock('../stores/stepup', () => ({
+  useStepupStore: () => ({
+    open: false, label: '', busy: false, err: '',
+    require: (fn) => fn(),
+    submit: vi.fn(),
+    cancel: vi.fn(),
+  }),
+}))
 
 const TYPES = [
   { id: 1, name: 'Gelas', brands: [{ id: 1, type_id: 1, brand: 'VIT' }] },

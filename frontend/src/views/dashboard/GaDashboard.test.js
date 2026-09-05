@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import GaDashboard from './GaDashboard.vue'
+import { useStepupStore } from '../../stores/stepup'
 
 const { apiMock } = vi.hoisted(() => ({ apiMock: vi.fn() }))
 vi.mock('../../api', () => ({ api: apiMock }))
@@ -62,6 +63,37 @@ describe('GaDashboard', () => {
     await flushPromises()
     expect(global.confirm).toHaveBeenCalled()
     expect(apiMock).toHaveBeenCalledWith('/api/queue/approve-ga/5', { method: 'POST' })
+  })
+
+  it('approve ditolak 428 STEPUP_REQUIRED: modal PIN terbuka, lalu retry setelah PIN', async () => {
+    const w = await mountView()
+    vi.stubGlobal('confirm', vi.fn(() => true))
+    const stepup = useStepupStore()
+
+    // Percobaan approve pertama ditolak server (belum ada grant step-up)
+    const stepupErr = new Error('Verifikasi PIN ulang diperlukan untuk aksi ini.')
+    stepupErr.status = 428
+    stepupErr.data = { code: 'STEPUP_REQUIRED', msg: stepupErr.message }
+    apiMock
+      .mockRejectedValueOnce(stepupErr)                 // approve-ga → 428
+      .mockResolvedValueOnce({ status: 'success' })     // /api/step-up → sukses
+
+    await w.findAll('button').find((b) => b.text().includes('Approve')).trigger('click')
+    await flushPromises()
+
+    // Modal step-up terbuka; aksi belum di-retry
+    expect(stepup.open).toBe(true)
+    const approveCallsBefore = apiMock.mock.calls.filter(([p]) => p === '/api/queue/approve-ga/5')
+    expect(approveCallsBefore.length).toBe(1)
+
+    // User memasukkan PIN → grant diterbitkan → approve di-retry otomatis
+    await stepup.submit('123456')
+    await flushPromises()
+
+    expect(apiMock).toHaveBeenCalledWith('/api/step-up', { method: 'POST', body: { pin: '123456' } })
+    const approveCalls = apiMock.mock.calls.filter(([p]) => p === '/api/queue/approve-ga/5')
+    expect(approveCalls.length).toBe(2) // 428 lalu retry sukses
+    expect(stepup.open).toBe(false)
   })
 
   it('klaim ber-flag anomali punya tombol Verifikasi (bukan Approve)', async () => {

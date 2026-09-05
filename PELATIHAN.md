@@ -171,7 +171,7 @@ Telp: 031-5349888
 - [ ] Foto contoh siap di perangkat (air minum sebelum/sesudah, struk BBM)
 - [ ] Akun & PIN terverifikasi (semua role)
 - [ ] PDF slide deck & PPTX siap dibagikan (`presentasi/`)
-- [ ] Bersihkan data demo setelah selesai: `docker exec -i bbm_mariadb mariadb -uroot -ppassword_db bpf_asset_system < scripts/demo_cleanup.sql`
+- [ ] Bersihkan data demo setelah selesai: `ROOT_PW=$(grep -E '^MYSQL_ROOT_PASSWORD=' .env | cut -d= -f2-); docker exec -i bbm_mariadb mariadb -uroot -p"$ROOT_PW" bpf_asset_system < scripts/demo_cleanup.sql`
 
 > 💡 Panduan lengkap & narasi demo ada di **PRESENTASI.md** — slide interaktif **presentasi/index.html**.
 

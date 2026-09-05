@@ -4,6 +4,9 @@ import { api } from '../../api'
 import StatCard from '../../components/StatCard.vue'
 import Modal from '../../components/Modal.vue'
 import { useRealtimeStore } from '../../stores/realtime'
+import { useStepupStore } from '../../stores/stepup'
+
+const stepup = useStepupStore()
 
 const stats = ref(null)
 const queue = ref([])
@@ -44,7 +47,11 @@ async function doApprove(tx) {
   if (!window.confirm(`Setujui klaim ${tx.display_id || tx.id}?`)) return
   busy.value = true
   try {
-    await api(`/api/queue/approve-ga/${tx.id}`, { method: 'POST' })
+    // Step-up (ISO/IEC 27001): approve menggerakkan uang → PIN ulang bila perlu
+    await stepup.require(
+      () => api(`/api/queue/approve-ga/${tx.id}`, { method: 'POST' }),
+      `menyetujui klaim ${tx.display_id || tx.id}`
+    )
     await load()
   } finally {
     busy.value = false
@@ -65,7 +72,11 @@ async function doVerify() {
   if (!verifyFor.value || !verifyOk.value) return
   busy.value = true
   try {
-    await api(`/api/queue/verify/${verifyFor.value.id}`, { method: 'POST', body: { confirm_anomaly: '1' } })
+    // Step-up: verifikasi & persetujuan anomali = menyetujui klaim (uang)
+    await stepup.require(
+      () => api(`/api/queue/verify/${verifyFor.value.id}`, { method: 'POST', body: { confirm_anomaly: '1' } }),
+      `verifikasi & menyetujui klaim ${verifyFor.value.display_id || verifyFor.value.id}`
+    )
     verifyFor.value = null
     verifyOk.value = false
     await load()

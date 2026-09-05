@@ -14,6 +14,7 @@ from flask import request, jsonify, make_response, session
 from modules.config import get_db_connection
 from modules.helpers import (role_required, log_activity_async, save_file,
                              generate_display_id, client_ip)
+from modules.stepup import stepup_required
 
 WATER_ROLES = ['ob', 'finance', 'admin']          # pengguna air minum
 WATER_FINANCE_ROLES = ['finance', 'admin']        # kelola master + verifikasi
@@ -412,6 +413,7 @@ def register_water_routes(app):
     # ============================================================
     @app.route('/api/water/purchases/<int:purchase_id>/verify', methods=['POST'])
     @role_required(WATER_FINANCE_ROLES)
+    @stepup_required
     def api_water_purchase_verify(purchase_id):
         try:
             data = request.get_json(silent=True) or {}

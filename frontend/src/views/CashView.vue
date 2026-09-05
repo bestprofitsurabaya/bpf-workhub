@@ -2,7 +2,10 @@
 import { computed, onMounted, ref } from 'vue'
 import { api } from '../api'
 import { useAuthStore } from '../stores/auth'
+import { useStepupStore } from '../stores/stepup'
 import Modal from '../components/Modal.vue'
+
+const stepup = useStepupStore()
 
 const auth = useAuthStore()
 const cash = ref([])
@@ -142,8 +145,15 @@ async function submitAction() {
     approve_lpj: { ga_name: who, notes: form.value.notes },
     reject_lpj: { ga_name: who, reason: form.value.reason },
   }[a.kind]
+  // Step-up (ISO/IEC 27001 A.8.5): aksi yang menggerakkan uang kasbon
+  // (approve GA, pencairan Finance, serah terima dana ke driver, approve LPJ)
+  // wajib konfirmasi PIN ulang bila grant belum ada.
+  const STEPUP_KINDS = ['approve_ga', 'approve_finance', 'handover', 'approve_lpj']
   try {
-    const d = await api(EP, { method: 'POST', body })
+    const run = () => api(EP, { method: 'POST', body })
+    const d = STEPUP_KINDS.includes(a.kind)
+      ? await stepup.require(run, `konfirmasi ${a.kind.replace(/_/g, ' ')} kasbon`)
+      : await run()
     alert(d.msg || 'Berhasil')
     action.value = null
     load()

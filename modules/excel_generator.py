@@ -140,7 +140,7 @@ def generate_trip_logsheet(master, details):
         conn_assign = mysql.connector.connect(
             host=os.environ.get('DB_HOST', 'db'),
             user=os.environ.get('DB_USER', 'bpf_user'),
-            password=os.environ.get('DB_PASSWORD', 'bpf_pass'),
+            password=os.environ.get('DB_PASSWORD'),
             database=os.environ.get('DB_NAME', 'bpf_asset_system')
         )
         cur = conn_assign.cursor(dictionary=True)

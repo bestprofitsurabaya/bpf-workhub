@@ -9,13 +9,12 @@ dioptimasi oleh route optimizer.
 
 Idempoten: appointment dengan display_id yang sama dilewati.
 
-Jalankan (dari host, sesuaikan DB_PORT bila MariaDB di port lain):
-    DB_HOST=127.0.0.1 DB_PORT=3307 DB_USER=bpf_user DB_PASSWORD=bpf_pass \\
-    python3 scripts/seed_demo_routes.py
+Jalankan di dalam jaringan docker (web container — kredensial dari env compose):
+    docker compose exec web python3 scripts/seed_demo_routes.py
 
-atau di dalam jaringan docker (web container):
-    docker exec -e DB_HOST=db -e DB_USER=bpf_user -e DB_PASSWORD=bpf_pass \\
-        bbm_web python3 scripts/seed_demo_routes.py
+atau dari host (password dari .env):
+    set -a; source .env; set +a
+    DB_HOST=127.0.0.1 DB_PORT=3307 python3 scripts/seed_demo_routes.py
 """
 import os
 import sys

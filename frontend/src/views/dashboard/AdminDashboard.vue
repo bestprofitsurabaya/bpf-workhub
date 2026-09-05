@@ -7,6 +7,9 @@ import Modal from '../../components/Modal.vue'
 import LoadingState from '../../components/LoadingState.vue'
 import EmptyState from '../../components/EmptyState.vue'
 import ErrorState from '../../components/ErrorState.vue'
+import { useStepupStore } from '../../stores/stepup'
+
+const stepup = useStepupStore()
 
 const auth = useAuthStore()
 const s = ref(null)
@@ -133,11 +136,13 @@ async function loadQueue() {
   finally { queueLoading.value = false }
 }
 
-async function queueAction(path, label) {
+async function queueAction(path, label, needsStepup = false) {
   if (!confirm(`Yakin ${label}?`)) return false
   qBusy.value = true; queueMsg.value = ''
   try {
-    const r = await api(path, { method: 'POST' })
+    // Aksi uang (approve/payout) wajib step-up — PIN ulang bila perlu (ISO/IEC 27001 A.8.5)
+    const run = () => api(path, { method: 'POST' })
+    const r = needsStepup ? await stepup.require(run, label) : await run()
     queueMsg.value = '✅ ' + (r.msg || r.message || label)
     loadQueue(); refreshStats()
     return true
@@ -156,9 +161,9 @@ function doApprove(tx) {
     queueMsg.value = '⚠️ Transaksi ber-flag anomali ML — buka 👁 Detail lalu pilih 🛡 Verifikasi Anomali untuk verifikasi penuh.'
     return
   }
-  return queueAction(`/api/queue/approve-ga/${tx.id}`, 'menyetujui klaim ini')
+  return queueAction(`/api/queue/approve-ga/${tx.id}`, 'menyetujui klaim ini', true)
 }
-const doPayout = (tx) => queueAction(`/api/queue/payout/${tx.id}`, 'mencairkan dana klaim ini')
+const doPayout = (tx) => queueAction(`/api/queue/payout/${tx.id}`, 'mencairkan dana klaim ini', true)
 const doArchive = (tx) => queueAction(`/api/queue/archive/${tx.id}`, 'mengarsipkan klaim ini')
 
 async function doReject(tx) {
@@ -242,20 +247,32 @@ async function doVerify(tx) {
   }
   qBusy.value = true; queueMsg.value = ''
   try {
-    const fd = new FormData()
-    fd.append('confirm_anomaly', verifyForm.value.confirm_anomaly ? '1' : '0')
-    fd.append('mypertamina_error', verifyForm.value.mypertamina_error ? '1' : '0')
-    if (verifyForm.value.file) fd.append('foto_mypertamina', verifyForm.value.file)
-    const csrf = localStorage.getItem('bpf_csrf') || sessionStorage.getItem('bpf_csrf')
-    const r = await fetch(`/api/queue/verify/${tx.id}`, {
-      method: 'POST',
-      headers: csrf ? { 'X-CSRF-Token': csrf } : {},
-      body: fd,
-    })
-    const d = await r.json().catch(() => null)
-    if (r.status === 401) window.dispatchEvent(new CustomEvent('bpf:unauthorized'))
-    if (!r.ok) throw new Error((d && (d.msg || d.error)) || `HTTP ${r.status}`)
-    queueMsg.value = '✅ ' + (d.msg || 'Klaim diverifikasi')
+    // Step-up (ISO/IEC 27001 A.8.5): verifikasi & persetujuan = menyetujui
+    // klaim (uang). Seluruh request (termasuk foto) dijalankan ulang setelah
+    // PIN ulang berhasil — jangan pecah menjadi dua request yang berbeda.
+    const run = async () => {
+      const fd = new FormData()
+      fd.append('confirm_anomaly', verifyForm.value.confirm_anomaly ? '1' : '0')
+      fd.append('mypertamina_error', verifyForm.value.mypertamina_error ? '1' : '0')
+      if (verifyForm.value.file) fd.append('foto_mypertamina', verifyForm.value.file)
+      const csrf = localStorage.getItem('bpf_csrf') || sessionStorage.getItem('bpf_csrf')
+      const r = await fetch(`/api/queue/verify/${tx.id}`, {
+        method: 'POST',
+        headers: csrf ? { 'X-CSRF-Token': csrf } : {},
+        body: fd,
+      })
+      const d = await r.json().catch(() => null)
+      if (r.status === 401) window.dispatchEvent(new CustomEvent('bpf:unauthorized'))
+      if (!r.ok) {
+        const err = new Error((d && (d.msg || d.error)) || `HTTP ${r.status}`)
+        err.status = r.status
+        err.data = d
+        throw err
+      }
+      return d
+    }
+    const d = await stepup.require(run, `verifikasi & menyetujui klaim ${tx.display_id || tx.id}`)
+    queueMsg.value = '✅ ' + (d?.msg || 'Klaim diverifikasi')
     loadQueue(); refreshStats()
     sel.value = null; selData.value = null; selCross.value = null
   } catch (e) { queueMsg.value = '❌ ' + e.message }
@@ -559,12 +576,12 @@ watch(queueTab, (tab) => {
 
         <div class="row" style="justify-content:flex-end;margin-top:14px;gap:6px;flex-wrap:wrap;">
           <template v-if="selData.status === 'pending' || selData.status === 'modified'">
-            <button v-if="canApprove && !selData.ml_anomaly_flag" class="btn btn-sm btn-primary" :disabled="qBusy" @click="modalAction(`/api/queue/approve-ga/${selData.id}`, 'menyetujui klaim ini')">✅ Approve</button>
+            <button v-if="canApprove && !selData.ml_anomaly_flag" class="btn btn-sm btn-primary" :disabled="qBusy" @click="modalAction(`/api/queue/approve-ga/${selData.id}`, 'menyetujui klaim ini', true)">✅ Approve</button>
             <button v-if="canApprove && selData.ml_anomaly_flag" class="btn btn-sm btn-primary" :disabled="qBusy" @click="openVerify(selData)">🛡 Verifikasi Anomali</button>
             <button v-if="canApprove" class="btn btn-sm" :disabled="qBusy" @click="openEdit(selData)">✏️ Edit</button>
             <button v-if="canApprove" class="btn btn-sm btn-danger" :disabled="qBusy" @click="doReject(selData)">❌ Tolak</button>
           </template>
-          <button v-if="selData.status === 'verified_ga' && canFinance" class="btn btn-sm btn-primary" :disabled="qBusy" @click="modalAction(`/api/queue/payout/${selData.id}`, 'mencairkan dana klaim ini')">💰 Cairkan</button>
+          <button v-if="selData.status === 'verified_ga' && canFinance" class="btn btn-sm btn-primary" :disabled="qBusy" @click="modalAction(`/api/queue/payout/${selData.id}`, 'mencairkan dana klaim ini', true)">💰 Cairkan</button>
           <button v-if="selData.status === 'os_finance' && canFinance" class="btn btn-sm btn-primary" :disabled="qBusy" @click="modalAction(`/api/queue/archive/${selData.id}`, 'mengarsipkan klaim ini')">📦 Arsipkan</button>
           <button v-if="selData.status === 'verified_ga' && canApprove" class="btn btn-sm" :disabled="qBusy" @click="modalAction(`/api/queue/unverify/${selData.id}`, 'mengembalikan klaim ke antrean GA')">↩️ Unverify</button>
           <button v-if="isAdmin" class="btn btn-sm btn-danger" :disabled="qBusy" @click="modalAction(`/api/queue/delete/${selData.id}`, 'menghapus PERMANEN transaksi ini')">🗑 Hapus</button>

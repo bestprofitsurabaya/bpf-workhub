@@ -1,6 +1,8 @@
 -- ============================================================
 -- Bersihkan DATA DEMO (label DEMO) dari database
--- Cara pakai:  docker exec -i bbm_mariadb mariadb -uroot -ppassword_db bpf_asset_system < scripts/demo_cleanup.sql
+-- Cara pakai (password root dari .env):
+--   ROOT_PW=$(grep -E '^MYSQL_ROOT_PASSWORD=' .env | cut -d= -f2-)
+--   docker exec -i bbm_mariadb mariadb -uroot -p"$ROOT_PW" bpf_asset_system < scripts/demo_cleanup.sql
 -- ============================================================
 USE bpf_asset_system;
 

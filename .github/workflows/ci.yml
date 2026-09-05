@@ -30,14 +30,15 @@ jobs:
       mariadb:
         image: mariadb:10.11
         env:
-          MARIADB_ROOT_PASSWORD: bpf_root_pass
+          # Kredensial CI sengaja beda dari produksi (throwaway per-run)
+          MARIADB_ROOT_PASSWORD: ci_root_pass_x9
           MARIADB_DATABASE: bpf_asset_system
           MARIADB_USER: bpf_user
-          MARIADB_PASSWORD: bpf_pass
+          MARIADB_PASSWORD: ci_app_pass_x9
         ports:
           - 3306:3306
         options: >-
-          --health-cmd "mariadb-admin ping -h 127.0.0.1 -u root -pbpf_root_pass"
+          --health-cmd "mariadb-admin ping -h 127.0.0.1 -u root -pci_root_pass_x9"
           --health-interval 5s --health-timeout 5s --health-retries 15 --health-start-period 20s
       redis:
         image: redis:7-alpine
@@ -52,7 +53,7 @@ jobs:
       DB_HOST: 127.0.0.1
       DB_PORT: '3306'
       DB_USER: bpf_user
-      DB_PASSWORD: bpf_pass
+      DB_PASSWORD: ci_app_pass_x9
       DB_NAME: bpf_asset_system
       DB_POOL_SIZE: '2'
       BRANCH_POOL_SIZE: '1'

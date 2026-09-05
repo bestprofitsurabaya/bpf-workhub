@@ -40,10 +40,11 @@ Sistem menggunakan dua prinsip utama:
 | **Siapa boleh masuk ke mana** | Setiap orang masuk dengan *username* + PIN 6 digit. Menu yang tidak jadi wewenangnya disembunyikan dari tampilan — dan jika dipaksa lewat alamat URL langsung, sistem menolak dengan pesan **403 (Akses Ditolak)**. |
 | **Hak khusus admin** | Halaman-halaman paling sensitif — Manajemen User, Pengaturan, dan Audit Log — **hanya bisa dibuka oleh Admin**. Pembatasan ini diberlakukan di dua lapis: di server dan di tampilan aplikasi. |
 | **Cara masuk yang aman** | PIN tersimpan aman di database. Akun yang sudah dinonaktifkan tidak bisa login. Sesi login memiliki masa kedaluwarsa otomatis, dan sistem menolak upaya manipulasi alamat tujuan setelah login. |
+| **Verifikasi ulang aksi berisiko** | Aksi yang menggerakkan uang (approve kasbon, serah terima dana, payout klaim BBM, verifikasi air minum) wajib dikonfirmasi dengan **PIN ulang user yang sedang login** sebelum dijalankan (step-up auth, ISO/IEC 27001 A.8.5). Grant verifikasi hanya berlaku sementara (10 menit) dan hilang saat logout. |
 | **Catatan aktivitas** | **Setiap perubahan data tercatat**: siapa yang melakukannya, apa yang diubah, kapan, dan dari perangkat/IP mana. Semua ini bisa dilihat Admin di halaman Audit Log. |
 | **Pemantauan berkala** | Ada indikator status koneksi secara *real-time* (⚡ terhubung / 🔴 terputus) di bilah atas aplikasi. Log teknis juga dapat dipantau oleh tim IT. |
 | **Perlindungan dari celah umum** | Data yang dikirim selalu divalidasi; permintaan yang mengubah data wajib menyertakan token keamanan (proteksi *CSRF*); halaman dilindungi dari penyimpanan cache yang tidak diinginkan; dan kode ditulis dengan teknik yang tahan terhadap serangan umum seperti *SQL injection*. |
-| **Konfigurasi & rilis terkendali** | Kredensial penting (kunci rahasia, akses database) tidak dituliskan di kode, melainkan diatur lewat konfigurasi terpisah. Sebelum setiap versi dirilis, wajib lolos **323 pengujian otomatis** (pytest) + **83 uji antarmuka** (vitest) terlebih dahulu. |
+| **Konfigurasi & rilis terkendali** | Kredensial penting (kunci rahasia, akses database) tidak dituliskan di kode, melainkan diatur lewat konfigurasi terpisah. Sebelum setiap versi dirilis, wajib lolos **391 pengujian otomatis** (pytest) + **98 uji antarmuka** (vitest) terlebih dahulu. |
 
 ---
 
@@ -112,6 +113,7 @@ Berikut ringkasan seluruh lapisan perlindungan yang dimiliki BPF WorkHub:
 | 👥 **Hak Akses Berjenjang** | 11 jenis peran berbeda, masing-masing hanya mendapat kewenangan seperlunya, dijaga berlapis. |
 | 📜 **Jejak Audit** | 30+ jenis aktivitas tercatat lengkap: siapa, kapan, dan apa yang dilakukan. |
 | 🚧 **Anti Tebak Paksa** | Percobaan login berulang kali yang mencurigakan akan dibatasi otomatis (melalui *rate limiting*). |
+| 🧬 **Verifikasi PIN Ulang (Step-up)** | Aksi approve/pay berisiko wajib konfirmasi PIN ulang user yang sedang login — modal PIN muncul otomatis, grant sementara 10 menit, hilang saat logout. |
 | 📍 **Watermark Foto** | Foto bukti lapangan dilengkapi stempel lokasi GPS dan waktu — sulit dipalsukan. |
 | 🏰 **Pengaturan Keamanan Browser** | Standar pelindung aktif: CSP, X-Frame-Options, Referrer-Policy, dan Permissions-Policy (mencegah halaman disalahgunakan oleh situs lain). |
 | 💾 **Cadangan Data Harian** | Database dicadangkan otomatis setiap hari pukul **03.00 WIB**, dan disimpan selama **30 hari**. |

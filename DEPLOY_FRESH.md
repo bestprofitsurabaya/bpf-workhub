@@ -54,13 +54,20 @@ cd bpf-workhub
 # PENTING: SECRET_KEY yang berarti semua session cookie user menjadi tidak
 # valid (semua ter-logout massal). Jangan regenerate saat re-deploy!
 if [ ! -f .env ]; then
-  echo "SECRET_KEY=$(openssl rand -hex 32)" > .env
+  cat > .env <<EOF
+SECRET_KEY=$(openssl rand -hex 32)
+MYSQL_ROOT_PASSWORD=$(openssl rand -hex 24)
+MYSQL_PASSWORD=$(openssl rand -hex 24)
+EOF
   chmod 600 .env
-  echo "✅ .env created with new SECRET_KEY"
+  echo "✅ .env created (SECRET_KEY + kredensial DB acak)"
 else
-  echo "ℹ️ .env sudah ada — SECRET_KEY lama DIPERTAHANKAN (sesi user aman)"
+  echo "ℹ️ .env sudah ada — nilai lama DIPERTAHANKAN (sesi user aman)"
 fi
 ```
+
+> ⚠️ v2.30: kredensial DB (`MYSQL_ROOT_PASSWORD`, `MYSQL_PASSWORD`) kini dibaca dari `.env`,
+> bukan di-hardcode di `docker-compose.yml`. Template lengkap: `.env.example`.
 
 ---
 
@@ -202,11 +209,12 @@ docker compose exec web python3 scripts/migrate_applicants_sheet.py /path/to/exp
 
 Foto overtime otomatis dibersihkan jika sudah lebih dari 6 bulan (180 hari). Cron sudah ter-setup di container `bbm_web` — langsung bekerja saat fresh deploy tanpa konfigurasi tambahan.
 ```bash
-# Manual backup
-docker compose exec web mysqldump -ubpf_user -pbpf_pass bpf_asset_system > backup_$(date +%Y%m%d).sql
+# Manual backup — env dari .env (password tidak hardcode)
+set -a; source .env; set +a
+docker compose exec web mysqldump -ubpf_user -p"$DB_PASSWORD" bpf_asset_system > backup_$(date +%Y%m%d).sql
 
 # Restore
-docker compose exec -T db mysql -ubpf_user -pbpf_pass bpf_asset_system < backup.sql
+docker compose exec -T db mysql -ubpf_user -p"$DB_PASSWORD" bpf_asset_system < backup.sql
 
 # Cek log foto cleanup
 docker compose exec web cat /var/log/overtime-cleanup.log
@@ -267,7 +275,9 @@ docker compose exec web pip install -r requirements.txt
 ### App tidak bisa connect ke DB
 ```bash
 docker compose logs db | tail -20
-docker compose exec db mysqladmin ping -h localhost -u bpf_user -pbpf_pass
+# Password dari .env — contoh: ROOT_PW / DB_PW dari source .env
+set -a; source .env; set +a
+docker compose exec db mysqladmin ping -h localhost -u bpf_user -p"$DB_PASSWORD"
 ```
 
 ### Port 5000 sudah terpakai

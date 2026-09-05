@@ -13,11 +13,9 @@ Idempoten & aman konflik: bila username hasil rapikan sudah dipakai user lain,
 akun dilewati (tidak menimpa). Mode kering (--dry-run) menampilkan rencana
 tanpa mengubah apa pun.
 
-Jalankan (host atau container web):
-    docker exec -e DB_HOST=db -e DB_USER=bpf_user -e DB_PASSWORD=bpf_pass \
-        bbm_web python3 scripts/tidy_driver_accounts.py --dry-run
-    docker exec -e DB_HOST=db -e DB_USER=bpf_user -e DB_PASSWORD=bpf_pass \
-        bbm_web python3 scripts/tidy_driver_accounts.py
+Jalankan di container web (kredensial dari env compose):
+    docker compose exec web python3 scripts/tidy_driver_accounts.py --dry-run
+    docker compose exec web python3 scripts/tidy_driver_accounts.py
 """
 import os
 import re

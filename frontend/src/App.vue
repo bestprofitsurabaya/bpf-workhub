@@ -3,6 +3,7 @@ import { onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from './stores/auth'
 import { loadIdentity } from './stores/identity'
+import StepUpModal from './components/StepUpModal.vue'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -19,4 +20,5 @@ onMounted(() => {
 
 <template>
   <router-view />
+  <StepUpModal />
 </template>

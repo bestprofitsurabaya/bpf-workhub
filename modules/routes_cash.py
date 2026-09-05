@@ -7,6 +7,7 @@ from modules.config import get_db_connection
 from modules.helpers import (log_activity_async, generate_display_id, safe_float,
                              role_required, session_driver_name, resolve_driver_scope)
 from modules.notifications import push_driver_notification
+from modules.stepup import stepup_required
 
 def register_cash_routes(app):
 
@@ -136,6 +137,7 @@ def register_cash_routes(app):
     # ================================================================
     @app.route('/api/cash/approve-ga/<int:cash_id>', methods=['POST'])
     @role_required(['ga', 'admin'])
+    @stepup_required
     def api_cash_approve_ga(cash_id):
         """GA approves the cash request"""
         try:
@@ -174,6 +176,7 @@ def register_cash_routes(app):
     # ================================================================
     @app.route('/api/cash/approve-finance/<int:cash_id>', methods=['POST'])
     @role_required(['finance', 'admin'])
+    @stepup_required
     def api_cash_approve_finance(cash_id):
         """Finance approves the cash disbursement"""
         try:
@@ -211,6 +214,7 @@ def register_cash_routes(app):
     # ================================================================
     @app.route('/api/cash/handover/<int:cash_id>', methods=['POST'])
     @role_required(['ga', 'admin'])
+    @stepup_required
     def api_cash_handover(cash_id):
         """GA confirms funds handed to driver"""
         try:
@@ -278,6 +282,7 @@ def register_cash_routes(app):
     # ================================================================
     @app.route('/api/cash/approve-lpj/<int:cash_id>', methods=['POST'])
     @role_required(['ga', 'admin'])
+    @stepup_required
     def api_cash_approve_lpj(cash_id):
         """GA verifies LPJ -> marks cash as COMPLETED and transaction as verified_ga"""
         try:

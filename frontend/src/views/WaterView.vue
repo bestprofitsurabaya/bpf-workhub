@@ -2,7 +2,10 @@
 import { computed, onMounted, ref } from 'vue'
 import { api } from '../api'
 import { useAuthStore } from '../stores/auth'
+import { useStepupStore } from '../stores/stepup'
 import Modal from '../components/Modal.vue'
+
+const stepup = useStepupStore()
 
 const auth = useAuthStore()
 const isOB = auth.role === 'ob'
@@ -131,7 +134,12 @@ async function submitVerify() {
   try {
     const ep = v.kind === 'verify' ? `/api/water/purchases/${v.id}/verify` : `/api/water/purchases/${v.id}/reject`
     const body = v.kind === 'verify' ? { remark: verifyForm.value.remark, note: verifyForm.value.note } : { reason: verifyForm.value.reason }
-    const d = await api(ep, { method: 'POST', body })
+    // Step-up (ISO/IEC 27001 A.8.5): verifikasi pengajuan = menyetujui
+    // pengeluaran. Hanya aksi verify yang wajib PIN ulang, tolak tidak.
+    const run = () => api(ep, { method: 'POST', body })
+    const d = v.kind === 'verify'
+      ? await stepup.require(run, `verifikasi ${v.display_id || v.id}`)
+      : await run()
     alert(d.msg || 'Berhasil')
     verifyModal.value = null
     load()

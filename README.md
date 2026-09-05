@@ -2,7 +2,7 @@
 
 **Sistem Manajemen Armada untuk PT. Bestprofit Futures — Kantor Pusat Jakarta**
 
-> 📅 Versi 2.29.10 · September 2026 — Standar penomoran dokumen per cabang · Kantor Pusat Jakarta (Equity Tower) · Validasi username & onboarding cabang
+> 📅 Versi 2.31.0 · September 2026 — Step-up auth (Tahap 2/6 ISO 27001) · Standar penomoran dokumen per cabang · Kantor Pusat Jakarta (Equity Tower)
 
 ---
 
@@ -168,6 +168,10 @@ bpf-workhub/
 - 📝 Audit log untuk semua aktivitas
 - 🚫 Rate limiting untuk mencegah spam
 - 🔑 Role-based access control (RBAC)
+- 🧬 **Step-up auth (v2.31, Tahap 2/6 ISO 27001)** — aksi approve/pay berisiko
+  (approve kasbon, serah terima dana, payout klaim BBM, verifikasi air minum)
+  wajib konfirmasi PIN ulang user yang sedang login (modal PIN, grant 10 menit,
+  hilang saat logout)
 
 ---
 

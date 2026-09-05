@@ -133,10 +133,14 @@ def register_report_routes(app):
             # Use env vars for DB credentials (never hardcode passwords).
             db_host = os.getenv('DB_HOST', 'db')
             db_user = os.getenv('DB_USER', 'bpf_user')
-            db_pass = os.getenv('DB_PASS', 'bpf_pass')
+            db_pass = os.getenv('DB_PASSWORD')
             db_name = os.getenv('DB_NAME', 'bpf_asset_system')
-            cmd = ['mysqldump', '--ssl=0', '-h', db_host, '-u', db_user, f'-p{db_pass}', db_name]
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+            # Password lewat env MYSQL_PWD (bukan argv) — tidak tampil di ps.
+            cmd = ['mysqldump', '--ssl=0', '-h', db_host, '-u', db_user, db_name]
+            cmd_env = dict(os.environ)
+            if db_pass:
+                cmd_env['MYSQL_PWD'] = db_pass
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=60, env=cmd_env)
             if result.returncode != 0:
                 return make_response("Backup unavailable", 500)
             response = make_response(result.stdout)

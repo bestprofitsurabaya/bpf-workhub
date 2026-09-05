@@ -138,6 +138,7 @@ from modules.routes_overtime import register_overtime_routes
 from modules.routes_spa import register_spa_routes
 from modules.news_scraper import register_news_scraper_routes
 from modules.security import register_health_routes
+from modules.stepup import register_stepup_routes
 
 register_driver_routes(app, socketio)
 register_auth_routes(app)
@@ -159,6 +160,7 @@ register_overtime_routes(app)
 register_spa_routes(app)
 register_news_scraper_routes(app)
 register_health_routes(app)
+register_stepup_routes(app)
 
 # ================================================================
 # AUTO-CLEANUP: Hapus foto overtime > 6 bulan (180 hari)

@@ -5,10 +5,13 @@ services:
     image: mariadb:10.11
     container_name: bbm_mariadb
     environment:
-      MYSQL_ROOT_PASSWORD: password_db
-      MYSQL_DATABASE: bpf_asset_system
-      MYSQL_USER: bpf_user
-      MYSQL_PASSWORD: bpf_pass
+      # v2.30: kredensial dibaca dari .env (JANGAN hardcode di repo).
+      # Hanya berlaku saat volume DB pertama kali dibuat; rotasi kredensial
+      # DB yang sudah ada harus via ALTER USER (scripts/rotate-db-credentials.sh).
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD wajib di .env}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-bpf_asset_system}
+      MYSQL_USER: ${MYSQL_USER:-bpf_user}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD wajib di .env}
       TZ: Asia/Jakarta
     ports:
       # v2.29: bind localhost saja — DB tidak boleh terbuka ke internet.
@@ -25,7 +28,8 @@ services:
     # (Max_used_connections=152) → "Pool exhausted" di log aplikasi.
     command: --max-connections=500
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "bpf_user", "-pbpf_pass"]
+      # Password tidak di-hardcode — baca dari env container (MYSQL_USER/MYSQL_PASSWORD)
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u \"$$MYSQL_USER\" -p\"$$MYSQL_PASSWORD\""]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -57,9 +61,10 @@ services:
       - FLASK_DEBUG=0
       - TZ=Asia/Jakarta
       - DB_HOST=db
-      - DB_USER=bpf_user
-      - DB_PASSWORD=bpf_pass
-      - DB_NAME=bpf_asset_system
+      - DB_USER=${DB_USER:-bpf_user}
+      # Password dari .env (satu sumber: MYSQL_PASSWORD untuk user aplikasi)
+      - DB_PASSWORD=${MYSQL_PASSWORD:?MYSQL_PASSWORD wajib di .env}
+      - DB_NAME=${DB_NAME:-bpf_asset_system}
       - DB_POOL_SIZE=25
       # Cabang: pool kecil (5) — master sibuk, cabang sepi. Pool mysql.connector
       # membuka semua koneksi saat init → 25×10 DB = 250 koneksi idle di host
@@ -133,7 +138,7 @@ services:
     environment:
       - TZ=Asia/Jakarta
       - MYSQL_HOST=db
-      - MYSQL_ROOT_PASSWORD=password_db
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD wajib di .env}
       - BACKUP_RETENTION_DAYS=30
       - BACKUP_CRON=0 3 * * *
     volumes:
