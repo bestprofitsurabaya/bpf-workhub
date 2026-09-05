@@ -14,14 +14,14 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 |-------|--------|
 | Versi | v2.32.0 (Tahap 3/6 ISO — access review; di repo, BELUM deploy) — runtime live v2.31.0 (Tahap 2) |
 | Step-up auth (Tahap 2) | ✅ **SELESAI + DEPLOY live (5 Sep)**: 8 endpoint uang di-protect → 428 tanpa grant; modal PIN SPA; smoke test live lulus (428→PIN→lolos; logout hilangkan grant; 5 langkah terverifikasi) |
-| Access review (Tahap 3) | ✅ **SELESAI di repo (5 Sep)**: halaman `/app/access-review` admin — klasifikasi akun ok/stale/never_login/inactive (ambang 90 hr), ringkasan, export CSV, tandai review selesai + audit, tombol nonaktifkan akun basi; 14 pytest + 6 vitest. ⚠️ Belum di-deploy |
+| Access review (Tahap 3) | ✅ **SELESAI di repo (5 Sep, commit `ac63db0`)**: halaman `/app/access-review` admin — klasifikasi akun ok/stale/never_login/inactive (ambang 90 hr), ringkasan, export CSV, tandai review selesai + audit, tombol nonaktifkan akun basi; 14 pytest + 6 vitest. ⚠️ **Belum di-deploy — user pilih menunggu sesi berikutnya** |
 | Manajemen User | ✅ Admin bisa edit SEMUA detail user: fix tombol Simpan mati saat edit tanpa PIN, `branch_code` kini tersimpan, username bisa diganti (update by-id) |
 | Konvensi username | ✅ `{divisi}_{cabang}` (nama bila >1 per divisi-cabang): 12 akun produksi di-rename (`finance_sby`, `ob_faisol_sby`, `gahr_sby`, …) — driver & it_* tidak berubah; helper text contoh pola di form Users; login UI diverifikasi browser 11/11 |
 | PDF Air Minum | ✅ Foto bukti diperbesar (60–130 mm mengikuti ruang kosong), TTD lebih ke bawah, header kop simetris (teks rata tengah halaman) |
 | Sync Overtime | ✅ Driver (±8.675 sesi) & OB/Security (599 sesi) — keduanya via Apps Script Web App; auto-refresh saat login/logout GA HR/Admin; redirect & duplicate display_id bugs fixed; `submitted_at` tersimpan |
 | Urutan overtime | ✅ Terkini-di-atas di semua daftar + detail report per nama dibalik terkini-dulu (PDF/Excel, commit `733fd2f`) |
 | Data demo air minum | ✅ Dibersihkan 4 Sep — WTR-20260904-10300556, WTR-DEMO-01/02 dihapus (bpf_asset_system + bpf_restore_test); backup `/tmp/bpf_water_demo_backup_20260904.sql`; tabel `water_purchases` kini 0 baris |
-| Deploy | ✅ 5 Sep 2026 — v2.29.11 live (rebuild `bbm_web`: admin nomor dokumen; SW cache v2911); `bbm_web` healthy |
+| Deploy | ✅ 5 Sep 2026 — **v2.31.0 (Tahap 2 step-up) LIVE** (rebuild `bbm_web`, smoke test 5 langkah lulus); sebelumnya v2.30.0 (Tahap 1) & v2.29.11 live; `bbm_web` healthy |
 | Dashboard Marketing | ✅ Tab "Selesai" kini memakai `/api/appointments/history` (riwayat completed marketing sendiri, lintas tanggal) — sebelumnya memanggil endpoint driver `/completed` → selalu 400/kosong |
 | Validasi username | ✅ Backend `/api/users/sync` menolak username role back-office tanpa awalan divisi (`finance_`, `ob_`, …) — Driver/Admin/`it_*` bebas; akun lama (qa/test_check/e2e_driver & (username,role) sudah ada) tetap bisa disimpan |
 | Nama asli di tabel Users | ✅ Kolom Username+Nama digabung: Nama Lengkap tebal + username kecil di bawahnya (gaya baris nasabah) — Admin mengenali orangnya |
@@ -32,7 +32,7 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 | Databases | 10 DB terpisah (1 master + 9 cabang) — `doc_sequences` dibuat di master + tiap cabang (v2.29.10) |
 | GPS Detail | ✅ Nominatim reverse geocode + disimpan ke DB |
 | Watermark | ✅ 4 baris: perusahaan + tanggal + alamat + koordinat |
-| Test Suite | ✅ 391 pytest (pass; 6 skip; 5 security-headers butuh container DB — pre-existing) + 98 vitest — CI GitHub Actions hijau tiap push (Backend: pytest + service mariadb/redis; Frontend: unit test + build) |
+| Test Suite | ✅ 403 pytest (pass; 6 skip; 5 security-headers butuh container DB — pre-existing) + 104 vitest — CI GitHub Actions hijau tiap push (Backend: pytest + service mariadb/redis; Frontend: unit test + build) |
 | Kestabilan | ✅ bbm_web healthy — 0 restart, 0 error di log sejak deploy terakhir |
 
 ---
@@ -71,12 +71,16 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
    6 skipped** (host; security-headers butuh container DB — pre-existing)
    + **104 vitest** + build sukses.
 7. **Dokumentasi**: CHANGELOG v2.32.0, PROGRESS (tabel tahap 3 → ✅,
-   status terakhir, riwayat), README & SECURITY (menyusul/ikut update).
-8. ⏳ **Belum deploy Tahap 3** — butuh konfirmasi user.
+   status terakhir, riwayat), README & SECURITY (ikut update).
+8. **Commit Tahap 3** (`ac63db0`, 11 file) — repo bersih, branch `main`.
+9. ⏳ **Belum deploy Tahap 3** — user memilih menunda: **"kita lanjut sesi
+   berikutnya".** Sesi berikutnya mulai dengan: (a) deploy Tahap 3
+   (rebuild + smoke test `/app/access-review` live), lalu (b) Tahap 4
+   (Vulnerability management).
 
 ---
 
-### Sesi 2026-09-05 — v2.31.0: Tahap 2/6 ISO — Step-up auth (PIN ulang sebelum approve/pay) ✅ SELESAI DI REPO (belum deploy)
+### Sesi 2026-09-05 — v2.31.0: Tahap 2/6 ISO — Step-up auth (PIN ulang sebelum approve/pay) ✅ SELESAI + DEPLOY LIVE
 
 > Konteks: lanjutan Program Perbaikan Standar Bertahap (roadmap 6 tahap ISO
 > 27001). Tahap 1 (Secrets) sudah live; user minta melanjutkan tahap yang
@@ -105,10 +109,13 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
    `npm run build` sukses.
 5. **Dokumentasi**: CHANGELOG v2.31.0, PROGRESS tabel tahap (2 → ✅ SELESAI,
    catatan belum deploy), status terakhir, riwayat sesi ini.
-6. ⏳ **Belum di-deploy** — sesuai aturan program: perubahan produksi butuh
-   konfirmasi eksplisit user. Setelah deploy perlu smoke test: login
-   finance → approve kasbon tanpa grant → modal PIN muncul → PIN benar →
-   aksi jalan; grant 10 menit; logout → minta PIN lagi.
+6. **Deploy LIVE** (sesi ini, setelah konfirmasi user "lanjutkan semua
+   suggestion"): `docker compose up -d --build web` → health ok; smoke
+   test 5 langkah lulus — approve tanpa grant → 428; PIN salah → 401;
+   PIN benar → grant 600 dtk; aksi berikutnya lolos step-up; logout →
+   login ulang → grant hilang (428 lagi). Commit `4fc4bca`.
+7. ⏳ Tahap 2 selesai live; pekerjaan lanjutan: Tahap 3 (selesai di repo,
+   menunggu deploy) & seterusnya — lihat riwayat sesi berikutnya.
 
 ---
 
@@ -796,7 +803,7 @@ tes & verifikasi; perubahan produksi butuh konfirmasi eksplisit.
 |-------|-------|--------|
 | 1 | Secrets: kredensial DB pindah ke `.env`, fail-fast, tes hygiene (A.8.2/A.8.13) | ✅ **SELESAI + rotasi produksi dijalankan 5 Sep** (health/login/backup OK, password lama mati) |
 | 2 | Step-up auth: konfirmasi PIN sebelum aksi approve/pay berisiko (A.8.2/A.8.3/A.8.5) | ✅ **SELESAI 5 Sep + DEPLOY live (v2.31.0)** — 8 endpoint uang di-protect; smoke test live: 428 tanpa grant → PIN → lolos, logout hilangkan grant |
-| 3 | Access review triwulanan + laporan akun basi (A.5.15/A.8.2/A.8.3) | ✅ **SELESAI 5 Sep (v2.32.0)** — halaman Access Review admin, klasifikasi ok/stale/never/inactive, CSV export, tandai review selesai; 14 pytest + 6 vitest; BELUM deploy (butuh konfirmasi) |
+| 3 | Access review triwulanan + laporan akun basi (A.5.15/A.8.2/A.8.3) | ✅ **SELESAI 5 Sep (v2.32.0)** — halaman Access Review admin, klasifikasi ok/stale/never/inactive, CSV export, tandai review selesai; 14 pytest + 6 vitest; ⏳ **belum deploy — ditunda user ke sesi berikutnya** |
 | 4 | Vulnerability mgmt: audit dependensi di CI + scan image + runbook insiden (A.8.8/A.5.24–28) | ⏳ Belum |
 | 5 | Retensi & pemusnahan dokumen per kelas + arsip audit trail (ISO 15489, UU PDP) | ⏳ Belum |
 | 6 | Integritas tanda tangan & siklus hidup dokumen (hash + signer + timestamp) | ⏳ Belum |
@@ -817,6 +824,30 @@ tes & verifikasi; perubahan produksi butuh konfirmasi eksplisit.
   ready, login e2e admin sukses, password lama ditolak (1045), backup otomatis
   OK. `.env` lama: `.env.bak-20260905_105155`. ⚠️ Perintah/docs lama yang
   memakai kredensial lama kini tidak berlaku — selalu baca dari `.env`.
+
+**Tahap 2 selesai + deploy live (5 Sep, commit `4fc4bca`, v2.31.0):**
+- `modules/stepup.py` — POST /api/step-up (PIN sesi, rate-limited, grant
+  `stepup_until` TTL 600 dtk via `STEPUP_TTL_SECONDS`); decorator
+  `@stepup_required` → 428 `STEPUP_REQUIRED`; logout hilangkan grant.
+- 8 endpoint uang di-protect: kasbon approve-ga/approve-finance/handover/
+  approve-lpj, BBM queue approve-ga/payout/verify, air minum verify.
+- Frontend: `StepUpModal.vue` global + `stores/stepup.js`; dipakai CashView,
+  WaterView, GaDashboard, AdminDashboard (retry utuh setelah PIN, incl. foto).
+- Test: `tests/test_stepup.py` 24 (incl. anti-regresi endpoint NYATA 8 rute)
+  + 14 vitest (stepup store 7, StepUpModal 5, GaDashboard +1, WaterView mock).
+- ✅ **Deploy live 5 Sep** + smoke test 5 langkah lulus (428 → PIN → lolos →
+  logout hilangkan grant). SPA bundle berisi kode step-up.
+
+**Tahap 3 selesai di repo (5 Sep, commit `ac63db0`, v2.32.0) — BELUM deploy:**
+- `modules/routes_accessreview.py` — klasifikasi akun `ok`/`stale` (>90 hari,
+  env `STALE_ACCOUNT_DAYS`)/`never_login`/`inactive`; endpoint admin-only:
+  `GET /api/admin/access-review`, `POST .../complete` (system_config siapa+
+  kapan + audit), `GET .../export` CSV.
+- Halaman `/app/access-review` (menu Admin 🛂): ringkasan, badge REVIEW
+  TERLAMBAT (>90 hr), filter, tombol nonaktifkan akun basi (A.8.3), export
+  CSV, tandai review selesai.
+- Test: `tests/test_access_review.py` (+14) + `AccessReviewView.test.js` (+6).
+- Suite terkini: **403 pytest + 6 skip + 104 vitest**, build sukses.
 
 ---
 
