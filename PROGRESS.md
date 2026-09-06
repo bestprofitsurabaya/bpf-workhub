@@ -80,6 +80,19 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
    registri dokumen endpoint 200 (kosong — benar, data uji telah
    dibersihkan); step-up: verify air minum tanpa grant → **428
    `STEPUP_REQUIRED`**.
+9. **Push & CI hijau**: `8153bb9..ffaa8cb` → run `34007849746` sukses 3/3
+   job (Frontend 45s, Backend pytest 1m19s, Trivy 1m25s; hanya anotasi
+   deprecation Node 20 → 24 pada actions, bukan error).
+10. **E2E step-up live dgn data nyata (bukan mock)**: purchase air minum
+    asli dibuat via API multipart ber-foto (`WTR-SBY-20260906-0001`, id 21)
+    → verify tanpa grant **428** → `POST /api/step-up` PIN benar (grant
+    600 dtk) → verify **sukses** (status verified, verified_by tercatat).
+    ⚠️ Pelajaran: cookie sesi harus di `-c` jar pada panggilan step-up —
+    grant tersimpan di session cookie. **Cleanup penuh**: purchase+items,
+    3 jejak activity_logs, 2 jejak step_up, 2 file foto dihapus; counter
+    `SBY|WTR|20260906` di-reset agar nomor 0001 tersedia utk pengajuan
+    asli berikutnya; 3 purchase asli Faisol (4 Sep) + 6 foto tetap utuh;
+    health ok, 9/9 cabang ready, log bersih pasca-uji.
 
 ---
 
