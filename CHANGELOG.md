@@ -4,6 +4,42 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 
 ---
 
+## v2.36.1 — 6 September 2026 (Perbaikan sinkronisasi overtime Driver — data tidak aktual)
+
+Laporan dari lapangan (6 Sep): data overtime Driver di aplikasi tidak sama dengan
+spreadsheet sumbernya, meski tombol Refresh sudah dicoba berkali-kali. Ternyata
+temuannya lebih dalam dari sekadar "belum di-refresh":
+
+### Akar masalah: baris baru saling menimpa (silent data loss)
+- Kolom `display_id` di tabel `overtime_driver` punya constraint **UNIQUE**
+  (`uk_display_id`), tapi upsert dari sheet **tidak pernah mengisi kolom ini**
+  → semua baris baru masuk dengan nilai `''`. MySQL/MariaDB hanya mengizinkan
+  **SATU** baris dengan nilai `''` di kolom UNIQUE → setiap baris sheet baru
+  yang masuk **menimpa baris kosong yang sama** (last-writer-wins). Efek
+  kumulatifnya: data terlihat "ada" tapi isinya tertukar/usang — persis
+  keluhan user. (Baris OB/Security tidak terdampak — display_id-nya sudah
+  deterministik dari digest.)
+
+### Perbaikan
+- **Upsert kini mengisi `display_id` deterministik**: `OTS-<sheet_row>` —
+  konvensi yang sama dengan backfill lama, idempoten saat re-sync.
+- **Backfill otomatis** di startup (schema ensure): baris lama bermata
+  `display_id=''` diisi `OTS-<sheet_row>` (idempoten, hanya baris sheet).
+- **Tombol Refresh di UI Overtime kini full sync** (`full: true`) — sebelumnya
+  incremental (hanya baris Timestamp ≥ refresh terakhir −1 jam), sehingga
+  edit/penghapusan di baris lama sheet tidak pernah tertarik dan user merasa
+  refresh "tidak berfungsi". Full sync menarik ±9 ribu baris — aman.
+- Service worker cache bump `v2361`.
+
+### Verifikasi
+- Data produksi diperbaiki: 8.675 baris lama (drift) dihapus → full sync
+  ulang → **8.745 baris** terisi sesuai feed (100 baris kosong dilewati).
+- Verifikasi akhir: setiap baris DB dicocokkan ke feed (nama + tanggal) —
+  tidak ada perbedaan. Kolom lokal (GPS, sumber form PWA) tidak tersentuh
+  (tidak ada baris GPS di DB saat ini; backup JSON sebelum repair tersimpan).
+
+---
+
 ## v2.36.0 — 6 September 2026 (Approval Berjenjang — ACC atasan sebelum diproses)
 
 Fitur roadmap #3 (#3 PROGRESS "approval berjenjang") — sekarang SEMUA

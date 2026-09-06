@@ -145,6 +145,15 @@ def ensure_overtime_schema(conn=None):
             VALUES ('overtime_ob_sheet_url', '')
         """, cursor, "system_config.overtime_ob_sheet_url")
 
+        # v2.36.1: isi display_id baris lama yang masih kosong (benturan
+        # UNIQUE uk_display_id pada '' — penyebab baris baru saling menimpa).
+        # Idempoten: hanya menyentuh baris '' milik source='sheet'.
+        _run("""
+            UPDATE overtime_driver
+            SET display_id = CONCAT('OTS-', sheet_row)
+            WHERE (display_id IS NULL OR display_id = '') AND source = 'sheet'
+        """, cursor, "overtime_driver.display_id_backfill")
+
         conn.commit()
         cursor.close()
         print("✔ Overtime schema ready")

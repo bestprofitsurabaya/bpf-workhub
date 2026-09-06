@@ -95,7 +95,9 @@ async function doRefresh() {
   refreshMsg.value = ''
   try {
     const endpoint = tab.value === 'ob' ? '/api/overtime/ob/refresh' : '/api/overtime/driver/refresh'
-    const d = await api(endpoint, { method: 'POST' })
+    // full:true — sinkronisasi penuh (bukan incremental) supaya perubahan
+    // penghapusan di sheet lama ikut tertarik; data sumber ±9rb baris, aman.
+    const d = await api(endpoint, { method: 'POST', body: { full: true } })
     refreshMsg.value = d.summary
     await Promise.all([loadTab(), loadStats()])
   } catch (e) {
