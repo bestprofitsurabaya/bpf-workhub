@@ -4,6 +4,34 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 
 ---
 
+## v2.36.2 — 6 September 2026 (Kunci sinkronisasi overtime yang stabil)
+
+Lanjutan v2.36.1: identitas baris overtime Driver tidak lagi bergantung pada
+**nomor baris spreadsheet** (berubah setiap ada baris disisipkan/dihapus di
+tengah), melainkan **digest isi baris** — pola yang sama dengan modul
+OB/Security sejak v2.29.6.
+
+### Perubahan
+- Kolom baru `source_uid` di `overtime_driver` (**UNIQUE**) berisi
+  `sheet-<md5(nama|submitted_at|sheet_row)>` — re-sync mengenali baris yang
+  sama walau posisi baris sheet bergeser; pasangan (nama, submitted_at)
+  terbukti unik di seluruh 8.745 baris produksi.
+- `display_id` kini `OTS-<12 digit digest>` — bebas benturan walaupun
+  `sheet_row` menumpuk, dan **konsisten** antar re-sync (verifikasi PDF tetap
+  bermakna). Sebelumnya (v2.36.1) `OTS-<sheet_row>` bisa berubah nilainya
+  ketika sheet bergeser.
+- Submit form PWA Driver kini juga menyimpan `source_uid` (`form-…`) —
+  paritas OB; sekaligus memperbaiki bug laten di mana semua submit form
+  menumpuk di `sheet_row=0` (benturan UNIQUE lama).
+- `sheet_row` tidak lagi UNIQUE; tetap disimpan sebagai jejak posisi terakhir.
+- Backfill startup idempoten: baris lama (semua `source_uid=''`) diisi dari
+  (nama, submitted_at) **sebelum** index UNIQUE dibuat — urutan migrasi aman.
+- Paritas cabang: `ensure_branch_database()` kini ikut menjalankan migrasi
+  overtime di setiap DB cabang; `init.sql` & CREATE TABLE disamakan
+  (display_id/source/source_uid) agar deploy fresh tidak berbeda dengan prod.
+
+---
+
 ## v2.36.1 — 6 September 2026 (Perbaikan sinkronisasi overtime Driver — data tidak aktual)
 
 Laporan dari lapangan (6 Sep): data overtime Driver di aplikasi tidak sama dengan

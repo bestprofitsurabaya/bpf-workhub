@@ -615,6 +615,9 @@ CREATE TABLE IF NOT EXISTS maintenance_recommendations (
 CREATE TABLE IF NOT EXISTS overtime_driver (
     id INT AUTO_INCREMENT PRIMARY KEY,
     sheet_row INT NOT NULL,
+    display_id VARCHAR(30) DEFAULT '',
+    source VARCHAR(20) DEFAULT 'sheet',
+    source_uid VARCHAR(64) DEFAULT '',
     submitted_at DATETIME DEFAULT NULL,
     email VARCHAR(150) DEFAULT '',
     nama VARCHAR(150) NOT NULL,
@@ -639,7 +642,7 @@ CREATE TABLE IF NOT EXISTS overtime_driver (
     gps_kota VARCHAR(100) DEFAULT '',
     gps_provinsi VARCHAR(100) DEFAULT '',
     gps_kode_pos VARCHAR(10) DEFAULT '',
-    UNIQUE KEY sheet_row (sheet_row),
+    UNIQUE KEY uq_otd_uid (source_uid),
     KEY idx_otd_tanggal (tanggal),
     KEY idx_otd_nama (nama)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

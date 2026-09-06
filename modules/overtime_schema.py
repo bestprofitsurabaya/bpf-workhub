@@ -33,10 +33,16 @@ def ensure_overtime_schema(conn=None):
         cursor = conn.cursor()
 
         # --- overtime_driver: sinkronisasi dari Google Sheet (refresh) ---
+        # v2.36.2: identitas baris pindah ke source_uid (kunci stabil dari
+        # isi baris), sheet_row tidak lagi UNIQUE — nomor baris sheet berubah
+        # saat ada baris disisipkan/dihapus di tengah.
         _run("""
             CREATE TABLE IF NOT EXISTS overtime_driver (
                 id INT AUTO_INCREMENT PRIMARY KEY,
-                sheet_row INT NOT NULL UNIQUE,
+                sheet_row INT NOT NULL,
+                display_id VARCHAR(30) DEFAULT '',
+                source VARCHAR(20) DEFAULT 'sheet',
+                source_uid VARCHAR(64) DEFAULT '',
                 submitted_at DATETIME NULL,
                 email VARCHAR(150) DEFAULT '',
                 nama VARCHAR(150) NOT NULL,
@@ -61,10 +67,33 @@ def ensure_overtime_schema(conn=None):
                 gps_kode_pos VARCHAR(10) DEFAULT '',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY uq_otd_uid (source_uid),
                 INDEX idx_otd_tanggal (tanggal),
                 INDEX idx_otd_nama (nama)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
         """, cursor, "overtime_driver")
+
+        # v2.36.2: migrasi tabel lama — kolom source_uid + lepas UNIQUE
+        # sheet_row (nomor baris sheet berubah saat baris disisipkan/dihapus
+        # di tengah; identitas kini dari source_uid = digest isi baris).
+        # URUTAN PENTING: backfill source_uid HARUS sebelum ADD UNIQUE
+        # (baris lama semua '' → UNIQUE pasti gagal bila dibuat duluan).
+        _run("ALTER TABLE overtime_driver ADD COLUMN source_uid VARCHAR(64) DEFAULT ''",
+             cursor, "overtime_driver.source_uid")
+        _run("ALTER TABLE overtime_driver DROP INDEX sheet_row",
+             cursor, "overtime_driver.drop_uq_sheet_row")
+        # Backfill source_uid baris lama dari (nama, submitted_at) — pasangan
+        # ini terbukti unik utk seluruh 8.745 baris produksi. Formulir PWA
+        # menyimpan submitted_at = NOW() → uid-nya tetap unik.
+        _run("""
+            UPDATE overtime_driver
+            SET source_uid = CONCAT('sheet-', MD5(CONCAT(nama, '|',
+                DATE_FORMAT(submitted_at, '%Y-%m-%d %H:%i:%s'))))
+            WHERE (source_uid IS NULL OR source_uid = '')
+              AND submitted_at IS NOT NULL
+        """, cursor, "overtime_driver.source_uid_backfill")
+        _run("ALTER TABLE overtime_driver ADD UNIQUE KEY uq_otd_uid (source_uid)",
+             cursor, "overtime_driver.uq_otd_uid")
 
         # v2.22.1: kolom baru untuk data Driver lengkap (NO KENDARAAN, broker,
         # manager, dokumen merge). Guarded — aman bila tabel sudah dibuat duluan.

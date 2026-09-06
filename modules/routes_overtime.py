@@ -403,21 +403,28 @@ def _upsert_driver_rows(conn, rows):
             if not row:
                 skipped += 1
                 continue
-            # v2.36.1: display_id deterministik (OTS-<sheet_row>) — kolom ini
-            # UNIQUE (uk_display_id) dan TIDAK BOLEH kosong. Sebelumnya baris
-            # sheet diupsert tanpa display_id → semua INSERT baru memakai '' →
-            # MySQL hanya mengizinkan SATU baris '' → setiap baris baru saling
-            # menimpa (silent data loss — terlihat sebagai "data tidak aktual
-            # dengan sheet"). Konvensi OTS-<sheet_row> sama dgn backfill lama.
-            display_id = f"OTS-{row['sheet_row']}"
+            # v2.36.2: identitas baris = digest(nama|submitted_at) — kunci
+            # STABIL: re-sync mengenali baris yang sama walau posisi baris
+            # sheet bergeser (insert/delete di tengah). Pasangan (nama,
+            # submitted_at) terbukti unik di seluruh 8.745 baris produksi.
+            # TANPA timestamp → fallback nomor baris (sheet lama). Rumus HARUS
+            # sama dengan backfill SQL di overtime_schema (md5 utf-8, 'sheet-').
+            _ts = row['submitted_at']
+            _ts_str = _ts.strftime('%Y-%m-%d %H:%M:%S') if hasattr(_ts, 'strftime') else (_ts or '')
+            _uid_src = '|'.join([
+                row['nama'],
+                _ts_str if _ts_str else f"row-{row['sheet_row']}"])
+            _digest = hashlib.md5(_uid_src.encode('utf-8')).hexdigest()
+            source_uid = 'sheet-' + _digest
+            display_id = 'OTS-' + _digest[:12]
             cursor.execute(
                 """INSERT INTO overtime_driver
-                   (sheet_row, display_id, submitted_at, email, nama, tanggal, waktu_mulai,
-                    waktu_selesai, keterangan, foto_mulai, foto_selesai, notes,
+                   (sheet_row, display_id, source_uid, submitted_at, email, nama, tanggal,
+                    waktu_mulai, waktu_selesai, keterangan, foto_mulai, foto_selesai, notes,
                     no_kendaraan, broker, manager, doc_url)
-                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                    ON DUPLICATE KEY UPDATE
-                     display_id=VALUES(display_id),
+                     sheet_row=VALUES(sheet_row), display_id=VALUES(display_id),
                      submitted_at=VALUES(submitted_at), email=VALUES(email),
                      nama=VALUES(nama), tanggal=VALUES(tanggal),
                      waktu_mulai=VALUES(waktu_mulai), waktu_selesai=VALUES(waktu_selesai),
@@ -425,7 +432,7 @@ def _upsert_driver_rows(conn, rows):
                      foto_selesai=VALUES(foto_selesai), notes=VALUES(notes),
                      no_kendaraan=VALUES(no_kendaraan), broker=VALUES(broker),
                      manager=VALUES(manager), doc_url=VALUES(doc_url)""",
-                (row['sheet_row'], display_id, row['submitted_at'], row['email'],
+                (row['sheet_row'], display_id, source_uid, row['submitted_at'], row['email'],
                  row['nama'], row['tanggal'], row['waktu_mulai'],
                  row['waktu_selesai'], row['keterangan'], row['foto_mulai'],
                  row['foto_selesai'], row['notes'], row['no_kendaraan'],
@@ -734,7 +741,10 @@ def register_overtime_routes(app):
             cleaned['foto_selesai'] = _save_overtime_foto(cleaned['foto_selesai_b64'], display_id, 'selesai')
 
             sql, _ = build_insert_sql('driver')
-            params = build_insert_params(display_id, cleaned, source='form', modul='driver')
+            # v2.36.2: uid form dari display_id (unik per pengajuan) — paritas OB.
+            _fuid = 'form-' + make_source_uid(display_id, nama)
+            params = build_insert_params(display_id, cleaned, source='form', modul='driver',
+                                         source_uid=_fuid)
             cursor.execute(sql, params)
             ot_row_id = cursor.lastrowid
             conn.commit()

@@ -333,6 +333,7 @@ def ensure_branch_database(code, conn=None):
     from modules.appointments_schema import ensure_appointments_schema
     from modules.helpers import ensure_doc_sequences
     from modules.approvals import ensure_approval_tables, ensure_manager_column  # v2.36.0
+    from modules.overtime_schema import ensure_overtime_schema  # v2.36.2: paritas tabel overtime
 
     def _run_ensure(fn, label):
         try:
@@ -351,6 +352,7 @@ def ensure_branch_database(code, conn=None):
     _run_ensure(lambda c: ensure_appointments_schema(conn=c), 'appointments schema')
     _run_ensure(lambda c: ensure_doc_sequences(conn=c), 'doc_sequences')
     _run_ensure(lambda c: (ensure_manager_column(c), ensure_approval_tables(c)), 'approval_requests')
+    _run_ensure(lambda c: ensure_overtime_schema(conn=c), 'overtime schema')  # v2.36.2
     _run_ensure(lambda c: write_branch_identity(branch, conn=c), 'identity')
 
     return True, f'Database {db_name} untuk cabang {code} siap'

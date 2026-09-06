@@ -124,16 +124,18 @@ def build_insert_sql(modul):
                 'gps_lat', 'gps_lon', 'gps_address', 'gps_kelurahan', 'gps_kecamatan',
                 'gps_kota', 'gps_provinsi', 'gps_kode_pos']
     elif modul == 'driver':
+        # v2.36.2: source_uid ikut disimpan (kunci stabil baris — paritas OB).
+        # sheet_row tetap literal 0 utk submit form (NOT NULL, tidak lagi UNIQUE).
         sql = """INSERT INTO overtime_driver
-            (display_id, sheet_row, nama, tanggal, waktu_mulai, waktu_selesai,
+            (display_id, sheet_row, source_uid, nama, tanggal, waktu_mulai, waktu_selesai,
              keterangan, no_kendaraan, broker, manager,
              foto_mulai, foto_selesai, source,
              gps_lat, gps_lon, gps_address, gps_kelurahan, gps_kecamatan,
              gps_kota, gps_provinsi, gps_kode_pos)
-            VALUES (%s,0,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"""
+            VALUES (%s,0,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"""
         # Note: sheet_row is hardcoded as literal 0 in the SQL VALUES,
         # so it is NOT included in cols (cols maps 1:1 with params tuple).
-        cols = ['display_id', 'nama', 'tanggal', 'waktu_mulai', 'waktu_selesai',
+        cols = ['display_id', 'source_uid', 'nama', 'tanggal', 'waktu_mulai', 'waktu_selesai',
                 'keterangan', 'no_kendaraan', 'broker', 'manager',
                 'foto_mulai', 'foto_selesai', 'source',
                 'gps_lat', 'gps_lon', 'gps_address', 'gps_kelurahan', 'gps_kecamatan',
@@ -161,7 +163,7 @@ def build_insert_params(display_id, cleaned, source='form', modul='ob', source_u
         )
     elif modul == 'driver':
         return (
-            display_id, cleaned['nama'],
+            display_id, source_uid, cleaned['nama'],
             cleaned['tanggal'], cleaned['waktu_mulai'], cleaned['waktu_selesai'],
             cleaned['keterangan'], cleaned.get('no_kendaraan', ''),
             cleaned.get('broker', ''), cleaned.get('manager', ''),
