@@ -8,6 +8,7 @@ from modules.helpers import (log_activity_async, generate_display_id, safe_float
                              role_required, session_driver_name, resolve_driver_scope)
 from modules.notifications import push_driver_notification
 from modules.stepup import stepup_required
+from modules.approvals import hook_create_approval, gate_approval  # v2.36.0
 
 def register_cash_routes(app):
 
@@ -116,6 +117,10 @@ def register_cash_routes(app):
             cash_id = cursor.lastrowid
             conn.commit()
 
+            # v2.36.0: jurnal ACC berjenjang (Chief Driver → GA) — best-effort,
+            # kegagalan pencatatan tidak menggagalkan pengajuan.
+            hook_create_approval(conn, 'cash', cash_id, display_id=display_id, role='driver')
+
             log_activity_async(0, 'cash_request_submit', 'driver', driver_name,
                              new_data={'cash_id': cash_id, 'total': total_amount, 'code': code_val})
 
@@ -141,6 +146,20 @@ def register_cash_routes(app):
     def api_cash_approve_ga(cash_id):
         """GA approves the cash request"""
         try:
+            # v2.36.0: ACC berjenjang — kasbon masih menunggu/ditolak atasan
+            # (Chief Driver) → proses ditahan (409).
+            _gconn = get_db_connection()
+            if not _gconn:
+                return jsonify({'status': 'error', 'msg': 'DB error'}), 500
+            try:
+                allowed, resp = gate_approval(_gconn, 'cash', cash_id)
+            finally:
+                try:
+                    _gconn.close()
+                except Exception:
+                    pass
+            if not allowed:
+                return resp
             data = request.get_json() or {}
             # Use session identity for audit trail — not client-supplied name.
             ga_name = session.get('full_name', '') or session.get('user_name', 'GA Officer')

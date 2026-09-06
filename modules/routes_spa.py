@@ -12,6 +12,7 @@ from flask import jsonify, request, session, send_from_directory
 from modules.helpers import role_required, log_activity_async, home_for_role, login_rate_check, login_fail, login_success, client_ip, save_file, safe_float
 from modules.config import get_db_connection, get_master_connection
 from modules.stepup import stepup_required
+from modules.approvals import gate_approval  # v2.36.0
 
 SPA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'static', 'app')
 
@@ -248,6 +249,20 @@ def register_spa_routes(app):
     def api_queue_approve_ga(tx_id):
         actor = _queue_actor()
         try:
+            # v2.36.0: ACC berjenjang — klaim masih menunggu/ditolak atasan
+            # (Chief Driver) → proses ditahan (409).
+            _gconn = get_db_connection()
+            if not _gconn:
+                return jsonify({'status': 'error', 'msg': 'DB error'}), 500
+            try:
+                allowed, resp = gate_approval(_gconn, 'bbm', tx_id)
+            finally:
+                try:
+                    _gconn.close()
+                except Exception:
+                    pass
+            if not allowed:
+                return resp
             conn = get_db_connection()
             if not conn:
                 return jsonify({'status': 'error', 'msg': 'DB error'}), 500

@@ -53,6 +53,11 @@ async function doApprove(tx) {
       `menyetujui klaim ${tx.display_id || tx.id}`
     )
     await load()
+  } catch (e) {
+    // v2.36.0: ACC berjenjang — klaim masih menunggu ACC Chief Driver.
+    if (e.status === 409 && e.data && e.data.code === 'SUPERVISOR_APPROVAL_REQUIRED') {
+      alert('⏳ Menunggu ACC atasan (' + (e.data.pending_at || 'Chief Driver') + '). Proses dulu lewat menu ACC Atasan.')
+    } else { throw e }
   } finally {
     busy.value = false
   }

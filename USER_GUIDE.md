@@ -1,4 +1,4 @@
-# 📖 Panduan Pengguna BPF WorkHub v2.35.1
+# 📖 Panduan Pengguna BPF WorkHub v2.36.0
 
 > **Siapa pun kamu — sopir, OB, admin, atau pimpinan — panduan ini ditulis untuk kamu.**
 > Tidak perlu paham teknis. Cukup ikuti langkah-langkah sesuai bagianmu.
@@ -27,6 +27,7 @@
     - [12.7 Access Review (Admin) 🛂](#127-access-review-admin-)
     - [12.8 Retensi & Arsip Dokumen (Admin) 🗄️](#128-retensi--arsip-dokumen-admin-)
     - [12.9 Verifikasi & Registri Dokumen (Admin) 🔏](#129-verifikasi--registri-dokumen-admin-)
+    - [12.10 ACC Berjenjang — Persetujuan Atasan ✅](#1210-acc-berjenjang--persetujuan-atasan--sejak-v2360)
 13. [Kasbon: Alur Lengkap dari A sampai Z](#13-kasbon-alur-lengkap-dari-a-sampai-z)
 14. [Untuk IT — News Scraper & Content Management 📰](#14-untuk-it-sebagai-cabang--news-scraper--content-management-)
 15. [Mengatasi Masalah (Troubleshooting)](#15-mengatasi-masalah-troubleshooting)
@@ -645,6 +646,40 @@ penandatangan, cabang, dan waktu terbit.
 Perubahan sekecil apa pun pada file akan terdeteksi — berguna saat ada
 sengketa atau permintaan audit eksternal.
 
+### 12.10 ACC Berjenjang — Persetujuan Atasan ✅ (sejak v2.36.0)
+
+Semua pengajuan kini **wajib di-ACC atasan dulu** sebelum diproses
+back-office — sesuai struktur perusahaan:
+
+| Pengajuan | Siapa meng-ACC (urutan) |
+|---|---|
+| Kasbon & Klaim BBM | **Chief Driver** → **GA** |
+| Overtime (Driver & OB/Security) | **GA HR** → **Admin** |
+
+**Cara kerja bagi atasan (Chief Driver / GA HR):**
+
+1. Driver/OB mengajukan seperti biasa — sistem otomatis membuat jurnal
+   ACC dan statusnya "menunggu atasan".
+2. Buka menu **✅ ACC Atasan** — tampil daftar pengajuan yang menunggu
+   keputusan Anda (nama pengaju, jenis, nomor dokumen, cabang, rantai ACC).
+3. Klik **Keputusan**: **ACC** untuk melanjutkan ke langkah berikutnya,
+   atau **Tolak** (wajib mengisi alasan) untuk menghentikan pengajuan.
+4. Setelah seluruh langkah ACC selesai, back-office (GA/Admin) dapat
+   memproses seperti biasa.
+
+**Bagi GA/Admin:** pengajuan yang belum selesai ACC tidak bisa di-approve
+— sistem menampilkan pesan "Menunggu ACC atasan (…)" beserta posisi ACC
+saat ini. Dokumen lama (sebelum fitur ini) tetap bisa diproses normal.
+
+**Atasan khusus per user (Admin):** di **Manajemen User** ada kolom
+**Atasan (ACC berjenjang)** — isi username atasan jika pengajuan seorang
+user harus melewati orang tertentu (mis. chief driver cabang). Kosong =
+atastan default per role.
+
+**Catatan keamanan:** pengaju tidak bisa mem-ACC pengajuannya sendiri;
+semua keputusan tercatat di audit log dengan identitas pemutus, waktu,
+dan alasan penolakan.
+
 ---
 
 ## 13. Kasbon: Alur Lengkap dari A sampai Z
@@ -820,4 +855,4 @@ Jika upload ke WordPress gagal, pesan error sekarang menampilkan **response body
 
 Ada pertanyaan atau kendala? Hubungi **Admin** atau **tim IT** — mereka bisa melihat riwayat sistem (Audit Log) untuk membantu menyelesaikan masalahmu dengan cepat.
 
-*BPF WorkHub v2.35.1 · Panduan Pengguna · Diperbarui 6 September 2026*
+*BPF WorkHub v2.36.0 · Panduan Pengguna · Diperbarui 6 September 2026*

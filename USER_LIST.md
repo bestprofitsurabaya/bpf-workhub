@@ -1,4 +1,4 @@
-# 📋 Daftar User & Role — BPF WorkHub v2.35.1
+# 📋 Daftar User & Role — BPF WorkHub v2.36.0
 
 Dokumen ini menjelaskan semua role yang didukung sistem, siapa yang memakainya, dan apa yang bisa dilakukan masing-masing.
 
@@ -395,6 +395,7 @@ Sistem mendukung **11 peran inti** (peran `it` dipecah per cabang pada daftar di
 | Audit Trail | Semua aktivitas login, sync, delete tercatat di `activity_logs` |
 | Branch Code | Multi-cabang: user dikaitkan dengan cabang tertentu |
 | Access Review | Review hak akses triwulanan (Jan/Apr/Jul/Okt) — akun tanpa login > 90 hari diklasifikasi "basi" & bisa dinonaktifkan Admin |
+| ACC Berjenjang (v2.36.0) | Pengajuan wajib ACC atasan dulu: kasbon & klaim BBM → Chief Driver lalu GA; overtime → GA HR lalu Admin. Admin bisa mengatur atasan khusus per user (kolom "Atasan" di Manajemen User); pengaju tidak bisa memutus pengajuannya sendiri; penolakan wajib alasan & tercatat di audit log |
 
 ---
 

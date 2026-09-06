@@ -170,6 +170,12 @@ curl -sk https://your-server:5000/api/auth/login -X POST \
 
 # Sanity keamanan (v2.31+): aksi uang tanpa step-up grant harus ditolak
 # → HTTP 428 {"error":"STEPUP_REQUIRED",...} (login dulu, pakai cookie session)
+
+# Sanity ACC berjenjang (v2.36.0): approve klaim tanpa ACC atasan ditolak
+# → HTTP 409 {"code":"SUPERVISOR_APPROVAL_REQUIRED",...} — ACC dulu lewat
+# menu "✅ ACC Atasan" (chief_driver), lalu approve-ga bisa diproses.
+# Tabel approval_requests & kolom users.manager_username dibuat otomatis
+# saat startup di DB master + tiap cabang.
 ```
 
 ---
@@ -334,4 +340,4 @@ docker network ls | grep nextcloud_net
 
 ---
 
-*BPF WorkHub v2.35.1 — Deployment Guide · Diperbarui 6 September 2026*
+*BPF WorkHub v2.36.0 — Deployment Guide · Diperbarui 6 September 2026*

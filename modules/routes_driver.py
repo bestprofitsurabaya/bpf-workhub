@@ -6,6 +6,7 @@ from modules.helpers import (save_file, resolve_driver_form_context, validate_bb
                              ensure_all_master_data, generate_display_id, log_activity_async,
                              session_driver_name, role_required)
 from modules.engine import PerformanceAnalyzer
+from modules.approvals import hook_create_approval  # v2.36.0
 from datetime import datetime
 import os
 
@@ -132,6 +133,8 @@ def register_driver_routes(app, socketio):
 
                 tx_id = cursor.lastrowid
                 conn.commit()
+                # v2.36.0: jurnal ACC berjenjang (Chief Driver → GA) — best-effort.
+                hook_create_approval(conn, 'bbm', tx_id, display_id=display_id, role='driver')
                 log_activity_async(tx_id, 'create', 'driver', driver_name, ip=request.remote_addr)
                 try:
                     socketio.emit('new_claim', {

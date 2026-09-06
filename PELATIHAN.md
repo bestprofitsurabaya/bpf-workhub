@@ -1,4 +1,4 @@
-# 🎯 Lembar Latihan per Peran — BPF WorkHub v2.35.1
+# 🎯 Lembar Latihan per Peran — BPF WorkHub v2.36.0
 
 Panduan latihan singkat (±5–10 menit per peran) untuk gladi resik sebelum demo atau meeting. Tiap latihan menjelaskan langkah yang harus dilakukan dan hasil yang diharapkan.
 
@@ -150,6 +150,8 @@ Telp: 031-5349888
 | 7 | Buka **Settings → Retensi & Arsip** | Tabel kebijakan + inventaris live semua cabang tampil |
 | 8 | Buka **Settings → Verifikasi & Registri Dokumen** | Registri PDF resmi tampil; unggah PDF → status keaslian |
 | 9 | Minta Finance menekan tombol verifikasi air minum | Modal **PIN ulang** muncul — aksi baru lanjut setelah PIN benar |
+| 10 | Buka **✅ ACC Atasan** | Antrean pengajuan menunggu ACC tampil; buka modal Keputusan — ACC lanjut ke langkah berikutnya, Tolak wajib alasan |
+| 11 | Buka Users → edit seorang driver | Kolom **Atasan (ACC berjenjang)** bisa diisi — pengajuan user itu kini melewati atasan tersebut |
 
 ---
 
@@ -189,4 +191,4 @@ Telp: 031-5349888
 
 ---
 
-*BPF WorkHub v2.35.1 · Lembar Latihan per Peran*
+*BPF WorkHub v2.36.0 · Lembar Latihan per Peran*

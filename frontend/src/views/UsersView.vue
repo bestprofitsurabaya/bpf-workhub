@@ -154,8 +154,9 @@ function openForm(u) {
   form.value = u ? { 
     id: u.id, username: u.username, full_name: u.full_name, role: u.role, 
     pin: '', team_name: u.team_name || '', branch_code: u.branch_code || '', 
+    manager_username: u.manager_username || '', 
     is_active: !!u.is_active 
-  } : { id: null, username: '', full_name: '', role: 'ga', pin: '123456', team_name: '', branch_code: auth.user?.branch_code || '', is_active: true }
+  } : { id: null, username: '', full_name: '', role: 'ga', pin: '123456', team_name: '', branch_code: auth.user?.branch_code || '', manager_username: '', is_active: true }
   showForm.value = true
 }
 
@@ -420,6 +421,10 @@ onMounted(load)
             <option value="">Pusat</option>
             <option v-for="b in branches" :key="b.code" :value="b.code">{{ b.name }}</option>
           </select>
+        </div>
+        <div class="field"><label>Atasan (ACC berjenjang)</label>
+          <input class="input" v-model="form.manager_username" placeholder="kosong = atasan default role" />
+          <div class="muted" style="font-size:11px;">Kosong = atasan default (driver → Chief Driver, OB → GA HR)</div>
         </div>
         <div class="field"><label>Status</label>
           <select class="select" v-model="form.is_active"><option :value="true">🟢 Aktif</option><option :value="false">🔴 Nonaktif</option></select>

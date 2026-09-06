@@ -29,6 +29,7 @@ const MENU = [
   { label: 'Analytics', path: '/analytics', icon: '📈', roles: ['ga', 'finance', 'admin'] },
   { label: 'Marketing Hub', path: '/marketing', icon: '📣', roles: ['marketing'] },
   { label: 'Chief Driver', path: '/chief-driver', icon: '🚛', roles: ['chief_driver', 'ga', 'admin'] },
+  { label: 'ACC Atasan', path: '/approvals', icon: '✅', roles: ['chief_driver', 'ga', 'finance', 'ga_hr', 'admin'] },
   { label: 'Manajemen User', path: '/users', icon: '👥', roles: ['admin'] },
   { label: 'Access Review', path: '/access-review', icon: '🛂', roles: ['admin'] },
   { label: 'Pengaturan', path: '/settings', icon: '⚙️', roles: ['admin'] },

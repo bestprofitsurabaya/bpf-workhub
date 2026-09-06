@@ -26,6 +26,7 @@ const routes = [
       { path: 'cash', name: 'cash', component: () => import('../views/CashView.vue'), meta: { roles: ['ga', 'finance', 'admin'] } },
       { path: 'analytics', name: 'analytics', component: () => import('../views/AnalyticsView.vue'), meta: { roles: ['ga', 'finance', 'admin'] } },
       { path: 'users', name: 'users', component: () => import('../views/UsersView.vue'), meta: { roles: ['admin'] } },
+      { path: 'approvals', name: 'approvals', component: () => import('../views/ApprovalsView.vue'), meta: { roles: ['chief_driver', 'ga', 'finance', 'ga_hr', 'admin'] } },
       { path: 'access-review', name: 'access-review', component: () => import('../views/AccessReviewView.vue'), meta: { roles: ['admin'] } },
       { path: 'settings', name: 'settings', component: () => import('../views/SettingsView.vue'), meta: { roles: ['admin'] } },
       { path: 'logs', name: 'logs', component: () => import('../views/LogsView.vue'), meta: { roles: ['admin'] } },

@@ -58,13 +58,14 @@ Sebelumnya, pencatatan BBM, kasbon, dan pembelian air minum dilakukan manual —
 - Semua aksi tercatat (siapa, kapan, apa) — tidak bisa "hilang".
 - Pemeriksaan otomatis keanehan pengisian (anomali) membantu mencegah salah input.
 - **Program 6 tahap ISO/IEC 27001:2022 selesai** — secrets terkelola, step-up auth, access review triwulanan, audit kerentanan otomatis (CI + Dependabot + Trivy), retensi & arsip dokumen, serta verifikasi keaslian dokumen.
-- 104 tes antarmuka (vitest) + 443 tes backend (pytest) — setiap perubahan diuji otomatis di CI.
+- 109 tes antarmuka (vitest) + 482 tes backend (pytest) — setiap perubahan diuji otomatis di CI.
+- **Approval berjenjang** — semua pengajuan (kasbon, klaim BBM, overtime) di-ACC atasan dulu sebelum diproses back-office.
 
 ---
 
 ## 📋 Apa yang Bisa Dilihat Langsung di Demo
 
-1. **Driver** mengajukan klaim BBM dari HP → **GA** menyetujui → **Finance** memverifikasi.
+1. **Driver** mengajukan klaim BBM dari HP → **Chief Driver** ACC → **GA** menyetujui → **Finance** memverifikasi.
 2. **OB** mengajukan pembelian air minum dengan foto → **Finance** verifikasi → PDF tanda terima.
 3. **Marketing** membuat jadwal kunjungan → **Chief Driver** menugaskan → hasil kunjungan tercatat.
 4. **Pelamar** mengisi form → **Receptionist** memverifikasi & mencatat kehadiran → **Traineer** melihat rekrutannya.
@@ -82,4 +83,4 @@ Sebelumnya, pencatatan BBM, kasbon, dan pembelian air minum dilakukan manual —
 
 ---
 
-*BPF WorkHub v2.35.1 · Ringkasan Satu Halaman*
+*BPF WorkHub v2.36.0 · Ringkasan Satu Halaman*

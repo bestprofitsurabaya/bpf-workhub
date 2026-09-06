@@ -35,6 +35,7 @@ from modules.overtime_shared import (
     serialize_overtime_row, get_display_prefix, make_source_uid, POSITIONS
 )
 from modules.pdf_generator import OvertimeReportPDF
+from modules.approvals import hook_create_approval, gate_approval  # v2.36.0
 
 POSITIONS = ('OB', 'Security')
 
@@ -665,7 +666,11 @@ def register_overtime_routes(app):
             sql, _ = build_insert_sql('ob')
             params = build_insert_params(display_id, cleaned, source='form', modul='ob', source_uid=source_uid)
             cursor.execute(sql, params)
+            ob_row_id = cursor.lastrowid
             conn.commit()
+
+            # v2.36.0: jurnal ACC berjenjang (GA HR → Admin) — best-effort.
+            hook_create_approval(conn, 'overtime_ob', ob_row_id, display_id=display_id, role='ob')
 
             log_activity_async(None, 'overtime_submit', 'public', nama,
                                new_data={'display_id': display_id, 'posisi': posisi},
@@ -723,7 +728,11 @@ def register_overtime_routes(app):
             sql, _ = build_insert_sql('driver')
             params = build_insert_params(display_id, cleaned, source='form', modul='driver')
             cursor.execute(sql, params)
+            ot_row_id = cursor.lastrowid
             conn.commit()
+
+            # v2.36.0: jurnal ACC berjenjang (GA HR → Admin) — best-effort.
+            hook_create_approval(conn, 'overtime_driver', ot_row_id, display_id=display_id, role='driver')
 
             log_activity_async(None, 'overtime_driver_submit', 'driver', nama,
                                new_data={'display_id': display_id}, ip=request.remote_addr)
@@ -1243,6 +1252,23 @@ def register_overtime_routes(app):
             old = _ot_row(modul, row_id)
             if not old:
                 return jsonify({'status': 'error', 'msg': 'Data tidak ditemukan'}), 404
+
+            # v2.36.0: ACC berjenjang — pengajuan OT masih menunggu/ditolak
+            # atasan (GA HR utk driver, Admin utk OB/Security) → finalisasi
+            # data ditahan (409) sampai seluruh ACC selesai.
+            _ot_doc_type = 'overtime_driver' if modul == 'driver' else 'overtime_ob'
+            _gconn = get_db_connection()
+            if not _gconn:
+                return jsonify({'status': 'error', 'msg': 'DB error'}), 500
+            try:
+                allowed, resp = gate_approval(_gconn, _ot_doc_type, row_id)
+            finally:
+                try:
+                    _gconn.close()
+                except Exception:
+                    pass
+            if not allowed:
+                return resp
 
             data = request.get_json(silent=True) or {}
             sets, params = [], []

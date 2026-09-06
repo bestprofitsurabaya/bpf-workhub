@@ -121,6 +121,44 @@ except Exception as _be:
 from modules.doc_integrity import ensure_document_registry
 ensure_document_registry()
 
+# Approval berjenjang v2.36.0: tabel jurnal ACC (approval_requests) di DB
+# master + tiap DB cabang, dan kolom users.manager_username (override atasan).
+from modules.approvals import ensure_approval_tables, ensure_manager_column
+from modules.config import get_master_connection as _ret_master, _pool_for as _ret_pool
+for _attempt in range(5):
+    _aconn = _ret_master()
+    if _aconn:
+        try:
+            if ensure_manager_column(_aconn) and ensure_approval_tables(_aconn):
+                break
+        except Exception as _ae:
+            print(f'[approvals] master ensure error: {_ae}')
+        finally:
+            try:
+                _aconn.close()
+            except Exception:
+                pass
+    _time.sleep(3)
+try:
+    for _b in bm.list_branches():
+        if _b.get('is_active') and _b.get('db_name') and _b['db_name'] != os.environ.get('DB_NAME', 'bpf_asset_system'):
+            _bp = _ret_pool(_b['db_name'])
+            if _bp:
+                try:
+                    _bc = _bp.get_connection()
+                    try:
+                        ensure_manager_column(_bc)
+                        ensure_approval_tables(_bc)
+                    finally:
+                        try:
+                            _bc.close()
+                        except Exception:
+                            pass
+                except Exception as _ae:
+                    print(f'[approvals] {_b["code"]} ensure error: {_ae}')
+except Exception as _be:
+    print(f'[approvals] branch ensure error: {_be}')
+
 # Retensi v2.34.0 (Tahap 5/6): tabel arsip audit + register tindakan retensi
 # dibuat di master & setiap DB cabang (activity_logs tersebar per-cabang).
 from modules.routes_retention import ensure_retention_tables
@@ -183,6 +221,7 @@ from modules.stepup import register_stepup_routes
 from modules.routes_accessreview import register_access_review_routes
 from modules.routes_retention import register_retention_routes
 from modules.routes_documents import register_document_routes
+from modules.approvals import register_approval_routes
 
 register_driver_routes(app, socketio)
 register_auth_routes(app)
@@ -208,6 +247,7 @@ register_stepup_routes(app)
 register_access_review_routes(app)
 register_retention_routes(app)
 register_document_routes(app)
+register_approval_routes(app)
 
 # ================================================================
 # AUTO-CLEANUP: Hapus foto overtime > 6 bulan (180 hari)

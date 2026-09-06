@@ -2,7 +2,7 @@
 
 **Sistem Manajemen Armada untuk PT. Bestprofit Futures — Kantor Pusat Jakarta**
 
-> 📅 Versi 2.35.1 · September 2026 — Program 6 tahap ISO 27001 selesai (Tahap 5: Retensi & Arsip · Tahap 6: Integritas Dokumen) · Kantor Pusat Jakarta (Equity Tower)
+> 📅 Versi 2.36.0 · September 2026 — Approval Berjenjang (ACC atasan otomatis utk kasbon, klaim BBM & overtime) · Program 6 tahap ISO 27001 selesai · Kantor Pusat Jakarta (Equity Tower)
 
 ---
 
@@ -25,6 +25,12 @@ BPF WorkHub adalah aplikasi web yang membantu tim operasional PT Bestprofit Futu
 - Sistem otomatis hitung konsumsi BBM per kilometer
 - AI mendeteksi anomali penggunaan BBM
 - Kasbon dengan kode unik harian untuk verifikasi cash
+- **Approval berjenjang (v2.36.0)**: kasbon & klaim BBM wajib ACC Chief Driver dulu sebelum diproses GA (gate 409 + antrean "ACC Atasan")
+
+### ✅ ACC Berjenjang
+- Semua pengajuan melewati atasan dulu: kasbon/klaim BBM → Chief Driver lalu GA; overtime → GA HR lalu Admin
+- Atasan override per user (`manager_username` di Manajemen User); Admin melihat seluruh antrean ACC
+- Tolak harus menyertakan alasan — tercatat di jurnal ACC + audit log
 
 ### 🗺️ Log Perjalanan
 - Multi-destination trip tracking
@@ -200,7 +206,7 @@ python -m pytest tests/ -v
 cd frontend && npm test
 ```
 
-**Status:** 443 pytest (pass) + 6 skip + 104 vitest · Semua ✅ PASS + audit dependensi bersih (v2.35.1 — CI GitHub Actions: Backend pytest + pip-audit, Frontend unit test/build + npm audit, Image scan Trivy; hijau di tiap push)
+**Status:** 482 pytest (pass) + 6 skip + 109 vitest · Semua ✅ PASS + audit dependensi bersih (v2.36.0 — CI GitHub Actions: Backend pytest + pip-audit, Frontend unit test/build + npm audit, Image scan Trivy; hijau di tiap push)
 
 ---
 

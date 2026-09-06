@@ -1,5 +1,5 @@
 # 📘 Panduan Lengkap BPF WorkHub
-### Versi 2.35.1 · PT. Bestprofit Futures — Kantor Pusat Jakarta
+### Versi 2.36.0 · PT. Bestprofit Futures — Kantor Pusat Jakarta
 
 > Dokumen ini adalah panduan untuk memasang, mengatur, dan merawat aplikasi **BPF WorkHub**.
 > Ditulis dengan bahasa sederhana agar bisa dipahami siapa saja — bukan hanya teknisi.
@@ -180,6 +180,14 @@ Didefinisikan di `docker-compose.yml` (bagian `web`) atau file `.env` (gitignore
 | `STEPUP_TTL_SECONDS` | `600` | Masa berlaku grant verifikasi PIN ulang (step-up), minimal 60 |
 | `RETENTION_DAYS_AUDIT_LOGS` | `1825` | Retensi log audit (hari) — var `RETENTION_DAYS_*` per kelas dokumen |
 
+> **v2.36.0 (Approval Berjenjang):** tanpa env baru — saat startup sistem
+> otomatis membuat tabel `approval_requests` di DB master & tiap cabang,
+> serta kolom `users.manager_username` (override atasan per user, diisi
+> lewat menu Manajemen User). Verifikasi pasca-deploy: buat pengajuan
+> kasbon dengan akun driver → login chief_driver → ACC lewat menu
+> "✅ ACC Atasan" → baru approve-ga GA bisa diproses (sebelum ACC:
+> HTTP 409 `SUPERVISOR_APPROVAL_REQUIRED`). |
+
 **Generate `SECRET_KEY` aman (hanya saat pertama kali):**
 ```bash
 python3 -c "import secrets; print(secrets.token_hex(32))"
@@ -317,8 +325,8 @@ memantau 5 layanan tiap 60 detik — termasuk BPF WorkHub (`/api/health`). Akses
 ### 8.5 CI (GitHub Actions)
 
 Setiap push ke `main` menjalankan dua job di GitHub Actions:
-- **Backend:** pytest dengan service `mariadb` + `redis` (env DB/SECRET_KEY) — 443 tes.
-- **Frontend:** unit test (83 vitest) + build SPA.
+- **Backend:** pytest dengan service `mariadb` + `redis` (env DB/SECRET_KEY) — 482 tes.
+- **Frontend:** unit test (109 vitest) + build SPA.
 
 Cek status: `gh run list` / `gh run view <id>` (gh CLI terpasang di `~/.local/bin` server).
 
@@ -473,4 +481,4 @@ Telp: 031-5349888
 
 ---
 
-*BPF WorkHub v2.35.1 · Panduan Deployment · Diperbarui 6 September 2026*
+*BPF WorkHub v2.36.0 · Panduan Deployment · Diperbarui 6 September 2026*

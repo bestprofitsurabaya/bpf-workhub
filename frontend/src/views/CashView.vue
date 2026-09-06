@@ -157,7 +157,12 @@ async function submitAction() {
     alert(d.msg || 'Berhasil')
     action.value = null
     load()
-  } catch (e) { alert('❌ ' + e.message) }
+  } catch (e) {
+    // v2.36.0: ACC berjenjang — jelaskan ke mana pengajuan harus diproses.
+    if (e.status === 409 && e.data && e.data.code === 'SUPERVISOR_APPROVAL_REQUIRED') {
+      alert('⏳ Menunggu ACC atasan (' + (e.data.pending_at || 'langkah berikutnya') + '). Proses dulu lewat menu ACC Atasan.')
+    } else { alert('❌ ' + e.message) }
+  }
   finally { busy.value = false }
 }
 

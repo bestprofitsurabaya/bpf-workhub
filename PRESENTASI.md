@@ -1,4 +1,4 @@
-# 🎤 Materi Presentasi — BPF WorkHub v2.35.1
+# 🎤 Materi Presentasi — BPF WorkHub v2.36.0
 
 Panduan demo lengkap untuk presentasi di depan audiens. Urutan disusun dari yang paling berkesan ke yang paling teknis. Tiap bagian berisi tujuan, apa yang ditampilkan di layar, poin yang dibicarakan, dan satu kalimat kunci.
 
@@ -241,6 +241,7 @@ Telp: 031-5349888
 | Anti peretasan | "Login dibatasi percobaan, token CSRF, unggahan foto diperiksa keamanannya." |
 | Kerahasiaan data | "Sesi browser aman, data dilindungi, foto bukti tidak bisa disalahgunakan." |
 | Aksi uang dua lapis | "Approve dan pencairan wajib konfirmasi PIN ulang — sekalipun akunnya dipakai orang lain, uang tidak bisa berpindah diam-diam." |
+| Approval berjenjang | "Semua pengajuan di-ACC atasan dulu — Chief Driver menyetujui klaim timnya sebelum GA memproses; tidak ada uang keluar tanpa persetujuan berjenjang." |
 | Keaslian dokumen | "Setiap PDF resmi tercatat hash-nya — unggah file-nya, sistem langsung bilang asli atau sudah diubah." |
 | Rawatan akun & data | "Hak akses direview tiap tiga bulan, log lama diarsipkan otomatis, dan tidak ada data yang dihapus tanpa persetujuan manajemen." |
 
@@ -252,7 +253,7 @@ Telp: 031-5349888
 ## 12. Kualitas & Kepatuhan (2 menit) 🧪
 
 **Poin yang dibicarakan:**
-- 443 uji otomatis backend (pytest) + 104 uji frontend (vitest) — dipastikan hijau di CI tiap rilis.
+- 482 uji otomatis backend (pytest) + 109 uji frontend (vitest) — dipastikan hijau di CI tiap rilis.
 - Uji end-to-end di produksi untuk alur kritis.
 - Pemetaan standar: ISO/IEC 27001, ISO 9241-11, ISO 9001.
 - Aksesibilitas: fokus keyboard, kontras warna, mode kontras tinggi, mode gelap.
@@ -273,7 +274,7 @@ Telp: 031-5349888
 **Langkah berikutnya yang ditawarkan:**
 1. Data master lengkap — daftar armada, driver, merk air minum.
 2. Pelatihan singkat per peran (panduan sudah ada: `USER_GUIDE.md`).
-3. Roadmap: laporan otomatis mingguan, approval berjenjang, dll.
+3. Roadmap: laporan otomatis mingguan, dashboard mobile admin, dll. — approval berjenjang sudah rilis (v2.36.0).
 
 ---
 
@@ -322,4 +323,4 @@ Telp: 031-5349888
 
 ---
 
-*BPF WorkHub v2.35.1 · Materi Presentasi · Diperbarui 6 September 2026*
+*BPF WorkHub v2.36.0 · Materi Presentasi · Diperbarui 6 September 2026*

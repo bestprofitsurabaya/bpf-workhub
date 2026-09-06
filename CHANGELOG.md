@@ -4,6 +4,112 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 
 ---
 
+## v2.36.0 — 6 September 2026 (Approval Berjenjang — ACC atasan sebelum diproses)
+
+Fitur roadmap #3 (#3 PROGRESS "approval berjenjang") — sekarang SEMUA
+pengajuan yang menggerakkan uang/waktu kerja melewati atasan dulu sebelum
+back-office memproses. Modul inti `modules/approvals.py` sebenarnya sudah
+ditulis sesi sebelumnya namun BELUM terpasang ke mana pun; sesi ini
+menuntaskan integrasi penuh + memperbaiki 5 bug laten di modul tersebut.
+
+### Kebijakan ACC (keputusan produk)
+
+| Jenis pengajuan | Rantai ACC | Titik gate (diblok 409) |
+|---|---|---|
+| Kasbon (`cash`) | Chief Driver → GA | `/api/cash/approve-ga` |
+| Klaim BBM (`bbm`) | Chief Driver → GA | `/api/queue/approve-ga` |
+| Overtime Driver (`overtime_driver`) | GA HR → Admin | PATCH `/api/overtime/driver/<id>` |
+| Overtime OB/Security (`overtime_ob`) | GA HR → Admin | PATCH `/api/overtime/ob/<id>` |
+
+- Atasan override per user: kolom `users.manager_username` (diisi Admin di
+  form Manajemen User). Kosong = atasan default per role (driver →
+  Chief Driver, ob → GA HR). Override divalidasi JOIN: atasan harus akun
+  aktif — salah ketik tidak membuat pengajuan macet tanpa pemutus.
+- Overtime selalu GA HR → Admin (tanpa override — form OB publik tidak
+  punya sesi).
+- Pengaju tidak bisa memutus pengajuannya sendiri (diblok; pengecualian:
+  admin memproses lewat akun berbeda). Tolak wajib alasan (endpoint 400
+  tanpa alasan) — alasan tercatat di jurnal + audit log `approval_*`.
+- Dokumen lama (sebelum fitur) tidak teregistrasi → langsung lolos gate
+  (fail-open, pola sama dengan step-up; DB down juga lolos).
+
+### Backend
+
+- **Modul** `modules/approvals.py`:
+  - Tabel `approval_requests` (per DB — master & tiap cabang): subjek
+    dokumen (doc_type+doc_ref unik), pengaju, rantai ACC (JSON), langkah
+    aktif, status `pending/approved/rejected`, pemutus + catatan.
+  - API: `GET /api/approvals` (antrean ACC milik sesi; Admin melihat
+    semua), `POST /api/approvals/<type>/<ref>/decision` (ACC/tolak,
+    tolak wajib catatan), `GET /api/approvals/<type>/<ref>` (badge
+    status). Role: admin/ga/finance/chief_driver/ga_hr.
+  - `hook_create_approval()` dipanggil di 4 titik submit (best-effort —
+    gagal pencatatan tidak menggagalkan pengajuan): submit kasbon,
+    submit klaim BBM driver (`/driver`), submit OT Driver PWA, submit
+    OT OB/Security form publik.
+  - `gate_approval()` dipasang di 3 titik proses: approve-ga kasbon,
+    approve-ga klaim BBM, finalisasi PATCH overtime — pending/rejected
+    → 409 JSON `SUPERVISOR_APPROVAL_REQUIRED` + info posisi ACC
+    (`pending_at`) untuk pesan SPA.
+  - Re-submit dokumen yang sama (draft dikirim ulang) me-reset jurnal ke
+    langkah 1 pending (upsert `ON DUPLICATE KEY`).
+- **Bug laten modul yang diperbaiki saat integrasi**:
+  1. `request` tidak di-import → setiap POST ke endpoint keputusan
+     meledak 500.
+  2. Router dirakit dgn argumen `role_required` yang tak pernah dipakai →
+     semua endpoint ACC tanpa proteksi role. Kini memakai
+     `role_required` helpers secara langsung (401/403 terverifikasi).
+  3. Endpoint membaca DB cabang via `helpers.get_db_connection` yang
+     tidak ada (import error saat runtime) → kini `modules.config`.
+  4. Langkah rantai ber-nama hanya bisa diputus oleh username persis →
+     kini pemegang role yang sama juga bisa (chief_driver cadangan);
+     chain default ikut menyimpan role.
+  5. Rantai overtime utk pengaju role `driver` salah ambil Chief Driver
+     (map role-pengaju dipakai utk semua doc_type) → kini rantai OT
+     selalu GA HR → Admin.
+- **Startup** (`app.py`): `ensure_manager_column` + `ensure_approval_tables`
+  di master & tiap DB cabang (polanya retention) — retry 5×; modul
+  terdaftar via `register_approval_routes(app)`.
+- **Cabang baru** otomatis dapat tabel ACC (`ensure_branch_database`).
+- **Manajemen User**: `/api/users` menyertakan `manager_username`,
+  `/api/users/sync` menyimpannya (eksplisit-saja seperti branch_code —
+  toggle/bulk tidak menghapus atasan); `init.sql` kolom baru + tabel
+  `approval_requests`.
+
+### Frontend (SPA)
+
+- Halaman baru **✅ ACC Atasan** (`/approvals`, menu untuk chief_driver,
+  ga, finance, ga_hr, admin): kartu ringkasan, tabel pengajuan pending
+  (display_id, pengaju, cabang, rantai ACC, umur), tombol Keputusan →
+  modal ACC/Tolak (tolak wajib alasan).
+- `Manajemen User`: kolom form **Atasan (ACC berjenjang)** (placeholder
+  "kosong = atasan default role").
+- Pesan 409 yang ramah: CashView & GaDashboard menerjemahkan
+  `SUPERVISOR_APPROVAL_REQUIRED` → "Menunggu ACC atasan (…) — proses
+  dulu lewat menu ACC Atasan".
+- SW cache → `bpf-spa-20260906-v2360`; stamp versi → v2.36.0.
+
+### Test & verifikasi
+
+- `tests/test_approvals.py` **baru (39 test)**: build_chain (default,
+  override, override nonaktif diabaikan), create/upsert reset, decide
+  (urutan langkah, self-approval diblok, langkah ber-role utk cadangan,
+  tolak final + alasan), gate (409 pending/rejected, lolos setelah full
+  ACC, fail-open), endpoint (401/403/daftar terfilter/keputusan/404),
+  **dan endpoint produksi nyata**: submit kasbon mencatat jurnal dgn
+  identitas sesi; approve-ga kasbon terblokir 409 saat pending & lolos
+  (hingga 404 data-uji) setelah full ACC.
+- `ApprovalsView.test.js` baru (5 vitest) + penyesuaian 2 test
+  users/sync (tuple UPDATE kini +manager_username).
+- Suite: **196 pytest** terkait lulus di host (approvals + cash +
+  overtime + users + docseq + stepup + integrity + retention); full
+  suite 482 dijalankan di container/CI; **109 vitest** + build SPA sukses.
+- Pelajaran: gate dipasang dengan variabel `(allowed, resp)` — salah
+  balik jadi `blocked` sempat membuat gate tidak pernah memblokir;
+  tertangkap oleh test endpoint nyata sebelum deploy.
+
+---
+
 ## v2.35.1 — 5 September 2026 (Fix kritis produksi — pool DB cabang & hook integritas)
 
 Dua bug ditemukan & diperbaiki saat verifikasi live Tahap 5+6 (deploy sesi ini):

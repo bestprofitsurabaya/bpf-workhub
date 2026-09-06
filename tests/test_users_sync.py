@@ -117,12 +117,14 @@ class TestUsersSync:
         assert len(updates) == 1
         sql, params = updates[0]
         assert 'branch_code' in sql
-        # (username, full_name, role, pin, team, branch_code, is_active, id)
+        # (username, full_name, role, pin, team, branch_code, manager,
+        #  is_active, id) — v2.36.0 menambahkan manager_username.
         assert params[0] == 'ga_baru'
         assert params[4] == 'Tim A'
         assert params[5] == 'BDG'
-        assert params[6] == 1
-        assert params[7] == 5
+        assert params[6] is None   # atasan tidak dikirim → tetap NULL
+        assert params[7] == 1
+        assert params[8] == 5
 
     def test_edit_tanpa_pin_mempertahankan_pin_lama(self, monkeypatch):
         """PIN dikosongkan → PIN existing dipertahankan (tidak ditimpa)."""
@@ -151,11 +153,13 @@ class TestUsersSync:
         assert len(inserts) == 1
         sql, params = inserts[0]
         assert 'branch_code' in sql
-        # (username, full_name, role, pin, team, branch_code, is_active)
+        # (username, full_name, role, pin, team, branch_code, manager,
+        #  is_active) — v2.36.0 menambahkan manager_username.
         assert params[3] == '555111'   # PIN dipertahankan
         assert params[4] == 'Tim A'    # team dipertahankan
         assert params[5] == 'MDN'      # branch_code dipertahankan
-        assert params[6] == 0
+        assert params[6] is None       # atasan tidak dikirim → tetap NULL
+        assert params[7] == 0
 
     def test_tambah_user_baru_branch_kosong(self, monkeypatch):
         """User baru (tidak ada row) tanpa branch → NULL (cabang pusat)."""

@@ -194,7 +194,7 @@ def register_master_api(app):
     def api_users():
         try:
             conn = get_master_connection(); cursor = conn.cursor(dictionary=True)
-            cursor.execute("SELECT id, username, full_name, role, team_name, branch_code, is_active, last_login FROM users ORDER BY role, username")
+            cursor.execute("SELECT id, username, full_name, role, team_name, branch_code, manager_username, is_active, last_login FROM users ORDER BY role, username")
             data = cursor.fetchall(); cursor.close(); conn.close()
             return jsonify(data)
         except Exception as e:
@@ -245,9 +245,17 @@ def register_master_api(app):
             if 'branch_code' in data:
                 branch = str(data.get('branch_code', '') or '').strip() or None
 
+            # v2.36.0 (approval berjenjang): atasan (manager_username) hanya
+            # diubah bila dikirim eksplisit — toggle/bulk action tidak menghapus
+            # atasan yang sudah ada. Atasan tak dikenal diabaikan diam-diam oleh
+            # resolusi rantai (JOIN users) — aman.
+            manager = None
+            if 'manager_username' in data:
+                manager = str(data.get('manager_username', '') or '').strip() or None
+
             conn = get_master_connection(); cursor = conn.cursor()
-            if team is None or pin is None or branch is None:
-                cursor.execute("SELECT team_name, pin, branch_code FROM users WHERE username=%s OR id=%s", (u, data.get('id')))
+            if team is None or pin is None or branch is None or manager is None:
+                cursor.execute("SELECT team_name, pin, branch_code, manager_username FROM users WHERE username=%s OR id=%s", (u, data.get('id')))
                 row = cursor.fetchone()
                 if team is None:
                     team = row[0] if row else ''
@@ -255,6 +263,8 @@ def register_master_api(app):
                     pin = finalize_pin(None, row[1] if row else None)
                 if branch is None:
                     branch = row[2] if row else None
+                if manager is None:
+                    manager = row[3] if row and len(row) > 3 else None
 
             # Edit user lama dipakai id (bila dikirim) supaya username juga bisa
             # diganti — username adalah kunci login, bukan primary key. Update
@@ -264,8 +274,8 @@ def register_master_api(app):
                 try:
                     cursor.execute(
                         "UPDATE users SET username=%s, full_name=%s, role=%s, pin=%s, "
-                        "team_name=%s, branch_code=%s, is_active=%s WHERE id=%s",
-                        (u, f, r, pin, team, branch, 1 if a else 0, uid))
+                        "team_name=%s, branch_code=%s, manager_username=%s, is_active=%s WHERE id=%s",
+                        (u, f, r, pin, team, branch, manager, 1 if a else 0, uid))
                 except IntegrityError:
                     conn.rollback()
                     cursor.close(); conn.close()
@@ -274,9 +284,9 @@ def register_master_api(app):
                     cursor.close(); conn.close()
                     return jsonify({'status': 'error', 'msg': 'User tidak ditemukan'}), 404
             else:
-                cursor.execute("INSERT INTO users (username, full_name, role, pin, team_name, branch_code, is_active) VALUES (%s,%s,%s,%s,%s,%s,%s) ON DUPLICATE KEY UPDATE full_name=VALUES(full_name), role=VALUES(role), pin=VALUES(pin), team_name=VALUES(team_name), branch_code=VALUES(branch_code), is_active=VALUES(is_active)", (u, f, r, pin, team, branch, 1 if a else 0))
+                cursor.execute("INSERT INTO users (username, full_name, role, pin, team_name, branch_code, manager_username, is_active) VALUES (%s,%s,%s,%s,%s,%s,%s,%s) ON DUPLICATE KEY UPDATE full_name=VALUES(full_name), role=VALUES(role), pin=VALUES(pin), team_name=VALUES(team_name), branch_code=VALUES(branch_code), manager_username=VALUES(manager_username), is_active=VALUES(is_active)", (u, f, r, pin, team, branch, manager, 1 if a else 0))
             conn.commit(); cursor.close(); conn.close()
-            log_activity_async(0, 'user_sync', 'admin', 'Admin', new_data={'username': u, 'role': r, 'team': team, 'branch_code': branch}, ip=request.remote_addr)
+            log_activity_async(0, 'user_sync', 'admin', 'Admin', new_data={'username': u, 'role': r, 'team': team, 'branch_code': branch, 'manager': manager}, ip=request.remote_addr)
             return jsonify({'status': 'success', 'msg': f'User {u} saved'})
         except Exception as e:
             return jsonify({'status': 'error', 'msg': str(e)}), 500

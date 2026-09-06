@@ -1,4 +1,4 @@
-# 🔐 Keamanan & Kepatuhan Standar — BPF WorkHub v2.35.1
+# 🔐 Keamanan & Kepatuhan Standar — BPF WorkHub v2.36.0
 
 > **Dokumen ini menjelaskan bagaimana BPF WorkHub menjaga keamanan data dan mutu layanan**, serta bagaimana penerapannya mengacu pada standar internasional yang diakui dunia.
 >
@@ -30,7 +30,10 @@ Ini adalah standar internasional tentang cara sebuah organisasi **melindungi inf
 > ✅ **Status (September 2026):** Program Perbaikan 6 tahap mengacu ISO/IEC
 > 27001:2022 telah **selesai & live di produksi** — Secrets (v2.30), Step-up
 > Auth (v2.31), Access Review (v2.32), Vulnerability Management (v2.33),
-> Retensi & Arsip (v2.34), dan Integritas Dokumen (v2.35.1).
+> Retensi & Arsip (v2.34), dan Integritas Dokumen (v2.35.1). Ditambah
+> **Approval Berjenjang (v2.36.0)**: kontrol otorisasi berlapis — ACC
+> atasan wajib sebelum back-office memproses pengajuan (jurnal ACC +
+> audit log, anti self-approval, penolakan wajib alasan).
 
 Sistem menggunakan dua prinsip utama:
 
@@ -54,7 +57,7 @@ Sistem menggunakan dua prinsip utama:
 | **Catatan aktivitas** | **Setiap perubahan data tercatat**: siapa yang melakukannya, apa yang diubah, kapan, dan dari perangkat/IP mana. Semua ini bisa dilihat Admin di halaman Audit Log. |
 | **Pemantauan berkala** | Ada indikator status koneksi secara *real-time* (⚡ terhubung / 🔴 terputus) di bilah atas aplikasi. Log teknis juga dapat dipantau oleh tim IT. |
 | **Perlindungan dari celah umum** | Data yang dikirim selalu divalidasi; permintaan yang mengubah data wajib menyertakan token keamanan (proteksi *CSRF*); halaman dilindungi dari penyimpanan cache yang tidak diinginkan; dan kode ditulis dengan teknik yang tahan terhadap serangan umum seperti *SQL injection*. |
-| **Konfigurasi & rilis terkendali** | Kredensial penting (kunci rahasia, akses database) tidak dituliskan di kode, melainkan diatur lewat konfigurasi terpisah. Sebelum setiap versi dirilis, wajib lolos **443 pengujian otomatis** (pytest) + **104 uji antarmuka** (vitest) + audit dependensi & scan image terlebih dahulu. |
+| **Konfigurasi & rilis terkendali** | Kredensial penting (kunci rahasia, akses database) tidak dituliskan di kode, melainkan diatur lewat konfigurasi terpisah. Sebelum setiap versi dirilis, wajib lolos **482 pengujian otomatis** (pytest) + **109 uji antarmuka** (vitest) + audit dependensi & scan image terlebih dahulu. |
 
 ---
 
@@ -106,7 +109,7 @@ Standar internasional tentang cara sebuah organisasi **memastikan produk dan lay
 | **Klausul 4–5** — Konteks & Kepemimpinan | Ruang lingkup dan pembagian peran tertulis dengan jelas. | Panduan lengkap tersedia dalam dokumen README, USER_GUIDE, dan DEPLOYMENT. |
 | **Klausul 7.5** — Informasi Terdokumentasi | Semua hal penting didokumentasikan, tidak bergantung pada ingatan orang. | Dokumentasi lengkap: CHANGELOG (catatan perubahan), DEPLOYMENT.md (panduan rilis), USER_GUIDE.md (panduan pengguna), SECURITY.md (dokumen ini). |
 | **Klausul 8.1** — Perencanaan Operasional | Proses kerja dirancang dan diikuti secara konsisten. | Alur rilis baku: catat perubahan di CHANGELOG → beri nomor versi → publikasikan sebagai *GitHub Release* (diotomatisasi lewat `scripts/release.sh`). |
-| **Klausul 8.6** — Rilis Produk | Tidak ada produk keluar tanpa pemeriksaan. | Sebelum setiap rilis wajib lolos: **443 pengujian otomatis** (`pytest`) + **104 uji frontend** (`vitest`), proses build aplikasi, audit dependensi (pip-audit/npm audit/Trivy), serta uji coba langsung fitur HTTP & WebSocket (diverifikasi otomatis di GitHub Actions tiap push). |
+| **Klausul 8.6** — Rilis Produk | Tidak ada produk keluar tanpa pemeriksaan. | Sebelum setiap rilis wajib lolos: **482 pengujian otomatis** (`pytest`) + **109 uji frontend** (`vitest`), proses build aplikasi, audit dependensi (pip-audit/npm audit/Trivy), serta uji coba langsung fitur HTTP & WebSocket (diverifikasi otomatis di GitHub Actions tiap push). |
 | **Klausul 10** — Peningkatan Berkelanjutan | Selalu ada ruang untuk menjadi lebih baik. | Masukan pengguna dan jejak audit menjadi dasar perbaikan di setiap versi — lihat CHANGELOG untuk riwayatnya. |
 
 ---
@@ -145,7 +148,7 @@ Equity Tower, SCBD Lot 9, Jl. Jend. Sudirman Kav. 52-53, Jakarta Selatan 12190
 
 ---
 
-*BPF WorkHub v2.35.1 · Dokumen Keamanan & Kepatuhan · Diperbarui 6 September 2026*
+*BPF WorkHub v2.36.0 · Dokumen Keamanan & Kepatuhan · Diperbarui 6 September 2026*
 
 ---
 

@@ -73,6 +73,9 @@ CREATE TABLE IF NOT EXISTS users (
     pin VARCHAR(255) NOT NULL,
     team_name VARCHAR(100) DEFAULT '',
     branch_code VARCHAR(20) DEFAULT NULL,
+    -- v2.36.0 (approval berjenjang): override atasan per user — NULL = pakai
+    -- atasan default per role (driver→chief_driver, ob→ga_hr).
+    manager_username VARCHAR(50) DEFAULT NULL,
     is_active TINYINT(1) DEFAULT 1,
     last_login DATETIME DEFAULT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -734,6 +737,31 @@ CREATE TABLE IF NOT EXISTS geocode_cache (
     updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     found TINYINT(1) DEFAULT 1,
     PRIMARY KEY (address(255))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ============================================================
+-- Approval berjenjang (v2.36.0) — jurnal ACC atasan per dokumen.
+-- Juga dibuat idempoten oleh startup (master + tiap cabang).
+-- ============================================================
+CREATE TABLE IF NOT EXISTS approval_requests (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    doc_type VARCHAR(20) NOT NULL,
+    doc_ref INT NOT NULL,
+    display_id VARCHAR(40) DEFAULT '',
+    requested_by VARCHAR(100) DEFAULT '',
+    requester_role VARCHAR(30) DEFAULT '',
+    branch_code VARCHAR(20) DEFAULT '',
+    chain JSON NULL,
+    step INT NOT NULL DEFAULT 1,
+    status ENUM('pending','approved','rejected') NOT NULL DEFAULT 'pending',
+    decided_by VARCHAR(100) DEFAULT '',
+    decided_at DATETIME NULL,
+    note VARCHAR(500) DEFAULT '',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_appr_doc (doc_type, doc_ref),
+    INDEX idx_appr_status (status),
+    INDEX idx_appr_doc (doc_type, status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 SELECT '✅ v2 tables ready' AS result;
