@@ -2,7 +2,7 @@
 
 **Sistem Manajemen Armada untuk PT. Bestprofit Futures — Kantor Pusat Jakarta**
 
-> 📅 Versi 2.35.0 · September 2026 — Retensi dokumen (Tahap 5) & Integritas dokumen (Tahap 6/6 ISO 27001) — program 6 tahap ISO 27001 selesai · Kantor Pusat Jakarta (Equity Tower)
+> 📅 Versi 2.35.1 · September 2026 — Program 6 tahap ISO 27001 selesai (Tahap 5: Retensi & Arsip · Tahap 6: Integritas Dokumen) · Kantor Pusat Jakarta (Equity Tower)
 
 ---
 
@@ -200,7 +200,7 @@ python -m pytest tests/ -v
 cd frontend && npm test
 ```
 
-**Status:** 443 pytest (pass) + 6 skip + 104 vitest · Semua ✅ PASS + audit dependensi bersih (v2.35.0 — CI GitHub Actions: Backend pytest + pip-audit, Frontend unit test/build + npm audit, Image scan Trivy; hijau di tiap push)
+**Status:** 443 pytest (pass) + 6 skip + 104 vitest · Semua ✅ PASS + audit dependensi bersih (v2.35.1 — CI GitHub Actions: Backend pytest + pip-audit, Frontend unit test/build + npm audit, Image scan Trivy; hijau di tiap push)
 
 ---
 

@@ -2,7 +2,7 @@
 
 File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks saat sesi baru dimulai.
 
-**Terakhir diperbarui:** 2026-09-05  
+**Terakhir diperbarui:** 2026-09-06  
 **Branch:** `main`  
 **Versi terbaru:** v2.35.1 (Tahap 5+6 LIVE — fix pool cabang) · v2.35.0 Tahap 6 · v2.34.0 Tahap 5 — program 6 tahap ISO 27001 SELESAI
 
@@ -22,7 +22,7 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 | Sync Overtime | ✅ Driver (±8.675 sesi) & OB/Security (599 sesi) — keduanya via Apps Script Web App; auto-refresh saat login/logout GA HR/Admin; redirect & duplicate display_id bugs fixed; `submitted_at` tersimpan |
 | Urutan overtime | ✅ Terkini-di-atas di semua daftar + detail report per nama dibalik terkini-dulu (PDF/Excel, commit `733fd2f`) |
 | Data demo air minum | ✅ Dibersihkan 4 Sep — WTR-20260904-10300556, WTR-DEMO-01/02 dihapus (bpf_asset_system + bpf_restore_test); backup `/tmp/bpf_water_demo_backup_20260904.sql`; tabel `water_purchases` kini 0 baris |
-| Deploy | ✅ 5 Sep 2026 — **v2.31.0 (Tahap 2 step-up) LIVE** (rebuild `bbm_web`, smoke test 5 langkah lulus); sebelumnya v2.30.0 (Tahap 1) & v2.29.11 live; `bbm_web` healthy |
+| Deploy | ✅ **v2.35.1 LIVE** (Tahap 5+6 + fix kritis pool cabang; commit `8153bb9`) — sebelumnya v2.33.0 (Tahap 4) & v2.32.0 (Tahap 3) juga live; `bbm_web` healthy 0 restart |
 | Dashboard Marketing | ✅ Tab "Selesai" kini memakai `/api/appointments/history` (riwayat completed marketing sendiri, lintas tanggal) — sebelumnya memanggil endpoint driver `/completed` → selalu 400/kosong |
 | Validasi username | ✅ Backend `/api/users/sync` menolak username role back-office tanpa awalan divisi (`finance_`, `ob_`, …) — Driver/Admin/`it_*` bebas; akun lama (qa/test_check/e2e_driver & (username,role) sudah ada) tetap bisa disimpan |
 | Nama asli di tabel Users | ✅ Kolom Username+Nama digabung: Nama Lengkap tebal + username kecil di bawahnya (gaya baris nasabah) — Admin mengenali orangnya |
@@ -43,7 +43,37 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 ## 🗂️ Riwayat Sesi
 
-### Sesi 2026-09-05 — v2.34.0 + v2.35.0: Tahap 5 (Retensi) + Tahap 6 (Integritas dokumen) ✅ SELESAI DI REPO (belum deploy)
+### Sesi 2026-09-06 — Sinkronisasi dokumentasi menyeluruh ke v2.35.1 ✅ SELESAI
+
+> Konteks: produksi dipastikan **clear** (health 200, pool master 25 + 9
+> cabang ready, Redis ok, `bbm_web` healthy ±11 jam, log bersih, HEAD
+> `8153bb9` = v2.35.1 yang ter-deploy). User meminta semua detail
+> dokumentasi diperbarui.
+
+1. **Versi stamp → v2.35.1** di 9 dokumen (README, SECURITY, USER_GUIDE,
+   DEPLOYMENT, DEPLOY_FRESH, USER_LIST, PRESENTASI, PELATIHAN,
+   RETENTION_POLICY) — sebelumnya masih v2.29.10/v2.29.11/v2.34/v2.35.0.
+2. **Konstanta versi kode** (fallback bila DB tidak tersedia):
+   `pdf_generator.SYSTEM_VERSION`, `company_identity.IDENTITY_DEFAULTS`,
+   `frontend identity.js`, seed `init.sql` (SBY/JKT/JKT2).
+3. **USER_GUIDE** +4 seksi admin baru: 12.6 Step-up PIN, 12.7 Access
+   Review, 12.8 Retensi & Arsip, 12.9 Verifikasi & Registri Dokumen;
+   + catatan PIN ulang di alur approve GA (§5.2) + daftar isi.
+4. **Angka tes & status ISO diselaraskan**: SECURITY (judul v1.0→v2.35.1 +
+   banner program 6/6 selesai), ONEPAGER & PRESENTASI (323/83 → 443/104 +
+   materi Tahap 2–6), DEPLOYMENT (323→443 tes CI + env ISO:
+   `STALE_ACCOUNT_DAYS`/`STEPUP_TTL_SECONDS`/`RETENTION_DAYS_*` + catatan
+   onboarding step-up), DEPLOY_FRESH (+sanity check 428 step-up),
+   `.env.example` (+blok var ISO), PELATIHAN (+4 langkah latihan admin),
+   USER_LIST (+step-up & access review di Keamanan Akun).
+5. **PROGRESS**: baris Deploy (v2.31 → v2.35.1 live), header sesi 5 Sep
+   ("repo" → "LIVE"), catatan sesi berikutnya (bagian CHANGELOG v2.35.1).
+6. **Verifikasi**: pytest + vitest dijalankan ulang — tidak ada perubahan
+   perilaku aplikasi (hanya fallback string versi & dokumentasi).
+
+---
+
+### Sesi 2026-09-05 — v2.34.0 + v2.35.0: Tahap 5 (Retensi) + Tahap 6 (Integritas dokumen) ✅ SELESAI + DEPLOY LIVE (fix v2.35.1)
 
 > Konteks: user memerintahkan semua suggestion dikerjakan: lanjut Tahap 5
 > (retensi & pemusnahan per kelas + arsip audit trail) DAN Tahap 6
@@ -919,7 +949,7 @@ tes & verifikasi; perubahan produksi butuh konfirmasi eksplisit.
 |-------|-------|--------|
 | 1 | Secrets: kredensial DB pindah ke `.env`, fail-fast, tes hygiene (A.8.2/A.8.13) | ✅ **SELESAI + rotasi produksi dijalankan 5 Sep** (health/login/backup OK, password lama mati) |
 | 2 | Step-up auth: konfirmasi PIN sebelum aksi approve/pay berisiko (A.8.2/A.8.3/A.8.5) | ✅ **SELESAI 5 Sep + DEPLOY live (v2.31.0)** — 8 endpoint uang di-protect; smoke test live: 428 tanpa grant → PIN → lolos, logout hilangkan grant |
-| 3 | Access review triwulanan + laporan akun basi (A.5.15/A.8.2/A.8.3) | ✅ **SELESAI 5 Sep (v2.32.0)** — halaman Access Review admin, klasifikasi ok/stale/never/inactive, CSV export, tandai review selesai; 14 pytest + 6 vitest; ⏳ **belum deploy — ditunda user ke sesi berikutnya** |
+| 3 | Access review triwulanan + laporan akun basi (A.5.15/A.8.2/A.8.3) | ✅ **SELESAI 5 Sep + DEPLOY LIVE (v2.32.0)** — halaman Access Review admin, klasifikasi ok/stale/never/inactive, CSV export, tandai review selesai; 14 pytest + 6 vitest; deploy bersama Tahap 4 (lihat riwayat sesi Tahap 4) |
 | 4 | Vulnerability mgmt: audit dependensi di CI + scan image + runbook insiden (A.8.8/A.5.24–28) | ✅ **SELESAI 5 Sep + DEPLOY LIVE (v2.33.0, commit `6ace8cb`)** — dependensi di-patch ke versi aman (pip-audit/npm audit 0 temuan), image runtime tanpa tooling build (Trivy 0 HIGH/CRITICAL), CI: pip-audit + npm audit + job Trivy scan (semua hijau), Dependabot mingguan, `INCIDENT_RUNBOOK.md` (A.5.24–28); 410 pytest + 104 vitest; smoke test live lulus |
 | 5 | Retensi & pemusnahan dokumen per kelas + arsip audit trail (ISO 15489, UU PDP) | ✅ **SELESAI + DEPLOY LIVE 5 Sep (v2.34.0)** — kebijakan + 6 kelas + overview inventaris lintas-DB (10 DB), arsip audit trail → `activity_logs_archive` (register `retention_actions`); 20 pytest |
 | 6 | Integritas tanda tangan & siklus hidup dokumen (hash + signer + timestamp) | ✅ **SELESAI + DEPLOY LIVE 5 Sep (v2.35.0, fix `v2.35.1`)** — registri SHA-256+signer+timestamp + verifikasi upload; e2e tamper-test lulus; 13 pytest |
@@ -954,7 +984,7 @@ tes & verifikasi; perubahan produksi butuh konfirmasi eksplisit.
 - ✅ **Deploy live 5 Sep** + smoke test 5 langkah lulus (428 → PIN → lolos →
   logout hilangkan grant). SPA bundle berisi kode step-up.
 
-**Tahap 3 selesai di repo (5 Sep, commit `ac63db0`, v2.32.0) — BELUM deploy:**
+**Tahap 3 selesai di repo (5 Sep, commit `ac63db0`, v2.32.0) — DEPLOY LIVE bersama Tahap 4 (sesi berikutnya):**
 - `modules/routes_accessreview.py` — klasifikasi akun `ok`/`stale` (>90 hari,
   env `STALE_ACCOUNT_DAYS`)/`never_login`/`inactive`; endpoint admin-only:
   `GET /api/admin/access-review`, `POST .../complete` (system_config siapa+
@@ -1027,8 +1057,9 @@ tes & verifikasi; perubahan produksi butuh konfirmasi eksplisit.
 
 ## 📝 Catatan untuk Sesi Berikutnya
 
-> Mulai dari sini: baca `PROGRESS.md` + `CHANGELOG.md` (bagian v2.29.1), lalu
-> lanjutkan ke item di bawah. Semua pekerjaan v2.29.1 sudah live di server.
+> Mulai dari sini: baca `PROGRESS.md` + `CHANGELOG.md` (bagian v2.35.1), lalu
+> lanjutkan ke item di bawah. Semua pekerjaan v2.35.1 (Tahap 1–6 ISO + fix
+> pool cabang) sudah live di server.
 
 ### 🏗️ State Saat Ini (harus diketahui sebelum ubah apa pun)
 - Codebase: `/home/it-ef/bpf-workhub` (SSH port 2211, user `it-ef` — kredensial dari tim).

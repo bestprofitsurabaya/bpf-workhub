@@ -1,5 +1,5 @@
 # 📘 Panduan Lengkap BPF WorkHub
-### Versi 2.29.10 · PT. Bestprofit Futures — Kantor Pusat Jakarta
+### Versi 2.35.1 · PT. Bestprofit Futures — Kantor Pusat Jakarta
 
 > Dokumen ini adalah panduan untuk memasang, mengatur, dan merawat aplikasi **BPF WorkHub**.
 > Ditulis dengan bahasa sederhana agar bisa dipahami siapa saja — bukan hanya teknisi.
@@ -151,6 +151,10 @@ startup). Akun awal (seed):
 > ⚠️ **Segera ganti PIN bawaan** setelah login pertama. User per-cabang (`{divisi}_{cabang}`,
 > mis. `ga_sby`) dibuat Admin saat onboarding — jangan andalkan PIN `123456` untuk akun itu.
 
+> 🔑 **Step-up auth (v2.31+):** aksi yang menggerakkan uang (approve kasbon, serah terima
+> dana, payout klaim BBM, verifikasi air minum) selalu meminta **konfirmasi PIN ulang** —
+> sampaikan ini ke setiap user saat onboarding supaya tidak kaget.
+
 ---
 
 ## 5. Pengaturan Aplikasi (Variabel Lingkungan)
@@ -172,6 +176,9 @@ Didefinisikan di `docker-compose.yml` (bagian `web`) atau file `.env` (gitignore
 | `TZ` | `Asia/Jakarta` | Zona waktu |
 | `SCRAPER_LOG_LEVEL` | `INFO` | Level log scraper (set `DEBUG` hanya saat troubleshooting) |
 | `MAX_AGE_DAYS` | `180` | Umur maksimal foto overtime sebelum auto-cleanup |
+| `STALE_ACCOUNT_DAYS` | `90` | Ambang akun "basi" untuk Access Review (hari tanpa login, minimal 30) |
+| `STEPUP_TTL_SECONDS` | `600` | Masa berlaku grant verifikasi PIN ulang (step-up), minimal 60 |
+| `RETENTION_DAYS_AUDIT_LOGS` | `1825` | Retensi log audit (hari) — var `RETENTION_DAYS_*` per kelas dokumen |
 
 **Generate `SECRET_KEY` aman (hanya saat pertama kali):**
 ```bash
@@ -310,7 +317,7 @@ memantau 5 layanan tiap 60 detik — termasuk BPF WorkHub (`/api/health`). Akses
 ### 8.5 CI (GitHub Actions)
 
 Setiap push ke `main` menjalankan dua job di GitHub Actions:
-- **Backend:** pytest dengan service `mariadb` + `redis` (env DB/SECRET_KEY) — 323 tes.
+- **Backend:** pytest dengan service `mariadb` + `redis` (env DB/SECRET_KEY) — 443 tes.
 - **Frontend:** unit test (83 vitest) + build SPA.
 
 Cek status: `gh run list` / `gh run view <id>` (gh CLI terpasang di `~/.local/bin` server).
@@ -466,4 +473,4 @@ Telp: 031-5349888
 
 ---
 
-*BPF WorkHub v2.29.11 · Panduan Deployment · Diperbarui 5 September 2026*
+*BPF WorkHub v2.35.1 · Panduan Deployment · Diperbarui 6 September 2026*

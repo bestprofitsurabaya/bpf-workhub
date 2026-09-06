@@ -47,17 +47,18 @@ Sebelumnya, pencatatan BBM, kasbon, dan pembelian air minum dilakukan manual —
 - **Sistem pelamar kerja** — form publik, jam interview otomatis; Receptionist mencatat kehadiran; laporan PDF resmi.
 - **Notifikasi realtime** — driver langsung tahu klaimnya sudah diverifikasi atau ada jadwal baru.
 - **Bisa dipakai offline** — koneksi tersambung kembali, data otomatis tersinkron.
-- **Laporan PDF & Excel** — logsheet, rekap, dan dokumen tanda terima siap diunduh.
+- **Laporan PDF & Excel** — logsheet, rekap, dan dokumen tanda terima siap diunduh — **keasliannya bisa dibuktikan** (hash SHA-256 per dokumen).
 - **News Scraper & SEO** — scrape artikel, upload ke WordPress, financial authority backlinks otomatis, duplicate checker.
 
 ---
 
 ## 🔒 Keamanan & Kualitas
 
-- Login dengan PIN 6 digit per pengguna · sesi aman · proteksi laju permintaan (rate limit).
+- Login dengan PIN 6 digit per pengguna · sesi aman · proteksi laju permintaan (rate limit) · **PIN ulang untuk aksi uang** (step-up auth).
 - Semua aksi tercatat (siapa, kapan, apa) — tidak bisa "hilang".
 - Pemeriksaan otomatis keanehan pengisian (anomali) membantu mencegah salah input.
-- 83 tes antarmuka (vitest) + 323 tes backend (pytest) — setiap perubahan diuji otomatis di CI.
+- **Program 6 tahap ISO/IEC 27001:2022 selesai** — secrets terkelola, step-up auth, access review triwulanan, audit kerentanan otomatis (CI + Dependabot + Trivy), retensi & arsip dokumen, serta verifikasi keaslian dokumen.
+- 104 tes antarmuka (vitest) + 443 tes backend (pytest) — setiap perubahan diuji otomatis di CI.
 
 ---
 
@@ -81,4 +82,4 @@ Sebelumnya, pencatatan BBM, kasbon, dan pembelian air minum dilakukan manual —
 
 ---
 
-*BPF WorkHub v2.29.6 · Ringkasan Satu Halaman*
+*BPF WorkHub v2.35.1 · Ringkasan Satu Halaman*

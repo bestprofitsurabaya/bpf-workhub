@@ -1,4 +1,4 @@
-# 🎤 Materi Presentasi — BPF WorkHub v2.29.10
+# 🎤 Materi Presentasi — BPF WorkHub v2.35.1
 
 Panduan demo lengkap untuk presentasi di depan audiens. Urutan disusun dari yang paling berkesan ke yang paling teknis. Tiap bagian berisi tujuan, apa yang ditampilkan di layar, poin yang dibicarakan, dan satu kalimat kunci.
 
@@ -240,6 +240,9 @@ Telp: 031-5349888
 | Audit Log | "Semua aksi penting tercatat: siapa, apa, kapan — bisa difilter." |
 | Anti peretasan | "Login dibatasi percobaan, token CSRF, unggahan foto diperiksa keamanannya." |
 | Kerahasiaan data | "Sesi browser aman, data dilindungi, foto bukti tidak bisa disalahgunakan." |
+| Aksi uang dua lapis | "Approve dan pencairan wajib konfirmasi PIN ulang — sekalipun akunnya dipakai orang lain, uang tidak bisa berpindah diam-diam." |
+| Keaslian dokumen | "Setiap PDF resmi tercatat hash-nya — unggah file-nya, sistem langsung bilang asli atau sudah diubah." |
+| Rawatan akun & data | "Hak akses direview tiap tiga bulan, log lama diarsipkan otomatis, dan tidak ada data yang dihapus tanpa persetujuan manajemen." |
 
 **Satu kalimat kunci:**
 > *"Sistem ini dibangun dengan prinsip keamanan berlapis — dari PIN pengguna sampai jejak audit setiap transaksi."*
@@ -249,7 +252,7 @@ Telp: 031-5349888
 ## 12. Kualitas & Kepatuhan (2 menit) 🧪
 
 **Poin yang dibicarakan:**
-- 323 uji otomatis backend (pytest) + 83 uji frontend (vitest) — dipastikan hijau di CI tiap rilis.
+- 443 uji otomatis backend (pytest) + 104 uji frontend (vitest) — dipastikan hijau di CI tiap rilis.
 - Uji end-to-end di produksi untuk alur kritis.
 - Pemetaan standar: ISO/IEC 27001, ISO 9241-11, ISO 9001.
 - Aksesibilitas: fokus keyboard, kontras warna, mode kontras tinggi, mode gelap.
@@ -319,4 +322,4 @@ Telp: 031-5349888
 
 ---
 
-*BPF WorkHub v2.29.10 · Materi Presentasi · Diperbarui 4 September 2026*
+*BPF WorkHub v2.35.1 · Materi Presentasi · Diperbarui 6 September 2026*

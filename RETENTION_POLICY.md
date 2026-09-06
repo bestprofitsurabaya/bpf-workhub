@@ -4,7 +4,7 @@
 > dihasilkan & disimpan BPF WorkHub — agar data hanya disimpan selama
 > dibutuhkan, dokumen penting diarsipkan utuh, dan pemusnahan tercatat.
 >
-> Versi 1.0 · v2.34.0 (Tahap 5/6 ISO/IEC 27001) · September 2026
+> Versi 1.0 · v2.35.1 (Tahap 5/6 ISO/IEC 27001) · September 2026
 > Mengacu: ISO/IEC 27001 A.8.2/A.8.10, **ISO 15489-1** (records management),
 > dan **UU PDP** (pembatasan penyimpanan data pribadi).
 
@@ -147,4 +147,4 @@ bash scripts/backup-db.sh
 
 ---
 
-*BPF WorkHub v2.34.0 · Kebijakan Retensi & Pemusnahan Dokumen · September 2026 · Tim IT BPF*
+*BPF WorkHub v2.35.1 · Kebijakan Retensi & Pemusnahan Dokumen · September 2026 · Tim IT BPF*

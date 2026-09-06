@@ -167,6 +167,9 @@ curl -sk https://your-server:5000/api/auth/login -X POST \
   -H "X-CSRF-Token: $CSRF" \
   -d '{"username":"admin","pin":"123456"}'
 # Respons sukses: {"status":"success","user":{...},"csrf_token":"..."}
+
+# Sanity keamanan (v2.31+): aksi uang tanpa step-up grant harus ditolak
+# → HTTP 428 {"error":"STEPUP_REQUIRED",...} (login dulu, pakai cookie session)
 ```
 
 ---
@@ -331,4 +334,4 @@ docker network ls | grep nextcloud_net
 
 ---
 
-*BPF WorkHub v2.29.11 — Deployment Guide · Diperbarui 5 September 2026*
+*BPF WorkHub v2.35.1 — Deployment Guide · Diperbarui 6 September 2026*

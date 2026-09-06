@@ -1,4 +1,4 @@
-# 📋 Daftar User & Role — BPF WorkHub v2.29.10
+# 📋 Daftar User & Role — BPF WorkHub v2.35.1
 
 Dokumen ini menjelaskan semua role yang didukung sistem, siapa yang memakainya, dan apa yang bisa dilakukan masing-masing.
 
@@ -389,10 +389,12 @@ Sistem mendukung **11 peran inti** (peran `it` dipecah per cabang pada daftar di
 | Rate Limiting | Anti brute-force (terlalu banyak percobaan → blokir sementara) |
 | CSRF Protection | Aktif untuk semua POST/PUT/DELETE/PATCH |
 | Session | HTTP-only cookie, SameSite=Lax, Secure (HTTPS) |
+| Step-up Auth | Aksi uang wajib konfirmasi PIN ulang (grant 10 menit, hilang saat logout) |
 | PIN Default | `123456` untuk semua user baru |
 | Reset PIN | Hanya admin yang bisa reset PIN user lain |
 | Audit Trail | Semua aktivitas login, sync, delete tercatat di `activity_logs` |
 | Branch Code | Multi-cabang: user dikaitkan dengan cabang tertentu |
+| Access Review | Review hak akses triwulanan (Jan/Apr/Jul/Okt) — akun tanpa login > 90 hari diklasifikasi "basi" & bisa dinonaktifkan Admin |
 
 ---
 

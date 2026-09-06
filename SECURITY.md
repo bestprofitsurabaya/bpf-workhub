@@ -1,4 +1,4 @@
-# 🔐 Keamanan & Kepatuhan Standar — BPF WorkHub v1.0
+# 🔐 Keamanan & Kepatuhan Standar — BPF WorkHub v2.35.1
 
 > **Dokumen ini menjelaskan bagaimana BPF WorkHub menjaga keamanan data dan mutu layanan**, serta bagaimana penerapannya mengacu pada standar internasional yang diakui dunia.
 >
@@ -26,6 +26,11 @@ Equity Tower, SCBD Lot 9, Jl. Jend. Sudirman Kav. 52-53, Jakarta Selatan 12190
 Ini adalah standar internasional tentang cara sebuah organisasi **melindungi informasinya** — memastikan data hanya bisa diakses orang yang berhak, dan setiap aktivitas penting tercatat dengan jelas.
 
 **Bagaimana BPF WorkHub menerapkannya?**
+
+> ✅ **Status (September 2026):** Program Perbaikan 6 tahap mengacu ISO/IEC
+> 27001:2022 telah **selesai & live di produksi** — Secrets (v2.30), Step-up
+> Auth (v2.31), Access Review (v2.32), Vulnerability Management (v2.33),
+> Retensi & Arsip (v2.34), dan Integritas Dokumen (v2.35.1).
 
 Sistem menggunakan dua prinsip utama:
 
@@ -140,7 +145,7 @@ Equity Tower, SCBD Lot 9, Jl. Jend. Sudirman Kav. 52-53, Jakarta Selatan 12190
 
 ---
 
-*BPF WorkHub v2.35.0 · Dokumen Keamanan & Kepatuhan · Diperbarui 5 September 2026*
+*BPF WorkHub v2.35.1 · Dokumen Keamanan & Kepatuhan · Diperbarui 6 September 2026*
 
 ---
 

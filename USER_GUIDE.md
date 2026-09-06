@@ -1,4 +1,4 @@
-# 📖 Panduan Pengguna BPF WorkHub v2.29.11
+# 📖 Panduan Pengguna BPF WorkHub v2.35.1
 
 > **Siapa pun kamu — sopir, OB, admin, atau pimpinan — panduan ini ditulis untuk kamu.**
 > Tidak perlu paham teknis. Cukup ikuti langkah-langkah sesuai bagianmu.
@@ -23,6 +23,10 @@
     - [11.5 Untuk GA HR — Data Overtime ⏰](#115-untuk-ga-hr--data-overtime-)
     - [11.6 Migrasi Data dari Google Sheet 📥](#116-untuk-ga-hr--migrasi-data-driver-dari-google-sheet-)
 12. [Untuk Admin — Pengaturan Sistem ⚙️](#12-untuk-admin--pengaturan-sistem)
+    - [12.6 Verifikasi PIN Ulang (Step-up Auth) 🔑](#126-verifikasi-pin-ulang-step-up-auth-)
+    - [12.7 Access Review (Admin) 🛂](#127-access-review-admin-)
+    - [12.8 Retensi & Arsip Dokumen (Admin) 🗄️](#128-retensi--arsip-dokumen-admin-)
+    - [12.9 Verifikasi & Registri Dokumen (Admin) 🔏](#129-verifikasi--registri-dokumen-admin-)
 13. [Kasbon: Alur Lengkap dari A sampai Z](#13-kasbon-alur-lengkap-dari-a-sampai-z)
 14. [Untuk IT — News Scraper & Content Management 📰](#14-untuk-it-sebagai-cabang--news-scraper--content-management-)
 15. [Mengatasi Masalah (Troubleshooting)](#15-mengatasi-masalah-troubleshooting)
@@ -202,7 +206,8 @@ Setelah login, kamu langsung masuk **Dashboard GA** (`/app/ga`). Di sana ada:
 ### 5.2 Menyetujui Klaim BBM
 
 1. Di antrean klaim, periksa data klaim & foto bukti.
-2. Klik **✅ Approve** jika benar.
+2. Klik **✅ Approve** — untuk aksi uang (approve/payout/verifikasi), sistem
+   meminta **konfirmasi PIN ulang** (lihat [Bagian 12.6](#126-verifikasi-pin-ulang-step-up-auth-🔑)); isi PIN-mu, lalu aksi dilanjutkan otomatis.
 3. Klaim berpindah ke antrean Finance untuk pembayaran.
 
 ### 5.3 Menolak Klaim
@@ -584,6 +589,62 @@ Semua aksi penting tercatat di **Audit Log**: siapa, melakukan apa, kapan. Bergu
 
 Suka tampilan gelap? Klik tombol **🌙/☀️** di pojok kanan atas. Pilihanmu tersimpan otomatis.
 
+### 12.6 Verifikasi PIN Ulang (Step-up Auth) 🔑
+
+Aksi yang **menggerakkan uang** dilindungi lapisan ekstra: sebelum dijalankan,
+sistem meminta kamu **memasukkan ulang PIN-mu sendiri** (bukan PIN orang lain).
+Berlaku untuk: approve kasbon, serah terima dana, pencairan klaim BBM, dan
+verifikasi air minum.
+
+- Modal PIN muncul otomatis saat kamu menekan tombol aksi; setelah PIN benar,
+  aksi dilanjutkan otomatis.
+- Verifikasi berlaku **10 menit** — aksi uang berikutnya dalam rentang itu
+  tidak perlu PIN ulang.
+- Grant hilang saat **logout** — selalu logout setelah selesai bekerja.
+
+### 12.7 Access Review (Admin) 🛂
+
+Halaman **Access Review** (`/app/access-review`, menu Admin) membantu Admin
+merawat hak akses secara **triwulanan**:
+
+- Setiap akun diklasifikasikan otomatis: **OK**, **Basi** (tidak login > 90
+  hari), **Belum Pernah Login**, atau **Nonaktif**.
+- Tombol **Export CSV** untuk arsip review; tombol **Tandai Review Selesai**
+  mencatat siapa & kapan review terakhir dilakukan.
+- Akun basi bisa langsung **dinonaktifkan** dari halaman yang sama.
+- Jadwal yang disarankan: Januari · April · Juli · Oktober.
+
+### 12.8 Retensi & Arsip Dokumen (Admin) 🗄️
+
+Buka **Settings → Retensi & Arsip** untuk melihat:
+
+- **Tabel kebijakan retensi** per kelas dokumen (log audit 5 tahun,
+  transaksi permanen, air minum 5 tahun, overtime 5 tahun, pelamar 2 tahun).
+- **Inventaris live** semua cabang: jumlah data, dokumen tertua/terbaru, dan
+  estimasi yang sudah lewat masa retensi.
+- Tombol **Arsipkan Audit Trail** memindahkan log lama (min. 30 hari) ke tabel
+  arsip — datanya tidak hilang, hanya dipisahkan agar database utama ringan.
+- Riwayat tindakan retensi tercatat & bisa ditinjau kapan pun. Pemusnahan data
+  bisnis **tidak otomatis** — selalu butuh persetujuan manajemen.
+
+### 12.9 Verifikasi & Registri Dokumen (Admin) 🔏
+
+Setiap PDF resmi yang diterbitkan sistem (Tanda Terima Air Minum, Form
+Permohonan Overtime, dll.) dicatat di **registri dokumen**: hash SHA-256,
+penandatangan, cabang, dan waktu terbit.
+
+**Cara membuktikan keaslian dokumen:**
+
+1. Buka **Settings → Verifikasi & Registri Dokumen**.
+2. Klik **Unggah PDF** dan pilih file PDF resmi yang ingin diperiksa.
+3. Hasil:
+   - **Ditemukan & cocok** → dokumen asli, tidak pernah diubah.
+   - **Tidak ditemukan** → bukan diterbitkan sistem ini.
+   - **Hash berbeda** → isi file telah berubah sejak diterbitkan.
+
+Perubahan sekecil apa pun pada file akan terdeteksi — berguna saat ada
+sengketa atau permintaan audit eksternal.
+
 ---
 
 ## 13. Kasbon: Alur Lengkap dari A sampai Z
@@ -759,4 +820,4 @@ Jika upload ke WordPress gagal, pesan error sekarang menampilkan **response body
 
 Ada pertanyaan atau kendala? Hubungi **Admin** atau **tim IT** — mereka bisa melihat riwayat sistem (Audit Log) untuk membantu menyelesaikan masalahmu dengan cepat.
 
-*BPF WorkHub v2.29.11 · Panduan Pengguna · Diperbarui 5 September 2026*
+*BPF WorkHub v2.35.1 · Panduan Pengguna · Diperbarui 6 September 2026*
