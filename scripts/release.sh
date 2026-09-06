@@ -24,13 +24,19 @@ if [ -z "$TAG" ]; then
     exit 1
 fi
 
-# Ambil isi changelog untuk versi ini (dari [x.y.z] sampai versi berikutnya / EOF)
-# Catatan: header changelog ditulis tanpa prefix "v" (mis. "## [1.1.0]"),
-# sedangkan TAG biasanya "v1.1.0" — strip prefix "v" untuk pencocokan.
+# Ambil isi changelog untuk versi ini (dari header versi sampai versi berikutnya / EOF).
+# Header aktual ditulis "## v2.36.0 — Judul" (dengan prefix v + em-dash),
+# sedangkan TAG bisa "v2.36.0" — bandingkan nomor versi tanpa prefix.
 SEC="${TAG#v}"
 BODY="$(awk -v s="$SEC" '
     BEGIN { in_section = 0 }
-    $0 ~ "^## \\[" { if (in_section) exit; if ($0 ~ ("\\[" s "\\]")) in_section = 1; next }
+    /^## / {
+        if (in_section) exit
+        hdr = $0; sub(/^##[ \t]+/, "", hdr); sub(/[ \t].*/, "", hdr)
+        sub(/^v/, "", hdr)
+        if (hdr == s) in_section = 1
+        next
+    }
     in_section { print }
 ' "$CHANGELOG")"
 

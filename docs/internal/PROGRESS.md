@@ -12,18 +12,18 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 | Aspek | Status |
 |-------|--------|
-| Versi | **v2.36.0 di repo (BELUM deploy)** — Approval Berjenjang; produksi masih v2.35.1 |
-| Approval berjenjang (v2.36.0) | ✅ **SELESAI DI REPO (belum deploy & belum commit saat sesi berakhir)**: semua pengajuan kasbon/klaim BBM wajib ACC Chief Driver dulu → GA; overtime GA HR → Admin; gate 409 `SUPERVISOR_APPROVAL_REQUIRED` di approve-ga kasbon & BBM + PATCH overtime; jurnal `approval_requests` (master + tiap cabang); override atasan per user via `users.manager_username` (form Users); halaman SPA "✅ ACC Atasan" (`/approvals`); tolak wajib alasan; fail-open utk dokumen lama/DB down; **39 pytest + 5 vitest baru, semua lulus** |
+| Versi | **v2.36.2 LIVE (6 Sep)** — Approval Berjenjang (v2.36.0) + fix sinkronisasi overtime (v2.36.1/v2.36.2) + restrukturisasi dokumentasi |
+| Approval berjenjang (v2.36.0) | ✅ **SELESAI + DEPLOY LIVE (6 Sep)**: semua pengajuan kasbon/klaim BBM wajib ACC Chief Driver dulu → GA; overtime GA HR → Admin; gate 409 `SUPERVISOR_APPROVAL_REQUIRED` di approve-ga kasbon & BBM + PATCH overtime; jurnal `approval_requests` (master + tiap cabang); override atasan per user via `users.manager_username` (form Users); halaman SPA "✅ ACC Atasan" (`/approvals`); tolak wajib alasan; fail-open utk dokumen lama/DB down; **39 pytest + 5 vitest baru, semua lulus** |
 | Step-up auth (Tahap 2) | ✅ **SELESAI + DEPLOY live (5 Sep)**: 8 endpoint uang di-protect → 428 tanpa grant; modal PIN SPA; smoke test live lulus (428→PIN→lolos; logout hilangkan grant; 5 langkah terverifikasi) |
 | Access review (Tahap 3) | ✅ **SELESAI + DEPLOY LIVE sesi ini (rebuild + smoke test)**: `/app/access-review` 200, login admin OK, 30 akun terklasifikasi (3 ok / 26 never_login / 1 inactive / 0 stale), export CSV OK, 401 tanpa login; bundle SPA berisi access-review, SW cache v232 |
 | Vulnerability mgmt (Tahap 4) | ✅ **SELESAI + DEPLOY LIVE sesi ini**: dependensi di-patch (pip-audit & npm audit 0 temuan), image runtime tanpa tooling build (Trivy 0 HIGH/CRITICAL), CI hijau (Backend + pip-audit 1m24s, Frontend + npm audit 42s, Image-scan Trivy 1m52s), Dependabot aktif, `INCIDENT_RUNBOOK.md` (A.5.24–28); smoke test live: health OK, Flask 3.1.3/mysql-connector 9.7.0 aktif, pip tidak ada, login+access review+users+SPA 200, log bersih |
 | Manajemen User | ✅ Admin bisa edit SEMUA detail user: fix tombol Simpan mati saat edit tanpa PIN, `branch_code` kini tersimpan, username bisa diganti (update by-id) |
 | Konvensi username | ✅ `{divisi}_{cabang}` (nama bila >1 per divisi-cabang): 12 akun produksi di-rename (`finance_sby`, `ob_faisol_sby`, `gahr_sby`, …) — driver & it_* tidak berubah; helper text contoh pola di form Users; login UI diverifikasi browser 11/11 |
 | PDF Air Minum | ✅ Foto bukti diperbesar (60–130 mm mengikuti ruang kosong), TTD lebih ke bawah, header kop simetris (teks rata tengah halaman) |
-| Sync Overtime | ✅ Driver (±8.675 sesi) & OB/Security (599 sesi) — keduanya via Apps Script Web App; auto-refresh saat login/logout GA HR/Admin; redirect & duplicate display_id bugs fixed; `submitted_at` tersimpan |
+| Sync Overtime | ✅ Driver (8.745 baris) & OB/Security (600 baris) via Apps Script; auto-refresh login/logout GA HR/Admin; **v2.36.1**: display_id (UNIQUE) tak diisi upsert → baris baru saling menimpa (silent data loss — penyebab "data tidak aktual" yg dilaporkan user) diperbaiki + Refresh UI kini full sync; **v2.36.2**: identitas baris kini `source_uid` = md5(nama\|submitted_at) — tahan geser baris sheet; data produksi dipulihkan & diverifikasi baris-per-baris vs feed (0 selisih) |
 | Urutan overtime | ✅ Terkini-di-atas di semua daftar + detail report per nama dibalik terkini-dulu (PDF/Excel, commit `733fd2f`) |
 | Data demo air minum | ✅ Dibersihkan 4 Sep — WTR-20260904-10300556, WTR-DEMO-01/02 dihapus (bpf_asset_system + bpf_restore_test); backup `/tmp/bpf_water_demo_backup_20260904.sql`; tabel `water_purchases` kini 0 baris |
-| Deploy | ✅ **v2.35.1 LIVE** (Tahap 5+6 + fix kritis pool cabang; commit `8153bb9`) — sebelumnya v2.33.0 (Tahap 4) & v2.32.0 (Tahap 3) juga live; `bbm_web` healthy 0 restart |
+| Deploy | ✅ **v2.36.2 LIVE** (6 Sep: v2.36.0 approval `2df2ba7`, docs `80a84ea`, v2.36.1 `109e7a5`, v2.36.2 `92d2de0`) — sebelumnya v2.35.1/v2.33.0/v2.32.0 juga live; `bbm_web` healthy 0 restart |
 | Dashboard Marketing | ✅ Tab "Selesai" kini memakai `/api/appointments/history` (riwayat completed marketing sendiri, lintas tanggal) — sebelumnya memanggil endpoint driver `/completed` → selalu 400/kosong |
 | Validasi username | ✅ Backend `/api/users/sync` menolak username role back-office tanpa awalan divisi (`finance_`, `ob_`, …) — Driver/Admin/`it_*` bebas; akun lama (qa/test_check/e2e_driver & (username,role) sudah ada) tetap bisa disimpan |
 | Nama asli di tabel Users | ✅ Kolom Username+Nama digabung: Nama Lengkap tebal + username kecil di bawahnya (gaya baris nasabah) — Admin mengenali orangnya |
@@ -44,7 +44,40 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 ## 🗂️ Riwayat Sesi
 
-### Sesi 2026-09-06 — v2.36.0: Approval Berjenjang (roadmap #3) ✅ SELESAI DI REPO — ⏳ BELUM commit/deploy
+### Sesi 2026-09-06 (lanjutan) — Deploy v2.36.0 + restrukturisasi docs + v2.36.1/v2.36.2 data overtime tidak aktual ✅ SELESAI + DEPLOY LIVE
+
+1. **v2.36.0 committed & deployed** — saat commit/deploy tertangkap bug
+   boot: blok startup approvals memakai `_ret_master` sebelum baris
+   import-nya (NameError → worker gagal boot) → diperbaiki & di-amend
+   (`2df2ba7`). Smoke live: login CSRF OK, `GET /api/approvals` 200,
+   tabel `approval_requests` di master + 9 cabang, kolom
+   `users.manager_username` siap. E2E rantai ACC live: submit kasbon
+   driver → gate 409 `SUPERVISOR_APPROVAL_REQUIRED` (pending_at =
+   chief_driver) → ACC Chief Driver langkah 1 → tolak wajib alasan (400
+   tanpa note) → gate tetap 409 setelah tolak; data uji dibersihkan.
+2. **Restrukturisasi dokumentasi** (`80a84ea`) — USER_GUIDE → `guides/`,
+   materi audiens → `docs/public/`, dokumen internal → `docs/internal/`;
+   root hanya README + CHANGELOG; README jadi peta navigasi per audiens;
+   USER_LIST disanitasi (PIN tak lagi tertulis); SCAN_DOCS test hygiene
+   & cross-link diperbarui (0 broken).
+3. **Laporan lapangan "data overtime tidak aktual"** (gahr_sby, 6 Sep):
+   diagnosis dua lapis — (a) tombol Refresh hanya incremental →
+   edit/penghapusan baris lama sheet tak pernah ditarik; (b) akar:
+   `display_id` (kolom UNIQUE) tidak diisi upsert sheet → semua baris
+   baru benturan di `''` → **baris saling menimpa** (silent data loss).
+   **v2.36.1** (`109e7a5`): display_id deterministik + Refresh UI full
+   sync + backfill startup; data dipulihkan 8.675 drift → 8.745 sinkron
+   (verifikasi baris-per-baris 0 selisih; backup JSON sebelum repair).
+   **v2.36.2** (`92d2de0`): identitas baris kini `source_uid` =
+   md5(nama\|submitted_at) — unik terverifikasi & tahan geser baris
+   sheet; display_id OTS-<digest12> konsisten antar re-sync; submit
+   form PWA Driver kini ber-uid (paritas OB, fix sheet_row=0 menumpuk);
+   init.sql/CREATE/cabang disamakan (deploy fresh & paritas cabang);
+   full sync 2× → sync ke-2: 0 added 0 updated (idempoten).
+4. **Verifikasi**: 482 pytest + 6 skip (container, v2.36.2); SW bump
+   v2361 (user perlu reload sekali).
+
+### Sesi 2026-09-06 — v2.36.0: Approval Berjenjang (roadmap #3) ✅ SELESAI — commit+deploy di lanjutan sesi (lihat atas)
 
 > Konteks: sesi terputus — `modules/approvals.py` (475 baris) sudah
 > ditulis sesi sebelumnya namun TIDAK terpasang ke mana pun (tidak ada
@@ -1166,9 +1199,9 @@ tes & verifikasi; perubahan produksi butuh konfirmasi eksplisit.
   belum punya healthcheck di compose — nilai saat deploy ulang berikutnya.
 - ✅ **#2 Monitoring** — Uptime Kuma live (5 monitor UP), akses localhost:3001.
   Belum: notifikasi alert (email/Telegram) & watchtower — konfigurasi via UI.
-- ✅ **#3a Approval berjenjang** — SELESAI di repo v2.36.0 (rantai Chief
-  Driver→GA utk kasbon/BBM, GA HR→Admin utk overtime, override atasan per
-  user, halaman "ACC Atasan"); lihat riwayat sesi 6 Sep — belum deploy.
+- ✅ **#3a Approval berjenjang** — SELESAI & LIVE (v2.36.0, deploy 6 Sep;
+  rantai Chief Driver→GA utk kasbon/BBM, GA HR→Admin utk overtime,
+  override atasan per user, halaman "ACC Atasan"); lihat riwayat sesi 6 Sep.
 - ⏳ **#3b Roadmap fitur lainnya** — dashboard mobile admin, laporan
   mingguan email. Butuh keputusan produk dulu.
 - ⏳ **#4 Tech debt** — audit endpoint sudah (tool + temuan CHANGELOG v2.29.2);
@@ -1217,4 +1250,4 @@ tes & verifikasi; perubahan produksi butuh konfirmasi eksplisit.
 
 ---
 
-*BPF WorkHub v2.36.0 · Progres Tracker · Last updated: 2026-09-06*
+*BPF WorkHub v2.36.2 · Progres Tracker · Last updated: 2026-09-06*
