@@ -70,6 +70,16 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
    ("repo" → "LIVE"), catatan sesi berikutnya (bagian CHANGELOG v2.35.1).
 6. **Verifikasi**: pytest + vitest dijalankan ulang — tidak ada perubahan
    perilaku aplikasi (hanya fallback string versi & dokumentasi).
+7. **Commit & deploy** (konfirmasi user "lanjutkan suggestion"): commit
+   `3885809` → `docker compose up -d --build web` → `bbm_web` healthy,
+   health 200 (master pool 25 + 9 cabang ready, Redis ok), SW cache
+   `bpf-spa-20260906-v2351` ter-serve, log bersih.
+8. **Verifikasi live langkah panduan baru**: Access Review 30 akun
+   (3 ok / 26 never_login / 1 inactive / 0 stale); Retensi overview 6
+   kelas × per_db=10 (master+9 cabang — pool fix v2.35.1 tetap sehat);
+   registri dokumen endpoint 200 (kosong — benar, data uji telah
+   dibersihkan); step-up: verify air minum tanpa grant → **428
+   `STEPUP_REQUIRED`**.
 
 ---
 
