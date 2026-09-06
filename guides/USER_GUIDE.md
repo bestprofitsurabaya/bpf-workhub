@@ -4,6 +4,8 @@
 > Tidak perlu paham teknis. Cukup ikuti langkah-langkah sesuai bagianmu.
 >
 > **PT. Bestprofit Futures — Kantor Pusat Jakarta** (Equity Tower, SCBD Lot 9, Jl. Jend. Sudirman Kav. 52-53, Jakarta Selatan)
+>
+> 🗺️ *Dokumen pendamping: [Lembar Latihan per Peran](../docs/public/PELATIHAN.md) untuk berlatih mandiri, dan [Ringkasan Satu Halaman](../docs/public/ONEPAGER.md) untuk gambaran cepat sistem.*
 
 ---
 

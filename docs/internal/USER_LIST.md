@@ -2,6 +2,10 @@
 
 Dokumen ini menjelaskan semua role yang didukung sistem, siapa yang memakainya, dan apa yang bisa dilakukan masing-masing.
 
+> 🔒 **Catatan keamanan:** dokumen ini hanya memuat konvensi nama akun. PIN dan kredensial asli
+> **tidak** dicantumkan di sini — tersimpan di password manager tim IT dan wajib diganti
+> saat login pertama.
+
 **PT. Bestprofit Futures — Kantor Pusat Jakarta**  
 Equity Tower, SCBD Lot 9, Jl. Jend. Sudirman Kav. 52-53, Jakarta Selatan 12190  
 Telp: 031-5349888
@@ -25,11 +29,12 @@ Akun berikut dibuat otomatis saat inisialisasi database:
 
 | # | Username | Nama Lengkap | Role | PIN | Keterangan |
 |---|----------|--------------|------|-----|------------|
-| 1 | `admin` | Administrator | `admin` | `123456` | Akses penuh ke seluruh sistem |
-| 2 | `ga_sby` | GA Officer | `ga` | `123456` | General Affairs Officer (Surabaya) |
-| 3 | `finance_sby` | Finance Officer | `finance` | `123456` | Finance Officer (Surabaya) |
+| 1 | `admin` | Administrator | `admin` | `••••••` | Akses penuh ke seluruh sistem |
+| 2 | `ga_sby` | GA Officer | `ga` | `••••••` | General Affairs Officer (Surabaya) |
+| 3 | `finance_sby` | Finance Officer | `finance` | `••••••` | Finance Officer (Surabaya) |
 
-> ⚠️ **Segera ganti PIN bawaan** setelah login pertama kali.
+> ⚠️ **Segera ganti PIN bawaan** setelah login pertama kali. PIN bawaan tidak dicantumkan
+> di dokumen ini — minta ke Admin IT / lihat password manager tim.
 
 ### 🏷️ Konvensi Username Per-Cabang
 
@@ -43,7 +48,7 @@ Setiap divisi back-office punya user unik per cabang dengan format `{divisi}_{ko
 | Marketing | `marketing_sby` | `marketing_hu` | `marketing_jkt2` | `marketing_bdg` | `marketing_smg` | `marketing_mlg` | `marketing_mdn` | `marketing_bjm` | `marketing_plm` | `marketing_lpg` |
 | IT | `it_sby` | `it_hu` | `it_jkt2` | `it_bdg` | `it_smg` | `it_mlg` | `it_mdn` | `it_bjm` | `it_plm` | `it_lpg` |
 
-> PIN default semua user: `123456`. Role di DB tetap sama (misal `finance_sby` → role `finance`),
+> PIN default semua user: diatur saat pembuatan akun (tidak dicantumkan di dokumen ini). Role di DB tetap sama (misal `finance_sby` → role `finance`),
 > hanya username yang unik. Label di UI otomatis menyesuaikan (Finance Surabaya, GA Bandung, dst).
 >
 > Bila **lebih dari satu orang** di divisi & cabang yang sama (mis. 3 OB Surabaya),
@@ -390,7 +395,7 @@ Sistem mendukung **11 peran inti** (peran `it` dipecah per cabang pada daftar di
 | CSRF Protection | Aktif untuk semua POST/PUT/DELETE/PATCH |
 | Session | HTTP-only cookie, SameSite=Lax, Secure (HTTPS) |
 | Step-up Auth | Aksi uang wajib konfirmasi PIN ulang (grant 10 menit, hilang saat logout) |
-| PIN Default | `123456` untuk semua user baru |
+| PIN Default | Diatur Admin saat pembuatan akun — tidak dicantumkan di dokumen |
 | Reset PIN | Hanya admin yang bisa reset PIN user lain |
 | Audit Trail | Semua aktivitas login, sync, delete tercatat di `activity_logs` |
 | Branch Code | Multi-cabang: user dikaitkan dengan cabang tertentu |
@@ -401,7 +406,7 @@ Sistem mendukung **11 peran inti** (peran `it` dipecah per cabang pada daftar di
 
 ## 6. Catatan Penting
 
-1. **PIN Default**: Semua user baru (termasuk bulk create driver/marketing) menggunakan PIN default `123456`.
+1. **PIN Default**: Semua user baru (termasuk bulk create driver/marketing) memakai PIN default yang ditetapkan Admin saat pembuatan akun.
 2. **Bulk Create**: Admin bisa membuat akun massal untuk driver aktif dan anggota marketing via `/api/users/bulk-create`.
 3. **Bulk Reset PIN**: Admin bisa reset PIN massal semua driver via tombol di Settings.
 4. **Role Hierarchy**: Admin > GA/Finance > Marketing/Chief Driver > Driver/OB > Receptionist/Traineer/GA HR.

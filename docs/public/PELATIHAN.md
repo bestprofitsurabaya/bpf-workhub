@@ -2,6 +2,8 @@
 
 Panduan latihan singkat (±5–10 menit per peran) untuk gladi resik sebelum demo atau meeting. Tiap latihan menjelaskan langkah yang harus dilakukan dan hasil yang diharapkan.
 
+> 🗺️ *Dokumen pendamping: [Panduan Pengguna](../../guides/USER_GUIDE.md) untuk langkah rinci tiap fitur, [Materi Presentasi](PRESENTASI.md) untuk alur demo.*
+
 **PT. Bestprofit Futures — Kantor Pusat Jakarta**  
 Equity Tower, SCBD Lot 9, Jl. Jend. Sudirman Kav. 52-53, Jakarta Selatan 12190  
 Telp: 031-5349888

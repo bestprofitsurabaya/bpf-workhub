@@ -9,6 +9,8 @@ Equity Tower, SCBD Lot 9, Jl. Jend. Sudirman Kav. 52-53, Jakarta Selatan 12190 �
 
 Sistem digital untuk pengelolaan BBM armada, kasbon driver, pembelian air minum, dan jadwal kunjungan tim — satu aplikasi, semua pihak terhubung.
 
+> 🗺️ *Bagian dari dokumentasi BPF WorkHub — lanjutkan ke [Panduan Pengguna](../../guides/USER_GUIDE.md) untuk langkah per peran, atau [Materi Presentasi](PRESENTASI.md) untuk skenario demo.*
+
 ---
 
 ## 🎯 Mengapa Sistem Ini Ada?

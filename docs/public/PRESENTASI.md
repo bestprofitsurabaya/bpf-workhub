@@ -2,6 +2,8 @@
 
 Panduan demo lengkap untuk presentasi di depan audiens. Urutan disusun dari yang paling berkesan ke yang paling teknis. Tiap bagian berisi tujuan, apa yang ditampilkan di layar, poin yang dibicarakan, dan satu kalimat kunci.
 
+> 🗺️ *Dokumen pendamping: [Ringkasan Satu Halaman](ONEPAGER.md) untuk dibagikan ke audiens, [Lembar Latihan](PELATIHAN.md) untuk gladi resik, dan [Panduan Pengguna](../../guides/USER_GUIDE.md) sebagai rujukan teknis.*
+
 **PT. Bestprofit Futures — Kantor Pusat Jakarta**  
 Equity Tower, SCBD Lot 9, Jl. Jend. Sudirman Kav. 52-53, Jakarta Selatan 12190  
 Telp: 031-5349888

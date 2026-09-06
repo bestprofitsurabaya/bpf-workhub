@@ -32,8 +32,9 @@ SCAN_FILES = [
 ]
 SCAN_DIRS = ['modules', 'scripts']
 # Dokumentasi yang memuat contoh perintah DB
-SCAN_DOCS = ['DEPLOYMENT.md', 'DEPLOY_FRESH.md', 'PELATIHAN.md', 'README.md',
-             'USER_GUIDE.md']
+SCAN_DOCS = ['docs/internal/DEPLOYMENT.md', 'docs/internal/DEPLOY_FRESH.md',
+             'docs/public/PELATIHAN.md', 'README.md',
+             'guides/USER_GUIDE.md']
 
 # Password produksi lama (sudah dipindah ke .env & akan dirotasi) — dilarang
 # muncul di repo. Dipecah agar pola ini sendiri tidak terdeteksi oleh pencari.

@@ -185,10 +185,10 @@ bpf-workhub/
 - 🛡️ **Vulnerability Management (v2.33, Tahap 4/6 ISO 27001)** — audit
   kerentanan dependensi otomatis di CI (`pip-audit` + `npm audit` + Trivy
   scan image, A.8.8) + Dependabot mingguan + **Runbook Tanggap Insiden**
-  (A.5.24–28, lihat `INCIDENT_RUNBOOK.md`); semua dependensi di-patch ke
+  (A.5.24–28, lihat `docs/internal/INCIDENT_RUNBOOK.md`); semua dependensi di-patch ke
   versi aman, image runtime dibersihkan dari tooling build
 - 🗄️ **Retensi & Arsip (v2.34, Tahap 5/6 ISO 27001)** — kebijakan retensi
-  per kelas dokumen (lihat `RETENTION_POLICY.md`), inventaris live lintas
+  per kelas dokumen (lihat `docs/internal/RETENTION_POLICY.md`), inventaris live lintas
   cabang, dan arsip audit trail ke tabel arsip (ISO 15489 · UU PDP)
 - 🔏 **Integritas Dokumen (v2.35, Tahap 6/6 ISO 27001)** — setiap PDF resmi
   dicatat hash SHA-256 + penandatangan + waktu terbit; verifikasi keaslian
@@ -210,14 +210,45 @@ cd frontend && npm test
 
 ---
 
-## 📚 Dokumen Lainnya
+## 🗺️ Peta Dokumentasi
 
-- [🛡️ Keamanan & Standar](SECURITY.md)
-- [🗄️ Kebijakan Retensi & Pemusnahan](RETENTION_POLICY.md)
-- [🚨 Runbook Tanggap Insiden](INCIDENT_RUNBOOK.md)
-- [🚀 Panduan Deploy](DEPLOYMENT.md)
-- [📖 Panduan User](USER_GUIDE.md)
-- [📋 Changelog](CHANGELOG.md)
+Dokumentasi BPF WorkHub tersusun seperti rak buku — pilih lorong sesuai kebutuhanmu.
+
+> **Baru di sini?** Mulai dari [Ringkasan Satu Halaman](docs/public/ONEPAGER.md) untuk gambaran
+> besarnya, lalu buka [Panduan Pengguna](guides/USER_GUIDE.md) langsung ke bagian peranmu.
+
+### 📖 Untuk Pengguna — belajar memakai sistem
+
+| Dokumen | Isinya |
+|---------|--------|
+| [📖 Panduan Pengguna](guides/USER_GUIDE.md) | Langkah demi langkah tiap peran — ditulis tanpa istilah teknis |
+| [🎯 Lembar Latihan per Peran](docs/public/PELATIHAN.md) | Latihan mandiri 5–10 menit per peran, cocok sebelum demo |
+| [📋 Daftar User & Role](docs/internal/USER_LIST.md) | Semua role yang didukung + konvensi nama akun per cabang |
+
+### 🎤 Untuk Presenter — memperkenalkan sistem
+
+| Dokumen | Isinya |
+|---------|--------|
+| [🎤 Materi Presentasi](docs/public/PRESENTASI.md) | Skenario demo lengkap: poin bicara, tampilan layar, kalimat kunci |
+| [📄 Ringkasan Satu Halaman](docs/public/ONEPAGER.md) | Ikhtisar sistem untuk dibagikan — pas di satu halaman |
+
+### 🚀 Untuk IT — menjalankan sistem
+
+| Dokumen | Isinya |
+|---------|--------|
+| [📘 Panduan Deployment](docs/internal/DEPLOYMENT.md) | Pasang, update, backup, HTTPS, troubleshooting |
+| [🌱 Deploy dari Nol](docs/internal/DEPLOY_FRESH.md) | Panduan server kosong → aplikasi jalan |
+| [🛡️ Keamanan & Standar](docs/internal/SECURITY.md) | Program ISO 27001 · ISO 9001: klausul & penerapannya |
+| [🗄️ Kebijakan Retensi](docs/internal/RETENTION_POLICY.md) | Masa simpan & pemusnahan tiap kelas dokumen |
+| [🚨 Runbook Tanggap Insiden](docs/internal/INCIDENT_RUNBOOK.md) | Langkah darurat saat kejadian keamanan |
+
+### 🧭 Untuk Tim Pengembang — melacak perjalanan
+
+| Dokumen | Isinya |
+|---------|--------|
+| [📋 Changelog](CHANGELOG.md) | Riwayat perubahan per versi — ditulis untuk manusia |
+| [📈 Progress Tracker](docs/internal/PROGRESS.md) | Status roadmap, catatan sesi, rekomendasi berikutnya |
+| [🤖 Komunikasi Ox Alpha](docs/internal/OXALPHA_COMMUNICATION.md) | Catatan integrasi LLM (OpenRouter) untuk asisten IT |
 
 ---
 
