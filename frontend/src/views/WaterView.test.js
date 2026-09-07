@@ -126,3 +126,92 @@ describe('WaterView', () => {
     vi.unstubAllGlobals()
   })
 })
+
+describe('WaterView — bukti foto di verifikasi (v2.37.2)', () => {
+  const DETAIL_FOTO = {
+    ...PURCHASES[0],
+    foto_before: 'WTR_BEFORE_TEST_1.jpeg',
+    foto_after: 'WTR_AFTER_TEST_1.jpeg',
+  }
+
+  function mockWithFoto() {
+    apiMock.mockImplementation((path) => {
+      if (path === '/api/water/brands') return Promise.resolve({ types: TYPES, brands: [] })
+      if (path === '/api/water/purchases') return Promise.resolve(PURCHASES)
+      if (path === '/api/water/purchases/1') return Promise.resolve(DETAIL_FOTO)
+      return Promise.resolve({ status: 'success' })
+    })
+  }
+
+  async function openVerify(w) {
+    await w.findAll('button').find((b) => b.text() === '✅ Verifikasi').trigger('click')
+    await flushPromises()
+  }
+
+  beforeEach(() => { vi.clearAllMocks() })
+
+  it('modal verifikasi menampilkan bukti foto sebelum & sesudah diisi', async () => {
+    mockWithFoto()
+    const w = mount(WaterView)
+    await flushPromises()
+    await openVerify(w)
+    expect(w.find('img[alt="Bukti sebelum diisi"]').exists()).toBe(true)
+    expect(w.find('img[alt="Bukti sesudah diisi"]').exists()).toBe(true)
+  })
+
+  it('openVerify menarik detail via GET /api/water/purchases/<id>', async () => {
+    mockWithFoto()
+    const w = mount(WaterView)
+    await flushPromises()
+    await openVerify(w)
+    expect(apiMock).toHaveBeenCalledWith('/api/water/purchases/1')
+  })
+
+  it('klik bukti foto membuka lightbox perbesar, ✖ menutupnya', async () => {
+    mockWithFoto()
+    const w = mount(WaterView)
+    await flushPromises()
+    await openVerify(w)
+    expect(w.find('img[alt="Preview bukti"]').exists()).toBe(false)
+    await w.find('img[alt="Bukti sebelum diisi"]').trigger('click')
+    expect(w.find('img[alt="Preview bukti"]').exists()).toBe(true)
+    await w.findAll('button').find((b) => b.text() === '✖ Tutup').trigger('click')
+    expect(w.find('img[alt="Preview bukti"]').exists()).toBe(false)
+  })
+
+  it('detail pengajuan: foto bisa diklik untuk perbesar', async () => {
+    mockWithFoto()
+    const w = mount(WaterView)
+    await flushPromises()
+    await w.findAll('button').find((b) => b.text() === '👁️ Detail').trigger('click')
+    await flushPromises()
+    expect(w.find('img[alt="Sebelum"]').exists()).toBe(true)
+    await w.find('img[alt="Sebelum"]').trigger('click')
+    expect(w.find('img[alt="Preview bukti"]').exists()).toBe(true)
+  })
+
+  it('gambar rusak → fallback "Foto gagal dimuat", bukan gambar kosong', async () => {
+    mockWithFoto()
+    const w = mount(WaterView)
+    await flushPromises()
+    await openVerify(w)
+    const img = w.find('img[alt="Bukti sebelum diisi"]')
+    await img.trigger('error')
+    expect(w.text()).toContain('⚠️ Foto gagal dimuat')
+    expect(w.find('img[alt="Bukti sebelum diisi"]').exists()).toBe(false)
+  })
+
+  it('detail gagal dimuat → verifikasi tetap bisa dibuka (foto tidak wajib)', async () => {
+    apiMock.mockImplementation((path) => {
+      if (path === '/api/water/brands') return Promise.resolve({ types: TYPES, brands: [] })
+      if (path === '/api/water/purchases') return Promise.resolve(PURCHASES)
+      if (path === '/api/water/purchases/1') return Promise.reject(new Error('db down'))
+      return Promise.resolve({ status: 'success' })
+    })
+    const w = mount(WaterView)
+    await flushPromises()
+    await openVerify(w)
+    expect(w.find('img[alt="Bukti sebelum diisi"]').exists()).toBe(false)
+    expect(w.text()).toContain('Remark') // form verifikasi tetap tampil
+  })
+})

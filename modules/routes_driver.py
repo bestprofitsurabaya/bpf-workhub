@@ -1,5 +1,5 @@
 """Driver & PWA routes"""
-from flask import (request, redirect,
+from flask import (request, redirect, session,
                    send_from_directory, jsonify, make_response)
 from modules.config import get_db_connection
 from modules.helpers import (save_file, resolve_driver_form_context, validate_bbm_for_vehicle,

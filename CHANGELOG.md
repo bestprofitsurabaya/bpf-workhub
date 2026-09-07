@@ -4,6 +4,32 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 
 ---
 
+## v2.37.2 — 7 September 2026 (Fix: foto bukti tidak muncul + preview di verifikasi air minum)
+
+Laporan finance: gambar bukti tidak muncul & butuh preview saat proses
+verifikasi air minum.
+
+### Diperbaiki
+- **Semua foto bukti 500 sejak commit 584ba88** — auth check `/uploads/`
+  memakai `session` tanpa meng-import-nya → NameError di setiap request,
+  gambar tidak pernah tampil di UI (air minum, trip, disp, overtime).
+  Kini `session` di-import di `routes_driver.py` + regression test
+  `tests/test_uploads_auth.py` (401 tanpa sesi, 200 dengan sesi back-office
+  & driver PWA, 404 file tidak ada).
+- Fallback UI bila foto gagal dimuat: "⚠️ Foto gagal dimuat" (bukan gambar
+  kosong).
+
+### Ditambah — Preview bukti di proses verifikasi (SPA)
+- Modal Verifikasi/Tolak kini menampilkan foto bukti (sebelum & sesudah)
+  langsung di dalam modal — finance tidak perlu buka Detail terpisah.
+- Klik foto (di modal verifikasi & modal detail) → lightbox perbesar
+  fullscreen; klik backdrop atau ✖ untuk menutup.
+- Test: +6 vitest (foto tampil, GET detail, lightbox buka/tutup, klik di
+  detail, fallback rusak, verifikasi tetap bisa tanpa detail) — suite
+  **524 pytest + 6 skip** dan **121 vitest**, hijau.
+
+---
+
 ## v2.37.1 — 7 September 2026 (Hotfix: lubang scoping admin cabang di /api/users/sync)
 
 Hotfix keamanan lanjutan v2.37.0 — guard admin cabang pada `/api/users/sync`

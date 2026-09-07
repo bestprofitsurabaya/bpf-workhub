@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { api } from '../api'
 import { useAuthStore } from '../stores/auth'
 import { useStepupStore } from '../stores/stepup'
@@ -41,6 +41,14 @@ const purchases = ref([])
 const selected = ref(null)     // detail
 const verifyModal = ref(null)  // { kind: 'verify'|'reject', id }
 const verifyForm = ref({ remark: '', note: '', reason: '' })
+
+// ---- Bukti foto + preview (v2.37.2) ----
+// Finance menilai bukti foto di dalam modal verifikasi, klik untuk memperbesar
+// (lightbox). Backend /uploads/ kini 200 setelah fix NameError session.
+const verifyDetail = ref(null)             // detail pengajuan yang diverifikasi
+const previewUrl = ref('')                 // lightbox: URL foto yang diperbesar
+const brokenImgs = reactive(new Set())     // nama file foto yang gagal dimuat
+const imgSrc = (fname) => '/uploads/' + fname
 
 // ---- Kelola merk (finance) ----
 const brandModal = ref(false)
@@ -135,6 +143,12 @@ async function openDetail(p) {
 function openVerify(kind, p) {
   verifyForm.value = { remark: '', note: '', reason: '' }
   verifyModal.value = { kind, id: p.id, display_id: p.display_id }
+  verifyDetail.value = null
+  // v2.37.2: tarik detail (termasuk foto bukti) agar finance bisa menilai
+  // bukti langsung di modal verifikasi — tidak perlu buka Detail terpisah.
+  api(`/api/water/purchases/${p.id}`)
+    .then((d) => { if (verifyModal.value && verifyModal.value.id === p.id) verifyDetail.value = d })
+    .catch(() => {}) // foto tidak wajib — verifikasi tetap bisa jalan tanpa detail
 }
 
 async function submitVerify() {
@@ -345,12 +359,14 @@ onMounted(() => { form.value.items.push(newItem()); load() })
         </div>
         <div class="row" style="gap:12px;margin-top:12px;">
           <div v-if="selected.foto_before" style="flex:1;">
-            <img :src="'/uploads/' + selected.foto_before" style="width:100%;border-radius:8px;border:1px solid var(--border);" alt="Sebelum" />
-            <div class="muted" style="font-size:11px;text-align:center;">📷 Sebelum diisi</div>
+            <img v-if="!brokenImgs.has(selected.foto_before)" :src="imgSrc(selected.foto_before)" @click="previewUrl = imgSrc(selected.foto_before)" @error="brokenImgs.add(selected.foto_before)" style="width:100%;border-radius:8px;border:1px solid var(--border);cursor:zoom-in;" alt="Sebelum" />
+            <div v-else class="muted" style="font-size:12px;padding:32px 0;text-align:center;border:1px dashed var(--border);border-radius:8px;">⚠️ Foto gagal dimuat</div>
+            <div class="muted" style="font-size:11px;text-align:center;">📷 Sebelum diisi · klik untuk perbesar</div>
           </div>
           <div v-if="selected.foto_after" style="flex:1;">
-            <img :src="'/uploads/' + selected.foto_after" style="width:100%;border-radius:8px;border:1px solid var(--border);" alt="Sesudah" />
-            <div class="muted" style="font-size:11px;text-align:center;">📷 Sesudah diisi</div>
+            <img v-if="!brokenImgs.has(selected.foto_after)" :src="imgSrc(selected.foto_after)" @click="previewUrl = imgSrc(selected.foto_after)" @error="brokenImgs.add(selected.foto_after)" style="width:100%;border-radius:8px;border:1px solid var(--border);cursor:zoom-in;" alt="Sesudah" />
+            <div v-else class="muted" style="font-size:12px;padding:32px 0;text-align:center;border:1px dashed var(--border);border-radius:8px;">⚠️ Foto gagal dimuat</div>
+            <div class="muted" style="font-size:11px;text-align:center;">📷 Sesudah diisi · klik untuk perbesar</div>
           </div>
         </div>
         <div class="row" style="justify-content:flex-end;gap:8px;margin-top:12px;">
@@ -415,7 +431,21 @@ onMounted(() => { form.value.items.push(newItem()); load() })
     </Modal>
 
     <!-- Modal verifikasi (finance) -->
-    <Modal v-if="verifyModal" :title="verifyModal.kind === 'verify' ? '✅ Verifikasi ' + verifyModal.display_id : '✖ Tolak ' + verifyModal.display_id" @close="verifyModal = null">
+    <Modal v-if="verifyModal" :title="verifyModal.kind === 'verify' ? '✅ Verifikasi ' + verifyModal.display_id : '✖ Tolak ' + verifyModal.display_id" @close="verifyModal = null" wide>
+      <!-- v2.37.2: bukti foto tampil dalam proses verifikasi/tolak -->
+      <div v-if="verifyDetail && (verifyDetail.foto_before || verifyDetail.foto_after)" class="row" style="gap:12px;margin-bottom:14px;">
+        <div v-if="verifyDetail.foto_before" style="flex:1;text-align:center;">
+          <img v-if="!brokenImgs.has(verifyDetail.foto_before)" :src="imgSrc(verifyDetail.foto_before)" @click="previewUrl = imgSrc(verifyDetail.foto_before)" @error="brokenImgs.add(verifyDetail.foto_before)" style="width:100%;max-height:150px;object-fit:cover;border-radius:8px;border:1px solid var(--border);cursor:zoom-in;" alt="Bukti sebelum diisi" />
+          <div v-else class="muted" style="font-size:11px;padding:26px 0;border:1px dashed var(--border);border-radius:8px;">⚠️ Foto gagal dimuat</div>
+          <div class="muted" style="font-size:11px;">📷 Sebelum diisi · klik untuk perbesar</div>
+        </div>
+        <div v-if="verifyDetail.foto_after" style="flex:1;text-align:center;">
+          <img v-if="!brokenImgs.has(verifyDetail.foto_after)" :src="imgSrc(verifyDetail.foto_after)" @click="previewUrl = imgSrc(verifyDetail.foto_after)" @error="brokenImgs.add(verifyDetail.foto_after)" style="width:100%;max-height:150px;object-fit:cover;border-radius:8px;border:1px solid var(--border);cursor:zoom-in;" alt="Bukti sesudah diisi" />
+          <div v-else class="muted" style="font-size:11px;padding:26px 0;border:1px dashed var(--border);border-radius:8px;">⚠️ Foto gagal dimuat</div>
+          <div class="muted" style="font-size:11px;">📷 Sesudah diisi · klik untuk perbesar</div>
+        </div>
+      </div>
+      <div v-else-if="!verifyDetail" class="muted" style="font-size:11px;margin-bottom:10px;">⏳ Memuat bukti foto…</div>
       <template v-if="verifyModal.kind === 'verify'">
         <div class="field"><label>Remark *</label><textarea class="input" v-model="verifyForm.remark" rows="3" placeholder="Ringkasan hasil verifikasi..."></textarea></div>
         <div class="field"><label>Note tambahan (opsional)</label><textarea class="input" v-model="verifyForm.note" rows="2" placeholder="Catatan tambahan bila diperlukan..."></textarea></div>
@@ -487,6 +517,12 @@ onMounted(() => { form.value.items.push(newItem()); load() })
         <button class="btn btn-primary" :disabled="busy || !brandForm.brand.trim()" @click="addBrand">💾 Simpan</button>
       </div>
     </Modal>
+
+    <!-- Lightbox preview bukti (v2.37.2) — klik backdrop/✖ untuk menutup -->
+    <div v-if="previewUrl" @click="previewUrl = ''" style="position:fixed;inset:0;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;z-index:1000;cursor:zoom-out;padding:24px;">
+      <img :src="previewUrl" style="max-width:100%;max-height:100%;border-radius:8px;box-shadow:0 8px 40px rgba(0,0,0,.5);" alt="Preview bukti" />
+      <button class="btn btn-sm" style="position:absolute;top:16px;right:16px;" @click.stop="previewUrl = ''">✖ Tutup</button>
+    </div>
   </div>
 </template>
 
