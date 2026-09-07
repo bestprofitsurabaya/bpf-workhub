@@ -4,7 +4,7 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 **Terakhir diperbarui:** 2026-09-07  
 **Branch:** `main`  
-**Versi terbaru:** v2.37.4 LIVE (7 Sep — filter rentang tanggal air minum) · v2.37.3 (detail snapshot audit log) · v2.37.2 (fix foto bukti 500 + preview verifikasi air minum) · v2.37.1 (hotfix scoping admin cabang) · v2.37.0 (edit/hapus air minum + admin per-cabang + Pengaturan terstruktur) — program 6 tahap ISO 27001 SELESAI
+**Versi terbaru:** v2.37.5 LIVE (7 Sep — export rekap air minum PDF & Excel resmi) · v2.37.4 (filter rentang tanggal) · v2.37.3 (detail snapshot audit log) · v2.37.2 (fix foto bukti 500 + preview verifikasi air minum) · v2.37.1 (hotfix scoping admin cabang) · v2.37.0 (edit/hapus air minum + admin per-cabang + Pengaturan terstruktur) — program 6 tahap ISO 27001 SELESAI
 
 ---
 
@@ -12,7 +12,7 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 | Aspek | Status |
 |-------|--------|
-| Versi | **v2.37.4 LIVE (7 Sep)** — v2.37.0 (edit/hapus air minum + admin per-cabang) + v2.37.1 hotfix scoping + v2.37.2 fix foto bukti & preview + v2.37.3 detail snapshot audit |
+| Versi | **v2.37.5 LIVE (7 Sep)** — v2.37.0 (edit/hapus air minum + admin per-cabang) + v2.37.1 hotfix scoping + v2.37.2 fix foto bukti & preview + v2.37.3 detail snapshot audit |
 | Edit/hapus air minum (v2.37.0) | ✅ **SELESAI di repo**: toggle Admin per cabang (`system_config.water_edit_enabled`, default nonaktif → perilaku lama); `PUT/DELETE /api/water/purchases/<id>` wajib step-up 428 + audit snapshot `old_data`; edit hanya status pending/verified (rejected ditolak 400); hapus = baris+item+foto dihapus permanen, snapshot tersimpan; kolom `edited_by/edited_at/edit_count` dibuat otomatis (master+cabang+`ensure_branch_database`); UI WaterView ✏️/🗑️ hanya muncul bila fitur aktif; **19 pytest + 4 vitest baru** |
 | Admin per-cabang (v2.37.0) | ✅ **SELESAI di repo**: modul `modules/admin_scope.py` — `admin` = Pusat (semua cabang), `admin_<kode>` = Admin Cabang (terkunci; fail-closed bila DB mati); ho_only di `/api/branches/switch`, docseq list/reset cabang lain, retention overview/archive, access review + export + complete; audit-logs lintas cabang ditolak 403 utk admin cabang; login & `/api/auth/me` kirim `is_ho_admin` → sidebar sembunyikan Access Review/Audit Log + chip "🔒 Cabang"; kolom `users.admin_all_branches` + `managed_branches`; **13 pytest baru** |
 | Pengaturan terstruktur (v2.37.0) | ✅ **SELESAI di repo**: peta seksi sticky (6 seksi, IntersectionObserver highlight), toggle switch standar utk edit/hapus air minum dgn konfirmasi; switcher cabang disembunyikan utk admin cabang |
@@ -160,6 +160,14 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
    `GET /api/audit-logs/<id>` (old_data/new_data, scoping paritas list) +
    tombol 🔍 di UI Log → modal snapshot Data Lama/Data Baru; +5 vitest
    (126 hijau, 524 pytest tetap).
+10. **v2.37.5 — export rekap air minum PDF & Excel resmi**: tombol 📄/📊
+   di WaterView (filter ikut), `GET /api/water/purchases/export?format=`,
+   generator `modules/water_report.py` (landscape A4, kop perusahaan, 9
+   kolom, ringkasan, TTD Finance (Dibuat oleh) & Kepala Cabang (Mengetahui)
+   — nama dari `water_head_name` baru di Pengaturan → 🚰 Air Minum, fallback
+   label generik); +15 pytest + 4 vitest (551/135 hijau); smoke live: xlsx
+   6.1 KB (7 baris Faisol, landscape), pdf 65 KB (teks judul+data tervalidasi
+   extractor). ⚠️ `water_head_name` belum diisi — admin isi via Pengaturan.
 9. **v2.37.4 — filter rentang tanggal air minum** (saran finance):
    filter bar Dari/Sampai/Status/Cari di WaterView, default bulan
    berjalan; backend `from/to/status/q` (parameterized, tanggal invalid →
@@ -1379,4 +1387,4 @@ tes & verifikasi; perubahan produksi butuh konfirmasi eksplisit.
 
 ---
 
-*BPF WorkHub v2.37.4 · Progres Tracker · Last updated: 2026-09-07*
+*BPF WorkHub v2.37.5 · Progres Tracker · Last updated: 2026-09-07*
