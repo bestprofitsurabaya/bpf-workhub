@@ -130,6 +130,22 @@ class TestPDF:
         assert data[:5] == b'%PDF-'
         assert data.count(b'/Type /Page') >= 2 or b'/Pages' in data
 
+    def test_kop_mengikuti_cabang(self):
+        """v2.37.6b: kop PDF memakai alamat cabang dari meta.company —
+        alamat kantor pusat (fallback global) TIDAK boleh ikut muncul."""
+        from tests.pdf_text import pdf_text as _pdf_text
+        meta = dict(META)
+        meta['company'] = {
+            'company_name': 'PT BESTPROFIT FUTURES',
+            'company_subtitle': 'Cabang Surabaya',
+            'company_address': 'Graha Bukopin, Lantai 11, Jl. Panglima Sudirman No. 10-18, Surabaya 60271',
+            'company_phone': '031-5349888',
+        }
+        data = WaterReportPDF().generate(ROWS, meta)
+        text = _pdf_text(data)
+        assert 'Graha Bukopin' in text
+        assert 'Equity Tower' not in text
+
 
 # ================================================================
 # Endpoint

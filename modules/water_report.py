@@ -1,15 +1,20 @@
-"""Generator laporan resmi rekap pengajuan air minum (v2.37.5).
+"""Generator laporan resmi rekap pengajuan air minum (v2.37.6).
 
 Dua format, dipanggil dari GET /api/water/purchases/export:
 - generate_water_report_excel(rows, meta) → bytes .xlsx (openpyxl, landscape)
 - generate_water_report_pdf(rows, meta)   → bytes .pdf  (fpdf2, landscape)
 
-Desain mengikuti pola laporan resmi yang sudah ada:
-- Excel: generate_appointment_report (header biru, border tipis, ringkasan)
-- PDF  : BPFBasePDF (kop identitas perusahaan, DejaVuSans, footer halaman)
+v2.37.6 — perbaikan tata letak baris:
+- PDF : grid digambar manual per baris (rect + garis kolom) sehingga semua
+        kolom rata walau teks multi-baris; tinggi baris diukur dari SEMUA
+        kolom (bukan 3 kolom), header tabel diulang tiap halaman, teks
+        vertikal center pada sel satu baris, blok TTD dgn tempat/tanggal.
+- Excel: tinggi baris mengikuti konten wrap, zebra fill, warna status,
+         garis tanda tangan di ATAS nama, freeze panes header.
+- Kop : identitas mengikuti cabang sesi (meta['company'] dari tabel
+        branches) — bukan selalu Kantor Pusat.
 
-TTD default dua pihak: Kepala Cabang (Mengetahui) & Finance (Dibuat oleh).
-Nama dari system_config: water_head_name & water_finance_name.
+TTD default dua pihak: Finance (Dibuat oleh) & Kepala Cabang (Mengetahui).
 """
 from io import BytesIO
 
@@ -17,13 +22,22 @@ STATUS_LABEL = {'pending': 'Menunggu Verifikasi',
                 'verified': 'Terverifikasi',
                 'rejected': 'Ditolak'}
 
+STATUS_COLOR = {'pending': 'B45309',     # amber-700
+                'verified': '15803D',    # green-700
+                'rejected': 'B91C1C'}    # red-700
+
 
 def _fmt_date(v):
     from datetime import datetime, date
     if isinstance(v, (datetime, date)):
         return v.strftime('%d/%m/%Y')
-    s = str(v or '')
-    return s[:10] if s else '-'
+    s = str(v or '').strip()
+    for fmt in ('%Y-%m-%d', '%d/%m/%Y'):
+        try:
+            return datetime.strptime(s[:10], fmt).strftime('%d/%m/%Y')
+        except ValueError:
+            continue
+    return s if s else '-'
 
 
 def _items_text(p):
@@ -51,6 +65,24 @@ def _signatures(meta):
     return head, fin
 
 
+def _row_values(rows):
+    """Bangun nilai kolom per baris data (dipakai Excel & PDF — satu sumber)."""
+    out = []
+    for i, p in enumerate(rows, 1):
+        out.append([
+            str(i),
+            p.get('display_id') or '-',
+            _fmt_date(p.get('purchase_date')),
+            p.get('ob_name') or '-',
+            _items_text(p),
+            str(sum(int(it.get('quantity') or 0) for it in (p.get('items') or []))),
+            STATUS_LABEL.get(p.get('status'), p.get('status') or '-'),
+            p.get('remark') or '-',
+            p.get('note') or '-',
+        ])
+    return out
+
+
 # ============================================================
 # EXCEL (openpyxl) — landscape A4
 # ============================================================
@@ -69,8 +101,11 @@ def generate_water_report_excel(rows, meta):
     thin = Border(left=Side(style='thin'), right=Side(style='thin'),
                   top=Side(style='thin'), bottom=Side(style='thin'))
     header_fill = PatternFill(start_color='1D4ED8', end_color='1D4ED8', fill_type='solid')
+    zebra_fill = PatternFill(start_color='F1F5F9', end_color='F1F5F9', fill_type='solid')
+    summary_fill = PatternFill(start_color='EEF2FF', end_color='EEF2FF', fill_type='solid')
     title_font = Font(name='Arial', bold=True, size=14, color='1E293B')
     subtitle_font = Font(name='Arial', size=10, color='475569')
+    contact_font = Font(name='Arial', size=8.5, color='64748B')
     header_font = Font(name='Arial', bold=True, size=9, color='FFFFFF')
     normal_font = Font(name='Arial', size=9)
     bold_font = Font(name='Arial', bold=True, size=9)
@@ -95,10 +130,18 @@ def generate_water_report_excel(rows, meta):
     ws['A2'].alignment = Alignment(horizontal='center')
 
     ws.merge_cells(f'A3:{last_col}3')
-    ftxt = meta.get('filters_text') or ''
-    ws['A3'] = f'Filter: {ftxt}' if ftxt else 'Filter: Semua status'
-    ws['A3'].font = Font(name='Arial', italic=True, size=9, color='64748B')
+    addr = (ident.get('company_address') or '').strip()
+    phone = (ident.get('company_phone') or '').strip()
+    contact = ' | '.join(x for x in (addr, f'Telp: {phone}' if phone else '') if x)
+    ws['A3'] = contact if contact else ' '
+    ws['A3'].font = contact_font
     ws['A3'].alignment = Alignment(horizontal='center')
+
+    ws.merge_cells(f'A4:{last_col}4')
+    ftxt = meta.get('filters_text') or ''
+    ws['A4'] = f'Filter: {ftxt}' if ftxt else 'Filter: Semua status'
+    ws['A4'].font = Font(name='Arial', italic=True, size=9, color='64748B')
+    ws['A4'].alignment = Alignment(horizontal='center')
 
     headers = ['No', 'No. Dokumen', 'Tanggal', 'OB', 'Rincian Item', 'Total Qty',
                'Status', 'Remark Verifikasi', 'Catatan']
@@ -108,24 +151,41 @@ def generate_water_report_excel(rows, meta):
         c.fill = header_fill
         c.border = thin
         c.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+    ws.row_dimensions[5].height = 18
+    ws.freeze_panes = 'A6'
+    ws.print_title_rows = '5:5'
 
+    def _xl_lines(text, width):
+        import math
+        per = max(int(width * 1.05), 8)
+        s = str(text or '-')
+        return max(1, math.ceil(len(s) / per))
+
+    wrap_w = {2: widths['B'], 4: widths['D'], 5: widths['E'], 8: widths['H'], 9: widths['I']}
     r0 = 6
-    for i, p in enumerate(rows, 1):
-        vals = [i, p.get('display_id', '-'), _fmt_date(p.get('purchase_date')),
-                p.get('ob_name', '-'), _items_text(p),
-                sum(int(it.get('quantity') or 0) for it in (p.get('items') or [])),
-                STATUS_LABEL.get(p.get('status'), p.get('status', '-')),
-                p.get('remark') or '-', p.get('note') or '-']
+    for i, vals in enumerate(_row_values(rows)):
+        row = r0 + i
         for ci, v in enumerate(vals, 1):
-            c = ws.cell(row=r0 + i - 1, column=ci, value=v)
+            c = ws.cell(row=row, column=ci, value=v)
             c.font = normal_font
             c.border = thin
-            if ci in (1, 3, 6):
-                c.alignment = Alignment(horizontal='center')
+            if ci in (1, 3, 6, 7):
+                c.alignment = Alignment(horizontal='center', vertical='center',
+                                        wrap_text=(ci == 7))
+            else:
+                c.alignment = Alignment(horizontal='left', vertical='center',
+                                        wrap_text=True)
+            if ci == 6:
+                c.number_format = '0'
             if ci == 7:
-                c.alignment = Alignment(horizontal='center')
-            if ci in (5, 8, 9):
-                c.alignment = Alignment(vertical='top', wrap_text=True)
+                color = STATUS_COLOR.get(
+                    next((k for k, lbl in STATUS_LABEL.items() if lbl == v), ''), '334155')
+                c.font = Font(name='Arial', size=9, bold=True, color=color)
+            if i % 2 == 0:
+                c.fill = zebra_fill
+        # tinggi baris mengikuti konten wrap (kolom teks terpanjang)
+        lines = max(_xl_lines(vals[ci - 1], w) for ci, w in wrap_w.items())
+        ws.row_dimensions[row].height = max(15, lines * 12.5 + 3)
 
     # Ringkasan
     sr = r0 + len(rows) + 1
@@ -134,25 +194,33 @@ def generate_water_report_excel(rows, meta):
                     f"Terverifikasi {t['verified']} | Ditolak {t['rejected']} | "
                     f"Total Qty {t['qty']}")
     ws[f'A{sr}'].font = bold_font
+    ws[f'A{sr}'].fill = summary_fill
+    ws[f'A{sr}'].alignment = Alignment(horizontal='left', vertical='center')
+    ws.row_dimensions[sr].height = 18
 
-    # Blok TTD dua pihak
-    sr2 = sr + 3
+    # Blok TTD dua pihak — garis tanda tangan di ATAS nama
+    sr2 = sr + 3                      # baris label "Dibuat oleh," / "Mengetahui,"
     left_c, right_c = 'C', 'G'
     ws[f'{left_c}{sr2}'] = 'Dibuat oleh,'
     ws[f'{right_c}{sr2}'] = 'Mengetahui,'
     for col in (left_c, right_c):
         ws[f'{col}{sr2}'].font = normal_font
-    sr3 = sr2 + 5
+    sr3_line = sr2 + 4                # baris kosong = garis tanda tangan
+    sr3 = sr2 + 5                     # baris nama
+    ws[f'{left_c}{sr3_line}'].border = Border(bottom=Side(style='thin'))
+    ws[f'{right_c}{sr3_line}'].border = Border(bottom=Side(style='thin'))
     ws[f'{left_c}{sr3}'] = fin_name.upper()
     ws[f'{right_c}{sr3}'] = head_name.upper()
     for col in (left_c, right_c):
         ws[f'{col}{sr3}'].font = bold_font
-        ws[f'{col}{sr3}'].border = Border(bottom=Side(style='thin'))
     sr4 = sr3 + 1
     ws[f'{left_c}{sr4}'] = 'Finance'
     ws[f'{right_c}{sr4}'] = 'Kepala Cabang'
     for col in (left_c, right_c):
         ws[f'{col}{sr4}'].font = Font(name='Arial', italic=True, size=8, color='64748B')
+    sr5 = sr4 + 1
+    ws[f'{left_c}{sr5}'] = f"Tanggal: {_fmt_date(meta.get('to'))}"
+    ws[f'{left_c}{sr5}'].font = Font(name='Arial', italic=True, size=8, color='64748B')
 
     # Print setup: landscape, fit to width
     ws.page_setup.orientation = 'landscape'
@@ -168,15 +236,16 @@ def generate_water_report_excel(rows, meta):
 
 
 # ============================================================
-# PDF (fpdf2) — landscape A4, kop identitas perusahaan
+# PDF (fpdf2) — landscape A4, kop identitas cabang
 # ============================================================
 class WaterReportPDF:
-    """Wrapper tipis di atas BPFBasePDF (reuse kop/footer/font)."""
+    """Laporan PDF landscape di atas BPFBasePDF (kop & footer standar BPF)."""
 
-    def __init__(self):
+    def __init__(self, identity=None):
         from modules import pdf_generator as _pg
         from modules.pdf_generator import BPFBasePDF
         self._pg = _pg
+        self._identity_override = identity
         self.pdf = BPFBasePDF(orientation='L', unit='mm', format='A4')
         self.pdf.set_auto_page_break(auto=True, margin=18)
         self.pdf.set_margins(10, 7, 10)
@@ -191,19 +260,35 @@ class WaterReportPDF:
     def RULE(self): return self._pg.RULE
 
     # kolom: No | No Dokumen | Tanggal | OB | Rincian | Qty | Status | Remark | Catatan
-    WIDTHS = [10, 34, 20, 34, 62, 14, 28, 52, 52]
+    WIDTHS = [10, 32, 19, 30, 64, 13, 26, 50, 52]   # total 296 mm < 297 (A4 landscape)
     HEADERS = ['No', 'No. Dokumen', 'Tanggal', 'OB', 'Rincian Item', 'Qty',
                'Status', 'Remark Verifikasi', 'Catatan']
+    ALIGNS = ['C', 'L', 'C', 'L', 'L', 'C', 'C', 'L', 'L']
+    WRAP_COLS = {1, 3, 4, 6, 7, 8}                  # index kolom teks bebas
 
     def generate(self, rows, meta):
         p = self.pdf
+        # Kop mengikuti identitas cabang (meta) — override cache identitas
+        # BPFBasePDF SEBELUM add_page() agar header() memakai kop cabang.
+        base = dict(self._pg.IDENTITY_DEFAULTS)
+        try:
+            base.update(self._pg.get_company_identity())
+        except Exception:
+            pass
+        base.update({k: v for k, v in (self._identity_override or {}).items() if v})
+        # v2.37.6b: kop mengikuti cabang sesi — meta['company'] dibangun dari
+        # tabel branches di _export_meta() (kunci = nama field identity).
+        # Diterapkan di sini agar routes tak perlu pass identity eksplisit.
+        base.update({k: v for k, v in (meta.get('company') or {}).items() if v})
+        p._identity = base
+
         head_name, fin_name = _signatures(meta)
         t = _totals(rows)
         p.add_page()
         self._title(meta)
         self._table(rows)
         self._summary(t)
-        self._signatures(head_name, fin_name)
+        self._signatures(head_name, fin_name, meta)
         out = p.output()  # fpdf2 ≥2.7: bytearray
         return bytes(out) if isinstance(out, (bytearray, memoryview)) else str(out).encode('latin-1', errors='replace')
 
@@ -227,74 +312,84 @@ class WaterReportPDF:
         p.ln(3)
         p.set_text_color(*self.INK)
 
-    def _row_h(self, texts):
+    # ---- ukuran baris ----
+    LINE_H = 3.2      # tinggi 1 baris teks wrap (mm)
+    PAD_V = 1.2       # padding vertikal atas/bawah sel
+
+    def _row_h(self, vals):
+        """Tinggi baris = max jumlah baris wrap dari SEMUA kolom."""
         p = self.pdf
-        # tinggi baris = max baris wrap (kolom Rincian/Remark/Catatan paling luas)
-        lines = 1
-        for w, txt in zip(self.WIDTHS, texts):
-            if w in (self.WIDTHS[4], self.WIDTHS[7], self.WIDTHS[8]):
-                p.set_font(p._font(), '', 7)
-                lines = max(lines, max(1, len(p.multi_cell(w - 2, 3, p.clean_text(str(txt or '-')), dry_run=True, output="LINES"))))
-        return lines * 3 + 2.5
+        p.set_font(p._font(), '', 7)
+        max_lines = 1
+        for ci, (w, v) in enumerate(zip(self.WIDTHS, vals)):
+            txt = p.clean_text(str(v if v not in (None, '') else '-'))
+            if ci in self.WRAP_COLS:
+                n = len(p.multi_cell(w - 2, self.LINE_H, txt,
+                                     dry_run=True, output='LINES'))
+            else:
+                n = 1 if p.get_string_width(txt) <= (w - 2) else 2
+            max_lines = max(max_lines, n)
+        return max_lines * self.LINE_H + 2 * self.PAD_V
+
+    # ---- header tabel (dipakai halaman pertama & lanjutan) ----
+    def _table_header(self):
+        p = self.pdf
+        p.set_draw_color(*self.RULE)
+        p.set_line_width(0.2)
+        p.set_fill_color(29, 78, 216)
+        p.set_text_color(255, 255, 255)
+        p.set_font(p._font(), 'B', 7.5)
+        x = p.l_margin
+        for w, h in zip(self.WIDTHS, self.HEADERS):
+            p.set_xy(x, p.get_y())
+            p.cell(w, 7, h, border=1, align='C', fill=True)
+            x += w
+        p.set_xy(p.l_margin, p.get_y() + 7)
+        p.set_text_color(*self.INK)
+
+    # ---- satu baris data: fill → teks → grid, semua relatif y0 ----
+    def _row(self, vals, fill):
+        p = self.pdf
+        h = self._row_h(vals)
+        if p.get_y() + h > p.h - p.b_margin - 2:
+            p.add_page()
+            self._table_header()
+        y0 = p.get_y()
+        x0 = p.l_margin
+        total_w = sum(self.WIDTHS)
+        p.set_font(p._font(), '', 7)
+        p.set_text_color(*self.INK)
+        # 1) fill zebra satu blok penuh
+        if fill:
+            p.set_fill_color(241, 245, 249)
+            p.rect(x0, y0, total_w, h, style='F')
+        # 2) teks per kolom (tanpa border/fill)
+        x = x0
+        for ci, (w, v) in enumerate(zip(self.WIDTHS, vals)):
+            txt = p.clean_text(str(v if v not in (None, '') else '-'))
+            if ci in self.WRAP_COLS:
+                p.set_xy(x + 1, y0 + self.PAD_V)
+                p.multi_cell(w - 2, self.LINE_H, txt, align=self.ALIGNS[ci])
+            else:
+                p.set_xy(x + 1, y0)
+                p.cell(w - 2, h, txt, align=self.ALIGNS[ci])
+            x += w
+        # 3) grid: rect luar + garis kolom (selalu rata walau teks multi-baris)
+        p.set_draw_color(*self.RULE)
+        p.set_line_width(0.2)
+        p.rect(x0, y0, total_w, h, style='D')
+        xsep = x0
+        for w in self.WIDTHS[:-1]:
+            xsep += w
+            p.line(xsep, y0, xsep, y0 + h)
+        p.set_xy(x0, y0 + h)
 
     def _table(self, rows):
-        p = self.pdf
-        p.set_draw_color(*self.RULE)
-        p.set_fill_color(29, 78, 216)
-        p.set_text_color(255, 255, 255)
-        p.set_font(p._font(), 'B', 7.5)
-        p.set_line_width(0.2)
-        for w, h in zip(self.WIDTHS, self.HEADERS):
-            p.cell(w, 7, h, border=1, align='C', fill=True)
-        p.ln()
-        p.set_text_color(*self.INK)
+        self._table_header()
         fill = False
-        for i, r in enumerate(rows, 1):
-            vals = [str(i), r.get('display_id', '-'), _fmt_date(r.get('purchase_date')),
-                    r.get('ob_name', '-'), _items_text(r),
-                    str(sum(int(it.get('quantity') or 0) for it in (r.get('items') or []))),
-                    STATUS_LABEL.get(r.get('status'), r.get('status', '-')),
-                    r.get('remark') or '-', r.get('note') or '-']
-            h = self._row_h(vals)
-            if p.get_y() + h > p.h - 22:
-                self._page_break_continue(rows, i)
-                fill = False
-            x0 = p.l_margin
-            p.set_xy(x0, p.get_y())
-            p.set_font(p._font(), '', 7)
-            if fill:
-                p.set_fill_color(241, 245, 249)
-            aligns = ['C', 'L', 'C', 'L', 'L', 'C', 'C', 'L', 'L']
-            wrap_idx = {4, 7, 8}
-            x = x0
-            for ci, (w, v) in enumerate(zip(self.WIDTHS, vals)):
-                p.set_xy(x, p.get_y())
-                if ci in wrap_idx:
-                    p.multi_cell(w, 3, p.clean_text(str(v)), border=1 if not fill else 1,
-                                 align=aligns[ci], fill=fill)
-                    x += w
-                    p.set_xy(x, p.get_y())
-                else:
-                    p.cell(w, h, p.clean_text(str(v)), border=1, align=aligns[ci], fill=fill)
-                    x += w
-            p.ln(h)
+        for vals in _row_values(rows):
+            self._row(vals, fill)
             fill = not fill
-
-    def _page_break_continue(self, rows, next_i):
-        p = self.pdf
-        p.add_page()
-        self._table_header_again()
-
-    def _table_header_again(self):
-        p = self.pdf
-        p.set_draw_color(*self.RULE)
-        p.set_fill_color(29, 78, 216)
-        p.set_text_color(255, 255, 255)
-        p.set_font(p._font(), 'B', 7.5)
-        for w, h in zip(self.WIDTHS, self.HEADERS):
-            p.cell(w, 7, h, border=1, align='C', fill=True)
-        p.ln()
-        p.set_text_color(*self.INK)
 
     def _summary(self, t):
         p = self.pdf
@@ -306,38 +401,46 @@ class WaterReportPDF:
             f"Ditolak {t['rejected']}  |  Total Qty {t['qty']}"),
             new_x='LMARGIN', new_y='NEXT')
 
-    def _signatures(self, head_name, fin_name):
+    def _signatures(self, head_name, fin_name, meta):
         p = self.pdf
-        if p.get_y() + 34 > p.h - 16:
+        need = 48
+        if p.get_y() + need > p.h - p.b_margin:
             p.add_page()
-        p.ln(6)
+        p.ln(4)
+        y0 = p.get_y()
+        city = (meta.get('city') or '').strip()
+        place = f"{city}, {_fmt_date(meta.get('to'))}" if city else _fmt_date(meta.get('to'))
         p.set_font(p._font(), '', 8)
         p.set_text_color(*self.INK)
-        col_w = 80
-        gap = (p.w - p.l_margin - p.r_margin - 2 * col_w) / 2
-        y0 = p.get_y()
-        # kiri: Finance (Dibuat oleh)
         p.set_xy(p.l_margin, y0)
+        p.cell(0, 5, p.clean_text(place), align='R')
+
+        col_w = 80
+        usable = p.w - p.l_margin - p.r_margin
+        gap = (usable - 2 * col_w) / 2
+        y_label = y0 + 8
+        p.set_xy(p.l_margin, y_label)
         p.cell(col_w, 5, 'Dibuat oleh,', align='C')
-        # kanan: Kepala Cabang (Mengetahui)
-        p.set_xy(p.l_margin + col_w + gap, y0)
+        p.set_xy(p.l_margin + col_w + gap, y_label)
         p.cell(col_w, 5, 'Mengetahui,', align='C')
-        p.ln(18)
+
+        y_line = y_label + 20
         p.set_draw_color(*self.GRAY_LABEL)
         p.set_line_width(0.3)
-        y_line = p.get_y()
         p.line(p.l_margin + 8, y_line, p.l_margin + col_w - 8, y_line)
-        p.line(p.l_margin + col_w + gap + 8, y_line, p.l_margin + col_w + gap + col_w - 8, y_line)
-        p.ln(2)
+        p.line(p.l_margin + col_w + gap + 8, y_line,
+               p.l_margin + col_w + gap + col_w - 8, y_line)
+
         p.set_font(p._font(), 'B', 9)
-        p.set_xy(p.l_margin, p.get_y())
+        p.set_xy(p.l_margin, y_line + 2)
         p.cell(col_w, 5, p.clean_text(fin_name).upper(), align='C')
-        p.set_xy(p.l_margin + col_w + gap, p.get_y())
+        p.set_xy(p.l_margin + col_w + gap, y_line + 2)
         p.cell(col_w, 5, p.clean_text(head_name).upper(), align='C')
-        p.ln(5)
+
         p.set_font(p._font(), 'I', 7)
         p.set_text_color(*self.GRAY_LABEL)
-        p.set_xy(p.l_margin, p.get_y())
+        p.set_xy(p.l_margin, y_line + 8)
         p.cell(col_w, 4, 'Finance', align='C')
-        p.set_xy(p.l_margin + col_w + gap, p.get_y())
+        p.set_xy(p.l_margin + col_w + gap, y_line + 8)
         p.cell(col_w, 4, 'Kepala Cabang', align='C')
+        p.set_y(y_line + 14)

@@ -149,15 +149,18 @@ def _session_name():
 
 
 def _month_range(today=None):
-    """(awal, akhir) bulan berjalan — default rentang daftar pengajuan (v2.37.4)."""
+    """(awal, akhir) bulan berjalan, INKLUSIF — default rentang daftar (v2.37.4).
+
+    v2.37.6: akhir = hari terakhir bulan (inklusif, senada date picker UI).
+    Sebelumnya eksklusif (tanggal 1 bulan berikutnya) — bug: filter UI
+    "Sampai 31 Agustus" menyembunyikan transaksi 31 Agustus.
+    """
+    import calendar
     from datetime import date as _date
     t = today or _date.today()
     first = t.replace(day=1)
-    if t.month == 12:
-        nxt = _date(t.year + 1, 1, 1)
-    else:
-        nxt = _date(t.year, t.month + 1, 1)
-    return first, nxt  # akhir eksklusif — query pakai < nxt
+    last_day = calendar.monthrange(t.year, t.month)[1]
+    return first, _date(t.year, t.month, last_day)  # akhir INKLUSIF — query pakai < akhir+1 hari
 
 
 def _parse_ymd(s):
@@ -194,12 +197,43 @@ def _get_ttd_names():
 
 
 def _export_meta(d_from, d_to, status, q):
-    """Meta laporan export (v2.37.5): rentang, filter, identitas, nama TTD."""
+    """Meta laporan export (v2.37.6): rentang, filter, identitas CABANG, TTD.
+
+    Kop laporan mengikuti cabang sesi (tabel branches di DB master:
+    address/phone/company_subtitle). Fallback identitas global bila baris
+    cabang tidak ada / DB master tak tersedia.
+    """
+    company = {}
+    city = ''
+    branch = (session.get('branch_code') or '').strip().upper() or 'JKT'
     try:
-        from modules.company_identity import get_company_identity
-        ident = get_company_identity()
-    except Exception:
-        ident = {}
+        conn = get_db_connection(master=True)
+        if conn:
+            cur = conn.cursor(dictionary=True)
+            cur.execute(
+                "SELECT company_name, company_subtitle, address, phone, city "
+                "FROM branches WHERE code=%s", (branch,))
+            row = cur.fetchone() or {}
+            cur.close()
+            conn.close()
+            city = (row.get('city') or '').strip()
+            name = (row.get('company_name') or '').strip() or 'PT BESTPROFIT FUTURES'
+            subtitle = ((row.get('company_subtitle') or '').strip()
+                        or (f'Cabang {city}' if city else f'Cabang {branch}'))
+            company = {'company_name': name, 'company_subtitle': subtitle}
+            if (row.get('address') or '').strip():
+                company['company_address'] = row['address'].strip()
+            if (row.get('phone') or '').strip():
+                company['company_phone'] = row['phone'].strip()
+    except Exception as e:
+        print(f"[water] export_meta branch identity: {e}")
+        company = {}
+    if not company:
+        try:
+            from modules.company_identity import get_company_identity
+            company = get_company_identity()
+        except Exception:
+            company = {}
     _, finance_name, head_name = _get_ttd_names()
     parts = []
     if status != 'all':
@@ -209,7 +243,8 @@ def _export_meta(d_from, d_to, status, q):
     return {
         'from': d_from, 'to': d_to,
         'filters_text': ' · '.join(parts),
-        'company': ident,
+        'company': company,
+        'city': city,
         'head_name': head_name,
         'finance_name': finance_name,
     }
@@ -225,8 +260,13 @@ def _query_purchases(d_from, d_to, status, q, role):
     if not conn:
         return None, None
     cur = conn.cursor(dictionary=True)
+    # v2.37.6: `to` INKLUSIF (senada date picker UI) — query pakai
+    # < (d_to + 1 hari). purchase_date bertipe DATE (tanpa jam), jadi
+    # +1 hari = aman & tetap parameterized.
+    from datetime import timedelta as _td
+    to_excl = d_to + _td(days=1)
     where = ["wp.purchase_date >= %s", "wp.purchase_date < %s"]
-    params = [d_from, d_to]
+    params = [d_from, to_excl]
     if status != 'all':
         where.append("wp.status = %s")
         params.append(status)
@@ -569,7 +609,7 @@ def register_water_routes(app):
             d_from = _parse_ymd(request.args.get('from'))
             d_to = _parse_ymd(request.args.get('to'))
             if d_from is None and d_to is None:
-                d_from, d_to = _month_range()  # akhir eksklusif
+                d_from, d_to = _month_range()  # akhir bulan (inklusif)
             elif d_from is None:
                 d_from = d_to
             elif d_to is None:
@@ -586,7 +626,7 @@ def register_water_routes(app):
             conn.close()
             return jsonify({
                 'purchases': rows,
-                'range': {'from': str(d_from), 'to': str(d_to), 'to_exclusive': True},
+                'range': {'from': str(d_from), 'to': str(d_to), 'to_inclusive': True},
                 'filters': {'status': status, 'q': q},
             })
         except Exception as e:

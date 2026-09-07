@@ -4,7 +4,8 @@ Permintaan finance: date range search + filter status; default daftar
 menampilkan pengajuan bulan berjalan (awal s/d akhir bulan).
 
 Diuji:
-- _month_range       : awal & akhir bulan (termasuk Desember → Januari);
+- _month_range       : awal & akhir bulan INKLUSIF (akhir = hari terakhir
+                       bulan, senada date picker UI — v2.37.6);
 - _parse_ymd         : valid / invalid / None;
 - SQL guard          : WHERE memakai parameter (%s) — tidak ada f-string nilai;
 - endpoint           : default bulan berjalan, from/to eksplisit, status
@@ -32,17 +33,17 @@ class TestMonthRange:
     def test_awal_dan_akhir_bulan(self):
         f, t = _month_range(date(2026, 9, 7))
         assert f == date(2026, 9, 1)
-        assert t == date(2026, 10, 1)  # eksklusif
+        assert t == date(2026, 9, 30)  # inklusif: hari terakhir bulan
 
     def test_desember_ke_januari(self):
         f, t = _month_range(date(2026, 12, 31))
         assert f == date(2026, 12, 1)
-        assert t == date(2027, 1, 1)
+        assert t == date(2026, 12, 31)  # Desember tetap di bulan yang sama
 
     def test_tanggal_1(self):
         f, t = _month_range(date(2026, 2, 1))
         assert f == date(2026, 2, 1)
-        assert t == date(2026, 3, 1)
+        assert t == date(2026, 2, 28)  # 2026 bukan tahun kabisat
 
 
 class TestParseYmd:
