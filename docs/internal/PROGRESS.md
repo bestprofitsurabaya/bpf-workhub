@@ -145,6 +145,18 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
    error.
 5. Suite akhir: **524 pytest + 6 skip, 121 vitest** — hijau. Tag v2.37.2
    di-push.
+6. **E2E air minum live (permintaan pemilik)** — toggle edit/hapus
+   DIAKTIFKAN utk SBY (`water_edit_enabled=true`, audit `water_edit_toggle`)
+   + E2E penuh 21/22 ✅: create OB (ob_edwin_sby, 2 foto PIL) → detail 2 foto
+   → `/uploads/` 200 image/jpeg dgn sesi finance_sby → verify 428
+   STEPUP_REQUIRED → step-up PIN → verified → edit qty 2→3 (edit_count=1)
+   → hapus permanen (row + 2 foto terhapus) → audit edit/delete/toggle
+   tercatat. Snapshot `old_data` terverifikasi LENGKAP di DB
+   (activity_logs.old_data). ⚠️ Gap ditemukan: `/api/audit-logs` hanya
+   SELECT kolom ringkasan — old_data/new_data tidak diekspos ke UI Log
+   (rekomendasi: endpoint detail per entri audit). Data uji dibersihkan
+   (#35-37); tersisa 5 pengajuan pending uji dari sesi sebelumnya
+   (WTR-SBY-20260907-0009..0013, dibuat Febri) menunggu keputusan cleanup.
 
 ### Sesi 2026-09-06 (lanjutan) — Deploy v2.36.0 + restrukturisasi docs + v2.36.1/v2.36.2 data overtime tidak aktual ✅ SELESAI + DEPLOY LIVE
 
