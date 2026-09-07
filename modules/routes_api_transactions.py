@@ -115,6 +115,53 @@ def register_transaction_api(app):
             print(f'[ERROR] api_audit_logs: {e}')
             return jsonify({'error': 'Terjadi kesalahan server'}), 500
 
+    @app.route('/api/audit-logs/<int:log_id>')
+    @role_required(['ga', 'finance', 'admin'])
+    def api_audit_log_detail(log_id):
+        """Detail satu entri audit log — termasuk snapshot old_data/new_data (v2.37.3).
+
+        List `/api/audit-logs` sengaja ringkas (tanpa snapshot JSON agar tabel UI
+        tetap ringan). Detail penuh hanya via endpoint ini — dipakai UI Log
+        (klik baris) utk memeriksa jejak perubahan, mis. snapshot sebelum hapus
+        transaksi air minum.
+
+        Scoping: log dibaca dari DB cabang sesi (atau ?branch= utk Admin Pusat);
+        admin cabang tetap terkunci ke cabangnya sendiri (paritas list).
+        """
+        try:
+            branch = request.args.get('branch', '').strip().upper()
+            if (session.get('user_role') == 'admin' and branch
+                    and not is_ho_admin()):
+                from modules.admin_scope import admin_can_operate_branch
+                if not admin_can_operate_branch(branch):
+                    return jsonify({'status': 'error',
+                                    'msg': 'Admin cabang hanya boleh melihat log cabangnya.'}), 403
+            conn = get_db_connection(branch_code=branch or None)
+            if not conn:
+                return jsonify({'error': 'DB error'}), 500
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute(
+                "SELECT id, transaction_id, action, user_type, user_name, "
+                "old_data, new_data, ip_address, user_agent, branch_code, created_at "
+                "FROM activity_logs WHERE id = %s LIMIT 1", (log_id,))
+            row = cursor.fetchone()
+            cursor.close(); conn.close()
+            if not row:
+                return jsonify({'status': 'error', 'msg': 'Log tidak ditemukan'}), 404
+            # Kolom JSON bisa datang sebagai str (driver lama) — pastikan objek.
+            for k in ('old_data', 'new_data'):
+                v = row.get(k)
+                if isinstance(v, str):
+                    try:
+                        import json as _json
+                        row[k] = _json.loads(v)
+                    except (ValueError, TypeError):
+                        row[k] = None
+            return jsonify(row)
+        except Exception as e:
+            print(f'[ERROR] api_audit_log_detail: {e}')
+            return jsonify({'error': 'Terjadi kesalahan server'}), 500
+
     @app.route('/api/cross-check/<int:tx_id>')
     @role_required(['ga', 'finance', 'admin'])
     def api_cross_check(tx_id):

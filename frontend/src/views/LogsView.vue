@@ -4,6 +4,7 @@ import { api } from '../api'
 import LoadingState from '../components/LoadingState.vue'
 import EmptyState from '../components/EmptyState.vue'
 import ErrorState from '../components/ErrorState.vue'
+import Modal from '../components/Modal.vue'
 
 const logs = ref([])
 const loading = ref(true)
@@ -45,6 +46,24 @@ const todayCount = computed(() =>
   logs.value.filter((l) => new Date(l.created_at).toDateString() === new Date().toDateString()).length)
 
 const actionLabel = (a) => (a || '—').replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+
+// ---- Detail snapshot (v2.37.3): klik baris → old_data/new_data ----
+const detail = ref(null)
+const detailLoading = ref(false)
+const detailErr = ref('')
+
+async function openDetail(l) {
+  detailErr.value = ''; detail.value = null; detailLoading.value = true
+  try {
+    const q = fBranch.value !== 'current' ? `?branch=${encodeURIComponent(fBranch.value)}` : ''
+    detail.value = await api(`/api/audit-logs/${l.id}${q}`)
+  } catch (e) { detailErr.value = e.message }
+  finally { detailLoading.value = false }
+}
+
+const snapshotKeys = (snap) => Object.keys(snap || {}).sort()
+const fmtVal = (v) => (v === null || v === undefined || v === '') ? '—'
+  : (typeof v === 'object' ? JSON.stringify(v) : String(v))
 
 function prevPage() { page.value = Math.max(1, page.value - 1) }
 function nextPage() { page.value = Math.min(pageCount.value, page.value + 1) }
@@ -97,7 +116,7 @@ onMounted(async () => {
       <div class="card">
         <div class="table-wrap">
           <table class="tbl">
-            <thead><tr><th>Waktu</th><th>User</th><th>Tipe</th><th>Aksi</th><th>Ref</th><th>Cabang</th><th>IP</th></tr></thead>
+            <thead><tr><th>Waktu</th><th>User</th><th>Tipe</th><th>Aksi</th><th>Ref</th><th>Cabang</th><th>IP</th><th></th></tr></thead>
             <tbody>
               <tr v-for="l in paged" :key="l.id">
                 <td class="muted">{{ l.created_at }}</td>
@@ -107,8 +126,9 @@ onMounted(async () => {
                 <td>{{ l.transaction_id || '—' }}</td>
                 <td><span v-if="l.branch_code" class="branch-chip">🏢 {{ l.branch_code }}</span><span v-else class="muted">—</span></td>
                 <td class="muted">{{ l.ip_address || '—' }}</td>
+                <td style="text-align:center;"><button class="btn btn-sm" style="padding:1px 8px;font-size:11px;" title="Lihat detail snapshot" @click="openDetail(l)">🔍</button></td>
               </tr>
-              <tr v-if="!filtered.length"><td colspan="7" style="padding:0;"><EmptyState message="Tidak ada data dengan filter ini." icon="🔍" /></td></tr>
+              <tr v-if="!filtered.length"><td colspan="8" style="padding:0;"><EmptyState message="Tidak ada data dengan filter ini." icon="🔍" /></td></tr>
             </tbody>
           </table>
         </div>
@@ -120,5 +140,55 @@ onMounted(async () => {
         <button class="btn btn-sm" :disabled="page >= pageCount" @click="nextPage">Berikutnya →</button>
       </div>
     </template>
+
+    <!-- Modal detail snapshot (v2.37.3) -->
+    <Modal v-if="detail || detailLoading || detailErr" :title="'🔍 Detail Log #' + (detail ? detail.id : '…')" @close="detail = null; detailErr = ''">
+      <div v-if="detailLoading" class="muted" style="padding:20px;text-align:center;">⏳ Memuat detail…</div>
+      <div v-else-if="detailErr" class="alert alert-error">{{ detailErr }}</div>
+      <template v-else-if="detail">
+        <div class="row" style="gap:8px;align-items:center;flex-wrap:wrap;">
+          <span class="badge badge-gray">{{ detail.user_type }}</span>
+          <b>{{ detail.user_name || '—' }}</b>
+          <span class="badge badge-blue">{{ actionLabel(detail.action) }}</span>
+          <span v-if="detail.branch_code" class="branch-chip">🏢 {{ detail.branch_code }}</span>
+        </div>
+        <p class="muted" style="font-size:12px;margin-top:6px;">
+          🕐 {{ detail.created_at }} · 🌐 {{ detail.ip_address || '—' }} · Ref: {{ detail.transaction_id || '—' }}
+        </p>
+        <p v-if="detail.user_agent" class="muted" style="font-size:11px;word-break:break-all;">🖥️ {{ detail.user_agent }}</p>
+        <div v-if="detail.old_data" style="margin-top:12px;">
+          <b style="font-size:12px;color:#b45309;">📥 Data Lama (sebelum aksi)</b>
+          <div class="card card-pad" style="margin-top:6px;background:var(--bg-alt,#fffbeb);">
+            <table class="tbl">
+              <tbody>
+                <tr v-for="k in snapshotKeys(detail.old_data)" :key="'o'+k">
+                  <td class="muted" style="width:30%;">{{ k }}</td>
+                  <td style="word-break:break-word;">{{ fmtVal(detail.old_data[k]) }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div v-if="detail.new_data" style="margin-top:12px;">
+          <b style="font-size:12px;color:#15803d;">📤 Data Baru (setelah aksi)</b>
+          <div class="card card-pad" style="margin-top:6px;background:var(--bg-alt,#f0fdf4);">
+            <table class="tbl">
+              <tbody>
+                <tr v-for="k in snapshotKeys(detail.new_data)" :key="'n'+k">
+                  <td class="muted" style="width:30%;">{{ k }}</td>
+                  <td style="word-break:break-word;">{{ fmtVal(detail.new_data[k]) }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div v-if="!detail.old_data && !detail.new_data" class="muted" style="margin-top:12px;font-size:12px;">
+          Entri ini tidak menyimpan snapshot data.
+        </div>
+        <div class="row" style="justify-content:flex-end;margin-top:12px;">
+          <button class="btn" @click="detail = null">Tutup</button>
+        </div>
+      </template>
+    </Modal>
   </div>
 </template>

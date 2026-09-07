@@ -4,6 +4,25 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 
 ---
 
+## v2.37.3 — 7 September 2026 (Detail snapshot audit log di UI Log)
+
+Lanjutan temuan E2E air minum: snapshot `old_data`/`new_data` tersimpan di
+DB tapi tidak bisa dilihat admin dari UI Log.
+
+### Ditambah
+- **`GET /api/audit-logs/<id>`** — detail satu entri audit log termasuk
+  snapshot `old_data`/`new_data` (di-parse ke objek bila datang sebagai
+  string). Role: ga/finance/admin; scoping cabang paritas dengan list
+  (admin cabang terkunci ke cabangnya, `?branch=` khusus Admin Pusat).
+- **UI Log** — tombol 🔍 per baris membuka modal detail: metadata (user,
+  aksi, cabang, IP, user-agent, waktu) + tabel snapshot Data Lama & Data
+  Baru; pesan jelas bila entri tidak menyimpan snapshot.
+- Test: +5 vitest (modal buat/tutup, id mengikuti entri yang diklik,
+  entri tanpa snapshot, error di modal, list tetap utuh) — suite
+  **524 pytest + 6 skip** dan **126 vitest**, hijau.
+
+---
+
 ## v2.37.2 — 7 September 2026 (Fix: foto bukti tidak muncul + preview di verifikasi air minum)
 
 Laporan finance: gambar bukti tidak muncul & butuh preview saat proses
