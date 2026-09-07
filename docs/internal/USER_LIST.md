@@ -29,7 +29,7 @@ Akun berikut dibuat otomatis saat inisialisasi database:
 
 | # | Username | Nama Lengkap | Role | PIN | Keterangan |
 |---|----------|--------------|------|-----|------------|
-| 1 | `admin` | Administrator | `admin` | `••••••` | Akses penuh ke seluruh sistem |
+| 1 | `admin_master` | Administrator Pusat | `admin` | `••••••` | Admin Pusat (semua cabang; flag `admin_all_branches=1`). Rename dari `admin`, 7 Sep 2026 |
 | 2 | `ga_sby` | GA Officer | `ga` | `••••••` | General Affairs Officer (Surabaya) |
 | 3 | `finance_sby` | Finance Officer | `finance` | `••••••` | Finance Officer (Surabaya) |
 
@@ -51,6 +51,25 @@ Setiap divisi back-office punya user unik per cabang dengan format `{divisi}_{ko
 > PIN default semua user: diatur saat pembuatan akun (tidak dicantumkan di dokumen ini). Role di DB tetap sama (misal `finance_sby` → role `finance`),
 > hanya username yang unik. Label di UI otomatis menyesuaikan (Finance Surabaya, GA Bandung, dst).
 >
+### 🔑 Akun Admin per-Cabang (aktif sejak 7 Sep 2026)
+
+| Username | Cabang | Role | PIN awal | DB |
+|----------|--------|------|----------|-----|
+| `admin_master` | Semua (Admin Pusat) | `admin` | `123456` | bpf_asset_system |
+| `admin_jkt` | JKT | `admin` | `123456` | bpf_branch_jkt |
+| `admin_sby` | SBY | `admin` | `123456` | bpf_asset_system |
+| `admin_bdg` | BDG | `admin` | `123456` | bpf_branch_bdg |
+| `admin_smg` | SMG | `admin` | `123456` | bpf_branch_smg |
+| `admin_mlg` | MLG | `admin` | `123456` | bpf_branch_malang |
+| `admin_mdn` | MDN | `admin` | `123456` | bpf_branch_mdn |
+| `admin_bjm` | BJM | `admin` | `123456` | bpf_branch_bjm |
+| `admin_plm` | PLM | `admin` | `123456` | bpf_branch_plm |
+| `admin_lpg` | LPG | `admin` | `123456` | bpf_branch_lpg |
+| `admin_jkt2` | JKT2 | `admin` | `123456` | bpf_branch_jkt2 |
+
+> ⚠️ PIN awal `123456` sesuai konvensi akun IT cabang — wajib diganti saat login pertama.
+> Akun test `e2e_admin_tmp` dinonaktifkan (7 Sep 2026).
+
 > Bila **lebih dari satu orang** di divisi & cabang yang sama (mis. 3 OB Surabaya),
 > username memakai nama: `ob_faisol_sby`, `ob_febri_sby`, `ob_edwin_sby` — bukan `ob1/ob2/ob3`.
 > Khusus Driver: username = nama orang (`akhad`) — dipakai login PWA pendek di HP.
@@ -88,14 +107,15 @@ Sistem mendukung **11 peran inti** (peran `it` dipecah per cabang pada daftar di
 
 ## 3. Detail Akses per Role
 
-### 🔑 Admin (`admin` / `admin_<cabang>`)
+### 🔑 Admin (`admin_master` / `admin_<cabang>`)
 
 **Akses:** Semua halaman & API
 
 **Dua tingkat (v2.37.0):**
-- `admin` (tanpa sufiks) = **Admin Pusat** — semua cabang, bisa ganti cabang
-  kerja, kelola cabang/user global, reset nomor dokumen, arsip audit,
-  Access Review.
+- `admin_master` = **Admin Pusat** — semua cabang (flag `admin_all_branches=1`),
+  bisa ganti cabang kerja, kelola cabang/user global, reset nomor dokumen,
+  arsip audit, Access Review. Akun ini rename dari `admin` (7 Sep 2026) dan
+  jadi backup bila admin cabang ada kendala.
 - `admin_<kode>` (mis. `admin_sby`) = **Admin Cabang** — semua halaman admin
   tampil, tapi operasional terkunci ke cabangnya: tidak bisa ganti cabang,
   tidak bisa aksi lintas cabang (menu Access Review & Audit Log disembunyikan
@@ -412,7 +432,7 @@ Sistem mendukung **11 peran inti** (peran `it` dipecah per cabang pada daftar di
 | Branch Code | Multi-cabang: user dikaitkan dengan cabang tertentu |
 | Access Review | Review hak akses triwulanan (Jan/Apr/Jul/Okt) — akun tanpa login > 90 hari diklasifikasi "basi" & bisa dinonaktifkan Admin |
 | ACC Berjenjang (v2.36.0) | Pengajuan wajib ACC atasan dulu: kasbon & klaim BBM → Chief Driver lalu GA; overtime → GA HR lalu Admin. Admin bisa mengatur atasan khusus per user (kolom "Atasan" di Manajemen User); pengaju tidak bisa memutus pengajuannya sendiri; penolakan wajib alasan & tercatat di audit log |
-| Admin per-cabang (v2.37.0) | `admin` = Admin Pusat; `admin_<kode>` = Admin cabang (terkunci ke cabangnya). 1 admin utk 2 cabang: `users.managed_branches` = `SBY,BDG`. Promosi ke pusat: `users.admin_all_branches = 1`. Aksi lintas cabang (switch, docseq cabang lain, arsip audit, access review) ditolak 403 bagi admin cabang |
+| Admin per-cabang (v2.37.0) | `admin_master` = Admin Pusat (flag `admin_all_branches=1`); `admin_<kode>` = Admin cabang (terkunci ke cabangnya). 1 admin utk 2 cabang: `users.managed_branches` = `SBY,BDG`. Promosi ke pusat: `users.admin_all_branches = 1`. Aksi lintas cabang (switch, docseq cabang lain, arsip audit, access review) ditolak 403 bagi admin cabang |
 | Edit/hapus air minum (v2.37.0) | Fitur opsional per cabang (`system_config.water_edit_enabled`, default nonaktif). Aktif → Finance edit (pending/verified) & hapus permanen pengajuan; keduanya wajib step-up PIN + snapshot data lama tersimpan di audit log |
 
 ---
