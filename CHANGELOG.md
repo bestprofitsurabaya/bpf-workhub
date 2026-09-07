@@ -4,6 +4,75 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 
 ---
 
+## v2.37.0 — 7 September 2026 (Edit/hapus transaksi air minum + admin per-cabang + Pengaturan terstruktur)
+
+Tiga permintaan lapangan sekaligus: (1) Finance bisa mengoreksi & menghapus
+transaksi air minum — fitur opsional yang di-enable/non-aktifkan Admin per
+cabang; (2) akun admin mengikuti konvensi `{divisi}_{cabang}` — `admin_sby`,
+`admin_bdg`, dst. terkunci ke cabangnya masing-masing; (3) halaman Pengaturan
+Admin yang menumpuk dibenahi jadi terstruktur dengan peta seksi.
+
+### Ditambah — Edit & Hapus Transaksi Air Minum (fitur opsional, default NONAKTIF)
+- Toggle Admin di **Pengaturan → 🚰 Air Minum** (`system_config`
+  `water_edit_enabled` per DB cabang — berlaku per cabang, bukan global).
+  Bila nonaktif, perilaku persis seperti sebelumnya (tidak ada tombol baru,
+  API menolak 403).
+- **Edit** (`PUT /api/water/purchases/<id>`): Finance/admin bisa mengoreksi
+  tanggal pengiriman, rincian item (jenis/merk/satuan/qty), remark & note —
+  untuk pengajuan berstatus **Menunggu** dan **Terverifikasi** (status
+  Ditolak tidak bisa diedit — cukup alasan tolaknya). Foto bukti OB tidak
+  berubah lewat endpoint ini (bukti tetap orisinal).
+- **Hapus permanen** (`DELETE /api/water/purchases/<id>`): baris + item +
+  file foto dihapus; **snapshot lengkap disimpan di audit log** sebelum
+  terhapus (`old_data`) — jejak satu-satunya yang tersisa, sesuai keputusan
+  "hapus permanen + audit".
+- Keduanya wajib **step-up PIN** (428 tanpa grant — sama dengan verifikasi)
+  dan tercatat penuh di audit log (`water_purchase_edit` /
+  `water_purchase_delete`).
+- Kolom jejak edit baru di `water_purchases`: `edited_by`, `edited_at`,
+  `edit_count` (dibuat otomatis saat startup di master + tiap DB cabang,
+  idempoten; juga ikut `ensure_branch_database` untuk cabang baru).
+- SPA: tombol ✏️ Edit & 🗑️ di WaterView (finance/admin) hanya muncul bila
+  fitur aktif; modal edit dengan validasi item sama seperti form pengajuan;
+  hapus dengan konfirmasi + step-up PIN.
+
+### Ditambah — Admin per-cabang (`admin_<kode>`)
+- Konvensi username v2.29.7 kini berlaku juga untuk admin: **`admin`** (tanpa
+  sufiks) = Admin Pusat — semua cabang; **`admin_<kode>`** (mis. `admin_sby`)
+  = Admin Cabang — operasional terkunci ke cabangnya.
+- Modul baru `modules/admin_scope.py`: deteksi Admin Pusat (fail-closed —
+  DB mati = dianggap admin cabang), daftar cabang milik akun (suffix username
+  + kolom `users.managed_branches` utk 1 admin multi-cabang), flag
+  `users.admin_all_branches` (promosi manual via SQL), decorator `ho_only`,
+  dan `assert_branch_row_scope` (baris di luar cabang → 403).
+- Endpoint lintas cabang kini **khusus Admin Pusat** (admin cabang → 403):
+  ganti cabang kerja (`/api/branches/switch`), daftar/daftar+reset nomor
+  dokumen cabang lain, retensi & arsip audit global, access review + export,
+  daftar cabang untuk switcher.
+- Audit log (`/api/audit-logs?branch=`): admin cabang hanya boleh membaca
+  log cabangnya.
+- Login & `/api/auth/me` kini menyertakan `is_ho_admin` → SPA menyembunyikan
+  switcher cabang & menu lintas cabang (Access Review, Audit Log) untuk
+  admin cabang; sidebar menandai "🔒 Cabang".
+- `admin_all_branches` + `managed_branches` dibuat otomatis saat startup
+  (master + tiap DB cabang).
+
+### Diubah — Pengaturan (SPA) lebih terstruktur
+- Peta seksi **sticky** di atas halaman: 🚗 Data Master · 🚰 Air Minum ·
+  🏢 Cabang & Nomor · 🗄️ Kepatuhan (ISO) · 🎨 Identitas · 🧪 Lainnya — klik
+  langsung scroll; seksi aktif ter-highlight saat scroll (IntersectionObserver).
+- Toggle edit/hapus air minum memakai switch standar (label AKTIF/NONAKTIF)
+  dengan konfirmasi.
+
+### Test
+- **511 pytest** (+35: `tests/test_admin_scope.py` 13, `tests/test_water_edit_delete.py`
+  19 — termasuk gate fitur, step-up 428, scoping admin cabang, foto terhapus,
+  endpoint toggle; `TestAdminCabangScope` 3 — guard manajemen user) +
+  **115 vitest** (+6: WaterView edit/delete UI 4, SettingsView peta seksi +
+  toggle 2). Build SPA sukses.
+
+---
+
 ## v2.36.2 — 6 September 2026 (Kunci sinkronisasi overtime yang stabil)
 
 Lanjutan v2.36.1: identitas baris overtime Driver tidak lagi bergantung pada

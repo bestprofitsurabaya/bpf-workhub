@@ -75,6 +75,7 @@ def _client(monkeypatch, role='admin', master=None):
         with client.session_transaction() as s:
             s['user_role'] = role
             s['full_name'] = 'Admin Test'
+            s['user_name'] = 'admin'  # v2.37.0: scoping admin membaca username sesi
     return client
 
 

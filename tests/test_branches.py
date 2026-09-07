@@ -174,6 +174,7 @@ class TestBranchAPI:
         client, _ = _patch_branch_api(monkeypatch, _db())
         with client.session_transaction() as s:
             s['user_role'] = 'admin'
+            s['user_name'] = 'admin'  # v2.37.0: Admin Pusat boleh ganti cabang
         r = client.post('/api/branches/switch', json={'code': 'MLG'})
         assert r.status_code == 200
         with client.session_transaction() as s:
@@ -186,7 +187,17 @@ class TestBranchAPI:
         client, _ = _patch_branch_api(monkeypatch, db)
         with client.session_transaction() as s:
             s['user_role'] = 'admin'
+            s['user_name'] = 'admin'
         assert client.post('/api/branches/switch', json={'code': 'MLG'}).status_code == 404
+
+    def test_switch_admin_cabang_ditolak(self, monkeypatch):
+        # v2.37.0: admin_<kode> tidak boleh mengganti cabang kerja.
+        client, _ = _patch_branch_api(monkeypatch, _db())
+        with client.session_transaction() as s:
+            s['user_role'] = 'admin'
+            s['user_name'] = 'admin_sby'
+            s['branch_code'] = 'SBY'
+        assert client.post('/api/branches/switch', json={'code': 'MLG'}).status_code == 403
 
     def test_non_admin_ditolak_403(self, monkeypatch):
         client, _ = _patch_branch_api(monkeypatch, _db())

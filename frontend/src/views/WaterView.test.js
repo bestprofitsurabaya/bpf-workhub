@@ -16,6 +16,10 @@ vi.mock('../stores/stepup', () => ({
   }),
 }))
 
+// Status fitur edit/hapus (v2.37.0) — default nonaktif; test masing-masing
+// mengubah via mock api di bawah.
+let editEnabled = false
+
 const TYPES = [
   { id: 1, name: 'Gelas', brands: [{ id: 1, type_id: 1, brand: 'VIT' }] },
   { id: 2, name: 'Botol', brands: [{ id: 2, type_id: 2, brand: 'Le Minerale' }] },
@@ -30,6 +34,7 @@ async function mountView() {
   apiMock.mockImplementation((path) => {
     if (path === '/api/water/brands') return Promise.resolve({ types: TYPES, brands: [] })
     if (path === '/api/water/purchases') return Promise.resolve(PURCHASES)
+    if (path === '/api/water/edit-enabled') return Promise.resolve({ enabled: editEnabled })
     if (path.startsWith('/api/water/purchases/')) return Promise.resolve(PURCHASES[0])
     return Promise.resolve({ status: 'success' })
   })
@@ -79,5 +84,45 @@ describe('WaterView', () => {
     await flushPromises()
     expect(w.text()).toContain('Remark')
     expect(w.text()).toContain('OK')
+  })
+
+  it('fitur nonaktif: tidak ada tombol edit/hapus', async () => {
+    editEnabled = false
+    const w = await mountView()
+    const btns = w.findAll('button').map((b) => b.text())
+    expect(btns).not.toContain('✏️ Edit')
+    expect(btns).not.toContain('🗑️')
+  })
+
+  it('fitur aktif: tombol edit & hapus tampil untuk pending & verified', async () => {
+    editEnabled = true
+    const w = await mountView()
+    const btns = w.findAll('button').map((b) => b.text())
+    expect(btns).toContain('✏️ Edit')
+    expect(btns.filter((t) => t === '🗑️').length).toBe(PURCHASES.length)
+  })
+
+  it('modal edit membuka form terisi & PUT ke endpoint edit', async () => {
+    editEnabled = true
+    const w = await mountView()
+    await w.findAll('button').find((b) => b.text() === '✏️ Edit').trigger('click')
+    await flushPromises()
+    expect(w.text()).toContain('Edit Pengajuan')
+    await w.findAll('button').find((b) => b.text() === '💾 Simpan Perubahan').trigger('click')
+    await flushPromises()
+    const putCall = apiMock.mock.calls.find((c) => c[0] === '/api/water/purchases/1' && c[1]?.method === 'PUT')
+    expect(putCall).toBeTruthy()
+    expect(putCall[1].body.items[0]).toEqual(expect.objectContaining({ brand: 'AQUA', quantity: 3 }))
+  })
+
+  it('hapus memanggil DELETE dengan konfirmasi', async () => {
+    vi.stubGlobal('confirm', vi.fn(() => true))
+    editEnabled = true
+    const w = await mountView()
+    await w.findAll('button').find((b) => b.text() === '🗑️').trigger('click')
+    await flushPromises()
+    expect(global.confirm).toHaveBeenCalled()
+    expect(apiMock).toHaveBeenCalledWith('/api/water/purchases/1', { method: 'DELETE' })
+    vi.unstubAllGlobals()
   })
 })

@@ -74,6 +74,10 @@ def _make_client(monkeypatch, role='admin'):
     if role:
         with client.session_transaction() as s:
             s['user_role'] = role
+            # v2.37.0: scoping admin membaca username sesi — sesi admin nyata
+            # selalu punya user_name (akun pusat 'admin').
+            s['user_name'] = 'admin'
+            s['branch_code'] = 'SBY'
     return client
 
 

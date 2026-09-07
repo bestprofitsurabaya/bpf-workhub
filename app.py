@@ -196,6 +196,47 @@ try:
 except Exception as _be:
     print(f'[retention] branch ensure error: {_be}')
 
+# v2.37.0: kolom jejak edit air minum (water_purchases.edited_by/edited_at/
+# edit_count) + kolom admin per-cabang (users.admin_all_branches/
+# managed_branches) di master + tiap DB cabang.
+from modules.routes_water import ensure_water_edit_columns
+from modules.admin_scope import ensure_branch_admin_columns
+for _attempt in range(5):
+    _wconn = _ret_master()
+    if _wconn:
+        try:
+            _ok_w = ensure_water_edit_columns(_wconn)
+            _ok_a = ensure_branch_admin_columns(_wconn)
+            if _ok_w and _ok_a:
+                break
+        except Exception as _we:
+            print(f'[water-admin] master ensure error: {_we}')
+        finally:
+            try:
+                _wconn.close()
+            except Exception:
+                pass
+    _time.sleep(3)
+try:
+    for _b in bm.list_branches():
+        if _b.get('is_active') and _b.get('db_name') and _b['db_name'] != os.environ.get('DB_NAME', 'bpf_asset_system'):
+            _bp = _ret_pool(_b['db_name'])
+            if _bp:
+                try:
+                    _bc = _bp.get_connection()
+                    try:
+                        ensure_water_edit_columns(_bc)
+                        ensure_branch_admin_columns(_bc)
+                    finally:
+                        try:
+                            _bc.close()
+                        except Exception:
+                            pass
+                except Exception as _we:
+                    print(f'[water-admin] {_b["code"]} ensure error: {_we}')
+except Exception as _be:
+    print(f'[water-admin] branch ensure error: {_be}')
+
 # Register all route modules
 from modules.routes_driver import register_driver_routes
 from modules.routes_api_master import register_master_api

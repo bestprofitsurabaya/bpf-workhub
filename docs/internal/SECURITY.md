@@ -1,4 +1,4 @@
-# 🔐 Keamanan & Kepatuhan Standar — BPF WorkHub v2.36.0
+# 🔐 Keamanan & Kepatuhan Standar — BPF WorkHub v2.37.0
 
 > **Dokumen ini menjelaskan bagaimana BPF WorkHub menjaga keamanan data dan mutu layanan**, serta bagaimana penerapannya mengacu pada standar internasional yang diakui dunia.
 >
@@ -148,7 +148,7 @@ Equity Tower, SCBD Lot 9, Jl. Jend. Sudirman Kav. 52-53, Jakarta Selatan 12190
 
 ---
 
-*BPF WorkHub v2.36.0 · Dokumen Keamanan & Kepatuhan · Diperbarui 6 September 2026*
+*BPF WorkHub v2.37.0 · Dokumen Keamanan & Kepatuhan · Diperbarui 6 September 2026*
 
 ---
 

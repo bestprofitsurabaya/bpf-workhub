@@ -3,6 +3,7 @@ from flask import request, jsonify, session
 from modules.config import get_db_connection
 from modules.helpers import log_activity_async, safe_float, role_required
 from modules.engine import generate_human_insight
+from modules.admin_scope import is_ho_admin
 from datetime import datetime, timedelta
 
 def register_transaction_api(app):
@@ -90,9 +91,19 @@ def register_transaction_api(app):
     @app.route('/api/audit-logs')
     @role_required(['ga', 'finance', 'admin'])
     def api_audit_logs():
-        """Audit log. Bila ?branch=<code> diberikan (admin), lihat log dari DB cabang itu."""
+        """Audit log. Bila ?branch=<code> diberikan (admin), lihat log dari DB cabang itu.
+
+        v2.37.0: Admin cabang (`admin_<kode>`) hanya boleh membaca log cabangnya
+        sendiri — param ?branch cabang lain ditolak 403.
+        """
         try:
             branch = request.args.get('branch', '').strip().upper()
+            if (session.get('user_role') == 'admin' and branch
+                    and not is_ho_admin()):
+                from modules.admin_scope import admin_can_operate_branch
+                if not admin_can_operate_branch(branch):
+                    return jsonify({'status': 'error',
+                                    'msg': 'Admin cabang hanya boleh melihat log cabangnya.'}), 403
             conn = get_db_connection(branch_code=branch or None)
             if not conn:
                 return jsonify({'error': 'DB error'}), 500

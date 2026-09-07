@@ -16,6 +16,14 @@ const err = ref('')
 const msg = ref('')
 const busy = ref(false)
 
+// ---- Fitur edit/hapus transaksi (v2.37.0) — di-enable Admin per cabang ----
+const editEnabled = ref(false)
+const showEditModal = ref(false)
+const editForm = ref({ id: null, display_id: '', purchase_date: '', remark: '', note: '', items: [] })
+
+const canEditDelete = computed(() => isFinance && editEnabled.value)
+const canEditRow = (p) => canEditDelete.value && ['pending', 'verified'].includes(p.status)
+
 // ---- Master merk (dropdown) ----
 const types = ref([])          // [{id, name, brands: [...]}]
 const typeOptions = computed(() => types.value.map((t) => t.name))
@@ -72,6 +80,10 @@ async function load() {
   loading.value = true; err.value = ''
   try {
     await loadMaster()
+    if (isFinance) {
+      // Status fitur edit/hapus (v2.37.0) — gagal = dianggap nonaktif (aman).
+      api('/api/water/edit-enabled').then((d) => { editEnabled.value = !!d?.enabled }).catch(() => { editEnabled.value = false })
+    }
     const list = await api('/api/water/purchases')
     purchases.value = Array.isArray(list) ? list : []
   } catch (e) { err.value = e.message }
@@ -179,6 +191,58 @@ function downloadPdf(p) {
   window.open(`/api/water/purchases/${p.id}/pdf`, '_blank')
 }
 
+// ---- Edit transaksi (v2.37.0) — koreksi tanggal/item/remark via step-up PIN ----
+function openEdit(p) {
+  editForm.value = {
+    id: p.id,
+    display_id: p.display_id,
+    purchase_date: fmtDate(p.purchase_date) === '-' ? '' : fmtDate(p.purchase_date),
+    remark: p.remark || '',
+    note: p.note || '',
+    items: (p.items || []).map((i) => ({ drink_type: i.drink_type, brand: i.brand, satuan: i.satuan, quantity: Number(i.quantity || 1) })),
+  }
+  showEditModal.value = true
+}
+
+function addEditItem() { editForm.value.items.push({ drink_type: typeOptions.value[0] || 'Galon', brand: '', satuan: 'pcs', quantity: 1 }) }
+function removeEditItem(i) { editForm.value.items.splice(i, 1) }
+
+async function submitEdit() {
+  const f = editForm.value
+  if (!f.purchase_date) { msg.value = '❌ Tanggal pengiriman wajib diisi'; return }
+  if (!f.items.length) { msg.value = '❌ Minimal satu item'; return }
+  for (const it of f.items) {
+    if (!it.brand || !(Number(it.quantity) > 0)) { msg.value = '❌ Setiap item wajib: merk & kuantitas > 0'; return }
+  }
+  busy.value = true; msg.value = ''
+  try {
+    const body = { purchase_date: f.purchase_date, remark: f.remark, note: f.note,
+                   items: f.items.map((i) => ({ drink_type: i.drink_type, brand: i.brand, satuan: i.satuan, quantity: Number(i.quantity) })) }
+    // Step-up (A.8.5): edit = mengubah dokumen pengeluaran yang mungkin sudah
+    // terverifikasi — wajib PIN ulang.
+    const d = await stepup.require(
+      () => api(`/api/water/purchases/${f.id}`, { method: 'PUT', body }),
+      `edit ${f.display_id || f.id}`)
+    msg.value = '✅ ' + (d.msg || 'Pengajuan diperbarui')
+    showEditModal.value = false
+    load()
+  } catch (e) { msg.value = '❌ ' + e.message }
+  finally { busy.value = false }
+}
+
+async function deletePurchase(p) {
+  if (!confirm(`HAPUS PERMANEN pengajuan ${p.display_id}?\n\nBaris + item + foto bukti akan dihapus. Snapshot lengkap tetap tercatat di audit log.`)) return
+  busy.value = true; msg.value = ''
+  try {
+    const d = await stepup.require(
+      () => api(`/api/water/purchases/${p.id}`, { method: 'DELETE' }),
+      `hapus ${p.display_id || p.id}`)
+    msg.value = '✅ ' + (d.msg || 'Pengajuan dihapus')
+    load()
+  } catch (e) { msg.value = '❌ ' + e.message }
+  finally { busy.value = false }
+}
+
 onMounted(() => { form.value.items.push(newItem()); load() })
 </script>
 
@@ -221,9 +285,11 @@ onMounted(() => { form.value.items.push(newItem()); load() })
             </div>
             <div class="row" style="gap:6px;">
               <button class="btn btn-sm" @click="openDetail(p)">👁️ Detail</button>
+              <button v-if="canEditRow(p)" class="btn btn-sm" @click="openEdit(p)">✏️ Edit</button>
               <button v-if="isFinance && p.status === 'pending'" class="btn btn-sm btn-success" @click="openVerify('verify', p)">✅ Verifikasi</button>
               <button v-if="isFinance && p.status === 'pending'" class="btn btn-sm btn-danger" @click="openVerify('reject', p)">✖ Tolak</button>
               <button v-if="p.status === 'verified'" class="btn btn-sm" @click="downloadPdf(p)">📄 PDF</button>
+              <button v-if="canEditDelete" class="btn btn-sm btn-danger" style="padding:2px 8px;" title="Hapus permanen (snapshot tersimpan di audit log)" @click="deletePurchase(p)">🗑️</button>
             </div>
           </div>
         </div>
@@ -362,6 +428,49 @@ onMounted(() => { form.value.items.push(newItem()); load() })
         <button class="btn btn-primary" :disabled="busy" @click="submitVerify">
           {{ verifyModal.kind === 'verify' ? '✅ Verifikasi' : '✖ Tolak' }}
         </button>
+      </div>
+    </Modal>
+
+    <!-- Modal edit transaksi (v2.37.0, finance bila fitur aktif) -->
+    <Modal v-if="showEditModal" :title="'✏️ Edit Pengajuan ' + editForm.display_id" @close="showEditModal = false" wide>
+      <div class="field"><label>Tanggal Pengiriman *</label><input class="input" type="date" v-model="editForm.purchase_date" /></div>
+      <div class="row" style="justify-content:space-between;align-items:center;margin-top:10px;">
+        <b style="font-size:13px;">📦 Item Pengiriman</b>
+        <button class="btn btn-sm" @click="addEditItem">➕ Tambah Item</button>
+      </div>
+      <div v-for="(it, i) in editForm.items" :key="i" class="row" style="gap:6px;margin-top:6px;align-items:flex-end;flex-wrap:wrap;">
+        <div class="field" style="min-width:110px;">
+          <label>Jenis</label>
+          <select class="select" v-model="it.drink_type">
+            <option v-for="t in typeOptions" :key="t" :value="t">{{ t }}</option>
+          </select>
+        </div>
+        <div class="field grow">
+          <label>Merk *</label>
+          <select class="select" v-model="it.brand">
+            <option value="" disabled>— pilih merk —</option>
+            <option v-for="b in brandsOf(it.drink_type)" :key="b.id" :value="b.brand">{{ b.brand }}</option>
+          </select>
+        </div>
+        <div class="field" style="width:100px;">
+          <label>Satuan</label>
+          <select class="select" v-model="it.satuan">
+            <option value="pcs">pcs</option><option value="dus">dus</option><option value="karton">karton</option>
+            <option value="botol">botol</option><option value="gelas">gelas</option><option value="galon">galon</option>
+          </select>
+        </div>
+        <div class="field" style="width:90px;">
+          <label>Qty *</label>
+          <input class="input" type="number" min="1" v-model="it.quantity" />
+        </div>
+        <button class="btn btn-sm btn-danger" style="margin-bottom:6px;" @click="removeEditItem(i)" :disabled="editForm.items.length === 1">✖</button>
+      </div>
+      <div class="field" style="margin-top:10px;"><label>Remark verifikasi</label><textarea class="input" v-model="editForm.remark" rows="2" placeholder="Koreksi ini dicatat di audit log..."></textarea></div>
+      <div class="field"><label>Note tambahan</label><textarea class="input" v-model="editForm.note" rows="2"></textarea></div>
+      <div class="muted" style="font-size:11px;margin-top:6px;">🔒 Edit tercatat penuh di audit log (data lama & baru) + wajib verifikasi PIN. Foto bukti OB tidak berubah.</div>
+      <div class="row" style="justify-content:flex-end;gap:8px;margin-top:12px;">
+        <button class="btn" @click="showEditModal = false">Batal</button>
+        <button class="btn btn-primary" :disabled="busy" @click="submitEdit">💾 Simpan Perubahan</button>
       </div>
     </Modal>
 

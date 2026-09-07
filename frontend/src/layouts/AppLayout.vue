@@ -43,7 +43,9 @@ const MENU = [
 
 ]
 
-const items = computed(() => MENU.filter((m) => m.roles.includes(auth.role)))
+const items = computed(() => MENU.filter((m) => m.roles.includes(auth.role))
+  // v2.37.0: Admin cabang (admin_<kode>) tidak melihat menu lintas cabang
+  .filter((m) => !['/access-review', '/logs'].includes(m.path) || auth.isHoAdmin))
 const pageTitle = computed(() => route.meta?.title || (items.value.find((i) => route.path.startsWith(i.path))?.label || 'Dashboard'))
 const initials = computed(() => (auth.user?.full_name || auth.user?.user_name || '?').slice(0, 2).toUpperCase())
 
@@ -114,6 +116,7 @@ onBeforeUnmount(() => { unwatchRt?.(); rt.disconnect() })
           <div class="u-role">
             <span class="role-chip" :style="{ background: auth.meta?.color }">{{ auth.meta?.icon }} {{ auth.meta?.label }}</span>
             <span v-if="auth.user?.branch_name" class="branch-chip">🏢 {{ auth.user.branch_name }}</span>
+            <span v-if="auth.role === 'admin' && !auth.isHoAdmin" class="branch-chip" title="Admin cabang — terkunci ke cabang ini">🔒 Cabang</span>
           </div>
         </div>
         <button class="btn-icon" title="Keluar" aria-label="Keluar" @click="doLogout">🚪</button>

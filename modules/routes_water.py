@@ -7,7 +7,18 @@ Alur:
 3. Finance memverifikasi: approve (remark + note) atau tolak (alasan).
 4. Pengajuan terverifikasi -> PDF tanda terima TTD Finance (menyerahkan)
    & GA (menerima); nama TTD di-set admin via system_config.
+
+v2.37.0 — Edit & Hapus transaksi (fitur opsional, default NONAKTIF):
+- Admin mengaktifkan per cabang via system_config key `water_edit_enabled`
+  (halaman Pengaturan → seksi Air Minum). Nonaktif = perilaku lama.
+- Aktif → Finance/admin bisa MENGEDIT (tanggal/item/remark/note) pengajuan
+  berstatus `pending` & `verified` (bukan `rejected` — cukup alasan tolaknya),
+  dan MENGHAPUS PERMANEN pengajuan (file foto ikut dihapus).
+- Keduanya wajib step-up PIN (A.8.5) dan tercatat penuh di audit log
+  (old_data = snapshot lengkap sebelum perubahan) — integritas audit trail
+  tetap terjaga sekalipun data boleh dikoreksi.
 """
+import os
 import re as _re
 from datetime import datetime, timedelta
 from flask import request, jsonify, make_response, session
@@ -15,10 +26,122 @@ from modules.config import get_db_connection
 from modules.helpers import (role_required, log_activity_async, save_file,
                              generate_display_id, client_ip)
 from modules.stepup import stepup_required
+from modules.admin_scope import assert_branch_row_scope
 
 WATER_ROLES = ['ob', 'finance', 'admin']          # pengguna air minum
 WATER_FINANCE_ROLES = ['finance', 'admin']        # kelola master + verifikasi
 VALID_SATUAN = {'pcs', 'dus', 'karton', 'botol', 'gelas', 'galon', 'unit'}
+
+# system_config key fitur edit/hapus transaksi air minum (v2.37.0).
+# Default: 'false' (nonaktif) — perilaku lama sampai admin mengaktifkannya.
+WATER_EDIT_CONFIG_KEY = 'water_edit_enabled'
+EDITABLE_STATUSES = ('pending', 'verified')       # rejected tidak bisa diedit
+
+
+def get_water_edit_enabled(conn=None):
+    """Status fitur edit/hapus transaksi air minum (per cabang, system_config).
+
+    Tanpa DB → False (fail-closed; API pun menolak bila DB mati).
+    """
+    own = conn is None
+    if own:
+        try:
+            conn = get_db_connection()
+        except Exception:
+            conn = None
+    if not conn:
+        return False
+    cur = conn.cursor(dictionary=True)
+    try:
+        cur.execute("SELECT config_value FROM system_config WHERE config_key=%s",
+                    (WATER_EDIT_CONFIG_KEY,))
+        row = cur.fetchone()
+        return str((row or {}).get('config_value', '')).strip().lower() == 'true'
+    except Exception:
+        return False
+    finally:
+        cur.close()
+        if own and conn:
+            conn.close()
+
+
+def set_water_edit_enabled(enabled, conn=None):
+    """Simpan status fitur (system_config per DB cabang). Returns True bila ok."""
+    own = conn is None
+    if own:
+        conn = get_db_connection()
+    if not conn:
+        return False
+    cur = conn.cursor()
+    try:
+        cur.execute("INSERT INTO system_config (config_key, config_value) VALUES (%s,%s) "
+                    "ON DUPLICATE KEY UPDATE config_value=VALUES(config_value)",
+                    (WATER_EDIT_CONFIG_KEY, 'true' if enabled else 'false'))
+        conn.commit()
+        return True
+    finally:
+        cur.close()
+        if own and conn:
+            conn.close()
+
+
+def ensure_water_edit_columns(conn):
+    """Kolom jejak edit di water_purchases (v2.37.0) — idempoten, dipanggil
+    saat startup (master + tiap DB cabang).
+
+    edited_by/edited_at = jejak terakhir Finance mengedit; edit_count =
+    berapa kali pernah diedit (tampil di detail & cetak audit).
+    """
+    cur = conn.cursor()
+    try:
+        for ddl in (
+            "ALTER TABLE water_purchases ADD COLUMN edited_by VARCHAR(100) DEFAULT ''",
+            "ALTER TABLE water_purchases ADD COLUMN edited_at DATETIME DEFAULT NULL",
+            "ALTER TABLE water_purchases ADD COLUMN edit_count INT NOT NULL DEFAULT 0",
+        ):
+            try:
+                cur.execute(ddl)
+            except Exception:
+                pass  # kolom sudah ada
+        conn.commit()
+        return True
+    finally:
+        cur.close()
+
+
+def _water_edit_gate(conn=None):
+    """Gerbang fitur edit/hapus: (None) bila boleh, atau (jsonify, status)."""
+    if not get_water_edit_enabled(conn):
+        return jsonify({'status': 'error',
+                        'msg': 'Fitur edit/hapus transaksi air minum sedang nonaktif. '
+                               'Hubungi Admin untuk mengaktifkannya.'}), 403
+    return None
+
+
+def _normalize_water_items(items):
+    """Validasi & normalisasi daftar item (dipakai create & edit)."""
+    if not isinstance(items, list) or not items:
+        return None, 'Minimal satu item wajib diisi'
+    if len(items) > 20:
+        return None, 'Maksimal 20 item per pengajuan'
+    normalized = []
+    for it in items:
+        tipe = str(it.get('drink_type', '') or '').strip()
+        brand = str(it.get('brand', '') or '').strip()
+        satuan = str(it.get('satuan', 'pcs') or 'pcs').strip().lower()
+        try:
+            qty = int(it.get('quantity', 0) or 0)
+        except (TypeError, ValueError):
+            return None, 'Kuantitas item harus berupa angka'
+        if not tipe or not brand:
+            return None, 'Setiap item wajib: jenis dan merk'
+        if qty <= 0 or qty > 99999:
+            return None, 'Kuantitas item harus 1–99.999'
+        if satuan not in VALID_SATUAN:
+            satuan = 'pcs'
+        normalized.append({'drink_type': tipe, 'brand': brand,
+                           'satuan': satuan, 'quantity': qty})
+    return normalized, None
 
 
 def _session_name():
@@ -283,28 +406,11 @@ def register_water_routes(app):
             items_raw = request.form.get('items') or '[]'
             import json as _json
             items = _json.loads(items_raw)
-            if not isinstance(items, list) or not items:
-                return jsonify({'status': 'error', 'msg': 'Minimal satu item wajib diisi'}), 400
+            normalized, n_err = _normalize_water_items(items)
+            if n_err:
+                return jsonify({'status': 'error', 'msg': n_err}), 400
             if not tanggal:
                 return jsonify({'status': 'error', 'msg': 'Tanggal pengiriman wajib diisi'}), 400
-            if len(items) > 20:
-                return jsonify({'status': 'error', 'msg': 'Maksimal 20 item per pengajuan'}), 400
-            normalized = []
-            for it in items:
-                tipe = str(it.get('drink_type', '') or '').strip()
-                brand = str(it.get('brand', '') or '').strip()
-                satuan = str(it.get('satuan', 'pcs') or 'pcs').strip().lower()
-                try:
-                    qty = int(it.get('quantity', 0) or 0)
-                except (TypeError, ValueError):
-                    return jsonify({'status': 'error', 'msg': 'Kuantitas item harus berupa angka'}), 400
-                if not tipe or not brand:
-                    return jsonify({'status': 'error', 'msg': 'Setiap item wajib: jenis dan merk'}), 400
-                if qty <= 0 or qty > 99999:
-                    return jsonify({'status': 'error', 'msg': 'Kuantitas item harus 1–99.999'}), 400
-                if satuan not in VALID_SATUAN:
-                    satuan = 'pcs'
-                normalized.append({'drink_type': tipe, 'brand': brand, 'satuan': satuan, 'quantity': qty})
 
             foto_before = save_file(request.files.get('foto_before'), 'WTR_BEFORE', ob_name, app.config['UPLOAD_FOLDER'])
             foto_after = save_file(request.files.get('foto_after'), 'WTR_AFTER', ob_name, app.config['UPLOAD_FOLDER'])
@@ -407,6 +513,171 @@ def register_water_routes(app):
             return jsonify(result)
         except Exception as e:
             return jsonify({'error': str(e)}), 500
+
+    # ============================================================
+    # EDIT & HAPUS (v2.37.0) — fitur opsional, di-enable Admin per cabang
+    # ============================================================
+    @app.route('/api/water/edit-enabled')
+    @role_required(WATER_ROLES)
+    def api_water_edit_enabled():
+        """Status fitur edit/hapus untuk UI (toggle tombol & pesan)."""
+        return jsonify({'enabled': get_water_edit_enabled()})
+
+    @app.route('/api/water/edit-enabled', methods=['PUT'])
+    @role_required(['admin'])
+    def api_water_edit_enabled_put():
+        """Admin aktif/nonaktifkan fitur edit/hapus transaksi air minum.
+
+        Disimpan di system_config DB cabang sesi → berlaku per cabang.
+        Admin cabang hanya bisa mengubah cabangnya sendiri (DB-nya memang
+        ter-scope via get_db_connection).
+        """
+        try:
+            data = request.get_json(silent=True) or {}
+            enabled = bool(data.get('enabled'))
+            if not set_water_edit_enabled(enabled):
+                return jsonify({'status': 'error', 'msg': 'DB error'}), 500
+            actor = _session_name() or 'Admin'
+            log_activity_async(0, 'water_edit_toggle', 'admin', actor,
+                               new_data={'enabled': enabled}, ip=client_ip())
+            return jsonify({'status': 'success', 'enabled': enabled,
+                            'msg': 'Fitur edit/hapus transaksi air minum '
+                                   f'{"DIAKTIFKAN" if enabled else "DINONAKTIFKAN"}'})
+        except Exception as e:
+            return jsonify({'status': 'error', 'msg': str(e)}), 500
+
+    @app.route('/api/water/purchases/<int:purchase_id>', methods=['PUT'])
+    @role_required(WATER_FINANCE_ROLES)
+    @stepup_required
+    def api_water_purchase_edit(purchase_id):
+        """Edit pengajuan (Finance/admin, fitur aktif): tanggal + item + remark/note.
+
+        Status boleh: pending & verified (rejected cukup dengan alasan tolak).
+        Foto tidak diubah lewat endpoint ini (bukti OB tetap orisinal) —
+        yang dikoreksi: tanggal, rincian item, remark & note verifikasi.
+        Audit: old_data = snapshot lengkap sebelum edit.
+        """
+        gate = _water_edit_gate()
+        if gate:
+            return gate
+        try:
+            data = request.get_json(silent=True) or {}
+            tanggal = str(data.get('purchase_date', '') or '').strip()
+            if not tanggal:
+                return jsonify({'status': 'error', 'msg': 'Tanggal pengiriman wajib diisi'}), 400
+            normalized, n_err = _normalize_water_items(data.get('items'))
+            if n_err:
+                return jsonify({'status': 'error', 'msg': n_err}), 400
+            remark = str(data.get('remark', '') or '').strip()
+            note = str(data.get('note', '') or '').strip()
+
+            who = _session_name() or 'Finance'
+            conn = get_db_connection()
+            if not conn:
+                return jsonify({'status': 'error', 'msg': 'DB error'}), 500
+            cur = conn.cursor(dictionary=True)
+            cur.execute("SELECT * FROM water_purchases WHERE id=%s", (purchase_id,))
+            row = cur.fetchone()
+            if not row:
+                cur.close(); conn.close()
+                return jsonify({'status': 'error', 'msg': 'Pengajuan tidak ditemukan'}), 404
+            # Admin cabang hanya boleh cabangnya sendiri; baris DB cabang sesi.
+            denied = assert_branch_row_scope(row)
+            if denied:
+                cur.close(); conn.close()
+                return denied
+            if row['status'] not in EDITABLE_STATUSES:
+                cur.close(); conn.close()
+                return jsonify({'status': 'error',
+                                'msg': 'Pengajuan berstatus Ditolak tidak dapat diedit'}), 400
+            old_snapshot = {k: str(v) for k, v in row.items()}
+            cur.execute("SELECT drink_type, brand, satuan, quantity "
+                        "FROM water_purchase_items WHERE purchase_id=%s ORDER BY id", (purchase_id,))
+            old_snapshot['items'] = [str(dict(i)) for i in cur.fetchall()]
+
+            cur.execute("""UPDATE water_purchases
+                           SET purchase_date=%s, remark=%s, note=%s,
+                               edited_by=%s, edited_at=NOW(), edit_count=edit_count+1
+                           WHERE id=%s""",
+                        (tanggal, remark[:500], note[:2000], who, purchase_id))
+            cur.execute("DELETE FROM water_purchase_items WHERE purchase_id=%s", (purchase_id,))
+            for it in normalized:
+                cur.execute("""INSERT INTO water_purchase_items
+                               (purchase_id, drink_type, brand, satuan, quantity)
+                               VALUES (%s,%s,%s,%s,%s)""",
+                            (purchase_id, it['drink_type'], it['brand'], it['satuan'], it['quantity']))
+            conn.commit()
+            cur.close(); conn.close()
+            log_activity_async(0, 'water_purchase_edit', session.get('user_role', ''), who,
+                               old_data=old_snapshot,
+                               new_data={'purchase_id': purchase_id,
+                                         'purchase_date': tanggal,
+                                         'items': normalized, 'remark': remark, 'note': note},
+                               ip=client_ip())
+            return jsonify({'status': 'success',
+                            'msg': f'Pengajuan {row.get("display_id")} diperbarui'})
+        except Exception as e:
+            return jsonify({'status': 'error', 'msg': str(e)}), 500
+
+    @app.route('/api/water/purchases/<int:purchase_id>', methods=['DELETE'])
+    @role_required(WATER_FINANCE_ROLES)
+    @stepup_required
+    def api_water_purchase_delete(purchase_id):
+        """Hapus PERMANEN pengajuan (Finance/admin, fitur aktif).
+
+        Baris + item + file foto dihapus; snapshot lengkap disimpan di audit
+        log (old_data) sebagai jejak satu-satunya — sesuai keputusan user
+        "hapus permanen + audit".
+        """
+        gate = _water_edit_gate()
+        if gate:
+            return gate
+        try:
+            who = _session_name() or 'Finance'
+            conn = get_db_connection()
+            if not conn:
+                return jsonify({'status': 'error', 'msg': 'DB error'}), 500
+            cur = conn.cursor(dictionary=True)
+            cur.execute("SELECT * FROM water_purchases WHERE id=%s", (purchase_id,))
+            row = cur.fetchone()
+            if not row:
+                cur.close(); conn.close()
+                return jsonify({'status': 'error', 'msg': 'Pengajuan tidak ditemukan'}), 404
+            denied = assert_branch_row_scope(row)
+            if denied:
+                cur.close(); conn.close()
+                return denied
+            cur.execute("SELECT drink_type, brand, satuan, quantity "
+                        "FROM water_purchase_items WHERE purchase_id=%s ORDER BY id", (purchase_id,))
+            items = cur.fetchall()
+            snapshot = {k: str(v) for k, v in row.items()}
+            snapshot['items'] = [str(dict(i)) for i in items]
+            cur.execute("DELETE FROM water_purchase_items WHERE purchase_id=%s", (purchase_id,))
+            cur.execute("DELETE FROM water_purchases WHERE id=%s", (purchase_id,))
+            conn.commit()
+            cur.close(); conn.close()
+            # File foto dihapus SETELAH commit DB — gagal hapus file tidak
+            # mengembalikan data yang sudah terhapus (audit tetap mencatat namanya).
+            upl = app.config.get('UPLOAD_FOLDER', 'uploads')
+            for key in ('foto_before', 'foto_after'):
+                fname = (row.get(key) or '').strip()
+                if fname:
+                    try:
+                        fpath = os.path.join(upl, os.path.basename(fname))
+                        if os.path.isfile(fpath):
+                            os.remove(fpath)
+                    except Exception as fe:
+                        print(f'[water] hapus foto {fname}: {fe}')
+            log_activity_async(0, 'water_purchase_delete', session.get('user_role', ''), who,
+                               old_data=snapshot,
+                               new_data={'purchase_id': purchase_id,
+                                         'display_id': row.get('display_id'),
+                                         'deleted': True},
+                               ip=client_ip())
+            return jsonify({'status': 'success',
+                            'msg': f'Pengajuan {row.get("display_id")} dihapus permanen'})
+        except Exception as e:
+            return jsonify({'status': 'error', 'msg': str(e)}), 500
 
     # ============================================================
     # VERIFIKASI — oleh Finance

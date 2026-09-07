@@ -237,5 +237,6 @@ class TestAccessReviewAPI:
         c = app.test_client()
         with c.session_transaction() as s:
             s['user_role'] = 'admin'
+            s['user_name'] = 'admin'  # v2.37.0: scoping admin membaca username sesi
         assert c.get('/api/admin/access-review').status_code == 500
         assert c.post('/api/admin/access-review/complete').status_code == 500

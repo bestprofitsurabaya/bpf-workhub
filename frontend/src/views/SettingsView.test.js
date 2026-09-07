@@ -4,16 +4,24 @@ import SettingsView from './SettingsView.vue'
 
 const { apiMock } = vi.hoisted(() => ({ apiMock: vi.fn() }))
 vi.mock('../api', () => ({ api: apiMock }))
+// v2.37.0: SettingsView membaca auth store (Admin Pusat vs admin cabang)
+vi.mock('../stores/auth', () => ({
+  useAuthStore: () => ({ role: 'admin', isHoAdmin: true }),
+}))
 
 const DRIVERS = [{ name: 'RIVAN', nopol: 'L 1', vehicle_type: 'AVANZA', bbm_type: 'PERTALITE', is_active: true }]
 const VEHICLES = [{ id: 1, vehicle_type: 'AVANZA', brand: 'Toyota', fuel_capacity: 45, is_active: true }]
 const BBMS = [{ id: 1, name: 'PERTALITE', price_per_liter: 10000, is_active: true }]
+
+// Status fitur edit/hapus air minum (v2.37.0) — diubah per test.
+let waterEditEnabled = false
 
 async function mountView() {
   apiMock.mockImplementation((path) => {
     if (path === '/api/drivers') return Promise.resolve(DRIVERS)
     if (path === '/api/vehicles') return Promise.resolve(VEHICLES)
     if (path === '/api/bbm_types') return Promise.resolve(BBMS)
+    if (path === '/api/water/edit-enabled') return Promise.resolve({ enabled: waterEditEnabled })
     return Promise.resolve({ status: 'success' })
   })
   const w = mount(SettingsView)
@@ -89,5 +97,26 @@ describe('SettingsView', () => {
     const vehSelect = w.findAll('select').find((s) => s.findAll('option').some((o) => o.text() === 'AVANZA'))
     const opts = vehSelect.findAll('option').map((o) => o.text())
     expect(opts.filter((t) => t === 'AVANZA').length).toBe(1)
+  })
+
+  it('v2.37.0: peta seksi tampil & berisi 6 seksi', async () => {
+    const w = await mountView()
+    const nav = w.find('.settings-nav')
+    expect(nav.exists()).toBe(true)
+    expect(nav.findAll('.settings-nav-btn').length).toBe(6)
+  })
+
+  it('v2.37.0: toggle edit/hapus air minum — status nonaktif lalu PUT saat diaktifkan', async () => {
+    waterEditEnabled = false
+    const w = await mountView()
+    const toggle = w.find('input[type=checkbox].slider-input, .water-toggle input[type=checkbox]')
+      || w.findAll('input[type=checkbox]')[0]
+    expect(toggle.exists()).toBe(true)
+    expect(toggle.element.checked).toBe(false)
+    await toggle.setValue(true)
+    await flushPromises()
+    const put = apiMock.mock.calls.find((c) => c[0] === '/api/water/edit-enabled' && c[1]?.method === 'PUT')
+    expect(put).toBeTruthy()
+    expect(put[1].body).toEqual({ enabled: true })
   })
 })

@@ -1,4 +1,4 @@
-# 📋 Daftar User & Role — BPF WorkHub v2.36.0
+# 📋 Daftar User & Role — BPF WorkHub v2.37.0
 
 Dokumen ini menjelaskan semua role yang didukung sistem, siapa yang memakainya, dan apa yang bisa dilakukan masing-masing.
 
@@ -88,14 +88,25 @@ Sistem mendukung **11 peran inti** (peran `it` dipecah per cabang pada daftar di
 
 ## 3. Detail Akses per Role
 
-### 🔑 Admin (`admin`)
+### 🔑 Admin (`admin` / `admin_<cabang>`)
 
 **Akses:** Semua halaman & API
 
+**Dua tingkat (v2.37.0):**
+- `admin` (tanpa sufiks) = **Admin Pusat** — semua cabang, bisa ganti cabang
+  kerja, kelola cabang/user global, reset nomor dokumen, arsip audit,
+  Access Review.
+- `admin_<kode>` (mis. `admin_sby`) = **Admin Cabang** — semua halaman admin
+  tampil, tapi operasional terkunci ke cabangnya: tidak bisa ganti cabang,
+  tidak bisa aksi lintas cabang (menu Access Review & Audit Log disembunyikan
+  dari sidebar-nya).
+
 **Fitur Khusus:**
 - Manajemen User (`/app/users`) — CRUD, sync, bulk create, reset PIN
-- Pengaturan (`/app/settings`) — identitas perusahaan, reset PIN massal driver
-- Audit Log (`/app/logs`) — semua aktivitas user tercatat
+- Pengaturan (`/app/settings`) — identitas perusahaan, reset PIN massal driver,
+  toggle edit/hapus transaksi air minum per cabang (v2.37.0)
+- Audit Log (`/app/logs`) — semua aktivitas user tercatat (admin cabang:
+  cabangnya saja)
 - Multi-cabang (`/app/branches`)
 - Seed & clean data demo
 
@@ -401,6 +412,8 @@ Sistem mendukung **11 peran inti** (peran `it` dipecah per cabang pada daftar di
 | Branch Code | Multi-cabang: user dikaitkan dengan cabang tertentu |
 | Access Review | Review hak akses triwulanan (Jan/Apr/Jul/Okt) — akun tanpa login > 90 hari diklasifikasi "basi" & bisa dinonaktifkan Admin |
 | ACC Berjenjang (v2.36.0) | Pengajuan wajib ACC atasan dulu: kasbon & klaim BBM → Chief Driver lalu GA; overtime → GA HR lalu Admin. Admin bisa mengatur atasan khusus per user (kolom "Atasan" di Manajemen User); pengaju tidak bisa memutus pengajuannya sendiri; penolakan wajib alasan & tercatat di audit log |
+| Admin per-cabang (v2.37.0) | `admin` = Admin Pusat; `admin_<kode>` = Admin cabang (terkunci ke cabangnya). 1 admin utk 2 cabang: `users.managed_branches` = `SBY,BDG`. Promosi ke pusat: `users.admin_all_branches = 1`. Aksi lintas cabang (switch, docseq cabang lain, arsip audit, access review) ditolak 403 bagi admin cabang |
+| Edit/hapus air minum (v2.37.0) | Fitur opsional per cabang (`system_config.water_edit_enabled`, default nonaktif). Aktif → Finance edit (pending/verified) & hapus permanen pengajuan; keduanya wajib step-up PIN + snapshot data lama tersimpan di audit log |
 
 ---
 

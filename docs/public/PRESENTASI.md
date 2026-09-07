@@ -1,4 +1,4 @@
-# 🎤 Materi Presentasi — BPF WorkHub v2.36.0
+# 🎤 Materi Presentasi — BPF WorkHub v2.37.0
 
 Panduan demo lengkap untuk presentasi di depan audiens. Urutan disusun dari yang paling berkesan ke yang paling teknis. Tiap bagian berisi tujuan, apa yang ditampilkan di layar, poin yang dibicarakan, dan satu kalimat kunci.
 
@@ -325,4 +325,4 @@ Telp: 031-5349888
 
 ---
 
-*BPF WorkHub v2.36.0 · Materi Presentasi · Diperbarui 6 September 2026*
+*BPF WorkHub v2.37.0 · Materi Presentasi · Diperbarui 6 September 2026*

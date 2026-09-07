@@ -4,6 +4,7 @@ from mysql.connector import IntegrityError
 from modules.config import get_db_connection, get_master_connection
 from modules.helpers import (finalize_pin, log_activity_async, resolve_user_pin, role_required,
                              pin_rate_check, pin_fail, pin_success, client_ip)
+from modules.admin_scope import is_ho_admin  # v2.37.0: admin per-cabang
 
 # ================================================================
 # Konvensi username v2.29.8/9: `{divisi}_{cabang}` — username WAJIB
@@ -196,6 +197,12 @@ def register_master_api(app):
             conn = get_master_connection(); cursor = conn.cursor(dictionary=True)
             cursor.execute("SELECT id, username, full_name, role, team_name, branch_code, manager_username, is_active, last_login FROM users ORDER BY role, username")
             data = cursor.fetchall(); cursor.close(); conn.close()
+            # v2.37.0: admin cabang hanya melihat user cabangnya sendiri.
+            if session.get('user_role') == 'admin' and not is_ho_admin():
+                from modules.admin_scope import admin_branches
+                allowed, _ = admin_branches()
+                data = [u for u in data
+                        if (u.get('branch_code') or '').strip().upper() in allowed]
             return jsonify(data)
         except Exception as e:
             return jsonify({'error': str(e)}), 500
@@ -252,6 +259,17 @@ def register_master_api(app):
             manager = None
             if 'manager_username' in data:
                 manager = str(data.get('manager_username', '') or '').strip() or None
+
+            # v2.37.0: admin cabang tidak boleh membuat/mengubah akun admin
+            # maupun akun di luar cabangnya (users tinggal di DB master).
+            if session.get('user_role') == 'admin' and not is_ho_admin():
+                from modules.admin_scope import admin_branches
+                allowed, _ = admin_branches()
+                tgt_branch = (branch or '').strip().upper() if branch else ''
+                if r == 'admin' or (tgt_branch and tgt_branch not in allowed):
+                    return jsonify({'status': 'error',
+                                    'msg': 'Admin cabang hanya boleh mengelola akun '
+                                           'non-admin di cabangnya sendiri.'}), 403
 
             conn = get_master_connection(); cursor = conn.cursor()
             if team is None or pin is None or branch is None or manager is None:

@@ -78,7 +78,7 @@ const usernameHint = computed(() => {
   const branch = (form.value.branch_code || auth.user?.branch_code || '').toLowerCase()
   let hint = ''
   if (role === 'admin') {
-    hint = 'Khusus: akun admin pusat — biarkan \u201cadmin\u201d'
+    hint = 'Admin Pusat: biarkan \u201cadmin\u201d · Admin cabang: admin_kode (mis. admin_mlg) — terkunci ke cabang itu'
   } else if (role === 'driver') {
     hint = 'Driver: username = nama driver (huruf kecil), mis. akhad — dibuat otomatis dari tabel drivers'
   } else if (role.startsWith('it_')) {

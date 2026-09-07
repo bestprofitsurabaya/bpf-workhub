@@ -2,7 +2,7 @@
 
 **Sistem Manajemen Armada untuk PT. Bestprofit Futures — Kantor Pusat Jakarta**
 
-> 📅 Versi 2.36.0 · September 2026 — Approval Berjenjang (ACC atasan otomatis utk kasbon, klaim BBM & overtime) · Program 6 tahap ISO 27001 selesai · Kantor Pusat Jakarta (Equity Tower)
+> 📅 Versi 2.37.0 · September 2026 — Edit/hapus transaksi air minum (fitur opsional per cabang) · Admin per-cabang (`admin_<kode>`) · Approval Berjenjang · Program 6 tahap ISO 27001 selesai · Kantor Pusat Jakarta (Equity Tower)
 
 ---
 
@@ -54,6 +54,12 @@ BPF WorkHub adalah aplikasi web yang membantu tim operasional PT Bestprofit Futu
 ### 💧 Air Minum
 - OB mengajukan pengiriman air minum (galon/botol/gelas) + **foto bukti sebelum & sesudah diisi**
 - Finance memverifikasi → **PDF Tanda Terima** (Informasi Pengiriman → Rincian Barang → Lampiran Foto → Tanda Tangan Finance & GA) — foto bukti ditampilkan besar (mengikuti ruang kosong di bawah blok TTD)
+- **Edit & hapus transaksi (v2.37.0, fitur opsional)**: Admin mengaktifkan per cabang di Pengaturan → Finance bisa mengoreksi tanggal/item/remark pengajuan Menunggu/Terverifikasi dan menghapus permanen (selalu step-up PIN + snapshot lengkap di audit log)
+
+### 🛡️ Admin per-cabang (v2.37.0)
+- Konvensi `{divisi}_{cabang}` berlaku untuk admin: `admin` = Admin Pusat (semua cabang), `admin_sby`/`admin_bdg`/… = Admin cabang (terkunci ke cabangnya)
+- Aksi lintas cabang (ganti cabang, reset nomor dokumen, arsip audit, access review) khusus Admin Pusat
+- 1 admin untuk 2 cabang? isi `users.managed_branches` (mis. `SBY,BDG`); promosi ke pusat via `users.admin_all_branches = 1`
 
 ---
 
@@ -206,7 +212,7 @@ python -m pytest tests/ -v
 cd frontend && npm test
 ```
 
-**Status:** 482 pytest (pass) + 6 skip + 109 vitest · Semua ✅ PASS + audit dependensi bersih (v2.36.0 — CI GitHub Actions: Backend pytest + pip-audit, Frontend unit test/build + npm audit, Image scan Trivy; hijau di tiap push)
+**Status:** 511 pytest (pass) + 6 skip + 115 vitest · Semua ✅ PASS + audit dependensi bersih (v2.37.0 — CI GitHub Actions: Backend pytest + pip-audit, Frontend unit test/build + npm audit, Image scan Trivy; hijau di tiap push)
 
 ---
 

@@ -31,6 +31,7 @@ from flask import jsonify, make_response, request, session
 
 from modules.config import get_master_connection
 from modules.helpers import role_required, log_activity_async, client_ip
+from modules.admin_scope import is_ho_admin, scope_denied_response
 
 # Ambang "akun basi": login terakhir lebih lama dari N hari (default 90).
 STALE_ACCOUNT_DAYS = max(30, int(os.environ.get('STALE_ACCOUNT_DAYS', '90')))
@@ -173,7 +174,12 @@ def register_access_review_routes(app):
     @app.route('/api/admin/access-review')
     @role_required(['admin'])
     def api_access_review():
-        """Laporan akses lengkap: user + klasifikasi + ringkasan + review info."""
+        """Laporan akses lengkap: user + klasifikasi + ringkasan + review info.
+
+        v2.37.0: user = global (DB master) — khusus Admin Pusat.
+        """
+        if not is_ho_admin():
+            return scope_denied_response()
         conn = get_master_connection()
         if not conn:
             return jsonify({'status': 'error', 'msg': 'DB tidak tersedia'}), 500
@@ -195,7 +201,12 @@ def register_access_review_routes(app):
     @app.route('/api/admin/access-review/complete', methods=['POST'])
     @role_required(['admin'])
     def api_access_review_complete():
-        """Tandai review triwulanan selesai — simpan siapa + kapan (audit)."""
+        """Tandai review triwulanan selesai — simpan siapa + kapan (audit).
+
+        v2.37.0: khusus Admin Pusat (review mencakup seluruh akun).
+        """
+        if not is_ho_admin():
+            return scope_denied_response()
         who = _session_name() or 'Admin'
         now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         conn = get_master_connection()
@@ -224,6 +235,9 @@ def register_access_review_routes(app):
     @app.route('/api/admin/access-review/export')
     @role_required(['admin'])
     def api_access_review_export():
+        """CSV laporan akses — v2.37.0: khusus Admin Pusat."""
+        if not is_ho_admin():
+            return scope_denied_response()
         """Unduh CSV laporan akses — arsip review triwulanan."""
         conn = get_master_connection()
         if not conn:

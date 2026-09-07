@@ -85,4 +85,4 @@ Sebelumnya, pencatatan BBM, kasbon, dan pembelian air minum dilakukan manual —
 
 ---
 
-*BPF WorkHub v2.36.0 · Ringkasan Satu Halaman*
+*BPF WorkHub v2.37.0 · Ringkasan Satu Halaman*

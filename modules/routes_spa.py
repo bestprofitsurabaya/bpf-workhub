@@ -40,6 +40,14 @@ def register_spa_routes(app):
     def api_auth_me():
         _ensure_csrf()
         if session.get('user_role'):
+            # v2.37.0: flag Admin Pusat utk SPA (admin cabang tak bisa ganti cabang).
+            _is_ho = session.get('user_role') == 'admin'
+            if _is_ho:
+                try:
+                    from modules.admin_scope import is_ho_admin as _is_ho_fn
+                    _is_ho = bool(_is_ho_fn())
+                except Exception:
+                    pass
             return jsonify({
                 'authenticated': True,
                 'user': {
@@ -48,6 +56,7 @@ def register_spa_routes(app):
                     'full_name': session.get('full_name'),
                     'branch_code': session.get('branch_code'),
                     'branch_name': session.get('branch_name'),
+                    'is_ho_admin': _is_ho,
                 },
                 'csrf_token': session.get('csrf_token'),
                 'home': home_for_role(session.get('user_role')),
@@ -101,6 +110,14 @@ def register_spa_routes(app):
         session.permanent = True
         csrf = _ensure_csrf()
         log_activity_async(None, 'login', 'user', user['username'], ip=request.remote_addr)
+        # v2.37.0: admin per-cabang (`admin_<kode>`) terkunci ke cabangnya —
+        # abaikan cabang terakhir yang dipakai sesi admin sebelumnya.
+        is_ho = False
+        try:
+            from modules.admin_scope import is_ho_admin as _is_ho
+            is_ho = bool(_is_ho())
+        except Exception:
+            is_ho = user['role'] == 'admin'
         # v2.22.1: sinkronisasi sheet Driver & OB/Security otomatis di
         # background saat login (ga_hr/admin) — gagal tidak menghalangi login.
         try:
@@ -115,7 +132,8 @@ def register_spa_routes(app):
         return jsonify({
             'status': 'success',
             'user': {'role': user['role'], 'user_name': user['username'], 'full_name': user['full_name'],
-                     'branch_code': branch['code'], 'branch_name': branch['name']},
+                     'branch_code': branch['code'], 'branch_name': branch['name'],
+                     'is_ho_admin': is_ho},
             'csrf_token': csrf,
             'home': home_for_role(user['role']),
         })

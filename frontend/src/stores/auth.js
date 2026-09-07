@@ -61,6 +61,13 @@ export const useAuthStore = defineStore('auth', {
   getters: {
     role: (s) => s.user?.role || null,
     isAuthenticated: (s) => !!s.user,
+    // v2.37.0: admin per-cabang — akun `admin_<kode>` = Admin Cabang
+    // (terkunci ke cabangnya); `admin` = Admin Pusat (semua cabang).
+    isHoAdmin: (s) => {
+      if (s.user?.role !== 'admin') return false
+      if (typeof s.user?.is_ho_admin === 'boolean') return s.user.is_ho_admin
+      return !(s.user?.user_name || '').includes('_')
+    },
     meta: (s) => {
       if (!s.user) return null
       const base = ROLE_META[s.user.role] || {}

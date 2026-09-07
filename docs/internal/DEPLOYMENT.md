@@ -1,5 +1,5 @@
 # 📘 Panduan Lengkap BPF WorkHub
-### Versi 2.36.0 · PT. Bestprofit Futures — Kantor Pusat Jakarta
+### Versi 2.37.0 · PT. Bestprofit Futures — Kantor Pusat Jakarta
 
 > Dokumen ini adalah panduan untuk memasang, mengatur, dan merawat aplikasi **BPF WorkHub**.
 > Ditulis dengan bahasa sederhana agar bisa dipahami siapa saja — bukan hanya teknisi.
@@ -179,6 +179,16 @@ Didefinisikan di `docker-compose.yml` (bagian `web`) atau file `.env` (gitignore
 | `STALE_ACCOUNT_DAYS` | `90` | Ambang akun "basi" untuk Access Review (hari tanpa login, minimal 30) |
 | `STEPUP_TTL_SECONDS` | `600` | Masa berlaku grant verifikasi PIN ulang (step-up), minimal 60 |
 | `RETENTION_DAYS_AUDIT_LOGS` | `1825` | Retensi log audit (hari) — var `RETENTION_DAYS_*` per kelas dokumen |
+| `ADMIN_HO_USERNAMES` | `admin` | v2.37.0: username tambahan yang dianggap **Admin Pusat** (dipisah koma). Akun `admin_<kode>` otomatis = admin cabang |
+
+> **v2.37.0 (Edit/hapus air minum + admin per-cabang):** tanpa env wajib baru
+> — saat startup sistem otomatis membuat kolom `water_purchases.edited_by/
+> edited_at/edit_count` & `users.admin_all_branches/managed_branches` di DB
+> master + tiap cabang, dan menanam `system_config.water_edit_enabled='false'`
+> (fitur edit/hapus **nonaktif** — aktifkan per cabang via Pengaturan →
+> 🚰 Air Minum). Admin Pusat = username `admin` (legacy tetap berkuasa
+> penuh); buat admin cabang dengan username `admin_<kode>` via Manajemen
+> User. |
 
 > **v2.36.0 (Approval Berjenjang):** tanpa env baru — saat startup sistem
 > otomatis membuat tabel `approval_requests` di DB master & tiap cabang,
@@ -325,8 +335,8 @@ memantau 5 layanan tiap 60 detik — termasuk BPF WorkHub (`/api/health`). Akses
 ### 8.5 CI (GitHub Actions)
 
 Setiap push ke `main` menjalankan dua job di GitHub Actions:
-- **Backend:** pytest dengan service `mariadb` + `redis` (env DB/SECRET_KEY) — 482 tes.
-- **Frontend:** unit test (109 vitest) + build SPA.
+- **Backend:** pytest dengan service `mariadb` + `redis` (env DB/SECRET_KEY) — 511 tes.
+- **Frontend:** unit test (115 vitest) + build SPA.
 
 Cek status: `gh run list` / `gh run view <id>` (gh CLI terpasang di `~/.local/bin` server).
 

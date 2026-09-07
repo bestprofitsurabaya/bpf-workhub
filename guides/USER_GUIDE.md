@@ -1,4 +1,4 @@
-# 📖 Panduan Pengguna BPF WorkHub v2.36.0
+# 📖 Panduan Pengguna BPF WorkHub v2.37.0
 
 > **Siapa pun kamu — sopir, OB, admin, atau pimpinan — panduan ini ditulis untuk kamu.**
 > Tidak perlu paham teknis. Cukup ikuti langkah-langkah sesuai bagianmu.
@@ -272,7 +272,28 @@ OB memilih jenis & merk dari daftar yang **kamu** kelola:
 
 Lihat [Bagian 10](#10-kasbon-alur-lengkap-dari-a-sampai-z) — peranmu ada di langkah **Finance: menyetujui pencairan**.
 
-### 6.6 Menu Lain
+### 6.6 Mengedit / Menghapus Transaksi Air Minum ✏️ (sejak v2.37.0, bila diaktifkan Admin)
+
+Ada salah ketik di pengajuan — qty kelebihan, tanggal keliru? Bila Admin
+telah **mengaktifkan fitur** ini untuk cabangmu, tombol baru muncul di halaman
+Air Minum:
+
+- **✏️ Edit** — koreksi tanggal pengiriman, rincian item (jenis/merk/satuan/qty),
+  remark & note. Berlaku untuk pengajuan berstatus **Menunggu** dan
+  **Terverifikasi** (yang Ditolak tidak perlu diedit — cukup tolak dengan alasan).
+  Foto bukti OB tidak berubah — bukti tetap orisinal.
+- **🗑️ Hapus** — menghapus pengajuan **permanen** (termasuk fotonya).
+  Sebelum hilang, sistem menyimpan **snapshot lengkap ke Audit Log** — jadi
+  tetap ada jejak siapa menghapus apa & kapan.
+
+⚠️ Keduanya meminta **verifikasi PIN** dulu (step-up) dan tercatat penuh di
+Audit Log — data lama tersimpan sebagai snapshot. Gunakan untuk koreksi
+kecil; jangan untuk mengubah riwayat secara luas.
+
+> Fitur ini **nonaktif secara default**. Admin mengaktifkannya per cabang di
+> **Pengaturan → 🚰 Air Minum → ✏️ Edit & Hapus Transaksi** (lihat 12.3).
+
+### 6.7 Menu Lain
 
 - **Rekap** — mencetak rekap & laporan (PDF).
 - **Kasbon / BBM**, **Analytics**, **Log Perjalanan**.
@@ -579,14 +600,28 @@ untuk cabang+jenis+tanggal tersebut — misalnya setelah selesai uji coba.
 
 ### 12.3 Pengaturan (Settings)
 
+Halaman ini kini punya **peta seksi** di atas (sticky) — klik untuk lompat:
+🚗 Data Master · 🚰 Air Minum · 🏢 Cabang & Nomor · 🗄️ Kepatuhan (ISO) ·
+🎨 Identitas · 🧪 Lainnya.
+
 - **Manajemen Driver** — tambah/hapus data driver.
 - **Manajemen Armada** — tambah kendaraan (nopol, jenis, dll).
 - **Nama untuk Tanda Terima Air Minum** — set **nama Finance** (yang menyerahkan) & **nama GA** (yang menerima). Nama ini otomatis tercetak di PDF tanda terima air minum.
+- **✏️ Edit & Hapus Transaksi Air Minum (sejak v2.37.0)** — toggle per cabang.
+  **AKTIF** = Finance boleh mengedit (tanggal/item/remark) pengajuan Menunggu &
+  Terverifikasi, dan menghapus pengajuan secara permanen. Setiap perubahan
+  wajib PIN & tercatat di Audit Log (snapshot data lama tersimpan).
+  **NONAKTIF** (default) = perilaku lama, tidak ada tombol edit/hapus.
 - Pengaturan lain sesuai kebutuhan kantor.
 
 ### 12.4 Audit Log (Jejak Digital)
 
 Semua aksi penting tercatat di **Audit Log**: siapa, melakukan apa, kapan. Berguna saat ada selisih atau pertanyaan. Bisa difilter berdasarkan aksi & peran.
+
+Sejak v2.37.0, Audit Log juga menyimpan **snapshot data lama** saat Finance
+mengedit/menghapus transaksi air minum — sehingga isi sebelum koreksi tetap
+terbaca. Catatan: Admin cabang (`admin_<kode>`) hanya bisa melihat audit log
+cabangnya sendiri.
 
 ### 12.5 Dark Mode 🌙
 
@@ -681,6 +716,29 @@ atastan default per role.
 **Catatan keamanan:** pengaju tidak bisa mem-ACC pengajuannya sendiri;
 semua keputusan tercatat di audit log dengan identitas pemutus, waktu,
 dan alasan penolakan.
+
+### 12.11 Admin per-cabang 🛡️ (sejak v2.37.0)
+
+Konvensi username `{divisi}_{cabang}` sekarang berlaku juga untuk admin:
+
+| Username | Cakupan |
+|---|---|
+| `admin` (tanpa sufiks) | **Admin Pusat** — semua cabang, bisa ganti cabang kerja |
+| `admin_sby`, `admin_bdg`, … | **Admin Cabang** — terkunci ke cabangnya sendiri |
+
+Yang **tidak bisa** dilakukan Admin Cabang: mengganti cabang kerja, mengelola
+cabang lain, reset nomor dokumen cabang lain, arsip audit trail global,
+Access Review & Audit Log lintas cabang. Menu-menu itu otomatis disembunyikan
+dari sidebar-nya (bertanda "🔒 Cabang").
+
+Kasus khusus (diatur Admin Pusat langsung via database):
+- Satu admin untuk **2 cabang** → isi `users.managed_branches` = `SBY,BDG`
+  (dipisah koma).
+- Naikkan akun `admin_<kode>` menjadi Admin Pusat → `users.admin_all_branches = 1`.
+
+> Membuat akun admin cabang: **Manajemen User → Tambah User**, role `admin`,
+> username `admin_<kode cabang>` (mis. `admin_mlg`), cabang = kode cabang
+> terkait. PIN awal mengikuti alur onboarding biasa.
 
 ---
 
@@ -857,4 +915,4 @@ Jika upload ke WordPress gagal, pesan error sekarang menampilkan **response body
 
 Ada pertanyaan atau kendala? Hubungi **Admin** atau **tim IT** — mereka bisa melihat riwayat sistem (Audit Log) untuk membantu menyelesaikan masalahmu dengan cepat.
 
-*BPF WorkHub v2.36.0 · Panduan Pengguna · Diperbarui 6 September 2026*
+*BPF WorkHub v2.37.0 · Panduan Pengguna · Diperbarui 7 September 2026*

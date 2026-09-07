@@ -284,6 +284,8 @@ CREATE TABLE IF NOT EXISTS appointments (
 -- Konvensi username (v2.29.7): {divisi}_{cabang} — user tahu divisi & cabang
 -- dari nama loginnnya. Contoh: ga_sby, finance_sby. Bila >1 orang per divisi di
 -- cabang yang sama, username memakai nama: ob_faisol_sby (dibuat manual Admin).
+-- v2.37.0: admin mengikuti konvensi yang sama — 'admin' = Admin Pusat (semua
+-- cabang), 'admin_<kode>' = Admin cabang (terkunci ke cabangnya).
 INSERT INTO users (username, full_name, role, pin, branch_code) VALUES 
 ('admin', 'Administrator', 'admin', '123456', 'SBY'),
 ('ga_sby', 'GA Officer', 'ga', '123456', 'SBY'),
@@ -292,7 +294,8 @@ INSERT INTO users (username, full_name, role, pin, branch_code) VALUES
 -- Default system config
 INSERT INTO system_config (config_key, config_value) VALUES 
 ('multifill_km_threshold', '40'),
-('dummy_data_enabled', 'false');
+('dummy_data_enabled', 'false'),
+('water_edit_enabled', 'false');
 
 -- ============================================================
 -- NOTIFICATIONS (driver PWA real-time + offline catch-up)
@@ -347,6 +350,9 @@ CREATE TABLE IF NOT EXISTS water_purchases (
     rejection_reason VARCHAR(500) DEFAULT '',
     verified_by VARCHAR(100) DEFAULT '',
     verified_at DATETIME DEFAULT NULL,
+    edited_by VARCHAR(100) DEFAULT '',
+    edited_at DATETIME DEFAULT NULL,
+    edit_count INT NOT NULL DEFAULT 0,
     foto_before VARCHAR(255),
     foto_after VARCHAR(255),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -398,14 +404,14 @@ CREATE TABLE IF NOT EXISTS branches (
 -- Default branch
 INSERT IGNORE INTO branches (code, name, db_name, city, company_name, company_subtitle, system_name, system_version)
 VALUES ('SBY', 'Cabang Surabaya', 'bpf_asset_system', 'Surabaya',
-        'PT BESTPROFIT FUTURES', 'Cabang Surabaya', 'BPF WorkHub', 'v2.35.1');
+        'PT BESTPROFIT FUTURES', 'Cabang Surabaya', 'BPF WorkHub', 'v2.37.0');
 
 -- Kantor Pusat Jakarta (HO) + cabang JKT kedua
 INSERT IGNORE INTO branches (code, name, db_name, city, company_name, company_subtitle, system_name, system_version)
 VALUES ('JKT', 'Kantor Pusat Jakarta', 'bpf_branch_jkt', 'Jakarta',
-        'PT BESTPROFIT FUTURES', 'Kantor Pusat | Jakarta', 'BPF WorkHub', 'v2.35.1'),
+        'PT BESTPROFIT FUTURES', 'Kantor Pusat | Jakarta', 'BPF WorkHub', 'v2.37.0'),
        ('JKT2', 'Cabang Pacific Place', 'bpf_branch_jkt2', 'Jakarta',
-        'PT BESTPROFIT FUTURES', 'Cabang | Jakarta', 'BPF WorkHub', 'v2.35.1');
+        'PT BESTPROFIT FUTURES', 'Cabang | Jakarta', 'BPF WorkHub', 'v2.37.0');
 
 -- Add branch_code column to users if not exists
 SET @exists = (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'branch_code');

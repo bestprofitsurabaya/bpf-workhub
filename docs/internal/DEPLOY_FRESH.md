@@ -340,4 +340,4 @@ docker network ls | grep nextcloud_net
 
 ---
 
-*BPF WorkHub v2.36.0 — Deployment Guide · Diperbarui 6 September 2026*
+*BPF WorkHub v2.37.0 — Deployment Guide · Diperbarui 6 September 2026*

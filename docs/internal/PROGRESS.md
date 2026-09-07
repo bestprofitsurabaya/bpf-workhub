@@ -2,9 +2,9 @@
 
 File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks saat sesi baru dimulai.
 
-**Terakhir diperbarui:** 2026-09-06  
+**Terakhir diperbarui:** 2026-09-07  
 **Branch:** `main`  
-**Versi terbaru:** v2.36.0 (Approval Berjenjang — di repo, **BELUM deploy**) · v2.35.1 Tahap 5+6 LIVE — program 6 tahap ISO 27001 SELESAI
+**Versi terbaru:** v2.37.0 (di repo — edit/hapus air minum + admin per-cabang + Pengaturan terstruktur) · v2.36.2 LIVE — program 6 tahap ISO 27001 SELESAI
 
 ---
 
@@ -12,7 +12,10 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 | Aspek | Status |
 |-------|--------|
-| Versi | **v2.36.2 LIVE (6 Sep)** — Approval Berjenjang (v2.36.0) + fix sinkronisasi overtime (v2.36.1/v2.36.2) + restrukturisasi dokumentasi |
+| Versi | **v2.37.0 di repo (7 Sep, belum deploy)** — edit/hapus transaksi air minum (fitur opsional per cabang) + admin per-cabang (`admin_<kode>`) + Pengaturan terstruktur |
+| Edit/hapus air minum (v2.37.0) | ✅ **SELESAI di repo**: toggle Admin per cabang (`system_config.water_edit_enabled`, default nonaktif → perilaku lama); `PUT/DELETE /api/water/purchases/<id>` wajib step-up 428 + audit snapshot `old_data`; edit hanya status pending/verified (rejected ditolak 400); hapus = baris+item+foto dihapus permanen, snapshot tersimpan; kolom `edited_by/edited_at/edit_count` dibuat otomatis (master+cabang+`ensure_branch_database`); UI WaterView ✏️/🗑️ hanya muncul bila fitur aktif; **19 pytest + 4 vitest baru** |
+| Admin per-cabang (v2.37.0) | ✅ **SELESAI di repo**: modul `modules/admin_scope.py` — `admin` = Pusat (semua cabang), `admin_<kode>` = Admin Cabang (terkunci; fail-closed bila DB mati); ho_only di `/api/branches/switch`, docseq list/reset cabang lain, retention overview/archive, access review + export + complete; audit-logs lintas cabang ditolak 403 utk admin cabang; login & `/api/auth/me` kirim `is_ho_admin` → sidebar sembunyikan Access Review/Audit Log + chip "🔒 Cabang"; kolom `users.admin_all_branches` + `managed_branches`; **13 pytest baru** |
+| Pengaturan terstruktur (v2.37.0) | ✅ **SELESAI di repo**: peta seksi sticky (6 seksi, IntersectionObserver highlight), toggle switch standar utk edit/hapus air minum dgn konfirmasi; switcher cabang disembunyikan utk admin cabang |
 | Approval berjenjang (v2.36.0) | ✅ **SELESAI + DEPLOY LIVE (6 Sep)**: semua pengajuan kasbon/klaim BBM wajib ACC Chief Driver dulu → GA; overtime GA HR → Admin; gate 409 `SUPERVISOR_APPROVAL_REQUIRED` di approve-ga kasbon & BBM + PATCH overtime; jurnal `approval_requests` (master + tiap cabang); override atasan per user via `users.manager_username` (form Users); halaman SPA "✅ ACC Atasan" (`/approvals`); tolak wajib alasan; fail-open utk dokumen lama/DB down; **39 pytest + 5 vitest baru, semua lulus** |
 | Step-up auth (Tahap 2) | ✅ **SELESAI + DEPLOY live (5 Sep)**: 8 endpoint uang di-protect → 428 tanpa grant; modal PIN SPA; smoke test live lulus (428→PIN→lolos; logout hilangkan grant; 5 langkah terverifikasi) |
 | Access review (Tahap 3) | ✅ **SELESAI + DEPLOY LIVE sesi ini (rebuild + smoke test)**: `/app/access-review` 200, login admin OK, 30 akun terklasifikasi (3 ok / 26 never_login / 1 inactive / 0 stale), export CSV OK, 401 tanpa login; bundle SPA berisi access-review, SW cache v232 |
@@ -37,12 +40,86 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 | Retensi & arsip (Tahap 5) | ✅ **SELESAI + DEPLOY LIVE sesi ini (v2.34.0)**: 6 kelas, overview lintas 10 DB (per_db=10 terverifikasi), arsip audit → `activity_logs_archive` + register `retention_actions`, RETENTION_POLICY.md, UI Settings |
 | Integritas dokumen (Tahap 6) | ✅ **SELESAI + DEPLOY LIVE sesi ini (v2.35.0)**: registri SHA-256+signer+timestamp; e2e live: Form OT → registri → verify found=True → tamper 1 byte → found=False; UI Settings |
 | Fix kritis (v2.35.1) | ✅ **Kebocoran pool DB cabang di `ensure_branch_database`** (5 koneksi/cabang/startup → semua operasi cabang mati) — diperbaiki & diverifikasi (6× get/close OK, overview 10/10 DB); hook OT `session` NameError → `session_user()` |
-| Test Suite | ✅ 482 pytest (443 + 39 approvals; 6 skip; 5 security-headers butuh container DB — pre-existing) + 109 vitest (104 + 5 ApprovalsView) — CI GitHub Actions hijau tiap push (Backend: pytest + pip-audit + service mariadb/redis; Frontend: unit test + build + npm audit; Image scan Trivy) |
+| Test Suite | ✅ 511 pytest (482 + 35 baru v2.37.0; 6 skip; 5 security-headers butuh container DB — pre-existing) + 115 vitest (109 + 6 baru v2.37.0) — CI GitHub Actions hijau tiap push (Backend: pytest + pip-audit + service mariadb/redis; Frontend: unit test + build + npm audit; Image scan Trivy) |
 | Kestabilan | ✅ bbm_web healthy — 0 restart, 0 error di log sejak deploy terakhir |
 
 ---
 
 ## 🗂️ Riwayat Sesi
+
+### Sesi 2026-09-07 — v2.37.0: Edit/hapus transaksi air minum + admin per-cabang + Pengaturan terstruktur ✅ SELESAI DI REPO (belum deploy)
+
+> Permintaan user: (1) role Finance dapat edit & hapus transaksi air minum,
+> fitur bisa di-enable/disable Admin; (2) admin harus per-cabang
+> (`admin_sby`, `admin_bdg`, …); (3) UI/UX admin (Pengaturan) lebih
+> terstruktur & standar. Keputusan user via klarifikasi: edit boleh utk
+> status verified + pending; hapus = permanen + audit; scope akses =
+> sesuai cabang.
+
+1. **Backend — fitur edit/hapus air minum** (`modules/routes_water.py`):
+   key `system_config.water_edit_enabled` per DB cabang (default `false`,
+   fail-closed bila DB mati); `GET/PUT /api/water/edit-enabled` (PUT
+   admin-only + audit `water_edit_toggle`); `PUT /api/water/purchases/<id>`
+   (edit tanggal/items/remark/note — hanya pending & verified, rejected 400)
+   dan `DELETE` (hapus permanen baris+item+file foto) — keduanya
+   `@stepup_required` (428 tanpa grant) + audit `water_purchase_edit`/
+   `water_purchase_delete` dengan `old_data` snapshot lengkap (termasuk
+   item & foto); normalisasi item diekstrak ke `_normalize_water_items`
+   (dipakai create & edit); kolom `water_purchases.edited_by/edited_at/
+   edit_count` via `ensure_water_edit_columns` (startup master+cabang di
+   app.py + `ensure_branch_database` + init.sql).
+2. **Backend — admin per-cabang** (modul baru `modules/admin_scope.py`):
+   `is_ho_admin` (username persis `admin` + env `ADMIN_HO_USERNAMES` + flag
+   `users.admin_all_branches`; DB mati → fail-closed = admin cabang),
+   `admin_branches` (suffix username + `managed_branches`), `ho_only`
+   decorator, `assert_branch_row_scope` (baris luar cabang → 403),
+   `ensure_branch_admin_columns`. Terpasang di: `/api/branches/switch`
+   (admin cabang 403), `/api/branches/current` (+ `is_ho_admin`), docseq
+   list (filter cabang) & reset (cabang lain 403), retention overview &
+   archive-audit, access review (list/complete/export), audit-logs (branch
+   lain 403). Login & `/api/auth/me` menyertakan `is_ho_admin`.
+3. **Frontend**: auth store getter `isHoAdmin` (fallback suffix username);
+   AppLayout menyembunyikan Access Review & Audit Log dr sidebar admin
+   cabang + chip "🔒 Cabang"; SettingsView sembunyikan switcher cabang utk
+   admin cabang; WaterView — status fitur via `/api/water/edit-enabled`,
+   tombol ✏️ Edit (modal form terisi, validasi item, step-up) & 🗑️ hapus
+   (konfirmasi + step-up), hanya utk finance/admin bila fitur aktif.
+4. **Frontend — Pengaturan terstruktur**: peta seksi sticky 6 tombol (Data
+   Master, Air Minum, Cabang & Nomor, Kepatuhan ISO, Identitas, Lainnya)
+   + highlight seksi aktif via IntersectionObserver; toggle switch
+   AKTIF/NONAKTIF utk edit/hapus air minum (dgn konfirmasi & rollback bila
+   gagal); seksi baru di dokumen sama.
+5. **Test**: `tests/test_admin_scope.py` (13) + `tests/test_water_edit_delete.py`
+   (19) — gate fitur 403, step-up 428, edit sukses/rejected/404, delete
+   + foto, scoping admin desync 403, toggle PUT admin-only; vitest WaterView
+   +4 (fitur nonaktif tanpa tombol, aktif tampil, modal edit PUT, hapus
+   DELETE) & SettingsView +2 (peta seksi, toggle PUT). Fixture lama yang
+   membuat sesi tanpa `user_name` disesuaikan (docseq/retention/branches/
+   access-review) — perilaku produksi tidak berubah.
+5b. **Guard tambahan manajemen user (v2.37.0)**: `/api/users` memfilter
+   baris ke cabang admin cabang; `/api/users/sync` menolak 403 bila admin
+   cabang membuat/mengubah akun `admin` atau akun cabang lain (test
+   `TestAdminCabangScope` 3 kasus); hint username admin di UsersView
+   diupdate (admin pusat vs admin_kode).
+6. **Versi & docs**: stamp v2.37.0 (pdf_generator, company_identity,
+   identity.js, init.sql branches, SW cache `bpf-spa-20260907-v2370`);
+   init.sql + `water_edit_enabled='false'` + komentar admin per-cabang;
+   CHANGELOG v2.37.0, README (badge, fitur air minum & admin per-cabang,
+   angka test 508/115), USER_GUIDE (6.6 edit/hapus, 12.3 toggle, 12.4
+   catatan snapshot, 12.11 admin per-cabang, stamp), PROGRESS file ini.
+7. **Verifikasi**: 511 pytest + 6 skip lulus (host, tanpa container),
+   115 vitest lulus, `npm run build` sukses. ⚠️ Full pytest di HOST lama
+   (~3,5 menit) — di container: `docker exec bbm_web python3 -m pytest
+   tests/ -q`.
+8. ⏳ **Langkah sesi berikutnya**: (a) commit + push → CI hijau;
+   (b) deploy `docker compose up -d --build web` — kolom baru &
+   `water_edit_enabled` dibuat otomatis saat startup (master + 9 cabang);
+   (c) smoke test live: login `admin` → aktifkan toggle di Pengaturan →
+   login `finance_sby` → edit + hapus 1 pengajuan uji (428→PIN→sukses),
+   cek audit log berisi snapshot; buat `admin_sby` uji → verifikasi tidak
+   bisa ganti cabang/akses menu lintas cabang; (d) cleanup data uji;
+   (e) buat akun admin cabang produksi sesuai kebutuhan (`admin_<kode>`).
+
 
 ### Sesi 2026-09-06 (lanjutan) — Deploy v2.36.0 + restrukturisasi docs + v2.36.1/v2.36.2 data overtime tidak aktual ✅ SELESAI + DEPLOY LIVE
 

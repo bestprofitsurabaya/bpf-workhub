@@ -13,6 +13,7 @@ from flask import request, jsonify, session
 from modules.config import DB_CONFIG, get_master_connection, _pool_for
 from modules.helpers import role_required, log_activity_async
 from modules import branch_manager as bm
+from modules.admin_scope import is_ho_admin, admin_branches, scope_denied_response
 
 # Label prefix untuk tampilan Admin (mapping kode → dokumen).
 PREFIX_LABELS = {
@@ -116,9 +117,16 @@ def register_docseq_routes(app):
     @app.route('/api/admin/doc-sequences')
     @role_required(['admin'])
     def api_doc_sequences():
-        """Daftar nomor urut dokumen per cabang (semua prefix)."""
+        """Daftar nomor urut dokumen per cabang (semua prefix).
+
+        v2.37.0: Admin cabang (`admin_<kode>`) hanya melihat cabangnya;
+        Admin Pusat melihat semua cabang.
+        """
         try:
             branches = bm.list_branches()
+            if not is_ho_admin():
+                allowed, _ = admin_branches()
+                branches = [b for b in branches if b['code'] in allowed]
             result = []
             for b in branches:
                 try:
@@ -142,6 +150,12 @@ def register_docseq_routes(app):
     def api_doc_sequences_reset():
         """Reset penghitung nomor dokumen utk (cabang, prefix[, tanggal])."""
         try:
+            if not is_ho_admin():
+                allowed, _ = admin_branches()
+                data = request.get_json(silent=True) or {}
+                code = str(data.get('branch_code', '') or '').strip().upper()
+                if code not in allowed:
+                    return scope_denied_response()
             data = request.get_json(silent=True) or {}
             code = str(data.get('branch_code', '') or '').strip().upper()
             prefix = str(data.get('prefix', '') or '').strip().upper()

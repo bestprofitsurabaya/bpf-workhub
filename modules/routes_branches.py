@@ -12,6 +12,7 @@ from modules.config import get_master_connection, get_db_connection
 from modules.helpers import role_required, log_activity_async
 from modules import branch_manager as bm
 from modules.security import rate_limit
+from modules.admin_scope import is_ho_admin, admin_branches, scope_denied_response
 
 _DUMMY_TX_SQL = """INSERT IGNORE INTO transactions
     (driver_name, nopol, vehicle_type, bbm_type, nominal, liter, price_per_liter,
@@ -42,11 +43,15 @@ def register_branch_routes(app):
 
     @app.route('/api/branches/current')
     def api_branches_current():
-        """Info cabang sesi + daftar cabang yang bisa dipilih (admin: semua aktif)."""
+        """Info cabang sesi + daftar cabang yang bisa dipilih.
+
+        v2.37.0: Admin Pusat → semua cabang aktif; Admin cabang (`admin_<kode>`)
+        → hanya cabang miliknya (switcher UI tampil tapi tak berguna / disembunyikan).
+        """
         try:
             current = bm.current_branch()
             branches = []
-            if session.get('user_role') == 'admin':
+            if session.get('user_role') == 'admin' and is_ho_admin():
                 branches = [{
                     'code': b['code'], 'name': b['name'],
                     'db_name': b['db_name'], 'is_active': bool(b['is_active']),
@@ -54,7 +59,8 @@ def register_branch_routes(app):
             else:
                 branches = [{'code': current['code'], 'name': current['name'],
                              'db_name': current['db_name'], 'is_active': True}]
-            return jsonify({'current': current, 'branches': branches})
+            return jsonify({'current': current, 'branches': branches,
+                            'is_ho_admin': session.get('user_role') == 'admin' and is_ho_admin()})
         except Exception as e:
             return jsonify({'error': str(e)}), 500
 
@@ -183,8 +189,14 @@ def register_branch_routes(app):
     @app.route('/api/branches/switch', methods=['POST'])
     @role_required(['admin'])
     def api_branches_switch():
-        """Ganti cabang aktif di sesi (Admin bisa mengoperasikan cabang mana pun)."""
+        """Ganti cabang aktif di sesi.
+
+        v2.37.0: hanya Admin Pusat. Admin cabang (`admin_<kode>`) selalu
+        403 — cegah sesi cabang selisih dengan cakupan akunnya.
+        """
         try:
+            if not is_ho_admin():
+                return scope_denied_response()
             data = request.get_json(silent=True) or {}
             code = str(data.get('code', '') or '').strip().upper()
             branch = bm.get_branch(code)

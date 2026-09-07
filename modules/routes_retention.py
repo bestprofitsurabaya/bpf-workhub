@@ -31,6 +31,7 @@ from flask import jsonify, request, session
 from modules.config import DB_CONFIG, get_master_connection, _pool_for
 from modules.helpers import role_required, log_activity_async, client_ip
 from modules import branch_manager as bm
+from modules.admin_scope import is_ho_admin, scope_denied_response
 
 # ================================================================
 # Kebijakan retensi per kelas dokumen
@@ -271,7 +272,12 @@ def register_retention_routes(app):
     @app.route('/api/admin/retention/overview')
     @role_required(['admin'])
     def api_retention_overview():
-        """Kebijakan retensi + inventaris live per kelas (master + cabang)."""
+        """Kebijakan retensi + inventaris live per kelas (master + cabang).
+
+        v2.37.0: endpoint ini menyentuh DB semua cabang — khusus Admin Pusat.
+        """
+        if not is_ho_admin():
+            return scope_denied_response()
         conn = get_master_connection()
         if not conn:
             return jsonify({'status': 'error', 'msg': 'DB tidak tersedia'}), 500
@@ -330,7 +336,13 @@ def register_retention_routes(app):
     @app.route('/api/admin/retention/archive-audit', methods=['POST'])
     @role_required(['admin'])
     def api_retention_archive_audit():
-        """Arsipkan audit trail lebih tua dari N hari di semua DB (master+cabang)."""
+        """Arsipkan audit trail lebih tua dari N hari di semua DB (master+cabang).
+
+        v2.37.0: aksi lintas cabang — khusus Admin Pusat.
+        """
+        if not is_ho_admin():
+            return scope_denied_response()
+        data = request.get_json(silent=True) or {}
         data = request.get_json(silent=True) or {}
         cls = next((c for c in RETENTION_CLASSES if c['key'] == 'audit_logs'), None)
         if not cls:

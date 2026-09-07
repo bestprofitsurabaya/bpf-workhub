@@ -288,6 +288,55 @@ class TestUsersSync:
         assert r.status_code == 400
 
 
+class TestAdminCabangScope:
+    """v2.37.0: admin cabang (`admin_<kode>`) dibatasi di manajemen user."""
+
+    def _register(self, monkeypatch, db, username='admin_sby'):
+        import modules.routes_api_master as ram
+        conn = FakeConn(db)
+        monkeypatch.setattr(ram, 'get_db_connection', lambda: conn)
+        monkeypatch.setattr(ram, 'get_master_connection', lambda: conn)
+        import modules.config as mc
+        monkeypatch.setattr(mc, 'get_master_connection', lambda: conn)
+        monkeypatch.setattr(ram, 'log_activity_async', lambda *a, **k: None)
+        app = Flask(__name__)
+        app.secret_key = 'test-secret'
+        ram.register_master_api(app)
+        client = app.test_client()
+        with client.session_transaction() as s:
+            s['user_role'] = 'admin'
+            s['user_name'] = username
+            s['branch_code'] = 'SBY'
+        return client, conn
+
+    def test_admin_cabang_tidak_bisa_buat_akun_admin(self, monkeypatch):
+        db = {'existing_row': None}
+        client, conn = self._register(monkeypatch, db)
+        r = client.post('/api/users/sync', json={
+            'username': 'admin_mlg', 'full_name': 'Admin MLG', 'role': 'admin',
+            'branch_code': 'MLG', 'is_active': True,
+        })
+        assert r.status_code == 403
+
+    def test_admin_cabang_tidak_bisa_akun_cabang_lain(self, monkeypatch):
+        db = {'existing_row': None}
+        client, conn = self._register(monkeypatch, db)
+        r = client.post('/api/users/sync', json={
+            'username': 'finance_mlg', 'full_name': 'Finance MLG', 'role': 'finance',
+            'branch_code': 'MLG', 'is_active': True,
+        })
+        assert r.status_code == 403
+
+    def test_admin_cabang_boleh_akun_cabangnya(self, monkeypatch):
+        db = {'existing_row': None}
+        client, conn = self._register(monkeypatch, db)
+        r = client.post('/api/users/sync', json={
+            'username': 'finance_sby', 'full_name': 'Finance SBY', 'role': 'finance',
+            'branch_code': 'SBY', 'is_active': True,
+        })
+        assert r.status_code == 200, r.get_json()
+
+
 if __name__ == '__main__':
     import pytest
     pytest.main([__file__, '-v', '--tb=short'])

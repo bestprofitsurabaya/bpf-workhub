@@ -3,6 +3,9 @@ import { computed, onMounted, ref } from 'vue'
 import { api } from '../api'
 import Modal from '../components/Modal.vue'
 import { identity } from '../stores/identity'
+import { useAuthStore } from '../stores/auth'
+
+const auth = useAuthStore()
 
 const drivers = ref([])
 const vehicles = ref([])
@@ -232,6 +235,36 @@ async function demoClean() {
 const waterNames = ref({ ga: '', finance: '' })
 const waterMsg = ref('')
 
+// Fitur edit/hapus transaksi air minum (v2.37.0) — toggle Admin per cabang
+const waterEditEnabled = ref(false)
+const waterEditBusy = ref(false)
+const waterEditMsg = ref('')
+
+async function loadEditEnabled() {
+  try {
+    const d = await api('/api/water/edit-enabled')
+    waterEditEnabled.value = !!d?.enabled
+  } catch { waterEditEnabled.value = false }
+}
+
+async function toggleWaterEdit(e) {
+  const enabled = e.target.checked
+  const verb = enabled ? 'AKTIFKAN' : 'NONAKTIFKAN'
+  if (!confirm(`${verb} fitur edit/hapus transaksi air minum untuk cabang ini?\n\nBila aktif: Finance bisa mengedit & menghapus pengajuan (wajib PIN, tercatat di audit log).`)) {
+    e.target.checked = !enabled
+    return
+  }
+  waterEditBusy.value = true; waterEditMsg.value = ''
+  try {
+    const r = await api('/api/water/edit-enabled', { method: 'PUT', body: { enabled } })
+    waterEditEnabled.value = !!r.enabled
+    waterEditMsg.value = '✅ ' + (r.msg || 'Status fitur diperbarui')
+  } catch (err) {
+    waterEditMsg.value = '❌ ' + err.message
+    e.target.checked = !enabled
+  } finally { waterEditBusy.value = false }
+}
+
 async function loadWaterNames() {
   try {
     const [ga, finance] = await Promise.all([
@@ -406,7 +439,41 @@ function fmtDT(s) {
   return new Date(t).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })
 }
 
-onMounted(() => { load(); loadWaterNames(); loadIdentityForm(); loadDemoStatus(); loadBranches(); loadDocSequences(); loadRetention(); loadDocs() })
+// ---- Navigasi seksi (v2.37.0) — halaman panjang jadi terstruktur ----
+const SECTIONS = [
+  { id: 'sec-master', label: '🚗 Data Master' },
+  { id: 'sec-air', label: '🚰 Air Minum' },
+  { id: 'sec-cabang', label: '🏢 Cabang & Nomor' },
+  { id: 'sec-kepatuhan', label: '🗄️ Kepatuhan (ISO)' },
+  { id: 'sec-branding', label: '🎨 Identitas' },
+  { id: 'sec-lainnya', label: '🧪 Lainnya' },
+]
+const activeSection = ref('sec-master')
+const secNavEl = ref(null)
+
+function scrollToSection(id) {
+  activeSection.value = id
+  const el = document.getElementById(id)
+  if (el) {
+    const y = el.getBoundingClientRect().top + window.scrollY - 70
+    window.scrollTo({ top: y, behavior: 'smooth' })
+  }
+}
+
+let _secObserver = null
+onMounted(() => { load(); loadWaterNames(); loadEditEnabled(); loadIdentityForm(); loadDemoStatus(); loadBranches(); loadDocSequences(); loadRetention(); loadDocs() })
+onMounted(() => {
+  // Highlight seksi aktif saat scroll (IntersectionObserver — ringan).
+  _secObserver = new IntersectionObserver((entries) => {
+    for (const en of entries) {
+      if (en.isIntersecting) activeSection.value = en.target.id
+    }
+  }, { rootMargin: '-70px 0px -60% 0px' })
+  for (const s of SECTIONS) {
+    const el = document.getElementById(s.id)
+    if (el) _secObserver.observe(el)
+  }
+})
 </script>
 
 <template>
@@ -415,7 +482,13 @@ onMounted(() => { load(); loadWaterNames(); loadIdentityForm(); loadDemoStatus()
     <div v-if="loading" class="empty skeleton">⏳ Memuat…</div>
     <div v-else-if="err" class="alert alert-error">{{ err }}</div>
     <template v-else>
-      <div class="card card-pad" style="margin-bottom:16px;display:flex;align-items:center;">
+      <!-- Peta seksi: lompat cepat tanpa scroll panjang -->
+      <nav ref="secNavEl" class="settings-nav card" aria-label="Peta pengaturan">
+        <button v-for="s in SECTIONS" :key="s.id" class="settings-nav-btn"
+                :class="{ active: activeSection === s.id }" @click="scrollToSection(s.id)">{{ s.label }}</button>
+      </nav>
+
+      <div id="sec-master" class="card card-pad" style="margin-bottom:16px;display:flex;align-items:center;">
         <div class="grow">
           <h3 style="margin:0;">🚗 Data Master</h3>
           <p class="muted" style="font-size:11px;">Khusus Admin · pengelolaan driver, kendaraan &amp; tipe BBM</p>
@@ -438,7 +511,7 @@ onMounted(() => { load(); loadWaterNames(); loadIdentityForm(); loadDemoStatus()
         </div>
       </div>
 
-      <div class="card card-pad" style="margin-bottom:16px;">
+      <div id="sec-air" class="card card-pad" style="margin-bottom:16px;">
         <h3 style="margin:0;">🚰 Tanda Terima Air Minum</h3>
         <p class="muted" style="font-size:11px;">Nama penandatangan dokumen PDF pembelian air minum — Finance selaku <b>Menyerahkan</b> &amp; GA selaku <b>Menerima</b></p>
         <div class="form-grid" style="margin-top:12px;">
@@ -449,9 +522,26 @@ onMounted(() => { load(); loadWaterNames(); loadIdentityForm(); loadDemoStatus()
           <span class="muted" style="font-size:12px;">{{ waterMsg }}</span>
           <button class="btn btn-primary btn-sm" :disabled="busy" @click="saveWaterNames">💾 Simpan Nama TTD</button>
         </div>
+        <div class="water-toggle" style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border);">
+          <div class="row" style="align-items:flex-start;gap:10px;flex-wrap:wrap;">
+            <div class="grow">
+              <b style="font-size:13px;">✏️✖️ Edit &amp; Hapus Transaksi oleh Finance</b>
+              <p class="muted" style="font-size:11px;margin:4px 0 0;">
+                Bila <b>AKTIF</b>: Finance boleh mengedit (tanggal/item/remark) pengajuan berstatus Menunggu &amp;
+                Terverifikasi, dan menghapus pengajuan secara permanen. Setiap perubahan wajib verifikasi PIN (step-up)
+                dan tercatat lengkap di Audit Log (data lama tersimpan sebagai snapshot). Status <b>Ditolak</b> tidak bisa diedit.
+              </p>
+            </div>
+            <label class="switch" style="flex-shrink:0;">
+              <input type="checkbox" :checked="waterEditEnabled" :disabled="waterEditBusy" @change="toggleWaterEdit($event)" />
+              <span class="slider"><span class="slider-label">{{ waterEditEnabled ? 'AKTIF' : 'NONAKTIF' }}</span></span>
+            </label>
+          </div>
+          <span v-if="waterEditMsg" class="muted" style="font-size:12px;">{{ waterEditMsg }}</span>
+        </div>
       </div>
 
-      <div class="card card-pad" style="margin-bottom:16px;">
+      <div id="sec-cabang" class="card card-pad" style="margin-bottom:16px;">
         <h3 style="margin:0;">🏢 Cabang (Multi-Cabang)</h3>
         <p class="muted" style="font-size:11px;">
           Satu instalasi melayani banyak cabang — setiap cabang punya <b>database sendiri</b> (isolasi data penuh).
@@ -459,10 +549,13 @@ onMounted(() => { load(); loadWaterNames(); loadIdentityForm(); loadDemoStatus()
         </p>
         <div class="row" style="margin-top:10px;gap:8px;align-items:center;flex-wrap:wrap;">
           <button class="btn btn-primary btn-sm" @click="openBranchForm(null)">➕ Tambah Cabang</button>
-          <label class="muted" style="font-size:12px;">Ganti cabang (Admin):</label>
-          <select class="select" style="width:auto;" :value="currentBranch?.code" :disabled="branchBusy" @change="switchBranch($event.target.value)">
-            <option v-for="b in branches" :key="b.code" :value="b.code">{{ b.name }} ({{ b.code }})</option>
-          </select>
+          <template v-if="auth.isHoAdmin">
+            <label class="muted" style="font-size:12px;">Ganti cabang (Admin):</label>
+            <select class="select" style="width:auto;" :value="currentBranch?.code" :disabled="branchBusy" @change="switchBranch($event.target.value)">
+              <option v-for="b in branches" :key="b.code" :value="b.code">{{ b.name }} ({{ b.code }})</option>
+            </select>
+          </template>
+          <span v-else class="badge badge-gray">🔒 Admin cabang — operasional cabang ini saja</span>
           <span v-if="branchMsg" class="alert" :class="branchMsg.startsWith('✅') ? 'alert-success' : 'alert-error'" style="margin:0;padding:6px 10px;">{{ branchMsg }}</span>
         </div>
         <div class="table-wrap" style="margin-top:10px;">
@@ -523,7 +616,7 @@ onMounted(() => { load(); loadWaterNames(); loadIdentityForm(); loadDemoStatus()
         </div>
       </div>
 
-      <div class="card card-pad" style="margin-bottom:16px;">
+      <div id="sec-kepatuhan" class="card card-pad" style="margin-bottom:16px;">
         <h3 style="margin:0;">🗄️ Retensi &amp; Arsip Dokumen <span class="badge" style="font-size:10px;vertical-align:middle;">Tahap 5/6 ISO · A.8.2 · ISO 15489</span></h3>
         <p class="muted" style="font-size:11px;">
           Kebijakan retensi per kelas dokumen (detail: <code>RETENTION_POLICY.md</code>).
@@ -618,7 +711,7 @@ onMounted(() => { load(); loadWaterNames(); loadIdentityForm(); loadDemoStatus()
         </div>
       </div>
 
-      <div class="card card-pad" style="margin-bottom:16px;">
+      <div id="sec-branding" class="card card-pad" style="margin-bottom:16px;">
         <h3 style="margin:0;">🏢 Identitas Perusahaan / Cabang</h3>
         <p class="muted" style="font-size:11px;">
           Variabel branding dipakai di PDF (kop surat &amp; footer), halaman login, sidebar &amp; watermark foto —
@@ -638,7 +731,7 @@ onMounted(() => { load(); loadWaterNames(); loadIdentityForm(); loadDemoStatus()
         </div>
       </div>
 
-      <div class="card card-pad" style="margin-bottom:16px;">
+      <div id="sec-lainnya" class="card card-pad" style="margin-bottom:16px;">
         <h3 style="margin:0;">🧪 Data Demo</h3>
         <p class="muted" style="font-size:11px;">
           Buat atau bersihkan data demo (rute appointment <code>DEMO-*</code> &amp; transaksi dummy) — data asli tidak terpengaruh.
@@ -788,3 +881,59 @@ onMounted(() => { load(); loadWaterNames(); loadIdentityForm(); loadDemoStatus()
     </Modal>
   </div>
 </template>
+
+<style scoped>
+/* Peta seksi — sticky saat halaman di-scroll */
+.settings-nav {
+  position: sticky;
+  top: 60px;
+  z-index: 20;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 10px 12px;
+  margin-bottom: 16px;
+}
+.settings-nav-btn {
+  border: 1px solid var(--border);
+  background: var(--bg, #fff);
+  color: var(--text, inherit);
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.settings-nav-btn:hover { background: var(--accent-soft, #eef2ff); }
+.settings-nav-btn.active { background: var(--accent, #2563eb); color: #fff; border-color: var(--accent, #2563eb); }
+
+/* Toggle switch standar (dipakai fitur edit/hapus air minum) */
+.switch { position: relative; display: inline-flex; align-items: center; cursor: pointer; }
+.switch input { position: absolute; opacity: 0; width: 0; height: 0; }
+.switch .slider {
+  display: inline-flex;
+  align-items: center;
+  width: 96px;
+  height: 28px;
+  border-radius: 999px;
+  background: #9ca3af;
+  transition: background .2s;
+  padding: 0 10px;
+  justify-content: flex-end;
+}
+.switch .slider-label { color: #fff; font-size: 10px; font-weight: 700; letter-spacing: .4px; }
+.switch input:checked + .slider { background: #16a34a; justify-content: flex-start; }
+.switch input:disabled + .slider { opacity: .6; cursor: wait; }
+.switch .slider::before {
+  content: '';
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform .2s;
+}
+.switch input:checked + .slider::before { transform: translateX(28px); }
+</style>
