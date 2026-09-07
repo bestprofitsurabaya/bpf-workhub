@@ -171,24 +171,101 @@ def _parse_ymd(s):
 
 def _get_ttd_names():
     """Nama TTD dari system_config (di-set admin di /app/settings)."""
-    ga = finance = ''
+    ga = finance = head = ''
     try:
         conn = get_db_connection()
         if not conn:
-            return ga, finance
+            return ga, finance, head
         cur = conn.cursor(dictionary=True)
         cur.execute("SELECT config_key, config_value FROM system_config "
-                    "WHERE config_key IN ('water_ga_name','water_finance_name')")
+                    "WHERE config_key IN ('water_ga_name','water_finance_name','water_head_name')")
         for row in cur.fetchall():
             if row['config_key'] == 'water_ga_name':
                 ga = (row['config_value'] or '').strip()
             elif row['config_key'] == 'water_finance_name':
                 finance = (row['config_value'] or '').strip()
+            elif row['config_key'] == 'water_head_name':
+                head = (row['config_value'] or '').strip()
         cur.close()
         conn.close()
     except Exception as e:
         print(f"[water] get_ttd_names: {e}")
-    return ga, finance
+    return ga, finance, head
+
+
+def _export_meta(d_from, d_to, status, q):
+    """Meta laporan export (v2.37.5): rentang, filter, identitas, nama TTD."""
+    try:
+        from modules.company_identity import get_company_identity
+        ident = get_company_identity()
+    except Exception:
+        ident = {}
+    _, finance_name, head_name = _get_ttd_names()
+    parts = []
+    if status != 'all':
+        parts.append('Status ' + STATUS_LABEL.get(status, status))
+    if q:
+        parts.append(f'Pencarian "{q}"')
+    return {
+        'from': d_from, 'to': d_to,
+        'filters_text': ' · '.join(parts),
+        'company': ident,
+        'head_name': head_name,
+        'finance_name': finance_name,
+    }
+
+
+def _query_purchases(d_from, d_to, status, q, role):
+    """Query daftar pengajuan dengan filter — dipakai daftar & export (satu sumber).
+
+    Return (rows, conn) — conn harus di-close pemanggil (dipakai lagi utk
+    batch-load item).
+    """
+    conn = get_db_connection()
+    if not conn:
+        return None, None
+    cur = conn.cursor(dictionary=True)
+    where = ["wp.purchase_date >= %s", "wp.purchase_date < %s"]
+    params = [d_from, d_to]
+    if status != 'all':
+        where.append("wp.status = %s")
+        params.append(status)
+    if q:
+        like = f"%{q}%"
+        where.append("(wp.display_id LIKE %s OR wp.ob_name LIKE %s "
+                     "OR EXISTS (SELECT 1 FROM water_purchase_items wpi "
+                    "            WHERE wpi.purchase_id = wp.id "
+                    "              AND wpi.brand LIKE %s))")
+        params.extend([like, like, like])
+    if role == 'ob':
+        where.append("wp.ob_name = %s")
+        params.append(_session_name())
+    where_sql = ' AND '.join(where)
+    limit = 200 if role == 'ob' else 500
+    cur.execute(
+        f"""SELECT wp.* FROM water_purchases wp
+            WHERE {where_sql}
+            ORDER BY wp.id DESC LIMIT {int(limit)}""",
+        tuple(params))
+    rows = cur.fetchall()
+    if rows:
+        ids = [r['id'] for r in rows]
+        fmt = ','.join(['%s'] * len(ids))
+        cur.execute(
+            "SELECT purchase_id, drink_type, brand, satuan, quantity "
+            f"FROM water_purchase_items WHERE purchase_id IN ({fmt}) ORDER BY id",
+            tuple(ids))
+        items_by_purchase = {}
+        for it in cur.fetchall():
+            items_by_purchase.setdefault(it['purchase_id'], []).append(it)
+        for r in rows:
+            r['items'] = items_by_purchase.get(r['id'], [])
+            r['status_label'] = STATUS_LABEL.get(r['status'], r['status'])
+    else:
+        for r in rows:
+            r['items'] = []
+            r['status_label'] = STATUS_LABEL.get(r['status'], r['status'])
+    return rows, conn
 
 
 def _purchase_row(cur, p):
@@ -487,10 +564,6 @@ def register_water_routes(app):
         """
         try:
             role = session.get('user_role', '')
-            conn = get_db_connection()
-            if not conn:
-                return jsonify({'error': 'DB error'}), 500
-            cur = conn.cursor(dictionary=True)
 
             # ---- Filter (v2.37.4): default rentang bulan berjalan ----
             d_from = _parse_ymd(request.args.get('from'))
@@ -506,58 +579,69 @@ def register_water_routes(app):
                 status = 'all'
             q = (request.args.get('q') or '').strip()
 
-            where = ["wp.purchase_date >= %s", "wp.purchase_date < %s"]
-            params = [d_from, d_to]
-            if status != 'all':
-                where.append("wp.status = %s")
-                params.append(status)
-            if q:
-                like = f"%{q}%"
-                where.append("(wp.display_id LIKE %s OR wp.ob_name LIKE %s "
-                             "OR EXISTS (SELECT 1 FROM water_purchase_items wpi "
-                            "            WHERE wpi.purchase_id = wp.id "
-                            "              AND wpi.brand LIKE %s))")
-                params.extend([like, like, like])
-            if role == 'ob':
-                where.append("wp.ob_name = %s")
-                params.append(_session_name())
-            where_sql = ' AND '.join(where)
-            limit = 200 if role == 'ob' else 500
-
-            cur.execute(
-                f"""SELECT wp.* FROM water_purchases wp
-                    WHERE {where_sql}
-                    ORDER BY wp.id DESC LIMIT {int(limit)}""",
-                tuple(params))
-            rows = cur.fetchall()
-            # Batch load item (hindari N+1): satu query untuk semua purchase_id
-            if rows:
-                ids = [r['id'] for r in rows]
-                fmt = ','.join(['%s'] * len(ids))
-                cur.execute(
-                    "SELECT purchase_id, drink_type, brand, satuan, quantity "
-                    f"FROM water_purchase_items WHERE purchase_id IN ({fmt}) ORDER BY id",
-                    tuple(ids))
-                items_by_purchase = {}
-                for it in cur.fetchall():
-                    items_by_purchase.setdefault(it['purchase_id'], []).append(it)
-                for r in rows:
-                    r['items'] = items_by_purchase.get(r['id'], [])
-                    r['status_label'] = {'pending': 'Menunggu Verifikasi',
-                                         'verified': 'Terverifikasi',
-                                         'rejected': 'Ditolak'}.get(r['status'], r['status'])
-            else:
-                for r in rows:
-                    r['items'] = []
-                    r['status_label'] = {'pending': 'Menunggu Verifikasi',
-                                         'verified': 'Terverifikasi',
-                                         'rejected': 'Ditolak'}.get(r['status'], r['status'])
-            cur.close(); conn.close()
+            # v2.37.5: query dipindah ke _query_purchases (dipakai juga export)
+            rows, conn = _query_purchases(d_from, d_to, status, q, role)
+            if conn is None:
+                return jsonify({'error': 'DB error'}), 500
+            conn.close()
             return jsonify({
                 'purchases': rows,
                 'range': {'from': str(d_from), 'to': str(d_to), 'to_exclusive': True},
                 'filters': {'status': status, 'q': q},
             })
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/water/purchases/export')
+    @role_required(WATER_ROLES)
+    def api_water_purchases_export():
+        """Export rekap pengajuan sesuai filter aktif (v2.37.5).
+
+        ?format=xlsx (default) → Excel landscape; ?format=pdf → PDF landscape.
+        Filter sama dengan daftar: from/to/status/q (default bulan berjalan).
+        TTD: Finance (Dibuat oleh) & Kepala Cabang (Mengetahui) — nama dari
+        system_config water_finance_name / water_head_name (di-set Admin di
+        Pengaturan → 🚰 Air Minum).
+        """
+        try:
+            role = session.get('user_role', '')
+            d_from = _parse_ymd(request.args.get('from'))
+            d_to = _parse_ymd(request.args.get('to'))
+            if d_from is None and d_to is None:
+                d_from, d_to = _month_range()
+            elif d_from is None:
+                d_from = d_to
+            elif d_to is None:
+                d_to = d_from
+            status = (request.args.get('status') or 'all').strip().lower()
+            if status not in ('pending', 'verified', 'rejected', 'all'):
+                status = 'all'
+            q = (request.args.get('q') or '').strip()
+
+            rows, conn = _query_purchases(d_from, d_to, status, q, role)
+            if conn is None:
+                return jsonify({'error': 'DB error'}), 500
+            conn.close()
+
+            meta = _export_meta(d_from, d_to, status, q)
+            fmt = (request.args.get('format') or 'xlsx').strip().lower()
+            stamp = datetime.now().strftime('%Y%m%d_%H%M')
+            if fmt == 'pdf':
+                from modules.water_report import WaterReportPDF
+                data = WaterReportPDF().generate(rows, meta)
+                resp = make_response(data)
+                resp.headers['Content-Type'] = 'application/pdf'
+                resp.headers['Content-Disposition'] = \
+                    f'attachment; filename=Rekap_AirMinum_{stamp}.pdf'
+            else:
+                from modules.water_report import generate_water_report_excel
+                data = generate_water_report_excel(rows, meta)
+                resp = make_response(data)
+                resp.headers['Content-Type'] = \
+                    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+                resp.headers['Content-Disposition'] = \
+                    f'attachment; filename=Rekap_AirMinum_{stamp}.xlsx'
+            return resp
         except Exception as e:
             return jsonify({'error': str(e)}), 500
 
@@ -868,7 +952,7 @@ def register_water_routes(app):
             items = cur.fetchall()
             cur.close(); conn.close()
 
-            ga_name, finance_name = _get_ttd_names()
+            ga_name, finance_name, _head = _get_ttd_names()
             # v2.29.4: nama di blok TTD Finance ('Menyerahkan') = user yang
             # benar-benar memverifikasi (verified_by saat approve/tolak). Nama
             # TTD system_config dipakai hanya sebagai fallback (mis. pending).

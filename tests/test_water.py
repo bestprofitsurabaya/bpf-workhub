@@ -223,6 +223,7 @@ class TestGetTtdNames:
                 self._rows = [
                     {'config_key': 'water_ga_name', 'config_value': 'Andi Prasetyo'},
                     {'config_key': 'water_finance_name', 'config_value': 'Rina Wijaya'},
+                    {'config_key': 'water_head_name', 'config_value': 'Budi Santoso'},
                 ]
             def fetchall(self):
                 return self._rows
@@ -239,9 +240,10 @@ class TestGetTtdNames:
             return FakeConn()
 
         monkeypatch.setattr(rw, 'get_db_connection', fake_get_db_connection)
-        ga, finance = rw._get_ttd_names()
+        ga, finance, head = rw._get_ttd_names()
         assert ga == 'Andi Prasetyo'
         assert finance == 'Rina Wijaya'
+        assert head == 'Budi Santoso'
 
     def test_ttd_names_kosong_saat_tidak_diset(self, monkeypatch):
         """Tanpa konfigurasi → string kosong (PDF memakai default label)."""
@@ -262,9 +264,10 @@ class TestGetTtdNames:
                 pass
 
         monkeypatch.setattr(rw, 'get_db_connection', lambda: FakeConn())
-        ga, finance = rw._get_ttd_names()
+        ga, finance, head = rw._get_ttd_names()
         assert ga == ''
         assert finance == ''
+        assert head == ''
 
 
 class TestWaterRecap:

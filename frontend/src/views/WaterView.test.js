@@ -2,10 +2,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import WaterView from './WaterView.vue'
 
-const { apiMock } = vi.hoisted(() => ({ apiMock: vi.fn() }))
+const { apiMock, authMock } = vi.hoisted(() => ({ apiMock: vi.fn(), authMock: { role: 'finance' } }))
 vi.mock('../api', () => ({ api: apiMock }))
 vi.mock('../stores/auth', () => ({
-  useAuthStore: () => ({ role: 'finance' }),
+  useAuthStore: () => authMock,
 }))
 vi.mock('../stores/stepup', () => ({
   useStepupStore: () => ({
@@ -282,5 +282,60 @@ describe('WaterView — filter rentang tanggal (v2.37.4)', () => {
     })
     const w = await mountView()
     expect(w.text()).toContain('WTR-20260812-0001')
+  })
+})
+
+describe('WaterView — export rekap (v2.37.5)', () => {
+  beforeEach(() => { vi.clearAllMocks() })
+
+  function mockExport() {
+    apiMock.mockImplementation((path, opts) => {
+      if (path === '/api/water/brands') return Promise.resolve({ types: TYPES, brands: [] })
+      if (path === '/api/water/purchases') return Promise.resolve({ purchases: PURCHASES, range: {}, filters: {} })
+      if (path.startsWith('/api/water/purchases/export')) return Promise.resolve(new Blob(['x'], { type: 'application/pdf' }))
+      return Promise.resolve({ status: 'success' })
+    })
+  }
+
+  it('finance melihat tombol Export PDF & Excel', async () => {
+    mockExport()
+    const w = await mountView()
+    const btns = w.findAll('button').map((b) => b.text())
+    expect(btns).toContain('📄 Export PDF')
+    expect(btns).toContain('📊 Export Excel')
+  })
+
+  it('klik Export PDF → GET export dengan filter aktif + format=pdf', async () => {
+    mockExport()
+    const w = await mountView()
+    await w.findAll('button').find((b) => b.text() === '📄 Export PDF').trigger('click')
+    await flushPromises()
+    const call = apiMock.mock.calls.find((c) => c[0].startsWith('/api/water/purchases/export'))
+    expect(call).toBeTruthy()
+    expect(call[0]).toContain('format=pdf')
+    expect(call[0]).toContain('from=')
+    expect(call[1]?.raw).toBe(true)
+  })
+
+  it('klik Export Excel → format=xlsx', async () => {
+    mockExport()
+    const w = await mountView()
+    await w.findAll('button').find((b) => b.text() === '📊 Export Excel').trigger('click')
+    await flushPromises()
+    const call = apiMock.mock.calls.find((c) => c[0].startsWith('/api/water/purchases/export'))
+    expect(call[0]).toContain('format=xlsx')
+  })
+
+  it('OB tidak melihat tombol export', async () => {
+    authMock.role = 'ob'
+    try {
+      mockExport()
+      const w = await mountView()
+      const btns = w.findAll('button').map((b) => b.text())
+      expect(btns).not.toContain('📄 Export PDF')
+      expect(btns).not.toContain('📊 Export Excel')
+    } finally {
+      authMock.role = 'finance'
+    }
   })
 })

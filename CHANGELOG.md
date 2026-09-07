@@ -4,6 +4,36 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 
 ---
 
+## v2.37.5 — 7 September 2026 (Export rekap air minum — PDF & Excel resmi)
+
+Permintaan pemilik: hasil filter bisa diexport dalam format resmi untuk
+dilampirkan ke laporan/dokumentasi.
+
+### Ditambah
+- **Tombol 📄 Export PDF & 📊 Export Excel** di WaterView (finance/admin) —
+  mengirim filter aktif (rentang/status/pencarian) ke endpoint export.
+- **`GET /api/water/purchases/export?format=xlsx|pdf`** — filter identik
+  dengan daftar (default bulan berjalan); nama file
+  `Rekap_AirMinum_<dari>_sd_<sampai>.<ext>`.
+- **Generator laporan resmi** (`modules/water_report.py`):
+  - Excel (openpyxl): landscape A4 fit-to-width, kop perusahaan + periode +
+    filter, 9 kolom (No, No. Dokumen, Tanggal, OB, Rincian Item, Total Qty,
+    Status, Remark, Catatan), baris zebra + border, blok RINGKASAN, dua blok
+    TTD: **Finance (Dibuat oleh)** & **Kepala Cabang (Mengetahui)**.
+  - PDF (fpdf2): reuse `BPFBasePDF` (kop identitas + footer halaman),
+    landscape A4, tabel wrap multi-baris, ringkasan, TTD dua pihak.
+- **Nama TTD dari Pengaturan → 🚰 Air Minum** — kini 3 field: Nama Finance
+  (Menyerahkan/Mengetahui TTD PDF tanda terima), Nama GA (Menerima), dan
+  **Nama Kepala Cabang** (`system_config.water_head_name`) — fallback label
+  generik bila belum diset.
+- Test: +15 pytest (`tests/test_water_export.py`: validitas xlsx/pdf,
+  landscape, konten judul & TTD via extractor PDF, multi-page, content-type
+  & filename endpoint, filter diteruskan, scoping OB, fallback TTD) + +4
+  vitest (tombol export, params filter & format, OB tak lihat tombol) —
+  suite **551 pytest + 6 skip** dan **135 vitest**, hijau.
+
+---
+
 ## v2.37.4 — 7 September 2026 (Filter rentang tanggal daftar air minum)
 
 Saran finance: cari pengajuan per rentang tanggal, default menampilkan

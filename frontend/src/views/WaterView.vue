@@ -118,6 +118,28 @@ function resetFilter() {
   load()
 }
 
+// ---- Export rekap (v2.37.5) — PDF/Excel landscape resmi, TTD Kepala Cabang & Finance ----
+const exporting = ref(false)
+async function exportReport(format) {
+  exporting.value = true
+  try {
+    const qs = new URLSearchParams({
+      format, from: fFrom.value, to: fTo.value, status: fStatus.value, q: fQ.value.trim(),
+    })
+    const blob = await api(`/api/water/purchases/export?${qs}`, { raw: true })
+    const ext = format === 'pdf' ? 'pdf' : 'xlsx'
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `Rekap_AirMinum_${fFrom.value}_sd_${fTo.value}.${ext}`
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    URL.revokeObjectURL(url)
+  } catch (e) { msg.value = '❌ ' + e.message }
+  finally { exporting.value = false }
+}
+
 async function submitForm() {
   if (!form.value.purchase_date) { msg.value = '❌ Tanggal pengiriman wajib diisi'; return }
   if (!form.value.items.length) { msg.value = '❌ Minimal satu item'; return }
@@ -294,6 +316,8 @@ onMounted(() => { form.value.items.push(newItem()); load() })
       </div>
       <button v-if="isOB" class="btn btn-primary" @click="showForm = true">➕ Ajukan Pengiriman</button>
       <button v-if="isFinance" class="btn" @click="openBrandModal">🏷️ Kelola Merk</button>
+      <button v-if="!isOB" class="btn" :disabled="exporting" title="Export sesuai filter aktif" @click="exportReport('pdf')">📄 Export PDF</button>
+      <button v-if="!isOB" class="btn" :disabled="exporting" title="Export sesuai filter aktif" @click="exportReport('xlsx')">📊 Export Excel</button>
     </div>
 
     <div v-if="loading" class="empty skeleton">⏳ Memuat…</div>
