@@ -4,6 +4,58 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 
 ---
 
+## v2.37.6 — 7 September 2026 (Tata letak export air minum + kop per cabang + Palembang dinonaktifkan)
+
+Lanjutan sesi yang terputus di tengah pekerjaan: perapian tata letak output
+PDF rekap air minum dan kop dokumen yang mengikuti cabang masing-masing.
+Sekalian pembersihan data cabang (Palembang tidak punya kantor cabang).
+
+### Diperbaiki
+- **PDF** (`modules/water_report.py`): grid digambar manual per baris
+  (rect + garis kolom) sehingga semua kolom tetap rata walau teks
+  multi-baris; tinggi baris diukur dari SEMUA kolom (bukan 3); header tabel
+  diulang tiap halaman; teks vertikal center pada sel satu baris; blok TTD
+  dengan tempat/tanggal (kota cabang dari tabel `branches`).
+- **Excel**: tinggi baris mengikuti konten wrap, zebra fill, warna status,
+  garis tanda tangan di ATAS nama, freeze panes header.
+- **Filter tanggal `to` kini INKLUSIF** — bug v2.37.4: transaksi pada hari
+  terakhir bulan tersembunyi dari daftar & export ("Sampai 31 Agustus"
+  tidak menampilkan transaksi 31 Agustus). Query kini `< (to + 1 hari)`,
+  tetap parameterized. `tests/test_water_filter.py` disesuaikan.
+- **Kop PDF tidak lagi selalu Kantor Pusat** — bug integrasi v2.37.5:
+  `WaterReportPDF()` dipanggil tanpa override identity sehingga kop tetap
+  memakai alamat HO (Equity Tower) untuk semua cabang. Kini `generate()`
+  meng-override identitas dari `meta['company']` (dibangun `_export_meta()`
+  dari tabel `branches` sesuai cabang sesi). +1 test regresi
+  (`test_kop_mengikuti_cabang`: alamat cabang ADA, alamat HO TIDAK ADA).
+
+### Ditambah
+- **Data identitas cabang** — alamat & telepon resmi 9 cabang diisi di
+  tabel `branches` (sumber: bestprofit-futures.co.id/hubungi-kami), sehingga
+  kop export tiap cabang menampilkan alamatnya sendiri (SBY: Graha Bukopin
+  Lt. 11; JKT: Equity Tower Lt. 47; JKT2: Pacific Place Mall; BDG, SMG, MDN,
+  BJM, LPG, MLG). `init.sql` seed SBY/JKT/JKT2 ikut menyertakan
+  address/phone untuk fresh-install. SQL pembanding:
+  `scripts/branches_update.sql`.
+
+### Keamanan / Data
+- **Cabang Palembang (PLM) dinonaktifkan** — perusahaan tidak memiliki kantor
+  cabang di Palembang: `branches.is_active=0` + user `it_plm` & `admin_plm`
+  dinonaktifkan (login 401 terverifikasi live). DB `bpf_branch_plm`
+  dibiarkan utuh — reversible. Sekalian: telepon JKT di tabel branches
+  dikoreksi (sebelumnya 031-5349888 = nomor Surabaya, kini 021-29035005 = HO
+  Jakarta).
+
+### Deploy
+- Rebuild `bbm_web` 7 Sep (2× — fix kop menyusul verifikasi pertama);
+  health 200; login `admin_master` OK; export PDF (SBY) memuat kop
+  "Graha Bukopin …" tanpa "Equity Tower"; export Excel A2/A3 memuat
+  identitas SBY; periode default kini "01/09/2026 s/d 30/09/2026".
+- Suite: 28/28 test water di container final; **551 pytest + 6 skip** lulus
+  (container rebuilt).
+
+---
+
 ## v2.37.5 — 7 September 2026 (Export rekap air minum — PDF & Excel resmi)
 
 Permintaan pemilik: hasil filter bisa diexport dalam format resmi untuk

@@ -4,7 +4,7 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 **Terakhir diperbarui:** 2026-09-07  
 **Branch:** `main`  
-**Versi terbaru:** v2.37.5 LIVE (7 Sep — export rekap air minum PDF & Excel resmi) · v2.37.4 (filter rentang tanggal) · v2.37.3 (detail snapshot audit log) · v2.37.2 (fix foto bukti 500 + preview verifikasi air minum) · v2.37.1 (hotfix scoping admin cabang) · v2.37.0 (edit/hapus air minum + admin per-cabang + Pengaturan terstruktur) — program 6 tahap ISO 27001 SELESAI
+**Versi terbaru:** v2.37.6 LIVE (7 Sep — layout export air minum + kop per cabang + PLM dinonaktifkan) · v2.37.5 (export rekap air minum PDF & Excel) · v2.37.4 (filter rentang tanggal) · v2.37.3 (detail snapshot audit log) · v2.37.2 (fix foto bukti 500 + preview verifikasi air minum) · v2.37.1 (hotfix scoping admin cabang) · v2.37.0 (edit/hapus air minum + admin per-cabang + Pengaturan terstruktur) — program 6 tahap ISO 27001 SELESAI
 
 ---
 
@@ -12,7 +12,9 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 | Aspek | Status |
 |-------|--------|
-| Versi | **v2.37.5 LIVE (7 Sep)** — v2.37.0 (edit/hapus air minum + admin per-cabang) + v2.37.1 hotfix scoping + v2.37.2 fix foto bukti & preview + v2.37.3 detail snapshot audit |
+| Versi | **v2.37.6 LIVE (7 Sep)** — layout export air minum + kop per cabang (tabel branches) + cabang Palembang dinonaktifkan; sebelumnya v2.37.5 export rekap air minum + v2.37.0 (edit/hapus air minum + admin per-cabang) + v2.37.1 hotfix scoping + v2.37.2 fix foto bukti & preview + v2.37.3 detail snapshot audit |
+| Kop dokumen per cabang (v2.37.6) | ✅ **LIVE**: export PDF/Excel air minum kini memakai alamat/telepon/subtitle tabel `branches` sesuai cabang sesi (bug v2.37.5: kop selalu alamat HO); alamat resmi 9 cabang diisi dari bestprofit-futures.co.id; filter `to` kini inklusif (tanggal terakhir bulan tak lagi hilang) |
+| Cabang Palembang | ✅ **DINONAKTIFKAN (7 Sep)** — tidak ada kantor cabang: `branches.is_active=0` + user `it_plm`/`admin_plm` nonaktif (login 401 live); DB `bpf_branch_plm` utuh (reversible) |
 | Edit/hapus air minum (v2.37.0) | ✅ **SELESAI di repo**: toggle Admin per cabang (`system_config.water_edit_enabled`, default nonaktif → perilaku lama); `PUT/DELETE /api/water/purchases/<id>` wajib step-up 428 + audit snapshot `old_data`; edit hanya status pending/verified (rejected ditolak 400); hapus = baris+item+foto dihapus permanen, snapshot tersimpan; kolom `edited_by/edited_at/edit_count` dibuat otomatis (master+cabang+`ensure_branch_database`); UI WaterView ✏️/🗑️ hanya muncul bila fitur aktif; **19 pytest + 4 vitest baru** |
 | Admin per-cabang (v2.37.0) | ✅ **SELESAI di repo**: modul `modules/admin_scope.py` — `admin` = Pusat (semua cabang), `admin_<kode>` = Admin Cabang (terkunci; fail-closed bila DB mati); ho_only di `/api/branches/switch`, docseq list/reset cabang lain, retention overview/archive, access review + export + complete; audit-logs lintas cabang ditolak 403 utk admin cabang; login & `/api/auth/me` kirim `is_ho_admin` → sidebar sembunyikan Access Review/Audit Log + chip "🔒 Cabang"; kolom `users.admin_all_branches` + `managed_branches`; **13 pytest baru** |
 | Pengaturan terstruktur (v2.37.0) | ✅ **SELESAI di repo**: peta seksi sticky (6 seksi, IntersectionObserver highlight), toggle switch standar utk edit/hapus air minum dgn konfirmasi; switcher cabang disembunyikan utk admin cabang |
@@ -27,7 +29,7 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 | Urutan overtime | ✅ Terkini-di-atas di semua daftar + detail report per nama dibalik terkini-dulu (PDF/Excel, commit `733fd2f`) |
 | Data demo air minum | ✅ Dibersihkan 4 Sep — WTR-20260904-10300556, WTR-DEMO-01/02 dihapus (bpf_asset_system + bpf_restore_test); backup `/tmp/bpf_water_demo_backup_20260904.sql`; tabel `water_purchases` kini 0 baris |
 | Deploy | ✅ **v2.36.2 LIVE** (6 Sep: v2.36.0 approval `2df2ba7`, docs `80a84ea`, v2.36.1 `109e7a5`, v2.36.2 `92d2de0`) — sebelumnya v2.35.1/v2.33.0/v2.32.0 juga live; `bbm_web` healthy 0 restart |
-| Admin cabang & akun (7 Sep) | ✅ **LIVE**: 10 akun `admin_<kode>` dibuat via API (jkt/sby/bdg/smg/mlg/mdn/bjm/plm/lpg/jkt2, PIN awal 123456 — wajib ganti); `admin` → **`admin_master`** (flag `admin_all_branches=1`, jadi backup bila admin cabang kendala); `e2e_admin_tmp` dinonaktifkan; scoping terverifikasi live (admin_bdg: switch cabang & access-review → 403). Detail: USER_LIST.md |
+| Admin cabang & akun (7 Sep) | ✅ **LIVE**: 10 akun `admin_<kode>` dibuat via API (jkt/sby/bdg/smg/mlg/mdn/bjm/plm/lpg/jkt2, PIN awal 123456 — wajib ganti); `admin` → **`admin_master`** (flag `admin_all_branches=1`, jadi backup bila admin cabang kendala); `e2e_admin_tmp` dinonaktifkan; scoping terverifikasi live (admin_bdg: switch cabang & access-review → 403). **v2.37.6: akun `admin_plm` dinonaktifkan (cabang PLM tidak ada)**. Detail: USER_LIST.md |
 | Foto bukti & verifikasi (v2.37.2) | ✅ **LIVE**: NameError `session` di `/uploads/` (regresi hardening 584ba88) bikin SEMUA foto bukti 500 — di-fix + 4 pytest regression; modal Verifikasi/Tolak kini menampilkan bukti foto + lightbox klik-perbesar + fallback foto rusak (6 vitest); smoke live: foto 200 image/jpeg dgn sesi finance, 401 tanpa sesi |
 | Dashboard Marketing | ✅ Tab "Selesai" kini memakai `/api/appointments/history` (riwayat completed marketing sendiri, lintas tanggal) — sebelumnya memanggil endpoint driver `/completed` → selalu 400/kosong |
 | Validasi username | ✅ Backend `/api/users/sync` menolak username role back-office tanpa awalan divisi (`finance_`, `ob_`, …) — Driver/Admin/`it_*` bebas; akun lama (qa/test_check/e2e_driver & (username,role) sudah ada) tetap bisa disimpan |
@@ -42,12 +44,59 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 | Retensi & arsip (Tahap 5) | ✅ **SELESAI + DEPLOY LIVE sesi ini (v2.34.0)**: 6 kelas, overview lintas 10 DB (per_db=10 terverifikasi), arsip audit → `activity_logs_archive` + register `retention_actions`, RETENTION_POLICY.md, UI Settings |
 | Integritas dokumen (Tahap 6) | ✅ **SELESAI + DEPLOY LIVE sesi ini (v2.35.0)**: registri SHA-256+signer+timestamp; e2e live: Form OT → registri → verify found=True → tamper 1 byte → found=False; UI Settings |
 | Fix kritis (v2.35.1) | ✅ **Kebocoran pool DB cabang di `ensure_branch_database`** (5 koneksi/cabang/startup → semua operasi cabang mati) — diperbaiki & diverifikasi (6× get/close OK, overview 10/10 DB); hook OT `session` NameError → `session_user()` |
-| Test Suite | ✅ 511 pytest (482 + 35 baru v2.37.0; 6 skip; 5 security-headers butuh container DB — pre-existing) + 115 vitest (109 + 6 baru v2.37.0) — CI GitHub Actions hijau tiap push (Backend: pytest + pip-audit + service mariadb/redis; Frontend: unit test + build + npm audit; Image scan Trivy) |
+| Test Suite | ✅ 551 pytest (+1 regresi kop cabang v2.37.6; 6 skip; 5 security-headers butuh container DB — pre-existing) + 135 vitest — CI GitHub Actions hijau tiap push (Backend: pytest + pip-audit + service mariadb/redis; Frontend: unit test + build + npm audit; Image scan Trivy) |
 | Kestabilan | ✅ bbm_web healthy — 0 restart, 0 error di log sejak deploy terakhir |
 
 ---
 
 ## 🗂️ Riwayat Sesi
+
+### Sesi 2026-09-07 (lanjutan) — v2.37.6: Layout export air minum + kop per cabang + Palembang dinonaktifkan ✅ SELESAI + DEPLOY LIVE
+
+> Melanjutkan sesi terputus (jaringan hilang) di tengah pekerjaan perapian
+> layout output PDF air minum + kop alamat per cabang. Keputusan user:
+> alamat cabang diambil dari website resmi
+> (bestprofit-futures.co.id/hubungi-kami); Palembang dinonaktifkan beserta
+> user-nya (tidak ada kantor cabang di sana).
+
+#### 🔑 Akses Server
+- SSH `it-ef@nasbpfsby.duckdns.org -p 2211` (password auth — jalan langsung
+  dari Haven PRoot; alternatif LAN `192.168.2.31:22`).
+- Akun admin live: **`admin_master`** — user `admin` TIDAK ADA (tabel "Akun
+  Demo" di README usang). Login API: CSRF dari `GET /api/auth/me` →
+  `POST /api/auth/login` + header `X-CSRF-Token`.
+
+#### 🛠️ Yang Dikerjakan
+1. **Pulihkan pekerjaan v2.37.6** dari `tmp_deploy/` — `water_report.py` &
+   `routes_water.py` belum pernah ter-sync (test sudah), lalu sync + test.
+2. **Bugfix yang ditemukan saat verifikasi**:
+   - `_month_range` kini INKLUSIF (akhir = hari terakhir bulan) — bug
+     v2.37.4: transaksi tanggal terakhir bulan hilang dari daftar/export;
+     `tests/test_water_filter.py` disesuaikan.
+   - **Kop PDF masih alamat HO** — `WaterReportPDF()` dipanggil tanpa
+     override identity; `generate()` kini meng-override dari
+     `meta['company']` (tabel `branches`). Terverifikasi live: PDF SBY
+     memuat "Graha Bukopin", "Equity Tower" tidak lagi muncul. +1 test
+     regresi (`test_kop_mengikuti_cabang`).
+3. **Data cabang** (SQL: `scripts/branches_update.sql`; backup pre-update:
+   `~/backup_branches_20260907.tsv`):
+   - Alamat+telepon resmi 9 cabang diisi (website resmi); phone JKT
+     dikoreksi (salahnya nomor 031-… Surabaya, kini 021-29035005).
+   - **PLM nonaktif** (`is_active=0`) + user `it_plm`/`admin_plm` nonaktif
+     (login → 401). DB `bpf_branch_plm` utuh.
+   - `init.sql` seed SBY/JKT/JKT2 kini menyertakan address/phone.
+4. **Deploy**: rebuild `bbm_web` 2× (fix kop menyusul verifikasi pertama);
+   health 200; export PDF & Excel SBY terverifikasi kopnya (live);
+   periode default kini "01/09/2026 s/d 30/09/2026".
+5. **Test**: 28/28 test water di container final; full suite 551 pytest +
+   6 skip lulus.
+
+#### ⚠️ Catatan
+- Snapshot lokal `.remote/bpf-workhub/` (di Haven) BASI — md5 beda dari
+  server & kontennya lama. Jangan dijadikan acuan; sumber kebenaran = repo
+  di server `/home/it-ef/bpf-workhub` (+ GitHub).
+- README.md "Akun Demo" menyebut `admin`/`123456` — usang; live pakai
+  `admin_master` (lihat USER_LIST.md).
 
 ### Sesi 2026-09-07 — v2.37.0: Edit/hapus transaksi air minum + admin per-cabang + Pengaturan terstruktur ✅ SELESAI DI REPO (belum deploy)
 
