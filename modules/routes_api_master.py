@@ -262,11 +262,35 @@ def register_master_api(app):
 
             # v2.37.0: admin cabang tidak boleh membuat/mengubah akun admin
             # maupun akun di luar cabangnya (users tinggal di DB master).
+            # Target branch di-resolve dulu: dari body, atau dari row existing
+            # (by id/username) supaya update-by-id lintas cabang tidak lolos.
             if session.get('user_role') == 'admin' and not is_ho_admin():
                 from modules.admin_scope import admin_branches
                 allowed, _ = admin_branches()
-                tgt_branch = (branch or '').strip().upper() if branch else ''
-                if r == 'admin' or (tgt_branch and tgt_branch not in allowed):
+                tgt_branch = ''
+                existing_branch = None
+                existing_role = None
+                if 'branch_code' in data:
+                    tgt_branch = str(data.get('branch_code', '') or '').strip().upper()
+                uid_pre = data.get('id')
+                conn_m = get_master_connection()
+                try:
+                    cur_m = conn_m.cursor()
+                    if uid_pre is not None:
+                        cur_m.execute("SELECT branch_code, role FROM users WHERE id=%s", (uid_pre,))
+                    else:
+                        cur_m.execute("SELECT branch_code, role FROM users WHERE username=%s", (u,))
+                    row_m = cur_m.fetchone()
+                    if row_m:
+                        existing_branch = (row_m[0] or '').strip().upper() or None
+                        existing_role = row_m[1]
+                    cur_m.close()
+                finally:
+                    conn_m.close()
+                if (r == 'admin' or existing_role == 'admin'
+                        or (tgt_branch and tgt_branch not in allowed)
+                        or (existing_branch and existing_branch not in allowed)
+                        or (uid_pre is None and not tgt_branch and existing_branch is None)):
                     return jsonify({'status': 'error',
                                     'msg': 'Admin cabang hanya boleh mengelola akun '
                                            'non-admin di cabangnya sendiri.'}), 403

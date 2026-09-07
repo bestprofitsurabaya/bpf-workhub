@@ -4,6 +4,24 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 
 ---
 
+## v2.37.1 — 7 September 2026 (Hotfix: lubang scoping admin cabang di /api/users/sync)
+
+Hotfix keamanan lanjutan v2.37.0 — guard admin cabang pada `/api/users/sync`
+diperketat untuk update-by-id dan akun tanpa cabang.
+
+### Diperbaiki
+- **Update-by-id lintas cabang kini ditolak (403)** — sebelumnya admin cabang
+  bisa mengubah akun cabang lain dengan mengirim `id` tanpa `branch_code`.
+  Branch target kini di-resolve dari row existing (by id/username), dan role
+  admin pada row existing ikut dicek.
+- **User baru tanpa `branch_code` ditolak (403)** — admin cabang tidak bisa
+  lagi membuat akun tanpa jejak cabang.
+- Test toggle air minum dibuat deterministik (monkeypatch jalur tanpa-DB —
+  tidak lagi flake di host/container dengan DB nyata).
+- Test: +2 (TestAdminCabangScope) — suite 520 pytest + 6 skip, hijau.
+
+---
+
 ## v2.37.0 — 7 September 2026 (Edit/hapus transaksi air minum + admin per-cabang + Pengaturan terstruktur)
 
 Tiga permintaan lapangan sekaligus: (1) Finance bisa mengoreksi & menghapus

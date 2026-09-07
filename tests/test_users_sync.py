@@ -28,6 +28,7 @@ class FakeCursor:
         self.db = db
         self.rowcount = 0
         self.log = []  # (sql, params)
+        self.dictionary = False  # cursor(dictionary=True) → row dict
 
     def execute(self, sql, params=None):
         sql = sql or ''
@@ -48,6 +49,10 @@ class FakeCursor:
             return None
         sql = self.log[-1][0]
         if 'FROM users' in sql:
+            if self.dictionary:
+                # Cursor dictionary (mis. _admin_row di admin_scope) —
+                # dipisah dari row tuple agar bentuk row realistis.
+                return self.db.get('existing_row_dict')
             return self.db.get('existing_row')  # None → user baru
         return None
 
@@ -64,8 +69,9 @@ class FakeConn:
         self.cursors = []
         self.rolled_back = False
 
-    def cursor(self, dictionary=True):
+    def cursor(self, dictionary=False):
         c = FakeCursor(self.db)
+        c.dictionary = dictionary
         self.cursors.append(c)
         return c
 
@@ -335,6 +341,30 @@ class TestAdminCabangScope:
             'branch_code': 'SBY', 'is_active': True,
         })
         assert r.status_code == 200, r.get_json()
+
+    def test_admin_cabang_edit_by_id_lintas_cabang_ditolak(self, monkeypatch):
+        """Hole v2.37.0 hotfix: update-by-id ke akun cabang lain harus 403
+        walaupun branch_code tidak dikirim di body (branch diambil dari row)."""
+        # Row existing (dibaca guard & fallback): branch MLG, role finance.
+        db = {'existing_row': ('MLG', 'finance'),
+              'existing_row_dict': None}  # admin_sby tak ada di master → bukan HO
+        client, conn = self._register(monkeypatch, db)
+        r = client.post('/api/users/sync', json={
+            'id': 99, 'username': 'finance_mlg', 'full_name': 'Finance MLG',
+            'role': 'finance', 'is_active': True,
+        })
+        assert r.status_code == 403, r.get_json()
+
+    def test_admin_cabang_tanpa_branch_code_ditolak(self, monkeypatch):
+        """Hole v2.37.0 hotfix: user baru tanpa branch_code (NULL) harus 403
+        — kalau tidak, admin cabang bisa membuat akun tanpa jejak cabang."""
+        db = {'existing_row': None, 'existing_row_dict': None}
+        client, conn = self._register(monkeypatch, db)
+        r = client.post('/api/users/sync', json={
+            'username': 'ob_ambiggu', 'full_name': 'OB Ambigu', 'role': 'ob',
+            'is_active': True,
+        })
+        assert r.status_code == 403, r.get_json()
 
 
 if __name__ == '__main__':

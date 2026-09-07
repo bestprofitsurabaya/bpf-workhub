@@ -133,7 +133,9 @@ BODY = {'purchase_date': '2026-09-08',
 
 
 class TestToggle:
-    def test_default_off_tanpa_db(self):
+    def test_default_off_tanpa_db(self, monkeypatch):
+        # Deterministik: paksa jalur "tanpa DB" walau test host punya DB.
+        monkeypatch.setattr(rw, 'get_db_connection', lambda: None)
         assert rw.get_water_edit_enabled(None) is False
 
     def test_get_dari_config(self):
