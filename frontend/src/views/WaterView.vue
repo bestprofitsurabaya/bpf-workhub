@@ -42,6 +42,14 @@ const selected = ref(null)     // detail
 const verifyModal = ref(null)  // { kind: 'verify'|'reject', id }
 const verifyForm = ref({ remark: '', note: '', reason: '' })
 
+// ---- Filter rentang tanggal (v2.37.4) — default: bulan berjalan ----
+const _fmt = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+const _now = new Date()
+const fFrom = ref(_fmt(new Date(_now.getFullYear(), _now.getMonth(), 1)))
+const fTo = ref(_fmt(new Date(_now.getFullYear(), _now.getMonth() + 1, 0)))
+const fStatus = ref('all')
+const fQ = ref('')
+
 // ---- Bukti foto + preview (v2.37.2) ----
 // Finance menilai bukti foto di dalam modal verifikasi, klik untuk memperbesar
 // (lightbox). Backend /uploads/ kini 200 setelah fix NameError session.
@@ -92,10 +100,22 @@ async function load() {
       // Status fitur edit/hapus (v2.37.0) — gagal = dianggap nonaktif (aman).
       api('/api/water/edit-enabled').then((d) => { editEnabled.value = !!d?.enabled }).catch(() => { editEnabled.value = false })
     }
-    const list = await api('/api/water/purchases')
-    purchases.value = Array.isArray(list) ? list : []
+    const list = await api('/api/water/purchases', {
+      params: { from: fFrom.value, to: fTo.value, status: fStatus.value, q: fQ.value.trim() },
+    })
+    // v2.37.4: backend kirim { purchases, range, filters }; array = backend lama
+    purchases.value = Array.isArray(list) ? list : (list?.purchases || [])
   } catch (e) { err.value = e.message }
   finally { loading.value = false }
+}
+
+function resetFilter() {
+  const n = new Date()
+  fFrom.value = _fmt(new Date(n.getFullYear(), n.getMonth(), 1))
+  fTo.value = _fmt(new Date(n.getFullYear(), n.getMonth() + 1, 0))
+  fStatus.value = 'all'
+  fQ.value = ''
+  load()
 }
 
 async function submitForm() {
@@ -279,6 +299,35 @@ onMounted(() => { form.value.items.push(newItem()); load() })
     <div v-if="loading" class="empty skeleton">⏳ Memuat…</div>
     <div v-else-if="err" class="alert alert-error">{{ err }}</div>
     <template v-else>
+      <!-- Filter rentang tanggal (v2.37.4) — default: awal s/d akhir bulan berjalan -->
+      <div class="card card-pad" style="margin-bottom:16px;">
+        <div class="row" style="align-items:flex-end;gap:8px;flex-wrap:wrap;">
+          <div class="field" style="margin:0;">
+            <label>Dari</label>
+            <input class="input" type="date" v-model="fFrom" @change="load" style="width:auto;" />
+          </div>
+          <div class="field" style="margin:0;">
+            <label>Sampai</label>
+            <input class="input" type="date" v-model="fTo" @change="load" style="width:auto;" />
+          </div>
+          <div class="field" style="margin:0;">
+            <label>Status</label>
+            <select class="select" v-model="fStatus" @change="load" style="width:auto;">
+              <option value="all">Semua</option>
+              <option value="pending">Menunggu</option>
+              <option value="verified">Terverifikasi</option>
+              <option value="rejected">Ditolak</option>
+            </select>
+          </div>
+          <div class="field grow" style="margin:0;min-width:180px;">
+            <label>Cari</label>
+            <input class="input" v-model="fQ" placeholder="No. dokumen / nama OB / merk…" @keyup.enter="load" />
+          </div>
+          <button class="btn btn-primary" :disabled="loading" @click="load">🔍 Tampilkan</button>
+          <button class="btn" @click="resetFilter" title="Kembali ke rentang bulan berjalan">↺ Bulan ini</button>
+        </div>
+      </div>
+
       <!-- Daftar pengajuan -->
       <div class="card">
         <div class="card-pad row" style="border-bottom:1px solid var(--border);">

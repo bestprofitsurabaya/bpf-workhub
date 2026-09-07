@@ -4,6 +4,28 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 
 ---
 
+## v2.37.4 — 7 September 2026 (Filter rentang tanggal daftar air minum)
+
+Saran finance: cari pengajuan per rentang tanggal, default menampilkan
+bulan berjalan.
+
+### Ditambah
+- **Filter bar di WaterView** — Dari/Sampai (date picker), Status
+  (Semua/Menunggu/Terverifikasi/Ditolak), pencarian bebas `q`
+  (no. dokumen / nama OB / merk), tombol Tampilkan + ↺ Bulan ini.
+- **Backend `GET /api/water/purchases`** menerima `from`, `to`,
+  `status`, `q` — default rentang bulan berjalan (awal s/d akhir bulan,
+  akhir eksklusif). Response kini `{purchases, range, filters}` (array
+  lama tetap ditangani frontend). Semua nilai via parameter query (%s) —
+  tanggal invalid → fallback default, bukan error.
+- Test: +12 pytest (`tests/test_water_filter.py`: _month_range termasuk
+  Desember→Januari, _parse_ymd, guard SQL parameterized, scoping OB,
+  status invalid) + +5 vitest (params bulan berjalan, ganti rentang,
+  pencarian Enter, reset, kompatibilitas array lama) — suite
+  **536 pytest + 6 skip** dan **131 vitest**, hijau.
+
+---
+
 ## v2.37.3 — 7 September 2026 (Detail snapshot audit log di UI Log)
 
 Lanjutan temuan E2E air minum: snapshot `old_data`/`new_data` tersimpan di

@@ -31,9 +31,12 @@ const PURCHASES = [
 ]
 
 async function mountView() {
-  apiMock.mockImplementation((path) => {
+  apiMock.mockImplementation((path, opts) => {
     if (path === '/api/water/brands') return Promise.resolve({ types: TYPES, brands: [] })
-    if (path === '/api/water/purchases') return Promise.resolve(PURCHASES)
+    if (path === '/api/water/purchases') {
+      // v2.37.4: backend kirim { purchases, range, filters }
+      return Promise.resolve({ purchases: PURCHASES, range: {}, filters: {} })
+    }
     if (path === '/api/water/edit-enabled') return Promise.resolve({ enabled: editEnabled })
     if (path.startsWith('/api/water/purchases/')) return Promise.resolve(PURCHASES[0])
     return Promise.resolve({ status: 'success' })
@@ -72,7 +75,7 @@ describe('WaterView', () => {
   it('detail menampilkan remark verifikasi (pengajuan terverifikasi)', async () => {
     apiMock.mockImplementation((path) => {
       if (path === '/api/water/brands') return Promise.resolve({ types: TYPES, brands: [] })
-      if (path === '/api/water/purchases') return Promise.resolve(PURCHASES)
+      if (path === '/api/water/purchases') return Promise.resolve({ purchases: PURCHASES, range: {}, filters: {} })
       if (path === '/api/water/purchases/2') return Promise.resolve(PURCHASES[1])
       return Promise.resolve(PURCHASES[0])
     })
@@ -204,7 +207,7 @@ describe('WaterView — bukti foto di verifikasi (v2.37.2)', () => {
   it('detail gagal dimuat → verifikasi tetap bisa dibuka (foto tidak wajib)', async () => {
     apiMock.mockImplementation((path) => {
       if (path === '/api/water/brands') return Promise.resolve({ types: TYPES, brands: [] })
-      if (path === '/api/water/purchases') return Promise.resolve(PURCHASES)
+      if (path === '/api/water/purchases') return Promise.resolve({ purchases: PURCHASES, range: {}, filters: {} })
       if (path === '/api/water/purchases/1') return Promise.reject(new Error('db down'))
       return Promise.resolve({ status: 'success' })
     })
@@ -213,5 +216,71 @@ describe('WaterView — bukti foto di verifikasi (v2.37.2)', () => {
     await openVerify(w)
     expect(w.find('img[alt="Bukti sebelum diisi"]').exists()).toBe(false)
     expect(w.text()).toContain('Remark') // form verifikasi tetap tampil
+  })
+})
+
+describe('WaterView — filter rentang tanggal (v2.37.4)', () => {
+  beforeEach(() => { vi.clearAllMocks() })
+
+  it('load awal mengirim rentang bulan berjalan + status all', async () => {
+    const w = await mountView()
+    const call = apiMock.mock.calls.find((c) => c[0] === '/api/water/purchases')
+    expect(call).toBeTruthy()
+    const p = call[1]?.params || {}
+    const now = new Date()
+    const first = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
+    expect(p.from).toBe(first)
+    expect(p.status).toBe('all')
+    // to = akhir bulan berjalan
+    const last = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
+    expect(p.to.endsWith(String(last).padStart(2, '0'))).toBe(true)
+  })
+
+  it('ganti rentang & status lalu Tampilkan → params ikut berubah', async () => {
+    const w = await mountView()
+    // @change="load" memicu loading=true → v-else unmounted sesaat; flush agar
+    // filter bar kembali ter-mount sebelum mencari elemen berikutnya.
+    const inputs = w.findAll('input[type="date"]')
+    await inputs[0].setValue('2026-08-01'); await flushPromises()
+    await inputs[1].setValue('2026-08-31'); await flushPromises()
+    const sel = w.findAll('select')[0] // satu-satunya select saat modal tertutup
+    await sel.setValue('pending'); await flushPromises()
+    await w.findAll('button').find((b) => b.text() === '🔍 Tampilkan').trigger('click')
+    await flushPromises()
+    const calls = apiMock.mock.calls.filter((c) => c[0] === '/api/water/purchases')
+    const last = calls[calls.length - 1]
+    expect(last[1].params).toEqual({ from: '2026-08-01', to: '2026-08-31', status: 'pending', q: '' })
+  })
+
+  it('q terisi & Enter → pencarian dikirim ke backend', async () => {
+    const w = await mountView()
+    const qInput = w.findAll('input').find((i) => i.attributes('placeholder')?.includes('No. dokumen'))
+    await qInput.setValue('AQUA')
+    await qInput.trigger('keyup.enter')
+    await flushPromises()
+    const calls = apiMock.mock.calls.filter((c) => c[0] === '/api/water/purchases')
+    expect(calls[calls.length - 1][1].params.q).toBe('AQUA')
+  })
+
+  it('tombol ↺ Bulan ini mengembalikan rentang default & memuat ulang', async () => {
+    const w = await mountView()
+    const inputs = w.findAll('input[type="date"]')
+    await inputs[0].setValue('2026-01-01'); await flushPromises()
+    await w.findAll('button').find((b) => b.text().includes('Bulan ini')).trigger('click')
+    await flushPromises()
+    const now = new Date()
+    const first = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
+    const calls = apiMock.mock.calls.filter((c) => c[0] === '/api/water/purchases')
+    expect(calls[calls.length - 1][1].params.from).toBe(first)
+  })
+
+  it('backend array (kompat lama) tetap dirender', async () => {
+    apiMock.mockImplementation((path) => {
+      if (path === '/api/water/brands') return Promise.resolve({ types: TYPES, brands: [] })
+      if (path === '/api/water/purchases') return Promise.resolve(PURCHASES)
+      return Promise.resolve({ status: 'success' })
+    })
+    const w = await mountView()
+    expect(w.text()).toContain('WTR-20260812-0001')
   })
 })

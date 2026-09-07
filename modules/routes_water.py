@@ -148,6 +148,27 @@ def _session_name():
     return (session.get('full_name') or session.get('user_name') or '').strip()
 
 
+def _month_range(today=None):
+    """(awal, akhir) bulan berjalan — default rentang daftar pengajuan (v2.37.4)."""
+    from datetime import date as _date
+    t = today or _date.today()
+    first = t.replace(day=1)
+    if t.month == 12:
+        nxt = _date(t.year + 1, 1, 1)
+    else:
+        nxt = _date(t.year, t.month + 1, 1)
+    return first, nxt  # akhir eksklusif — query pakai < nxt
+
+
+def _parse_ymd(s):
+    """Parse YYYY-MM-DD → date, None bila tidak valid (aman utk query param)."""
+    from datetime import datetime as _dt
+    try:
+        return _dt.strptime(str(s or '').strip()[:10], '%Y-%m-%d').date()
+    except (ValueError, TypeError):
+        return None
+
+
 def _get_ttd_names():
     """Nama TTD dari system_config (di-set admin di /app/settings)."""
     ga = finance = ''
@@ -457,18 +478,57 @@ def register_water_routes(app):
     @app.route('/api/water/purchases')
     @role_required(WATER_ROLES)
     def api_water_purchases():
-        """Daftar pengajuan. OB: hanya miliknya; Finance/admin: semua."""
+        """Daftar pengajuan. OB: hanya miliknya; Finance/admin: semua.
+
+        v2.37.4: filter rentang tanggal + status + pencarian bebas.
+        Default: pengajuan bulan berjalan (awal s/d akhir bulan). Kirim
+        `from` & `to` (YYYY-MM-DD) utk rentang lain, `status` (pending/
+        verified/rejected/all), `q` (cari display_id/ob_name/merk).
+        """
         try:
             role = session.get('user_role', '')
             conn = get_db_connection()
             if not conn:
                 return jsonify({'error': 'DB error'}), 500
             cur = conn.cursor(dictionary=True)
+
+            # ---- Filter (v2.37.4): default rentang bulan berjalan ----
+            d_from = _parse_ymd(request.args.get('from'))
+            d_to = _parse_ymd(request.args.get('to'))
+            if d_from is None and d_to is None:
+                d_from, d_to = _month_range()  # akhir eksklusif
+            elif d_from is None:
+                d_from = d_to
+            elif d_to is None:
+                d_to = d_from
+            status = (request.args.get('status') or 'all').strip().lower()
+            if status not in ('pending', 'verified', 'rejected', 'all'):
+                status = 'all'
+            q = (request.args.get('q') or '').strip()
+
+            where = ["wp.purchase_date >= %s", "wp.purchase_date < %s"]
+            params = [d_from, d_to]
+            if status != 'all':
+                where.append("wp.status = %s")
+                params.append(status)
+            if q:
+                like = f"%{q}%"
+                where.append("(wp.display_id LIKE %s OR wp.ob_name LIKE %s "
+                             "OR EXISTS (SELECT 1 FROM water_purchase_items wpi "
+                            "            WHERE wpi.purchase_id = wp.id "
+                            "              AND wpi.brand LIKE %s))")
+                params.extend([like, like, like])
             if role == 'ob':
-                cur.execute("""SELECT * FROM water_purchases WHERE ob_name=%s
-                               ORDER BY id DESC LIMIT 200""", (_session_name(),))
-            else:
-                cur.execute("SELECT * FROM water_purchases ORDER BY id DESC LIMIT 500")
+                where.append("wp.ob_name = %s")
+                params.append(_session_name())
+            where_sql = ' AND '.join(where)
+            limit = 200 if role == 'ob' else 500
+
+            cur.execute(
+                f"""SELECT wp.* FROM water_purchases wp
+                    WHERE {where_sql}
+                    ORDER BY wp.id DESC LIMIT {int(limit)}""",
+                tuple(params))
             rows = cur.fetchall()
             # Batch load item (hindari N+1): satu query untuk semua purchase_id
             if rows:
@@ -486,8 +546,18 @@ def register_water_routes(app):
                     r['status_label'] = {'pending': 'Menunggu Verifikasi',
                                          'verified': 'Terverifikasi',
                                          'rejected': 'Ditolak'}.get(r['status'], r['status'])
+            else:
+                for r in rows:
+                    r['items'] = []
+                    r['status_label'] = {'pending': 'Menunggu Verifikasi',
+                                         'verified': 'Terverifikasi',
+                                         'rejected': 'Ditolak'}.get(r['status'], r['status'])
             cur.close(); conn.close()
-            return jsonify(rows)
+            return jsonify({
+                'purchases': rows,
+                'range': {'from': str(d_from), 'to': str(d_to), 'to_exclusive': True},
+                'filters': {'status': status, 'q': q},
+            })
         except Exception as e:
             return jsonify({'error': str(e)}), 500
 
