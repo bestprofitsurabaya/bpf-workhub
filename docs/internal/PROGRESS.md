@@ -4,7 +4,7 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 **Terakhir diperbarui:** 2026-09-07  
 **Branch:** `main`  
-**Versi terbaru:** v2.37.0 (di repo — edit/hapus air minum + admin per-cabang + Pengaturan terstruktur) · v2.36.2 LIVE — program 6 tahap ISO 27001 SELESAI
+**Versi terbaru:** v2.37.2 LIVE (7 Sep — fix foto bukti 500 + preview verifikasi air minum) · v2.37.1 (hotfix scoping admin cabang) · v2.37.0 (edit/hapus air minum + admin per-cabang + Pengaturan terstruktur) — program 6 tahap ISO 27001 SELESAI
 
 ---
 
@@ -12,7 +12,7 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 | Aspek | Status |
 |-------|--------|
-| Versi | **v2.37.0 di repo (7 Sep, belum deploy)** — edit/hapus transaksi air minum (fitur opsional per cabang) + admin per-cabang (`admin_<kode>`) + Pengaturan terstruktur |
+| Versi | **v2.37.2 LIVE (7 Sep)** — v2.37.0 (edit/hapus air minum + admin per-cabang + Pengaturan terstruktur) + v2.37.1 hotfix scoping + v2.37.2 fix foto bukti & preview verifikasi |
 | Edit/hapus air minum (v2.37.0) | ✅ **SELESAI di repo**: toggle Admin per cabang (`system_config.water_edit_enabled`, default nonaktif → perilaku lama); `PUT/DELETE /api/water/purchases/<id>` wajib step-up 428 + audit snapshot `old_data`; edit hanya status pending/verified (rejected ditolak 400); hapus = baris+item+foto dihapus permanen, snapshot tersimpan; kolom `edited_by/edited_at/edit_count` dibuat otomatis (master+cabang+`ensure_branch_database`); UI WaterView ✏️/🗑️ hanya muncul bila fitur aktif; **19 pytest + 4 vitest baru** |
 | Admin per-cabang (v2.37.0) | ✅ **SELESAI di repo**: modul `modules/admin_scope.py` — `admin` = Pusat (semua cabang), `admin_<kode>` = Admin Cabang (terkunci; fail-closed bila DB mati); ho_only di `/api/branches/switch`, docseq list/reset cabang lain, retention overview/archive, access review + export + complete; audit-logs lintas cabang ditolak 403 utk admin cabang; login & `/api/auth/me` kirim `is_ho_admin` → sidebar sembunyikan Access Review/Audit Log + chip "🔒 Cabang"; kolom `users.admin_all_branches` + `managed_branches`; **13 pytest baru** |
 | Pengaturan terstruktur (v2.37.0) | ✅ **SELESAI di repo**: peta seksi sticky (6 seksi, IntersectionObserver highlight), toggle switch standar utk edit/hapus air minum dgn konfirmasi; switcher cabang disembunyikan utk admin cabang |
@@ -27,6 +27,8 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 | Urutan overtime | ✅ Terkini-di-atas di semua daftar + detail report per nama dibalik terkini-dulu (PDF/Excel, commit `733fd2f`) |
 | Data demo air minum | ✅ Dibersihkan 4 Sep — WTR-20260904-10300556, WTR-DEMO-01/02 dihapus (bpf_asset_system + bpf_restore_test); backup `/tmp/bpf_water_demo_backup_20260904.sql`; tabel `water_purchases` kini 0 baris |
 | Deploy | ✅ **v2.36.2 LIVE** (6 Sep: v2.36.0 approval `2df2ba7`, docs `80a84ea`, v2.36.1 `109e7a5`, v2.36.2 `92d2de0`) — sebelumnya v2.35.1/v2.33.0/v2.32.0 juga live; `bbm_web` healthy 0 restart |
+| Admin cabang & akun (7 Sep) | ✅ **LIVE**: 10 akun `admin_<kode>` dibuat via API (jkt/sby/bdg/smg/mlg/mdn/bjm/plm/lpg/jkt2, PIN awal 123456 — wajib ganti); `admin` → **`admin_master`** (flag `admin_all_branches=1`, jadi backup bila admin cabang kendala); `e2e_admin_tmp` dinonaktifkan; scoping terverifikasi live (admin_bdg: switch cabang & access-review → 403). Detail: USER_LIST.md |
+| Foto bukti & verifikasi (v2.37.2) | ✅ **LIVE**: NameError `session` di `/uploads/` (regresi hardening 584ba88) bikin SEMUA foto bukti 500 — di-fix + 4 pytest regression; modal Verifikasi/Tolak kini menampilkan bukti foto + lightbox klik-perbesar + fallback foto rusak (6 vitest); smoke live: foto 200 image/jpeg dgn sesi finance, 401 tanpa sesi |
 | Dashboard Marketing | ✅ Tab "Selesai" kini memakai `/api/appointments/history` (riwayat completed marketing sendiri, lintas tanggal) — sebelumnya memanggil endpoint driver `/completed` → selalu 400/kosong |
 | Validasi username | ✅ Backend `/api/users/sync` menolak username role back-office tanpa awalan divisi (`finance_`, `ob_`, …) — Driver/Admin/`it_*` bebas; akun lama (qa/test_check/e2e_driver & (username,role) sudah ada) tetap bisa disimpan |
 | Nama asli di tabel Users | ✅ Kolom Username+Nama digabung: Nama Lengkap tebal + username kecil di bawahnya (gaya baris nasabah) — Admin mengenali orangnya |
@@ -120,6 +122,29 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
    bisa ganti cabang/akses menu lintas cabang; (d) cleanup data uji;
    (e) buat akun admin cabang produksi sesuai kebutuhan (`admin_<kode>`).
 
+
+### Sesi 2026-09-07 (lanjutan) — Deploy v2.37.1 + akun admin cabang + v2.37.2 fix foto ✅ SELESAI + DEPLOY LIVE
+
+1. **v2.37.1 hotfix di-commit & deploy** — lubang admin cabang update-by-id
+   lintas cabang (kini 403) + test toggle air minum deterministik; 520 pytest
+   hijau; tag v2.37.0 & v2.37.1 di-push; smoke live: health 200, login admin
+   OK (`is_ho_admin` true), log bersih.
+2. **10 akun admin cabang dibuat via API** (`admin_<kode>`, PIN awal 123456)
+   — verifikasi live: login `admin_bdg` → `is_ho_admin:false`; switch cabang
+   & access review → 403.
+3. **`admin` di-rename `admin_master`** (permintaan pemilik: akun master utk
+   10 cabang + backup) + flag `admin_all_branches=1` — login live OK, username
+   lama gagal login; `e2e_admin_tmp` dinonaktifkan; USER_LIST.md diupdate
+   (`ade5d32`).
+4. **v2.37.2 fix foto bukti** — laporan finance: gambar tak muncul & butuh
+   preview saat verifikasi. Akar: `NameError: session` di `/uploads/` (regresi
+   hardening 584ba88) → SEMUA foto bukti 500. Fix import + 4 pytest regression;
+   SPA: bukti foto di modal verifikasi/tolak + lightbox klik-perbesar +
+   fallback foto rusak (6 vitest). Deploy & smoke live: foto 200 (225 KB
+   image/jpeg) dgn sesi finance_sby, 401 tanpa sesi, SW cache v2372, log 0
+   error.
+5. Suite akhir: **524 pytest + 6 skip, 121 vitest** — hijau. Tag v2.37.2
+   di-push.
 
 ### Sesi 2026-09-06 (lanjutan) — Deploy v2.36.0 + restrukturisasi docs + v2.36.1/v2.36.2 data overtime tidak aktual ✅ SELESAI + DEPLOY LIVE
 
@@ -1327,4 +1352,4 @@ tes & verifikasi; perubahan produksi butuh konfirmasi eksplisit.
 
 ---
 
-*BPF WorkHub v2.36.2 · Progres Tracker · Last updated: 2026-09-06*
+*BPF WorkHub v2.37.2 · Progres Tracker · Last updated: 2026-09-07*
