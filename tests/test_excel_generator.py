@@ -67,4 +67,22 @@ class TestTripLogsheet:
         ws = wb.active
         assert ws['B3'].value == 'Tanggal: 01/08/2026'
         assert ws['E3'].value == 'DRIVER: TEST DRIVER'
+
+    def test_kop_identity_cabang(self):
+        """v2.37.7: identity opsional — judul B2 memakai identitas cabang."""
+        from openpyxl import load_workbook
+        ident = {'company_name': 'PT BESTPROFIT FUTURES',
+                 'company_subtitle': 'Cabang Banjarmasin'}
+        result = generate_trip_logsheet(_sample_master(), _sample_details(), identity=ident)
+        wb = load_workbook(BytesIO(result))
+        ws = wb.active
+        assert 'Cabang Banjarmasin' in str(ws['B2'].value)
+
+    def test_kop_identity_kosong_fallback_global(self):
+        """identity kosong/tanpa kunci → tetap pakai identitas global, tidak error."""
+        from openpyxl import load_workbook
+        result = generate_trip_logsheet(_sample_master(), _sample_details(), identity={})
+        wb = load_workbook(BytesIO(result))
+        ws = wb.active
+        assert 'PT BESTPROFIT FUTURES' in str(ws['B2'].value)
         assert ws['G3'].value == 'PLAT: L 1234 ABC'

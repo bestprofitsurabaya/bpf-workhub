@@ -4,6 +4,7 @@
 Jalankan:
     docker exec bbm_web python3 -m pytest tests/test_overtime.py -v
 """
+import io
 import sys
 import os
 from datetime import date
@@ -416,6 +417,57 @@ class TestNormalizeDriverRow:
     def test_sheet_row_urut(self):
         out = self._norm({'NAMA LENGKAP': 'Andi'}, n=4)
         assert out['sheet_row'] == 6
+
+
+# ============================================================
+# Kop per cabang (v2.37.7) — set_identity(branch_code=...)
+# ============================================================
+class TestKopPerCabang:
+    def _fake_branch_conn(self, row):
+        class _Cur:
+            _sql = ''
+
+            def execute(self, sql, params=None):
+                self._sql = sql
+
+            def fetchone(self):
+                return row if 'FROM branches' in self._sql else None
+
+            def fetchall(self):
+                return []
+
+            def close(self):
+                pass
+
+        class _Conn:
+            def cursor(self, dictionary=False):
+                return _Cur()
+
+            def close(self):
+                pass
+        return _Conn()
+
+    def test_overtime_report_kop_mengikuti_cabang(self, monkeypatch):
+        """v2.37.7: OvertimeReportPDF + set_identity('MDN') — kop memakai
+        alamat cabang Medan, alamat HO tidak ikut."""
+        import modules.config as cfg
+        row = {'company_name': 'PT BESTPROFIT FUTURES',
+               'company_subtitle': 'Cabang Medan',
+               'address': 'Ruko Jati Junction, Jl. Perintis Kemerdekaan No. P9A-10A, Medan 20218',
+               'phone': '061-80501610', 'city': 'Medan'}
+        monkeypatch.setattr(cfg, 'get_db_connection',
+                            lambda branch_code=None, master=False: self._fake_branch_conn(row))
+        from tests.pdf_text import _pdf_text
+        from modules.pdf_generator import OvertimeReportPDF
+        pdf = OvertimeReportPDF()
+        pdf.set_identity(branch_code='MDN')
+        pdf.generate([], modul='driver', date_label='2026-09-01 s/d 2026-09-08',
+                     filters={}, generated_by='GA HR Officer')
+        buf = io.BytesIO()
+        pdf.output(buf)
+        text = _pdf_text(buf.getvalue())
+        assert 'Perintis Kemerdekaan' in text
+        assert 'Equity Tower' not in text
 
 
 # ============================================================

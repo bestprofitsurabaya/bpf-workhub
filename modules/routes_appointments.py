@@ -1164,7 +1164,13 @@ def register_appointment_routes(app):
             cursor.close(); conn.close()
 
             from modules.excel_generator import generate_appointment_report
-            excel_bytes = generate_appointment_report(target_date, rows)
+            # v2.37.7: kop laporan appointment mengikuti cabang sesi.
+            try:
+                from modules.company_identity import get_branch_identity
+                identity = get_branch_identity()
+            except Exception:
+                identity = None
+            excel_bytes = generate_appointment_report(target_date, rows, identity=identity)
             response = make_response(excel_bytes)
             response.headers['Content-Type'] = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
             response.headers['Content-Disposition'] = \

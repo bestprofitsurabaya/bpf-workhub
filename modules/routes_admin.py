@@ -39,6 +39,7 @@ def register_admin_routes(app):
     @role_required(['ga', 'finance', 'admin'])
     def export_trip_excel(trip_id):
         from modules.excel_generator import generate_trip_logsheet
+        from modules.company_identity import get_branch_identity
         try:
             conn = get_db_connection()
             cursor = conn.cursor(dictionary=True)
@@ -50,7 +51,12 @@ def register_admin_routes(app):
             cursor.execute("SELECT * FROM trip_details WHERE trip_master_id=%s ORDER BY no_urut", (trip_id,))
             details = cursor.fetchall()
             cursor.close(); conn.close()
-            excel_bytes = generate_trip_logsheet(master, details)
+            # v2.37.7: kop logsheet mengikuti cabang sesi (tabel branches).
+            try:
+                identity = get_branch_identity()
+            except Exception:
+                identity = None
+            excel_bytes = generate_trip_logsheet(master, details, identity=identity)
             response = make_response(excel_bytes)
             response.headers['Content-Type'] = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
             response.headers['Content-Disposition'] = f'attachment; filename=Logsheet_{master["nopol"]}_{master["trip_date"]}.xlsx'

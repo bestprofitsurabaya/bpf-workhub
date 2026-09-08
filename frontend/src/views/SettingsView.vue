@@ -548,12 +548,13 @@ onMounted(() => {
         <h3 style="margin:0;">🏢 Cabang (Multi-Cabang)</h3>
         <p class="muted" style="font-size:11px;">
           Satu instalasi melayani banyak cabang — setiap cabang punya <b>database sendiri</b> (isolasi data penuh).
-          Cabang aktif: <b>{{ currentBranch?.name || '—' }}</b>
+          Alamat &amp; telepon tiap cabang dipakai sebagai <b>kop dokumen resmi</b> (PDF/Excel export) —
+          perbarui di sini bila kantor pindah. Cabang aktif: <b>{{ currentBranch?.name || '—' }}</b>
         </p>
         <div class="row" style="margin-top:10px;gap:8px;align-items:center;flex-wrap:wrap;">
           <button class="btn btn-primary btn-sm" @click="openBranchForm(null)">➕ Tambah Cabang</button>
           <template v-if="auth.isHoAdmin">
-            <label class="muted" style="font-size:12px;">Ganti cabang (Admin):</label>
+            <label class="muted" style="font-size:12px;">Ganti cabang (Admin Pusat):</label>
             <select class="select" style="width:auto;" :value="currentBranch?.code" :disabled="branchBusy" @change="switchBranch($event.target.value)">
               <option v-for="b in branches" :key="b.code" :value="b.code">{{ b.name }} ({{ b.code }})</option>
             </select>
@@ -572,6 +573,7 @@ onMounted(() => {
                 <td>{{ b.city || '—' }}</td>
                 <td><span class="badge" :class="b.is_active ? 'badge-green' : 'badge-red'">{{ b.is_active ? 'Aktif' : 'Nonaktif' }}</span></td>
                 <td>
+                  <button v-if="auth.isHoAdmin" class="btn btn-sm" @click="openBranchForm(b)" title="Edit identitas cabang (nama, kota, alamat kop dokumen, telepon)">✏️ Edit</button>
                   <button class="btn btn-sm" @click="ensureDb(b.code)" title="Buat/sinkronkan database cabang">🗄️ DB</button>
                   <button class="btn btn-sm" @click="seedDemoBranch(b.code)" title="Tanam data demo (rute + transaksi dummy) ke cabang ini">🧪 Demo</button>
                   <button class="btn btn-sm" @click="toggleBranch(b.code, !b.is_active)" :disabled="branchBusy">{{ b.is_active ? '🔴 Nonaktifkan' : '🟢 Aktifkan' }}</button>

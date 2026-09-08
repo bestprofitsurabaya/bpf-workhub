@@ -2,8 +2,12 @@
 # ============================================================
 # TRIP LOGSHEET EXPORT
 # ============================================================
-def generate_trip_logsheet(master, details):
-    """Generate corporate trip logsheet Excel file with strict layout"""
+def generate_trip_logsheet(master, details, identity=None):
+    """Generate corporate trip logsheet Excel file with strict layout.
+
+    v2.37.7: identity opsional ({company_name, company_subtitle, ...}) —
+    kop mengikuti cabang pemanggil; tanpa identity → identitas global.
+    """
     from openpyxl import Workbook
     from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
     from openpyxl.drawing.image import Image as ExcelImage
@@ -52,9 +56,11 @@ def generate_trip_logsheet(master, details):
     try:
         from modules.company_identity import get_company_identity
         _id = get_company_identity()
-        cell.value = f"{_id.get('company_name', 'PT BESTPROFIT FUTURES')} - {_id.get('company_subtitle', 'Surabaya')}"
     except Exception:
-        cell.value = 'PT. BESTPROFIT FUTURES - Surabaya'
+        _id = {}  # DB tak terjangkau — identity param tetap dipakai di bawah
+    if identity:
+        _id.update({k: v for k, v in identity.items() if v})
+    cell.value = f"{_id.get('company_name', 'PT BESTPROFIT FUTURES')} - {_id.get('company_subtitle', 'Surabaya')}"
     cell.font = title_font
     cell.alignment = Alignment(horizontal='center', vertical='center')
 
@@ -206,8 +212,11 @@ def generate_trip_logsheet(master, details):
 # ============================================================
 # APPOINTMENT DAILY REPORT EXPORT
 # ============================================================
-def generate_appointment_report(target_date, rows):
-    """Generate rekap harian appointment (laporan Chief Driver)."""
+def generate_appointment_report(target_date, rows, identity=None):
+    """Generate rekap harian appointment (laporan Chief Driver).
+
+    v2.37.7: identity opsional — kop mengikuti cabang pemanggil.
+    """
     from openpyxl import Workbook
     from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
     import io
@@ -238,9 +247,11 @@ def generate_appointment_report(target_date, rows):
     try:
         from modules.company_identity import get_company_identity
         _id = get_company_identity()
-        ws['A2'] = f"Tanggal: {target_date}  •  {_id.get('company_name', 'PT BESTPROFIT FUTURES')} - {_id.get('company_subtitle', 'Surabaya')}"
     except Exception:
-        ws['A2'] = f'Tanggal: {target_date}  •  PT. BESTPROFIT FUTURES - Surabaya'
+        _id = {}  # DB tak terjangkau — identity param tetap dipakai di bawah
+    if identity:
+        _id.update({k: v for k, v in identity.items() if v})
+    ws['A2'] = f"Tanggal: {target_date}  •  {_id.get('company_name', 'PT BESTPROFIT FUTURES')} - {_id.get('company_subtitle', 'Surabaya')}"
     ws['A2'].font = subtitle_font
     ws['A2'].alignment = Alignment(horizontal='center')
 

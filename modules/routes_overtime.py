@@ -979,6 +979,12 @@ def register_overtime_routes(app):
                 filters['Sumber'] = 'Google Sheet' if source == 'sheet' else 'Aplikasi'
             user_info = _current_user()
             pdf = OvertimeReportPDF()
+            # v2.37.7: kop mengikuti cabang sesi (tabel branches).
+            try:
+                from modules.company_identity import get_branch_identity
+                pdf.set_identity(branch_code=session_user('branch_code', ''))
+            except Exception:
+                pass
             pdf.generate(rows, modul=modul, date_label=date_label,
                          filters=filters, generated_by=user_info['full_name'])
             buf = io.BytesIO()
@@ -1055,6 +1061,12 @@ def register_overtime_routes(app):
             else:
                 user_info = _current_user()
                 pdf = OvertimeDetailReportPDF()
+                # v2.37.7: kop mengikuti cabang sesi (tabel branches).
+                try:
+                    from modules.company_identity import get_branch_identity
+                    pdf.set_identity(branch_code=session_user('branch_code', ''))
+                except Exception:
+                    pass
                 pdf.generate(rows, driver_name=nama, driver_role=driver_role,
                              date_label=date_label, generated_by=user_info['full_name'], modul=modul)
                 buf = io.BytesIO()
@@ -1108,6 +1120,13 @@ def register_overtime_routes(app):
                 return jsonify({'error': 'Data overtime tidak ditemukan'}), 404
 
             pdf = OvertimeFormPDF()
+            # v2.37.7: kop Form OT mengikuti cabang sesi (tabel branches) —
+            # bukan selalu alamat Kantor Pusat.
+            try:
+                from modules.company_identity import get_branch_identity
+                pdf.set_identity(branch_code=session_user('branch_code', ''))
+            except Exception:
+                pass  # gagal ambil identitas cabang → kop identitas global
             pdf.generate(row, modul=modul)
             buf = io.BytesIO()
             pdf.output(buf)

@@ -25,6 +25,19 @@ masih memakai identitas global (alamat HO) untuk semua cabang.
   kini mengikuti cabang sesi (SBY → "Graha Bukopin …", JKT → "Equity Tower
   Lt. 47 …", dst.). Finance cabang mana pun mencetak dokumen resmi dengan
   kop cabangnya sendiri.
+- **Kop per cabang diperluas ke dokumen lain**: Form Permohonan Overtime,
+  Laporan Overtime (PDF & detail per-driver PDF) — via `set_identity()`;
+  Trip Logsheet Excel & Laporan Appointment Harian Excel — via parameter
+  `identity` opsional di `excel_generator.py` (fallback identitas global
+  bila tidak dikirim).
+- **UI Pengaturan → 🏢 Cabang**: tombol **✏️ Edit** kini tampil di tabel
+  cabang (khusus Admin Pusat) — identitas cabang (nama, kota, **alamat
+  kop dokumen**, telepon, subjudul) bisa diperbarui Admin langsung dari UI
+  saat kantor pindah, tanpa SQL; identitas tersimpan ikut ditulis ke
+  `system_config` DB cabang. Keterangan seksi diperjelas (alamat = kop
+  dokumen resmi; label "Ganti cabang (Admin Pusat)").
+  Catatan: endpoint `POST /api/branches/save` sudah ada sejak v2.19.2 —
+  perubahan ini menutup gap UI-nya.
 - **`WaterReportPDF` (export rekap)** di-refactor memakai `set_identity()` —
   perilaku sama dengan v2.37.6, kini lewat satu pintu yang sama.
 - Stamp versi v2.37.7 (pdf_generator SYSTEM_VERSION, company_identity &
@@ -52,6 +65,11 @@ masih memakai identitas global (alamat HO) untuk semua cabang.
   tanpa argumen tetap global.
 - Suite air minum: **42 pytest lulus** (test_branch_identity + test_water +
   test_water_export + test_pdf_header_layout).
+- +3 test lanjutan: kop OvertimeReportPDF per cabang (alamat MDN masuk,
+  HO tidak), Trip Logsheet Excel dengan `identity` cabang (B2 = "Cabang
+  Banjarmasin") + fallback identity kosong. Full suite container & vitest
+  135 + build SPA hijau (jalankan terpisah — vitest flake bila bentrok
+  dengan pytest paralel).
 - Verifikasi live di container: `get_branch_identity` mengembalikan alamat
   resmi ke-9 cabang dari DB produksi; PDF Tanda Terima SBY/MDN/JKT masing-
   masing memuat kop cabangnya dan TIDAK memuat alamat cabang lain.
