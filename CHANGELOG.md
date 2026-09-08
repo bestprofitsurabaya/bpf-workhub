@@ -31,6 +31,17 @@ masih memakai identitas global (alamat HO) untuk semua cabang.
   identity.js default, seed init.sql) + master DB `system_config`
   `system_version` diperbarui (sebelumnya basi di v2.29.10).
 
+### Data
+- **Alamat MLG dikoreksi** sesuai situs resmi: "BPF Tower…" → **Ruko
+  Pelita, Jl. Letjen S. Parman No. 59 Kav. 1, 3–5, Malang** (ter-verify
+  live di kop PDF).
+- **3 cabang resmi ditambahkan NONAKTIF** (`is_active=0`, pola PLM — data
+  tercatat, diaktifkan Admin saat kantor mulai dipakai): **JMB Jambi**
+  (Jl. Kolonel Abunjani No. 29 C Sipin), **PTK Pontianak** (Sentra Bisnis
+  A. Yani Megamall C1-C5), **PKU Pekanbaru** (Sudirman City Square) —
+  lengkap dengan alamat & telepon resmi; seed ikut di
+  `scripts/branches_update.sql` + tersimpan di DB produksi.
+
 ### Test
 - `tests/test_branch_identity.py` **baru (11 test)**: fallback berlapis
   (kolom kosong → global, baris tak ada, DB mati fail-open), normalisasi

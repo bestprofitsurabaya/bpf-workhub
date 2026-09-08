@@ -23,7 +23,7 @@ UPDATE branches SET
 WHERE code='BDG';
 
 UPDATE branches SET
-  address='BPF Tower, Jl. Letjen S. Parman No. 59 Kav. 1, 3, 4-5, Malang, Jawa Timur 65122',
+  address='Ruko Pelita, Jl. Letjen S. Parman No. 59 Kav. 1, 3-5, Malang, Jawa Timur 65122',
   phone='0341-4345999', city='Malang', company_subtitle='Sistem Operasional | Malang'
 WHERE code='MLG';
 
@@ -50,3 +50,18 @@ WHERE code='LPG';
 -- Palembang: tidak ada kantor cabang — nonaktifkan cabang + user-nya.
 UPDATE branches SET is_active=0 WHERE code='PLM';
 UPDATE users SET is_active=0 WHERE branch_code='PLM';
+
+-- v2.37.7 — Cabang baru dari situs resmi (bestprofit-futures.co.id/hubungi-kami).
+-- Ditambahkan NONAKTIF (is_active=0): data tercatat, diaktifkan Admin saat
+-- kantor mulai dipakai (buat DB + akun via Pengaturan → Cabang & Nomor).
+INSERT IGNORE INTO branches (code, name, db_name, city, address, phone, company_name, company_subtitle, system_name, system_version, is_active)
+VALUES
+  ('JMB', 'Cabang Jambi', 'bpf_branch_jmb', 'Jambi',
+   'Jl. Kolonel Abunjani No. 29 C, Sipin, Kel. Selamat, Kec. Danau Sipin, Jambi 36129', '0741-668288',
+   'PT BESTPROFIT FUTURES', 'Cabang Jambi', 'BPF WorkHub', 'v2.37.7', 0),
+  ('PTK', 'Cabang Pontianak', 'bpf_branch_ptk', 'Pontianak',
+   'Komplek Sentra Bisnis A. Yani Megamall C1-C5, Jl. A. Yani, Pontianak 78121', '0561-766133',
+   'PT BESTPROFIT FUTURES', 'Cabang Pontianak', 'BPF WorkHub', 'v2.37.7', 0),
+  ('PKU', 'Cabang Pekanbaru', 'bpf_branch_pku', 'Pekanbaru',
+   'Komplek Sudirman City Square, Jl. Jend. Sudirman Blok C 5-6-7, Pekanbaru 28288', '0761-888828',
+   'PT BESTPROFIT FUTURES', 'Cabang Pekanbaru', 'BPF WorkHub', 'v2.37.7', 0);
