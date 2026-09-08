@@ -405,16 +405,16 @@ CREATE TABLE IF NOT EXISTS branches (
 INSERT IGNORE INTO branches (code, name, db_name, city, address, phone, company_name, company_subtitle, system_name, system_version)
 VALUES ('SBY', 'Cabang Surabaya', 'bpf_asset_system', 'Surabaya',
         'Graha Bukopin, Lantai 11, Jl. Panglima Sudirman No. 10-18, Surabaya 60271', '031-5349888',
-        'PT BESTPROFIT FUTURES', 'Cabang Surabaya', 'BPF WorkHub', 'v2.37.0');
+        'PT BESTPROFIT FUTURES', 'Cabang Surabaya', 'BPF WorkHub', 'v2.37.7');
 
 -- Kantor Pusat Jakarta (HO) + cabang JKT kedua
 INSERT IGNORE INTO branches (code, name, db_name, city, address, phone, company_name, company_subtitle, system_name, system_version)
 VALUES ('JKT', 'Kantor Pusat Jakarta', 'bpf_branch_jkt', 'Jakarta',
         'Equity Tower Lt. 47, Kawasan Niaga Terpadu Sudirman (SCBD), Jl. Jend. Sudirman Kav. 52-53, Jakarta 12190', '021-29035005',
-        'PT BESTPROFIT FUTURES', 'Kantor Pusat | Jakarta', 'BPF WorkHub', 'v2.37.0'),
+        'PT BESTPROFIT FUTURES', 'Kantor Pusat | Jakarta', 'BPF WorkHub', 'v2.37.7'),
        ('JKT2', 'Cabang Pacific Place', 'bpf_branch_jkt2', 'Jakarta',
         'Pacific Place Mall Shop Lt. 3, Unit 3-99, Jl. Jend. Sudirman Kav. 52-53, SCBD, Jakarta Selatan 12190', '021-57973015',
-        'PT BESTPROFIT FUTURES', 'Cabang Pacific Place', 'BPF WorkHub', 'v2.37.0');
+        'PT BESTPROFIT FUTURES', 'Cabang Pacific Place', 'BPF WorkHub', 'v2.37.7');
 
 -- Add branch_code column to users if not exists
 SET @exists = (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'branch_code');

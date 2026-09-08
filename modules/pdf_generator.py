@@ -4,14 +4,14 @@ import re
 import io
 from datetime import datetime, date
 from fpdf import FPDF
-from modules.company_identity import get_company_identity, IDENTITY_DEFAULTS
+from modules.company_identity import get_company_identity, IDENTITY_DEFAULTS  # noqa: F401
 
 # ============================================================
 # CONSTANTS (fallback bila identitas belum diset di system_config)
 # ============================================================
 COMPANY_NAME = 'PT BESTPROFIT FUTURES'
 COMPANY_SUBTITLE = 'Kantor Pusat | Jakarta'
-SYSTEM_VERSION = 'BPF WorkHub v2.37.0'
+SYSTEM_VERSION = 'BPF WorkHub v2.37.7'
 LOGO_FILENAMES = ['icon-512.png', 'icon-192.png']
 PHOTO_FIELDS = [
     ('foto_odo_sebelum', 'ODO Sebelum'),
@@ -62,6 +62,33 @@ class BPFBasePDF(FPDF):
                 # DB tidak tersedia (tes/script offline): fallback identitas
                 # default penuh (nama, subjudul, alamat, kontak) — bukan {}.
                 self._identity = dict(IDENTITY_DEFAULTS)
+        return self._identity
+
+    def set_identity(self, identity=None, branch_code=None):
+        """Set identitas kop SEBELUM add_page() (v2.37.7).
+
+        Dua cara pakai:
+        - set_identity(dict)  : merge dict ke identitas global (kunci kosong
+                                diabaikan — field yang tidak dikirim tetap
+                                memakai nilai global).
+        - set_identity(branch_code='SBY') : ambil identitas cabang dari
+                                tabel branches (get_branch_identity) — kop
+                                mengikuti cabang, alamat HO tidak ikut.
+
+        Harus dipanggil sebelum halaman pertama digambar; header() memakai
+        nilai ini untuk kop tiap halaman.
+        """
+        if branch_code:
+            try:
+                from modules.company_identity import get_branch_identity
+                self._identity = get_branch_identity(branch_code=branch_code)
+                return self._identity
+            except Exception:
+                pass  # jatuh ke merge dict / identitas global
+        if identity:
+            base = self._company_identity()
+            base.update({k: v for k, v in identity.items() if v})
+            self._identity = base
         return self._identity
 
     # ---- Font Setup ----

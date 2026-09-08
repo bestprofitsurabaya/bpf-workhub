@@ -31,6 +31,36 @@ app.secret_key = 'test-secret'
 app.config['UPLOAD_FOLDER'] = 'uploads'
 
 
+class FakeBranchConn:
+    """DB palsu utk get_branch_identity: query branches → baris cabang
+    yang disiapkan; query lain (system_config) → tanpa baris."""
+
+    def __init__(self, branch_row):
+        self._row = branch_row
+
+    def cursor(self, dictionary=False):
+        row = self._row
+
+        class _Cur:
+            _sql = ''
+
+            def execute(self, sql, params=None):
+                self._sql = sql
+
+            def fetchone(self):
+                return row if 'FROM branches' in self._sql else None
+
+            def fetchall(self):
+                return []
+
+            def close(self):
+                pass
+        return _Cur()
+
+    def close(self):
+        pass
+
+
 def _sample_purchase(status='verified'):
     return {
         'id': 1,
@@ -111,6 +141,49 @@ class TestWaterReceiptPDF:
         text = _pdf_text(pdf_bytes)
         assert 'LAMPIRAN FOTO' in text
         assert 'SEBELUM' in text and 'SESUDAH' in text
+
+    def test_kop_mengikuti_cabang(self, monkeypatch):
+        """v2.37.7: set_identity(branch_code=...) — kop Tanda Terima memakai
+        alamat cabang dari tabel branches, alamat HO tidak ikut muncul.
+        DB di-mock agar deterministik di host maupun container."""
+        import modules.config as cfg
+        row = {'company_name': 'PT BESTPROFIT FUTURES',
+               'company_subtitle': 'Cabang Surabaya',
+               'address': 'Graha Bukopin, Lantai 11, Jl. Panglima Sudirman '
+                          'No. 10-18, Surabaya 60271',
+               'phone': '031-5349888', 'city': 'Surabaya'}
+        monkeypatch.setattr(cfg, 'get_db_connection',
+                            lambda branch_code=None, master=False: FakeBranchConn(row))
+        from modules.pdf_generator import WaterReceiptPDF
+        pdf = WaterReceiptPDF()
+        pdf.set_identity(branch_code='SBY')
+        pdf.add_page()
+        ident = pdf._company_identity()
+        assert 'Graha Bukopin' in (ident.get('company_address') or ''), \
+            f'alamat cabang SBY tidak terpasang: {ident}'
+        assert 'Equity Tower' not in (ident.get('company_address') or '')
+        assert 'Cabang Surabaya' in (ident.get('company_subtitle') or '')
+        # Kop benar-benar tergambar di PDF (bukan hanya cache identitas)
+        pdf.generate(_sample_purchase('verified'), _sample_items(),
+                     ga_name='ANDI', finance_name='RINA')
+        raw = pdf.output(dest='S')
+        pdf_bytes = raw.encode('latin-1') if isinstance(raw, str) else bytes(raw)
+        text = _pdf_text(pdf_bytes)
+        assert 'Graha Bukopin' in text
+        assert 'Equity Tower' not in text
+
+    def test_set_identity_tanpa_branch_tetap_global(self):
+        """set_identity() tanpa argumen / branch kosong → identitas global
+        (perilaku lama, kop Kantor Pusat) — tidak error."""
+        from modules.pdf_generator import WaterReceiptPDF
+        pdf = WaterReceiptPDF()
+        pdf.set_identity()
+        ident = pdf._company_identity()
+        assert ident.get('company_name')
+        pdf.set_identity(branch_code='')
+        assert pdf._company_identity().get('company_name')
+        pdf.set_identity(identity={'company_subtitle': 'Cabang Uji'})
+        assert pdf._company_identity().get('company_subtitle') == 'Cabang Uji'
 
     def test_generate_rejected_menampilkan_alasan(self):
         """PDF berstatus ditolak menampilkan alasan penolakan."""

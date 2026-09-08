@@ -2,9 +2,9 @@
 
 File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks saat sesi baru dimulai.
 
-**Terakhir diperbarui:** 2026-09-07  
+**Terakhir diperbarui:** 2026-09-08  
 **Branch:** `main`  
-**Versi terbaru:** v2.37.6 LIVE (7 Sep — layout export air minum + kop per cabang + PLM dinonaktifkan) · v2.37.5 (export rekap air minum PDF & Excel) · v2.37.4 (filter rentang tanggal) · v2.37.3 (detail snapshot audit log) · v2.37.2 (fix foto bukti 500 + preview verifikasi air minum) · v2.37.1 (hotfix scoping admin cabang) · v2.37.0 (edit/hapus air minum + admin per-cabang + Pengaturan terstruktur) — program 6 tahap ISO 27001 SELESAI
+**Versi terbaru:** v2.37.7 (8 Sep — kop Tanda Terima air minum per cabang) · v2.37.6 LIVE (7 Sep — layout export air minum + kop per cabang + PLM dinonaktifkan) · v2.37.5 (export rekap air minum PDF & Excel) · v2.37.4 (filter rentang tanggal) · v2.37.3 (detail snapshot audit log) · v2.37.2 (fix foto bukti 500 + preview verifikasi air minum) · v2.37.1 (hotfix scoping admin cabang) · v2.37.0 (edit/hapus air minum + admin per-cabang + Pengaturan terstruktur) — program 6 tahap ISO 27001 SELESAI
 
 ---
 
@@ -12,7 +12,8 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 | Aspek | Status |
 |-------|--------|
-| Versi | **v2.37.6 LIVE (7 Sep)** — layout export air minum + kop per cabang (tabel branches) + cabang Palembang dinonaktifkan; sebelumnya v2.37.5 export rekap air minum + v2.37.0 (edit/hapus air minum + admin per-cabang) + v2.37.1 hotfix scoping + v2.37.2 fix foto bukti & preview + v2.37.3 detail snapshot audit |
+| Versi | **v2.37.7 (8 Sep)** — kop Tanda Terima air minum mengikuti cabang sesi (helper `get_branch_identity` + `BPFBasePDF.set_identity`); sebelumnya v2.37.6 layout export air minum + kop per cabang (tabel branches) + PLM dinonaktifkan; v2.37.5 export rekap air minum + v2.37.0 (edit/hapus air minum + admin per-cabang) + v2.37.1 hotfix scoping + v2.37.2 fix foto bukti & preview + v2.37.3 detail snapshot audit |
+| Kop Tanda Terima per cabang (v2.37.7) | ✅ **DI REPO + TER-VERIFIKASI LIVE (belum rebuild image)**: PDF Tanda Terima air minum kini berkop cabang sesi via `get_branch_identity()` (tabel branches) — SBY "Graha Bukopin…", MDN "Perintis Kemerdekaan…", JKT "Equity Tower Lt.47…" terverifikasi di container (docker cp kode baru, bukan image final); stamp v2.37.7 + master DB system_version diperbarui dari v2.29.10 yang basi; +13 pytest (test_branch_identity 11 + test_water 2) |
 | Kop dokumen per cabang (v2.37.6) | ✅ **LIVE**: export PDF/Excel air minum kini memakai alamat/telepon/subtitle tabel `branches` sesuai cabang sesi (bug v2.37.5: kop selalu alamat HO); alamat resmi 9 cabang diisi dari bestprofit-futures.co.id; filter `to` kini inklusif (tanggal terakhir bulan tak lagi hilang) |
 | Cabang Palembang | ✅ **DINONAKTIFKAN (7 Sep)** — tidak ada kantor cabang: `branches.is_active=0` + user `it_plm`/`admin_plm` nonaktif (login 401 live); DB `bpf_branch_plm` utuh (reversible) |
 | Edit/hapus air minum (v2.37.0) | ✅ **SELESAI di repo**: toggle Admin per cabang (`system_config.water_edit_enabled`, default nonaktif → perilaku lama); `PUT/DELETE /api/water/purchases/<id>` wajib step-up 428 + audit snapshot `old_data`; edit hanya status pending/verified (rejected ditolak 400); hapus = baris+item+foto dihapus permanen, snapshot tersimpan; kolom `edited_by/edited_at/edit_count` dibuat otomatis (master+cabang+`ensure_branch_database`); UI WaterView ✏️/🗑️ hanya muncul bila fitur aktif; **19 pytest + 4 vitest baru** |

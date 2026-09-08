@@ -1001,6 +1001,12 @@ def register_water_routes(app):
                 finance_name = verified_by
             from modules.pdf_generator import WaterReceiptPDF
             pdf = WaterReceiptPDF()
+            # v2.37.7: kop Tanda Terima mengikuti cabang sesi (tabel branches
+            # di DB master) — bukan selalu alamat Kantor Pusat.
+            try:
+                pdf.set_identity(branch_code=session.get('branch_code'))
+            except Exception:
+                pass  # gagal ambil identitas cabang → kop identitas global
             pdf.add_page()
             pdf.generate(row, items, ga_name=ga_name, finance_name=finance_name,
                          upload_folder=app.config['UPLOAD_FOLDER'])

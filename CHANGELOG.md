@@ -4,6 +4,49 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 
 ---
 
+## v2.37.7 — 8 September 2026 (Kop Tanda Terima air minum mengikuti cabang)
+
+Lanjutan v2.37.6: kop per cabang kini juga di **PDF Tanda Terima air minum**
+(dokumen yang dicetak Finance saat verifikasi) — sebelumnya kop dokumen ini
+masih memakai identitas global (alamat HO) untuk semua cabang.
+
+### Ditambah
+- **`get_branch_identity(branch_code)`** (`modules/company_identity.py`) —
+  satu sumber identitas kop per cabang dari tabel `branches` (DB master):
+  company_name, company_subtitle, address, phone. Kolom kosong di baris
+  cabang diisi dari identitas global; branch kosong/baris tak ada/DB mati →
+  identitas global penuh (fail-open, perilaku lama).
+- **`BPFBasePDF.set_identity(identity=…, branch_code=…)`** — cara standar
+  memasang kop per dokumen SEBELUM `add_page()`; dipakai semua subclass
+  (WaterReceiptPDF, OvertimeFormPDF, dst.).
+
+### Diubah
+- **PDF Tanda Terima air minum** (`/api/water/purchases/<id>/pdf`) — kop
+  kini mengikuti cabang sesi (SBY → "Graha Bukopin …", JKT → "Equity Tower
+  Lt. 47 …", dst.). Finance cabang mana pun mencetak dokumen resmi dengan
+  kop cabangnya sendiri.
+- **`WaterReportPDF` (export rekap)** di-refactor memakai `set_identity()` —
+  perilaku sama dengan v2.37.6, kini lewat satu pintu yang sama.
+- Stamp versi v2.37.7 (pdf_generator SYSTEM_VERSION, company_identity &
+  identity.js default, seed init.sql) + master DB `system_config`
+  `system_version` diperbarui (sebelumnya basi di v2.29.10).
+
+### Test
+- `tests/test_branch_identity.py` **baru (11 test)**: fallback berlapis
+  (kolom kosong → global, baris tak ada, DB mati fail-open), normalisasi
+  kode lowercase, subtitle fallback dari city, kebersihan koneksi (conn
+  sendiri ditutup, conn pemanggil tidak), kunci hasil = nama field identity.
+- `tests/test_water.py` +2: kop Tanda Terima memakai alamat cabang (alamat
+  HO tidak ikut muncul — dicek di teks PDF hasil generate) + set_identity
+  tanpa argumen tetap global.
+- Suite air minum: **42 pytest lulus** (test_branch_identity + test_water +
+  test_water_export + test_pdf_header_layout).
+- Verifikasi live di container: `get_branch_identity` mengembalikan alamat
+  resmi ke-9 cabang dari DB produksi; PDF Tanda Terima SBY/MDN/JKT masing-
+  masing memuat kop cabangnya dan TIDAK memuat alamat cabang lain.
+
+---
+
 ## v2.37.6 — 7 September 2026 (Tata letak export air minum + kop per cabang + Palembang dinonaktifkan)
 
 Lanjutan sesi yang terputus di tengah pekerjaan: perapian tata letak output

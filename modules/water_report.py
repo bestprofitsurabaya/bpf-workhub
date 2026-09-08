@@ -270,17 +270,12 @@ class WaterReportPDF:
         p = self.pdf
         # Kop mengikuti identitas cabang (meta) — override cache identitas
         # BPFBasePDF SEBELUM add_page() agar header() memakai kop cabang.
-        base = dict(self._pg.IDENTITY_DEFAULTS)
-        try:
-            base.update(self._pg.get_company_identity())
-        except Exception:
-            pass
-        base.update({k: v for k, v in (self._identity_override or {}).items() if v})
-        # v2.37.6b: kop mengikuti cabang sesi — meta['company'] dibangun dari
-        # tabel branches di _export_meta() (kunci = nama field identity).
-        # Diterapkan di sini agar routes tak perlu pass identity eksplisit.
-        base.update({k: v for k, v in (meta.get('company') or {}).items() if v})
-        p._identity = base
+        # v2.37.7: lewat BPFBasePDF.set_identity() (helper kop per cabang
+        # yang sama dipakai PDF Tanda Terima). Override eksplisit konstruktor
+        # tetap dihormat, meta['company'] (tabel branches) menang.
+        merged = dict(self._identity_override or {})
+        merged.update({k: v for k, v in (meta.get('company') or {}).items() if v})
+        self.pdf.set_identity(identity=merged)
 
         head_name, fin_name = _signatures(meta)
         t = _totals(rows)
