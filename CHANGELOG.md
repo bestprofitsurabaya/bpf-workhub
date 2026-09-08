@@ -4,6 +4,34 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 
 ---
 
+## v2.37.8 — 8 September 2026 (Fix: list tidak update setelah aksi — service worker meng-cache API)
+
+Temuan user: setelah Finance memverifikasi/reject pembelian air minum, daftar
+tidak berubah — harus refresh manual + filter ulang. Hal yang sama dialami
+Receptionis saat mengisi kehadiran peserta training (H1/H2/…).
+
+### Akar masalah
+- Service worker SPA (`frontend/public/sw.js`, masuk di v2.37.5) meng-intercept
+  **semua** GET same-origin — termasuk `/api/...` — dengan strategi
+  stale-while-revalidate dan meng-cache setiap respons `ok`.
+- Akibatnya `load()` ulang setelah aksi sukses memuat **respons lama dari cache**
+  (URL sama → cache hit); revalidasi berjalan di belakang layar sehingga
+  refresh manual berikutnya menampilkan data baru — persis pola yang dilaporkan.
+- Ganti filter membangun query string berbeda → cache miss → data terlihat
+  "muncul" setelah filter ulang.
+
+### Diperbaiki
+- **SW tidak menyentuh `/api/*` dan `/socket.io/*` lagi** — request data dinamis
+  dibiarkan lewat jaringan (tanpa `event.respondWith`); SW kini hanya menangani
+  navigasi (fallback shell offline) dan asset Vite ber-hash.
+- `CACHE` dinaikkan ke `bpf-spa-20260908-v2378` agar SW lama ter-replace di
+  klien yang sudah terpasang.
+- **Guard regresi** `frontend/src/sw.test.js` (6 vitest): SW dieksekusi di
+  sandbox VM — asersi `/api/*` & socket.io TIDAK di-intercept, navigasi &
+  asset ber-hash tetap di-handle, nama cache memuat marker v2378.
+
+---
+
 ## v2.37.7 — 8 September 2026 (Kop Tanda Terima air minum mengikuti cabang)
 
 Lanjutan v2.37.6: kop per cabang kini juga di **PDF Tanda Terima air minum**

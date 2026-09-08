@@ -1,5 +1,9 @@
-/* BPF WorkHub SPA — Service Worker (scope /app/) */
-const CACHE = 'bpf-spa-20260907-v2375';
+/* BPF WorkHub SPA — Service Worker (scope /app/)
+ * v2.37.8: JANGAN pernah menyentuh /api/* — respons API tidak boleh di-cache.
+ * SW sebelumnya (stale-while-revalidate utk semua GET) membuat list API
+ * menampilkan data lama setelah verifikasi/kehadiran sampai refresh manual.
+ */
+const CACHE = 'bpf-spa-20260908-v2378';
 const SHELL = ['/app/index.html'];
 
 self.addEventListener('install', (event) => {
@@ -24,6 +28,12 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET') return;
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
+
+  // v2.37.8: API (dan semua data dinamis) SELALU lewat jaringan —
+  // jangan intercept, jangan cache. SW hanya untuk shell SPA + asset.
+  if (url.pathname.startsWith('/api/') || url.pathname.includes('/socket.io/')) {
+    return; // biarkan browser menangani (no event.respondWith)
+  }
 
   if (request.mode === 'navigate') {
     event.respondWith(
