@@ -85,6 +85,16 @@ async function loadBranches() {
     currentBranch.value = d.current || null
     branches.value = Array.isArray(d.branches) ? d.branches : []
   } catch { /* noop */ }
+  // v2.37.7: daftar dari /current tidak memuat field identitas (id, address,
+  // phone, dst.) — lengkapi dari /api/branches agar tombol ✏️ Edit mengisi
+  // form dengan nilai yang benar (bukan form Tambah kosong).
+  try {
+    const full = await api('/api/branches')
+    if (Array.isArray(full.branches) && full.branches.length) {
+      const byCode = Object.fromEntries(full.branches.map((b) => [b.code, b]))
+      branches.value = branches.value.map((b) => ({ ...b, ...(byCode[b.code] || {}) }))
+    }
+  } catch { /* tetap pakai daftar /current */ }
 }
 
 function openBranchForm(b) {

@@ -48,6 +48,29 @@ masih memakai identitas global (alamat HO) untuk semua cabang.
 - **Alamat MLG dikoreksi** sesuai situs resmi: "BPF Tower…" → **Ruko
   Pelita, Jl. Letjen S. Parman No. 59 Kav. 1, 3–5, Malang** (ter-verify
   live di kop PDF).
+- **Stamp identitas dirapikan** — kolom `system_name`/`system_version`
+  tabel `branches` kini seragam "BPF WorkHub v2.37.7" untuk semua cabang
+  aktif, dan tersinkron ke `system_config` tiap DB cabang (8 DB, script
+  `scripts/sync_branch_stamp.py`, idempoten). Master DB `system_config`
+  `system_version` v2.29.10 → v2.37.7.
+
+### Keamanan / Keandalan
+- **Insiden gunicorn 26 (8 Sep)** — rebuild pasca-merge Dependabot #6
+  membuat `bbm_web` crash-loop: gunicorn 26.x menghapus worker bawaan
+  `eventlet`/`gevent` (jadi extra terpisah), CMD
+  `gunicorn --worker-class eventlet` gagal ImportError. CI lulus karena
+  pytest tidak pernah memulai worker. Fix: kembali ke gunicorn 23.0.0
+  + catatan di `requirements.txt`; guard baru
+  `tests/test_gunicorn_worker.py` (2 test) mem-parse CMD Dockerfile dan
+  memastikan worker-class bisa di-resolve versi ter-install — regresi
+  serupa kini tertangkap CI.
+- **Verifikasi UI browser (puppeteer)** — skrip baru
+  `frontend/scripts/verify_branch_edit_ui.mjs` (9 cek): login
+  admin_master → Pengaturan → Cabang → ✏️ Edit → ubah alamat → simpan →
+  DB berubah → restore. Menangkap bug nyata: daftar cabang dari
+  `/api/branches/current` tidak memuat `id`/`address` sehingga modal
+  ✏️ Edit selalu terbuka sebagai "Tambah" — diperbaiki dengan merge data
+  penuh dari `/api/branches` di `loadBranches()`.
 - **3 cabang resmi ditambahkan NONAKTIF** (`is_active=0`, pola PLM — data
   tercatat, diaktifkan Admin saat kantor mulai dipakai): **JMB Jambi**
   (Jl. Kolonel Abunjani No. 29 C Sipin), **PTK Pontianak** (Sentra Bisnis
