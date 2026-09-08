@@ -4,6 +4,46 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 
 ---
 
+## Dokumen — Diagram Alir Sistem (8 September 2026)
+
+Diagram alir sistem BPF WorkHub yang **interaktif di browser**:
+`https://nasbpfsby.duckdns.org:5000/static/system-diagram.html` (tidak perlu
+login — dokumen teknis publik di host sendiri).
+
+**11 seksi SVG** (sumber: kode repo + verifikasi live):
+1. **Arsitektur Infrastruktur** — browser → DuckDNS → nextcloud_nginx (TLS :5000,
+   cache asset 1 thn / no-cache index+sw) → bbm_web (Gunicorn 23 + eventlet) →
+   bbm_mariadb (:3306, localhost saja) · Google Sheets · uptime_kuma · bbm_backup.
+2. **Data Multi-Cabang** — session `branch_code` → `resolve_db_name()` → pool
+   per DB; master (users/branches/audit) vs DB cabang (transaksi).
+3. **Auth & Keamanan** — login PIN → cookie `bpf_session` + CSRF →
+   `role_required` → `stepup_required` (428 → /api/step-up, grant 10 mnt) →
+   `admin_scope` → `audit_log`.
+4. **Air Minum** — OB submit (foto sebelum/sesudah) → pending → Finance
+   verifikasi (step-up) → verified → PDF Tanda Terima kop cabang →
+   doc_integrity (SHA-256).
+5. **Overtime** — Google Sheets (Apps Script) → pull sync → upsert
+   `source_uid` md5(nama|submitted) → Form/Laporan PDF kop cabang →
+   approval GA HR → Admin.
+6. **Kasbon/BBM** — Driver → ACC Chief Driver → GA → Admin (409 supervisor
+   gate, tolak wajib alasan).
+7. **Training** — Receptionis → markAttendance H1/H2 → load() otomatis
+   (SW bypass /api/*).
+8. **Realtime** — emit_event → SocketIO rooms (driver_*, marketing_*) →
+   nginx WS upgrade → NotificationBell.
+9. **Frontend SPA** — router per role · api.js (CSRF retry) · SW v2.37.8
+   (bypass /api/*) · vitest 141 · puppeteer E2E.
+10. **Kop Dokumen** — UI Cabang ✏️ → /api/branches/save → branches (master) →
+   `get_branch_identity()` → `set_identity()` → semua dokumen resmi.
+11. **CI/CD** — GitHub Actions (pytest 570 · vitest 141 · audit · Trivy) →
+   Docker multi-stage → compose up → health; lesson gunicorn 26.
+
+Fitur halaman: sticky nav dengan highlight seksi aktif (IntersectionObserver),
+tombol zoom +/−/100% (fixed), dark theme senada aplikasi. CSP `script-src
+'self'` → JS eksternal `system-diagram.js` (tanpa inline script).
+
+---
+
 ## v2.37.8 — 8 September 2026 (Fix: list tidak update setelah aksi — service worker meng-cache API)
 
 Temuan user: setelah Finance memverifikasi/reject pembelian air minum, daftar
