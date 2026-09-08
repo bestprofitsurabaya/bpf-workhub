@@ -12,9 +12,23 @@ Tanpa dependensi eksternal (pypdf/PyPDF2 tidak tersedia di container):
 3. Baca literal string di content stream, hormati escape backslash
    (spesifikasi PDF §7.3.4.2) dan kurung, lalu decode pasangan 2-byte
    dengan CMap font aktif (/Fx ... Tf).
+
+v2.37.7b — parser kini BINARY-SAFE:
+Stream terkompresi adalah data biner arbitrer; bisa saja mengandung byte
+"endobj"/"endstream"/"N 0 obj" sehingga regex `(.*?)endobj` memotong objek
+di tengah stream → ekstraksi kosong → test flaky (terjadi di CI 8 Sep 2026:
+test_applicants gagal karena /CreationDate membuat byte PDF beda tiap run).
+Sekarang: batas objek dicari dengan melewati isi stream (via /Length bila
+ada), dan isi stream diambil presisi dengan /Length.
 """
 import re
 import zlib
+
+# "N 0 obj\n" — anchor baris penuh agar kecil kemungkinan kena data biner.
+_RE_OBJ_START = re.compile(rb'(?:^|[\r\n])(\d+) 0 obj\r?\n')
+_RE_STREAM_START = re.compile(rb'(?:^|[\r\n])stream\r?\n')
+_RE_ENDSTREAM = re.compile(rb'(?:^|[\r\n])endstream')
+_RE_LENGTH = re.compile(rb'/Length\s+(\d+)(?![0-9])')
 
 
 def _decomp(data):
@@ -24,20 +38,70 @@ def _decomp(data):
         return data
 
 
+def _stream_keyword_positions(body):
+    """Posisi keyword 'stream' (BUKAN 'endstream') dan 'endstream'."""
+    starts, ends = [], []
+    for m in _RE_STREAM_START.finditer(body):
+        starts.append(m.start() + (1 if body[m.start():m.start()+1] in (b'\r', b'\n') else 0))
+    for m in _RE_ENDSTREAM.finditer(body):
+        ends.append(m.start())
+    return starts, ends
+
+
+def _cut_body(body):
+    """Potong body objek di 'endobj' pertama yang berada DI LUAR stream biner."""
+    pos = 0
+    while True:
+        e = body.find(b'endobj', pos)
+        if e == -1:
+            return body  # objek terakhir tanpa endobj (sisa trailer) — biarkan
+        starts, ends = _stream_keyword_positions(body[pos:e])
+        # Ada stream yang mulai sebelum endobj ini dan endstream-nya
+        # TIDAK ada sebelum endobj → endobj ini di dalam stream binary.
+        inside = False
+        for s in starts:
+            matching_end = next((x for x in ends if x > s), None)
+            if matching_end is None or matching_end > (e - pos):
+                inside = True
+                break
+        if inside:
+            pos = e + 6
+            continue
+        return body[:e]
+
+
+def _split_objects(data):
+    """Pecah PDF jadi dict {nomor: body} — binary-safe."""
+    objs = {}
+    starts = list(_RE_OBJ_START.finditer(data))
+    for idx, m in enumerate(starts):
+        num = int(m.group(1))
+        end = starts[idx + 1].start() if idx + 1 < len(starts) else len(data)
+        objs[num] = _cut_body(data[m.end():end])
+    return objs
+
+
 def _stream_of(body):
-    """Ambil isi stream (...endstream) dari body objek & decompress (FlateDecode)."""
-    m = re.search(rb'stream\r?\n(.*?)\r?\nendstream', body, re.S)
+    """Ambil isi stream objek — presisi via /Length bila ada (binary-safe)."""
+    m = _RE_STREAM_START.search(body)
     if not m:
         return b''
-    return _decomp(m.group(1))
+    start = m.end()
+    lm = _RE_LENGTH.search(body[:m.start()])
+    if lm:
+        length = int(lm.group(1))
+        return _decomp(body[start:start + length])
+    # Fallback tanpa /Length: endstream pertama setelah awal stream
+    em = _RE_ENDSTREAM.search(body, start)
+    if not em:
+        return b''
+    return _decomp(body[start:em.start()])
 
 
 def pdf_text(pdf_bytes):
     """Ekstrak teks dari PDF fpdf2 (font disubset → kode glyph 2-byte + CMap ToUnicode)."""
-    # 1. Objek PDF: nomor → isi
-    objs = {}
-    for m in re.finditer(rb'(\d+) 0 obj(.*?)endobj', pdf_bytes, re.S):
-        objs[int(m.group(1))] = m.group(2)
+    # 1. Objek PDF: nomor → isi (binary-safe)
+    objs = _split_objects(pdf_bytes)
 
     # 2. Font object → objek ToUnicode
     font_to_unicode = {}
