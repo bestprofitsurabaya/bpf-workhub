@@ -83,6 +83,16 @@ masih memakai identitas global (alamat HO) untuk semua cabang.
   (kolom kosong → global, baris tak ada, DB mati fail-open), normalisasi
   kode lowercase, subtitle fallback dari city, kebersihan koneksi (conn
   sendiri ditutup, conn pemanggil tidak), kunci hasil = nama field identity.
+
+### Verifikasi & Dokumentasi
+- **Full suite container: 570 pytest + 6 skip lulus** (rebuild image dari
+  main — bukan docker cp) + verifikasi UI browser 9/9 lulus pasca-rebuild.
+- **Panduan pengguna**: bagian baru "12.12 Mengedit Identitas Cabang" di
+  `guides/USER_GUIDE.md` dengan 3 screenshot alur (seksi Cabang, modal
+  Edit, setelah simpan) di `guides/img/`.
+- **Rencana migrasi worker**: `docs/internal/WORKER_MIGRATION_PLAN.md` —
+  3 jalur (gevent direkomendasikan / threading / stay di 23), checklist
+  uji realtime & beban, estimasi effort; syarat naik ke gunicorn 26+.
 - `tests/test_water.py` +2: kop Tanda Terima memakai alamat cabang (alamat
   HO tidak ikut muncul — dicek di teks PDF hasil generate) + set_identity
   tanpa argumen tetap global.

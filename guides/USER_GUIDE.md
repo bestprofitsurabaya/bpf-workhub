@@ -740,6 +740,39 @@ Kasus khusus (diatur Admin Pusat langsung via database):
 > username `admin_<kode cabang>` (mis. `admin_mlg`), cabang = kode cabang
 > terkait. PIN awal mengikuti alur onboarding biasa.
 
+### 12.12 Mengedit Identitas Cabang ✏️ (sejak v2.37.7 — Admin Pusat)
+
+Alamat & telepon tiap cabang dipakai sebagai **kop dokumen resmi** — PDF/Excel
+export (rekap air minum, Tanda Terima, Form Overtime, Logsheet) mencetak
+alamat cabang masing-masing di kop surat. Bila kantor **pindah lokasi** atau
+telepon berubah, Admin Pusat memperbaruinya langsung dari UI — tanpa SQL:
+
+1. Buka **Pengaturan → 🏢 Cabang & Nomor** (seksi Cabang).
+2. Klik **✏️ Edit** pada baris cabang yang ingin diubah (tombol ini hanya
+   tampil untuk Admin Pusat; Admin Cabang tidak melihatnya).
+3. Perbarui field yang perlu — yang dipakai kop dokumen:
+
+   | Field | Dipakai di kop sebagai |
+   |---|---|
+   | **Alamat** | Baris alamat lengkap |
+   | **Telepon** | `Telp: …` |
+   | **Kota** | Kota pada blok tanda tangan ("Surabaya, 8 September 2026") |
+   | **Subjudul** | Baris di bawah nama perusahaan (mis. `Cabang Surabaya`) |
+   | **Nama Perusahaan** | Baris pertama kop |
+
+4. Klik **💾 Simpan Cabang** — perubahan **langsung berlaku** pada export
+   berikutnya, tanpa restart.
+
+![Seksi Cabang dengan tombol Edit](img/cabang-seksi.png)
+
+![Modal Edit Cabang — alamat lama terisi](img/cabang-edit-modal.png)
+
+![Setelah simpan — pesan sukses](img/cabang-setelah-simpan.png)
+
+> Verifikasi otomatis alur ini tersedia di
+> `frontend/scripts/verify_branch_edit_ui.mjs` (puppeteer, 9 cek — login,
+> buka modal, ubah alamat, cek DB, restore).
+
 ---
 
 ## 13. Kasbon: Alur Lengkap dari A sampai Z
