@@ -85,7 +85,7 @@ Bayangkan BPF WorkHub sebagai sebuah kantor kecil dengan beberapa ruangan:
 
 | Komponen | Nama Kotak | Port di Server | Tugasnya |
 |----------|------------|----------------|----------|
-| 🌐 Aplikasi Web | `bbm_web` | `5000` (di dalam network) · `5001` host (localhost-only) | Otak aplikasi, dijalankan **gunicorn (eventlet)** sejak v2.29.1. Sekalian menjadwalkan pembersihan foto lembur tiap 30 menit & auto-refresh sheet overtime saat login/logout GA HR/Admin. |
+| 🌐 Aplikasi Web | `bbm_web` | `5000` (di dalam network) · `5001` host (localhost-only) | Otak aplikasi, dijalankan **gunicorn (worker gevent)** sejak v2.38.0 (sebelumnya eventlet v2.29.1–v2.37.x; eventlet deprecated dan dihapus di gunicorn 26). Monkey-patching HANYA oleh worker gunicorn via `--worker-class` (CMD Dockerfile) — app.py tidak boleh mem-patch (guard `tests/test_worker_patch_guard.py`, v2.39.2). Sekalian menjadwalkan pembersihan foto lembur tiap 30 menit & auto-refresh sheet overtime saat login/logout GA HR/Admin. |
 | 🗄️ Database | `bbm_mariadb` | `3306` (di dalam network) · `3307` host (localhost-only) | MariaDB 10.11 — menyimpan semua data: user, transaksi, overtime, riwayat, dst. |
 | ⚡ Cache | `bbm_redis` | Hanya internal | "Catatan tempel cepat" — session, rate limit, dan backend real-time Socket.IO. |
 | 🗄️ Backup | `bbm_backup` | Hanya internal | Mencadangkan **semua database** tiap **03:00 WIB** ke volume `bbm_backups` (retensi 30 hari). |

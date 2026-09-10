@@ -4,7 +4,7 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 **Terakhir diperbarui:** 2026-09-10  
 **Branch:** `main`  
-**Versi terbaru:** v2.39.1 (10 Sep — verifikasi paritas overtime DB↔sheet live + LIMIT list/report dinaikkan + pagination Data Overtime) · v2.39.0 (9 Sep — waktu overtime sesuai sheet Apps Script + form Overtime Saya utk OB & Security + role security) · v2.38.0 (di working tree — migrasi worker eventlet→gevent) · v2.37.8 (8 Sep — fix SW meng-cache /api/*: list tak update setelah verifikasi/kehadiran) · v2.37.7 (8 Sep — kop Tanda Terima air minum per cabang) · v2.37.6 LIVE (7 Sep — layout export air minum + kop per cabang + PLM dinonaktifkan) · v2.37.5 (export rekap air minum PDF & Excel) · v2.37.4 (filter rentang tanggal) · v2.37.3 (detail snapshot audit log) · v2.37.2 (fix foto bukti 500 + preview verifikasi air minum) · v2.37.1 (hotfix scoping admin cabang) · v2.37.0 (edit/hapus air minum + admin per-cabang + Pengaturan terstruktur) — program 6 tahap ISO 27001 SELESAI
+**Versi terbaru:** v2.39.2 (10 Sep — fix CI: monkey-patching gevent keluar dari app.py + guard) · v2.39.1 (10 Sep — verifikasi paritas overtime DB↔sheet live + LIMIT list/report dinaikkan + pagination Data Overtime) · v2.39.0 (9 Sep — waktu overtime sesuai sheet Apps Script + form Overtime Saya utk OB & Security + role security) · v2.38.0 (di working tree — migrasi worker eventlet→gevent) · v2.37.8 (8 Sep — fix SW meng-cache /api/*: list tak update setelah verifikasi/kehadiran) · v2.37.7 (8 Sep — kop Tanda Terima air minum per cabang) · v2.37.6 LIVE (7 Sep — layout export air minum + kop per cabang + PLM dinonaktifkan) · v2.37.5 (export rekap air minum PDF & Excel) · v2.37.4 (filter rentang tanggal) · v2.37.3 (detail snapshot audit log) · v2.37.2 (fix foto bukti 500 + preview verifikasi air minum) · v2.37.1 (hotfix scoping admin cabang) · v2.37.0 (edit/hapus air minum + admin per-cabang + Pengaturan terstruktur) — program 6 tahap ISO 27001 SELESAI
 
 ---
 
@@ -12,7 +12,8 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 | Aspek | Status |
 |-------|--------|
-| Versi | **v2.39.1 (10 Sep)** — paritas overtime terverifikasi live + LIMIT list/report + pagination; sebelumnya v2.39.0 (9 Sep — waktu overtime sesuai sheet, form Overtime Saya, role security) |
+| Versi | **v2.39.2 (10 Sep)** — fix CI monkey-patching + guard; sebelumnya v2.39.1 (10 Sep — paritas overtime live + LIMIT + pagination), v2.39.0 (9 Sep — waktu overtime sesuai sheet, form Overtime Saya, role security) |
+| Insiden CI monkey-patch (v2.39.2) | ✅ **DI REPO** — CI run 34425989650 merah (587 test lulus tapi error setup): `monkey.patch_all()` v2.38.0 di app.py jalan saat `import app` oleh pytest → lock importlib rusak ("cannot release un-acquired lock"); host lokal hijau karena gevent tak ter-install (fallback threading menyembunyikan bug). Fix: patching kini milik worker gunicorn `--worker-class` (CMD Dockerfile); app.py deteksi env gunicorn utk `socketio_async_mode`; worker gevent Dockerfile+requirements dijaga; +3 guard `tests/test_worker_patch_guard.py`. Verifikasi: 21 pytest terkait + 141 vitest + build SPA hijau |
 | Paritas overtime DB↔sheet (v2.39.1) | ✅ **TERVERIFIKASI LIVE** — full sync 2 modul + perbandingan baris-per-baris feed vs DB: Driver 8.763=8.763, OB/Security 603=603 (0 hilang/0 ekstra/0 selisih kolom). ⚠️ Web App produksi masih script LAMA (feed ISO-UTC) — paritas benar selama sheet WIB; deploy ulang Web App utk zona lain |
 | List/report OT terpotong (v2.39.1) | ✅ LIMIT dinaikkan: list 2.000→20.000, rekap 3.000→50.000, detail per karyawan 500→10.000, /mine 200→2.000 — export tanpa filter tanggal kini mencakup arsip 2020–2026 |
 | Pagination Data Overtime (v2.39.1) | ✅ tabel Driver & OB/Security dirender 100 baris/halaman (pager « ‹ 1..5 › »), reset ke hal. 1 saat load/filter — DOM ringan dgn list kini utuh 8.7rb+ baris |
@@ -69,6 +70,28 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 ---
 
 ## 🗂️ Riwayat Sesi
+
+### Sesi 2026-09-10 (lanjutan) — v2.39.2: fix CI monkey-patching gevent di app.py ✅ SELESAI di repo
+
+> Sesi terputus di tengah perbaikan CI merah (run 34425989650): 587 test
+> lulus tapi error saat setup fixture — `RuntimeError: cannot release
+> un-acquired lock (_ModuleLock 'app')`. Working tree sudah berisi fix +
+> guard; sesi ini memverifikasi, melengkapi docs, dan commit.
+
+1. **Akar**: v2.38.0 menambah `monkey.patch_all()` di app.py → jalan saat
+   `import app`, termasuk oleh pytest di tengah sesi test setelah puluhan
+   modul ter-load → lock importlib rusak. Host lokal hijau karena gevent
+   tak ter-install di sana (fallback threading menyembunyikan bug).
+2. **Fix**: patching hanya oleh worker gunicorn via `--worker-class gevent`
+   (CMD Dockerfile); app.py deteksi env gunicorn (`GUNICORN_CMD_ARGS` /
+   `SERVER_SOFTWARE`) utk `socketio_async_mode`; worker gevent v2.38.0 di
+   Dockerfile + requirements dijaga (insiden gunicorn 26 tak terulang).
+3. **Guard**: `tests/test_worker_patch_guard.py` 3 test — app.py bebas
+   monkey-patching, `socketio_async_mode` tetap ada, worker gevent tak boleh
+   hilang.
+4. **Verifikasi**: 3/3 guard + 21 pytest terkait (wallclock + gunicorn
+   worker) lulus; 141 vitest; build SPA hijau. SW cache bump v2392.
+5. **Dokumen**: CHANGELOG v2.39.2 + file ini.
 
 ### Sesi 2026-09-10 — v2.39.1: verifikasi paritas overtime + list tak terpotong + pagination ✅ SELESAI di repo
 

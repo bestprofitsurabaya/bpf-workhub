@@ -7,15 +7,21 @@ import warnings, os
 warnings.filterwarnings('ignore')
 os.environ['PYTHONWARNINGS'] = 'ignore'
 # v2.38.0: migrasi worker eventlet → gevent (eventlet deprecated; gunicorn 26
-# menghapus worker bawaannya — insiden 8 Sep 2026). gevent tersedia sebagai
-# extra gunicorn[gevent]; monkey_patch_all() dibutuhkan agar pustaka blocking
-# (mysql-connector, requests) ikut hijau. Fallback threading bila gevent tak ada.
-try:
-    from gevent import monkey
-    monkey.patch_all()
-    socketio_async_mode = 'gevent'
-except Exception:
-    socketio_async_mode = 'threading'
+# menghapus worker bawaannya — insiden 8 Sep 2026).
+# v2.39.2: JANGAN mem-patch gevent/eventlet di modul ini. Patching di dalam
+# modul aplikasi (jalan saat `import app`, termasuk saat pytest meng-import)
+# merusak lock importlib yang sudah di-acquire interpreter →
+# "RuntimeError: cannot release un-acquired lock" (CI merah, run 34425989650). Pemetaan patch yang benar
+# ditentukan WORKER gunicorn via --worker-class (lihat Dockerfile):
+#   gunicorn --worker-class gevent → gevent.patch_all() otomatis sebelum app load
+#   gunicorn (worker sinkron)     → tidak ada patch, threading murni
+#   python app.py (dev)           → threading murni
+# async_mode SocketIO mengikuti: 'gevent' saat worker gevent, 'threading' selain itu.
+# ⚠️ Jalankan server HANYA via CMD Dockerfile (worker-class tercatat di sana);
+# menjalankan `python app.py` dgn asumsi mode gevent tidak didukung.
+import os as _os_w
+socketio_async_mode = 'gevent' if _os_w.environ.get('GUNICORN_CMD_ARGS') or \
+    _os_w.environ.get('SERVER_SOFTWARE', '').startswith('gunicorn') else 'threading'
 
 from flask_socketio import SocketIO
 from flask import Flask, request, session, jsonify, redirect, url_for, flash

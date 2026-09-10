@@ -4,6 +4,58 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 
 ---
 
+## v2.39.2 — 10 September 2026 (Fix CI: monkey-patching gevent keluar dari app.py)
+
+### 🔴 Masalah
+
+CI run `34425989650` merah walau 587 test lulus — error terjadi **saat setup
+fixture**, bukan saat assertion:
+
+```
+ERROR at setup of test_security_headers_present
+RuntimeError: cannot release un-acquired lock  (_ModuleLock 'app')
+```
+
+### 🔍 Akar
+
+v2.38.0 menambah `from gevent import monkey; monkey.patch_all()` di **app.py**.
+Patching dijalankan saat `import app` — dan pytest meng-import app di tengah
+sesi test, **setelah** puluhan modul & fixture lain ter-load dan interpreter
+sudah meng-acquire lock importlib. `patch_all()` di tengah jalan merusak lock
+tersebut → `RuntimeError: cannot release un-acquired lock`.
+
+Host lokal hijau hanya karena gevent tidak ter-install di sana — fallback
+`threading` menyembunyikan bug. CI (install gevent) yang membukanya.
+
+### 🛠️ Perbaikan
+
+1. **app.py berhenti mem-patch** — pemetaan patch kini ditentukan **worker
+   gunicorn** via `--worker-class` di CMD Dockerfile (gevent mem-patch dirinya
+   sebelum app di-load — titik pemanggilan patch yang benar):
+   - `gunicorn --worker-class gevent` → patch otomatis, `socketio_async_mode='gevent'`
+   - worker sinkron / `python app.py` (dev) → tanpa patch, `'threading'`
+   - mode dideteksi dari environment gunicorn (`GUNICORN_CMD_ARGS` /
+     `SERVER_SOFTWARE`) — tanpa try/except import.
+   - ⚠️ Jalankan server **hanya** via CMD Dockerfile; `python app.py` berjalan
+     threading murni.
+2. **Worker gevent produksi tetap terjaga** (v2.38.0): CMD Dockerfile tetap
+   `--worker-class gevent`, `gunicorn[gevent]==23.0.0` + `gevent>=24.10.1` tetap
+   di requirements.txt — perapian app.py tidak boleh menghapusnya (insiden
+   gunicorn 26, 8 Sep).
+3. **Guard regresi baru** `tests/test_worker_patch_guard.py` (3 test):
+   app.py tidak boleh memanggil monkey-patching apa pun; `socketio_async_mode`
+   tetap terdefinisi + dipakai `SocketIO(async_mode=…)`; worker gevent di
+   Dockerfile & requirements tidak boleh hilang. Terjadi di CI, tertangkap CI.
+4. Stamp v2.39.2 (identity.js, company_identity, pdf_generator) + bump SW
+   cache `bpf-spa-20260910-v2392` + test marker SW v2392.
+
+### ✅ Verifikasi
+
+- 3/3 guard lulus; 21 pytest terkait (guard + wallclock + gunicorn worker)
+  lulus; **141 vitest** lulus; build SPA hijau.
+
+---
+
 ## v2.39.1 — 10 September 2026 (Overtime: verifikasi paritas sumber↔sistem + pagination)
 
 ### 1. ✅ Verifikasi paritas data overtime (DB vs Google Sheet, live)
