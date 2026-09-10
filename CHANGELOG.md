@@ -4,6 +4,39 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 
 ---
 
+## v2.39.3 — 10 September 2026 (Fix deteksi async_mode + smoke CI import app)
+
+### 🔴 Bug v2.39.2 yang tertangkap SEBELUM deploy
+
+Deteksi `socketio_async_mode` berbasis environment (`GUNICORN_CMD_ARGS` /
+`SERVER_SOFTWARE`) ternyata tidak pernah benar di produksi. Diverifikasi
+langsung di PID 1 container `bbm_web`: environment proses gunicorn **tidak
+memuat keduanya** — `SERVER_SOFTWARE` adalah kunci WSGI per-request (bukan
+`os.environ`), dan `GUNICORN_CMD_ARGS` hanya env *input* CLI gunicorn.
+Akibatnya produksi akan boot `async_mode='threading'` **di dalam worker
+gevent** — mismatch konfigurasi yang menyembunyikan manfaat worker dan
+mengubah perilaku SocketIO/pooling.
+
+### 🛠️ Perbaikan
+
+1. **Deteksi via ARGV**: worker gunicorn mewarisi argv master lewat fork →
+   `sys.argv` memuat persis CMD Dockerfile. `async_mode='gevent'` hanya bila
+   `argv[0]` berakhir `gunicorn` DAN `--worker-class[=| ]gevent` /
+   `-k[=| ]gevent` ada di argv; selain itu `threading` (pytest, `python app.py`).
+2. **Smoke test CI baru** (`test_import_app_dengan_gevent_tanpa_merusak_importlib`,
+   guard jadi 4 test): subprocess `python -X importtime -c "import app"` dengan
+   gevent ter-install — mengulang PERSIS kondisi CI merah 34425989650;
+   assert exit 0, tanpa `cannot release un-acquired lock`, dan
+   `ASYNC_MODE=threading` di luar gunicorn (app.py tak boleh mem-patch lagi).
+   Skip di host tanpa gevent → **otomatis jalan di job Backend CI**
+   (requirements.txt selalu meng-install gevent di sana).
+3. **Verifikasi container**: simulasi argv worker gevent → `gevent` ✓;
+   4/4 guard lulus di `bbm_web` (smoke import 55 dtk); normalisasi OB &
+   fallback +7 parser atas feed live tetap sehat (skrip forensik).
+4. Stamp v2.39.3 + SW cache `bpf-spa-20260910-v2393`.
+
+---
+
 ## v2.39.2 — 10 September 2026 (Fix CI: monkey-patching gevent keluar dari app.py)
 
 ### 🔴 Masalah

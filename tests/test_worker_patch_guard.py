@@ -21,7 +21,10 @@ Jalankan: python3 -m pytest tests/test_worker_patch_guard.py -v
 """
 import os
 import re
+import subprocess
 import sys
+
+import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
@@ -99,3 +102,35 @@ def test_worker_gevent_tidak_ikut_dibuang():
         "extra gunicorn[gevent] hilang dari requirements.txt"
     assert re.search(r'^gevent[>=~<!=\s]', requirements, re.M), \
         "paket gevent hilang dari requirements.txt"
+
+
+def test_import_app_dengan_gevent_tanpa_merusak_importlib():
+    """Smoke asli (v2.39.2): import app dgn gevent ter-install HARUS bersih.
+
+    Statik (test atas) bisa basi; smoke ini mengulang PERSIS kondisi CI
+    yang merah: gevent ter-install + `import app` di proses yang sudah
+    me-load modul lain (subprocess dgn -X importtime memaksa import
+    intern loader dulu). Gagal bila:
+    - import app error apa pun (mis. RuntimeError lock importlib), atau
+    - app.py kembali mem-patch (async_mode jadi 'gevent' di luar gunicorn).
+
+    Skip di host tanpa gevent (persepsi sama dgn CIBackend job — di sana
+    gevent ter-install dari requirements.txt, jadi test ini JALAN).
+    """
+    pytest.importorskip('gevent')
+    env = dict(os.environ)
+    env['PYTHONPATH'] = ROOT + os.pathsep + env.get('PYTHONPATH', '')
+    proc = subprocess.run(
+        [sys.executable, '-X', 'importtime', '-c',
+         'import app; print("ASYNC_MODE=" + app.socketio_async_mode)'],
+        cwd=ROOT, env=env, capture_output=True, text=True, timeout=300,
+    )
+    combined = (proc.stdout or '') + '\n' + (proc.stderr or '')
+    assert proc.returncode == 0, (
+        'import app gagal dgn gevent ter-install — inilah mode kegagalan '
+        'insiden CI 34425989650. Stderr terakhir:\n' + combined[-2000:])
+    assert 'cannot release un-acquired lock' not in combined, \
+        'lock importlib rusak saat import app (regresi monkey-patch)'
+    assert 'ASYNC_MODE=threading' in combined, (
+        'di luar gunicorn async_mode harus threading — app.py kemungkinan '
+        'kembali mem-patch sendiri. Output:\n' + combined[-1500:])

@@ -4,7 +4,7 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 **Terakhir diperbarui:** 2026-09-10  
 **Branch:** `main`  
-**Versi terbaru:** v2.39.2 (10 Sep — fix CI: monkey-patching gevent keluar dari app.py + guard) · v2.39.1 (10 Sep — verifikasi paritas overtime DB↔sheet live + LIMIT list/report dinaikkan + pagination Data Overtime) · v2.39.0 (9 Sep — waktu overtime sesuai sheet Apps Script + form Overtime Saya utk OB & Security + role security) · v2.38.0 (di working tree — migrasi worker eventlet→gevent) · v2.37.8 (8 Sep — fix SW meng-cache /api/*: list tak update setelah verifikasi/kehadiran) · v2.37.7 (8 Sep — kop Tanda Terima air minum per cabang) · v2.37.6 LIVE (7 Sep — layout export air minum + kop per cabang + PLM dinonaktifkan) · v2.37.5 (export rekap air minum PDF & Excel) · v2.37.4 (filter rentang tanggal) · v2.37.3 (detail snapshot audit log) · v2.37.2 (fix foto bukti 500 + preview verifikasi air minum) · v2.37.1 (hotfix scoping admin cabang) · v2.37.0 (edit/hapus air minum + admin per-cabang + Pengaturan terstruktur) — program 6 tahap ISO 27001 SELESAI
+**Versi terbaru:** v2.39.3 (10 Sep — fix deteksi async_mode via argv + smoke CI import app dgn gevent) · v2.39.2 (10 Sep — fix CI: monkey-patching gevent keluar dari app.py + guard) · v2.39.1 (10 Sep — verifikasi paritas overtime DB↔sheet live + LIMIT list/report dinaikkan + pagination Data Overtime) · v2.39.0 (9 Sep — waktu overtime sesuai sheet Apps Script + form Overtime Saya utk OB & Security + role security) · v2.38.0 (di working tree — migrasi worker eventlet→gevent) · v2.37.8 (8 Sep — fix SW meng-cache /api/*: list tak update setelah verifikasi/kehadiran) · v2.37.7 (8 Sep — kop Tanda Terima air minum per cabang) · v2.37.6 LIVE (7 Sep — layout export air minum + kop per cabang + PLM dinonaktifkan) · v2.37.5 (export rekap air minum PDF & Excel) · v2.37.4 (filter rentang tanggal) · v2.37.3 (detail snapshot audit log) · v2.37.2 (fix foto bukti 500 + preview verifikasi air minum) · v2.37.1 (hotfix scoping admin cabang) · v2.37.0 (edit/hapus air minum + admin per-cabang + Pengaturan terstruktur) — program 6 tahap ISO 27001 SELESAI
 
 ---
 
@@ -12,7 +12,9 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 | Aspek | Status |
 |-------|--------|
-| Versi | **v2.39.2 (10 Sep)** — fix CI monkey-patching + guard; sebelumnya v2.39.1 (10 Sep — paritas overtime live + LIMIT + pagination), v2.39.0 (9 Sep — waktu overtime sesuai sheet, form Overtime Saya, role security) |
+| Versi | **v2.39.3 (10 Sep)** — fix deteksi async_mode + smoke CI; sebelumnya v2.39.2 (10 Sep — fix CI monkey-patching + guard), v2.39.1 (10 Sep — paritas overtime live + LIMIT + pagination), v2.39.0 (9 Sep — waktu overtime sesuai sheet, form Overtime Saya, role security) |
+| Zona waktu sheet overtime (10 Sep) | ✅ **TERVERIFIKASI WIB via feed** — `scripts/forensic_overtime_tz.py` (di container): kedua feed masih script LAMA (Driver 8.764/8.864 nilai `T…Z`, OB 614/614); `Tanggal Overtime` driver = `…T17:00:00.000Z` (tengah malam WIB → 17:00Z; GMT+8 akan 16:00Z) → **cukup redeploy Web App §2 OT_WEBAPP_REDEPLOY.md, TANPA re-seed**; fallback +7 parser & normalisasi OB atas feed live OK |
+| Deteksi async_mode (v2.39.3) | ✅ **DI REPO** — deteksi env v2.39.2 (`GUNICORN_CMD_ARGS`/`SERVER_SOFTWARE`) tak pernah benar di produksi (diverifikasi PID 1 bbm_web: env kosong dgn keduanya; SERVER_SOFTWARE = kunci WSGI per-request) → produksi akan boot threading di worker gevent. Kini via **argv** (worker mewarisi argv master: `gunicorn --worker-class gevent …`); simulasi argv worker di container → `gevent` ✓; +1 smoke CI: subprocess `import app` dgn gevent (kondisi persis insiden 34425989650) — skip di host tanpa gevent, jalan di job Backend CI; 4/4 guard lulus di container |
 | Insiden CI monkey-patch (v2.39.2) | ✅ **DI REPO** — CI run 34425989650 merah (587 test lulus tapi error setup): `monkey.patch_all()` v2.38.0 di app.py jalan saat `import app` oleh pytest → lock importlib rusak ("cannot release un-acquired lock"); host lokal hijau karena gevent tak ter-install (fallback threading menyembunyikan bug). Fix: patching kini milik worker gunicorn `--worker-class` (CMD Dockerfile); app.py deteksi env gunicorn utk `socketio_async_mode`; worker gevent Dockerfile+requirements dijaga; +3 guard `tests/test_worker_patch_guard.py`. Verifikasi: 21 pytest terkait + 141 vitest + build SPA hijau |
 | Paritas overtime DB↔sheet (v2.39.1) | ✅ **TERVERIFIKASI LIVE** — full sync 2 modul + perbandingan baris-per-baris feed vs DB: Driver 8.763=8.763, OB/Security 603=603 (0 hilang/0 ekstra/0 selisih kolom). ⚠️ Web App produksi masih script LAMA (feed ISO-UTC) — paritas benar selama sheet WIB; deploy ulang Web App utk zona lain |
 | List/report OT terpotong (v2.39.1) | ✅ LIMIT dinaikkan: list 2.000→20.000, rekap 3.000→50.000, detail per karyawan 500→10.000, /mine 200→2.000 — export tanpa filter tanggal kini mencakup arsip 2020–2026 |
@@ -70,6 +72,32 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 ---
 
 ## 🗂️ Riwayat Sesi
+
+### Sesi 2026-09-10 (lanjutan 2) — v2.39.3: fix deteksi async_mode + forensik zona sheet + smoke CI ✅ SELESAI di repo
+
+> Lanjutan dua permintaan: (A) verifikasi zona waktu spreadsheet Apps
+> Script + keputusan redeploy Web App; (B) smoke test CI yang meng-import
+> app dgn gevent ter-install. Task B menemukan bug v2.39.2 sebelum deploy.
+
+1. **Forensik zona sheet** (`scripts/forensic_overtime_tz.py`, jalan di
+   container, URL feed dari system_config): kedua feed masih script LAMA
+   (ISO-UTC: Driver 8.764/8.864, OB 614/614); `Tanggal Overtime` =
+   `…T17:00:00.000Z` → zona spreadsheet **WIB** (tengah malam WIB =
+   17:00Z). Keputusan: **redeploy Web App saja (§2), TANPA re-seed**
+   (baris lama +7 = nilai wall-clock WIB — identik dgn feed baru).
+2. **Bug v2.39.2 tertangkap**: deteksi async_mode via env tidak pernah
+   benar — PID 1 bbm_web TIDAK punya `GUNICORN_CMD_ARGS`/`SERVER_SOFTWARE`
+   di environ (yang kedua = kunci WSGI per-request) → produksi akan boot
+   `threading` di worker gevent.
+3. **Fix v2.39.3**: deteksi via **argv** (`sys.argv` worker = argv master
+   hasil fork, memuat CMD Dockerfile). Simulasi argv worker di container →
+   `gevent` ✓; `python app.py`/pytest → `threading` ✓.
+4. **Smoke CI**: guard test ke-4 — subprocess `python -X importtime -c
+   "import app"` dgn gevent (kondisi persis insiden CI merah), assert
+   exit 0 + tanpa lock error + `ASYNC_MODE=threading`. Skip di host tanpa
+   gevent; **jalan otomatis di job Backend CI**. 4/4 guard lulus di
+   container (smoke 55 dtk).
+5. Stamp v2.39.3 + SW cache v2393; CHANGELOG + PROGRESS.
 
 ### Sesi 2026-09-10 (lanjutan) — v2.39.2: fix CI monkey-patching gevent di app.py ✅ SELESAI di repo
 

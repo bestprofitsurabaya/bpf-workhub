@@ -19,9 +19,19 @@ os.environ['PYTHONWARNINGS'] = 'ignore'
 # async_mode SocketIO mengikuti: 'gevent' saat worker gevent, 'threading' selain itu.
 # ⚠️ Jalankan server HANYA via CMD Dockerfile (worker-class tercatat di sana);
 # menjalankan `python app.py` dgn asumsi mode gevent tidak didukung.
-import os as _os_w
-socketio_async_mode = 'gevent' if _os_w.environ.get('GUNICORN_CMD_ARGS') or \
-    _os_w.environ.get('SERVER_SOFTWARE', '').startswith('gunicorn') else 'threading'
+# v2.39.3: deteksi via ARGV (sys.argv), bukan env — GUNICORN_CMD_ARGS &
+# SERVER_SOFTWARE TIDAK pernah ada di os.environ proses produksi (diverifikasi
+# di PID 1 bbm_web, 10 Sep 2026): SERVER_SOFTWARE itu kunci WSGI per-request,
+# GUNICORN_CMD_ARGS hanya env INPUT gunicorn. Worker gunicorn mewarisi argv
+# master lewat fork, jadi sys.argv memuat persis CMD Dockerfile
+# (gunicorn --worker-class gevent ...) — sinyal yang pasti benar.
+import sys as _sys_w
+_argv_w = ' '.join(_sys_w.argv)
+socketio_async_mode = 'gevent' if (
+    _sys_w.argv[0].endswith('gunicorn')
+    and ('--worker-class=gevent' in _argv_w or '--worker-class gevent' in _argv_w
+         or '-k=gevent' in _argv_w or '-k gevent' in _argv_w)
+) else 'threading'
 
 from flask_socketio import SocketIO
 from flask import Flask, request, session, jsonify, redirect, url_for, flash

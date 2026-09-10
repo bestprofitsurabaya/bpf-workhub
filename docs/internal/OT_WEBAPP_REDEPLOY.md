@@ -86,6 +86,15 @@ dan tahu URL `/exec` yang terpasang di sistem (lihat `system_config`
 
 Cek dulu zona sheet: **File → Settings → Time zone** (kedua spreadsheet).
 
+> ✅ **Sudah diverifikasi 10 Sep 2026 (v2.39.3)** — TIDAK perlu buka UI
+> Google: `scripts/forensic_overtime_tz.py` (jalankan via `docker cp` ke
+> `bbm_web` → `python3 /tmp/forensic_overtime_tz.py`) membuktikan dari feed
+> itu sendiri: kolom `Tanggal Overtime` Driver terserialisasi
+> `…T17:00:00.000Z` = tengah malam **WIB** (GMT+8 akan terbaca `16:00Z`).
+> Kedua feed masih script LAMA (ISO-UTC) — verdict & census tersimpan di
+> `/tmp/bpf_ot_tz_forensic.json` (container). **Kesimpulan: redeploy §2
+> saja, TANPA re-seed.**
+
 | Zona spreadsheet | Perlu re-seed? | Alasan |
 |---|---|---|
 | **WIB (GMT+7)** | ❌ Tidak | Feed lama (+7) & baru (wall-clock) menghasilkan nilai sama |
