@@ -16,7 +16,7 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 | Zona waktu sheet overtime (10 Sep) | ✅ **TERVERIFIKASI WIB via feed** — `scripts/forensic_overtime_tz.py` (di container): kedua feed masih script LAMA (Driver 8.764/8.864 nilai `T…Z`, OB 614/614); `Tanggal Overtime` driver = `…T17:00:00.000Z` (tengah malam WIB → 17:00Z; GMT+8 akan 16:00Z) → **cukup redeploy Web App §2 OT_WEBAPP_REDEPLOY.md, TANPA re-seed**; fallback +7 parser & normalisasi OB atas feed live OK |
 | Deteksi async_mode (v2.39.3) | ✅ **DI REPO** — deteksi env v2.39.2 (`GUNICORN_CMD_ARGS`/`SERVER_SOFTWARE`) tak pernah benar di produksi (diverifikasi PID 1 bbm_web: env kosong dgn keduanya; SERVER_SOFTWARE = kunci WSGI per-request) → produksi akan boot threading di worker gevent. Kini via **argv** (worker mewarisi argv master: `gunicorn --worker-class gevent …`); simulasi argv worker di container → `gevent` ✓; +1 smoke CI: subprocess `import app` dgn gevent (kondisi persis insiden 34425989650) — skip di host tanpa gevent, jalan di job Backend CI; 4/4 guard lulus di container |
 | Insiden CI monkey-patch (v2.39.2) | ✅ **DI REPO** — CI run 34425989650 merah (587 test lulus tapi error setup): `monkey.patch_all()` v2.38.0 di app.py jalan saat `import app` oleh pytest → lock importlib rusak ("cannot release un-acquired lock"); host lokal hijau karena gevent tak ter-install (fallback threading menyembunyikan bug). Fix: patching kini milik worker gunicorn `--worker-class` (CMD Dockerfile); app.py deteksi env gunicorn utk `socketio_async_mode`; worker gevent Dockerfile+requirements dijaga; +3 guard `tests/test_worker_patch_guard.py`. Verifikasi: 21 pytest terkait + 141 vitest + build SPA hijau |
-| Paritas overtime DB↔sheet (v2.39.1) | ✅ **TERVERIFIKASI LIVE** — full sync 2 modul + perbandingan baris-per-baris feed vs DB: Driver 8.763=8.763, OB/Security 603=603 (0 hilang/0 ekstra/0 selisih kolom). ⚠️ Web App produksi masih script LAMA (feed ISO-UTC) — paritas benar selama sheet WIB; deploy ulang Web App utk zona lain |
+| Paritas overtime DB↔sheet (v2.39.1) | ✅ **TERVERIFIKASI LIVE** — full sync 2 modul + perbandingan baris-per-baris feed vs DB. Re-verifikasi 10 Sep (v2.39.3, `scripts/forensic_overtime_tz.py`, kunci desain upsert): Driver **8.764=8.764**, OB/Security **603=603** (0 hilang/0 ekstra/0 selisih kolom; 11 duplikat pengajuan OB di-dedup by design). ⚠️ Web App produksi masih script LAMA (feed ISO-UTC) — paritas benar selama sheet WIB (zona sheet terbukti WIB); deploy ulang Web App utk konsistensi |
 | List/report OT terpotong (v2.39.1) | ✅ LIMIT dinaikkan: list 2.000→20.000, rekap 3.000→50.000, detail per karyawan 500→10.000, /mine 200→2.000 — export tanpa filter tanggal kini mencakup arsip 2020–2026 |
 | Pagination Data Overtime (v2.39.1) | ✅ tabel Driver & OB/Security dirender 100 baris/halaman (pager « ‹ 1..5 › »), reset ke hal. 1 saat load/filter — DOM ringan dgn list kini utuh 8.7rb+ baris |
 | Waktu overtime tak sesuai sheet (v2.39.0) | ✅ **AKAR DITEMUKAN + FIX**: bridge Apps Script mengirim Date mentah → JSON.stringify = ISO **UTC**; server menambah +7 jam dgn asumsi sheet WIB — sheet zona lain (mis. GMT+8) menghasilkan tanggal/jam bergeser di DB (keluhan user `gahr_sby`). Fix: bridges kini serialisasi wall-clock sesuai **zona spreadsheet** (`Utilities.formatDate`); parser baru `parse_date_wall`/`parse_time_wall`/`parse_submitted_at_wall` (tanpa offset), feed ISO UTC lama tetap fallback +7 WIB; +18 pytest (`tests/test_overtime_wallclock.py`). **ACTION: deploy ulang Web App Driver & OB/Security setelah update** |
@@ -34,7 +34,7 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 | Stamp identitas (8 Sep) | ✅ **SERAGAM v2.37.7** — branches.system_name/system_version semua cabang aktif + sinkron ke system_config 8 DB cabang (`scripts/sync_branch_stamp.py`); master system_config v2.29.10 → v2.37.7 |
 | Full suite container (8 Sep) | ✅ **570 pytest + 6 skip lulus** di image rebuilt dari main; UI browser 9/9 lulus pasca-rebuild (bukan docker cp) |
 | Panduan edit cabang (8 Sep) | ✅ USER_GUIDE 12.12 + 3 screenshot (`guides/img/cabang-*.png`) — alur Admin Pusat perbarui alamat kop saat kantor pindah |
-| Rencana migrasi worker (8 Sep) | 📝 DRAFT `docs/internal/WORKER_MIGRATION_PLAN.md` — jalur A gevent (rekomendasi), B threading, C stay di 23; checklist realtime/beban; gunicorn 26 tertahan guard CI |
+| Rencana migrasi worker (8 Sep) | ✅ **SELESAI (v2.39.3)** — `docs/internal/WORKER_MIGRATION_PLAN.md` kini referensi arsitektur: Jalur A gevent dieksekusi v2.38.0 (deploy 9 Sep), dipertegas v2.39.2–v2.39.3 (patch hanya di worker; async_mode via argv; 4+2 guard); checklist §4 terisi, langkah sisa: naik gunicorn 26 (opsional) |
 | Kop dokumen per cabang (v2.37.6) | ✅ **LIVE**: export PDF/Excel air minum kini memakai alamat/telepon/subtitle tabel `branches` sesuai cabang sesi (bug v2.37.5: kop selalu alamat HO); alamat resmi 9 cabang diisi dari bestprofit-futures.co.id; filter `to` kini inklusif (tanggal terakhir bulan tak lagi hilang) |
 | Cabang Palembang | ✅ **DINONAKTIFKAN (7 Sep)** — tidak ada kantor cabang: `branches.is_active=0` + user `it_plm`/`admin_plm` nonaktif (login 401 live); DB `bpf_branch_plm` utuh (reversible) |
 | Edit/hapus air minum (v2.37.0) | ✅ **SELESAI di repo**: toggle Admin per cabang (`system_config.water_edit_enabled`, default nonaktif → perilaku lama); `PUT/DELETE /api/water/purchases/<id>` wajib step-up 428 + audit snapshot `old_data`; edit hanya status pending/verified (rejected ditolak 400); hapus = baris+item+foto dihapus permanen, snapshot tersimpan; kolom `edited_by/edited_at/edit_count` dibuat otomatis (master+cabang+`ensure_branch_database`); UI WaterView ✏️/🗑️ hanya muncul bila fitur aktif; **19 pytest + 4 vitest baru** |
@@ -72,6 +72,29 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 ---
 
 ## 🗂️ Riwayat Sesi
+
+### Sesi 2026-09-10 (lanjutan 3) — verifikasi overtime menyeluruh + status final arsitektur worker ✅ SELESAI
+
+> Dua permintaan: (1) perbarui WORKER_MIGRATION_PLAN.md dgn status final
+> arsitektur patch v2.39.3; (2) verifikasi pasca-redeploy Apps Script:
+> feed wall-clock & jam overtime sesuai sheet.
+
+1. **Feed dicek ulang: MASIH script LAMA** (ISO-UTC) — Apps Script belum
+   di-redeploy (butuh akses akun Google pemilik; checklist ada di
+   OT_WEBAPP_REDEPLOY.md §2). Alat verifikasi tetap disiapkan.
+2. **Skrip forensik diperluas** (`scripts/forensic_overtime_tz.py`):
+   + paritas feed↔DB per **kunci desain upsert** (driver = nama\|submitted_at;
+     ob = nama\|tanggal\|jam_mulai — duplikat pengajuan dgn Timestamp beda
+     di-dedup by design, baris terakhir menang) + simulasi transisi ISO→wall-clock
+     (bukti source_uid stabil saat redeploy nanti).
+3. **Full sync 2 modul** (persis tombol 🔄): Driver +1 (Guruh W, hari ini),
+   OB 22 update (duplikat terakhir menang). Verifikasi final: Driver
+   **8.764=8.764**, OB **603=603** — 0 hilang/0 extra/0 selisih field;
+   UID stabil transisi 2000/2000 & 614/614 → **redeploy Apps Script TANPA
+   re-seed aman** (zona sheet WIB terbukti).
+4. **WORKER_MIGRATION_PLAN.md ditulis ulang** — DRAFT → referensi arsitektur
+   status final v2.39.3: tabel status, kronologi keputusan (insiden 8/10 Sep),
+   invariant yang di-guard 6 test, checklist hasil, langkah sisa naik 26.x.
 
 ### Sesi 2026-09-10 (lanjutan 2) — v2.39.3: fix deteksi async_mode + forensik zona sheet + smoke CI ✅ SELESAI di repo
 

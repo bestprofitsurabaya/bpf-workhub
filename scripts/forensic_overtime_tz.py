@@ -36,6 +36,136 @@ EPOCH_1899 = re.compile(r'^1899-12-3[01]T')
 TIME_KEYS = ('submitted_at', 'tanggal', 'waktu_mulai', 'waktu_selesai')
 URL_KEYS = (('driver', 'overtime_driver_sheet_url'),
             ('ob', 'overtime_ob_sheet_url'))
+DB_TABLES = {'driver': 'overtime_driver', 'ob': 'overtime_ob_security'}
+
+
+def _norm_val(v):
+    """Nilai DB/feed → string pembanding (datetime/date → format standar)."""
+    if v is None:
+        return ''
+    if hasattr(v, 'strftime'):
+        fmt = '%Y-%m-%d' if not getattr(v, 'hour', None) and type(v).__name__ == 'date' \
+            else '%Y-%m-%d %H:%M:%S'
+        return v.strftime(fmt)
+    return str(v).strip()
+
+
+def _row_key(nama, ts):
+    return f'{nama}|{ts}'
+
+
+def bandingkan_db(mod, rows, headers, idx):
+    """Paritas jam sheet↔DB: normalisasi feed dgn fungsi produksi, lalu
+    bandingkan (tanggal, waktu_mulai, waktu_selesai, submitted_at) per kunci
+    vs baris DB. Return dict ringkas.
+
+    Kunci = kunci desain upsert masing-masing modul:
+    - driver: nama|submitted_at (source_uid = md5(nama|submitted_at))
+    - ob    : nama|tanggal|waktu_mulai (source_uid = md5(nama|tanggal|mulai);
+              duplikat pengajuan dgn Timestamp beda di-dedup by design —
+              baris TERAKHIR sheet yang menang, persis urutan upsert)
+    """
+    table = DB_TABLES[mod]
+    feed_map = {}
+    for n, r in enumerate(rows):
+        row = (normalize_driver_row(r, headers, idx, n) if mod == 'driver'
+               else _normalize_ob_row(r, headers, idx, n))
+        if not row:
+            continue
+        ts = _norm_val(row.get('submitted_at'))
+        if mod == 'driver':
+            if not ts:
+                continue
+            key = _row_key(row['nama'], ts)
+        else:
+            if not row.get('tanggal'):
+                continue
+            key = _row_key(row['nama'],
+                           f"{_norm_val(row.get('tanggal'))}|{(_norm_val(row.get('waktu_mulai')) or '')[:5]}")
+        feed_map[key] = (
+            _norm_val(row.get('tanggal')),
+            _norm_val(row.get('waktu_mulai'))[:5],
+            _norm_val(row.get('waktu_selesai'))[:5],
+            ts,
+        )
+
+    conn = get_db_connection()
+    if not conn:
+        return {'error': 'DB tidak terjangkau'}
+    try:
+        cur = conn.cursor(dictionary=True)
+        cur.execute(f"SELECT nama, submitted_at, tanggal, waktu_mulai, "
+                    f"waktu_selesai FROM {table}")
+        db_rows = cur.fetchall()
+        cur.close()
+    finally:
+        conn.close()
+
+    db_map = {}
+    for r in db_rows:
+        ts = _norm_val(r.get('submitted_at'))
+        if mod == 'driver':
+            if not ts:
+                continue
+            key = _row_key(r['nama'], ts)
+        else:
+            if not r.get('tanggal'):
+                continue
+            key = _row_key(r['nama'],
+                           f"{_norm_val(r.get('tanggal'))}|{(_norm_val(r.get('waktu_mulai')) or '')[:5]}")
+        db_map[key] = (
+            _norm_val(r.get('tanggal')),
+            _norm_val(r.get('waktu_mulai'))[:5],
+            _norm_val(r.get('waktu_selesai'))[:5],
+            ts,
+        )
+
+    common = set(feed_map) & set(db_map)
+    beda = [k for k in common if feed_map[k] != db_map[k]][:10]
+    return {
+        'feed_valid': len(feed_map), 'db_dgn_ts': len(db_map),
+        'cocok_kunci': len(common),
+        'hilang_di_db': len(set(feed_map) - set(db_map)),
+        'extra_di_db': len(set(db_map) - set(feed_map)),
+        'selisih_field': len(beda), 'contoh_selisih': beda,
+        'paritas': 'OK' if (common and not beda
+                            and not (set(feed_map) - set(db_map))) else 'PERIKSA',
+    }
+
+
+def simulasi_transisi_iso_ke_wallclock(rows, headers, idx, batas=2000):
+    """Bukti source_uid STABIL saat feed pindah ke script v2 (wall-clock).
+
+    Untuk tiap baris ber-Timestamp ISO-UTC: submitted_at hasil parser (WIB)
+    harus SAMA dgn bila feed mengirim wall-clock WIB yang setara — karena
+    parse_submitted_at_any(wall) tanpa offset. UID = md5(nama|submitted_at)
+    → tidak berubah → TIDAK ADA duplikat/kehilangan pasca-redeploy.
+    """
+    i_ts = idx.get('submitted_at')
+    if i_ts is None or i_ts >= len(headers):
+        return {'error': 'kolom Timestamp tak ditemukan'}
+    key = headers[i_ts]
+    total = cocok = 0
+    contoh = None
+    for r in rows:
+        s = str(r.get(key, '')).strip()
+        if not ISO_UTC.match(s):
+            continue
+        total += 1
+        if total > batas:
+            break
+        # Wall-clock WIB yang AKAN dikirim script v2 utk momen yang sama:
+        utc_naive = datetime.strptime(s[:19], '%Y-%m-%dT%H:%M:%S')
+        wall = (utc_naive + timedelta(hours=7)).strftime('%Y-%m-%d %H:%M:%S')
+        a = parse_submitted_at_any(s)
+        b = parse_submitted_at_any(wall)
+        if a == b and b is not None:
+            cocok += 1
+        elif contoh is None:
+            contoh = {'iso': s[:40], 'wall': wall, 'hasil_a': a, 'hasil_b': b}
+    return {'diuji': min(total, batas), 'uid_stabil': cocok,
+            'ok': total > 0 and cocok == min(total, batas),
+            'contoh_gagal': contoh}
 
 
 def classify(val):
@@ -115,7 +245,9 @@ def main():
         out[mod] = {'url_tail': url[-20:], 'total_rows': len(rows),
                     'headers_waktu': {f: (headers[idx[f]] if f in idx and idx[f] < len(headers) else None)
                                       for f in TIME_KEYS},
-                    'census': census, 'contoh': contoh, 'verdict': verdict}
+                    'census': census, 'contoh': contoh, 'verdict': verdict,
+                    'paritas_db': bandingkan_db(mod, rows, headers, idx),
+                    'simulasi_transisi': simulasi_transisi_iso_ke_wallclock(rows, headers, idx)}
 
     # Sanitasi parser: feed ISO UTC harus tetap dapat fallback +7 (WIB);
     # parser tidak boleh menggeser feed wall-clock.

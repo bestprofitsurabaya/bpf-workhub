@@ -6,6 +6,22 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 
 ## v2.39.3 — 10 September 2026 (Fix deteksi async_mode + smoke CI import app)
 
+### 🔍 Verifikasi overtime menyeluruh (lanjutan sesi)
+
+- **Feed Apps Script dicek ulang: masih script LAMA** (ISO-UTC) — redeploy
+  Web App (checklist `docs/internal/OT_WEBAPP_REDEPLOY.md` §2) belum
+  dilakukan; zona sheet **WIB** terbukti dari data (`…T17:00:00Z`), jadi jam
+  di aplikasi tetap benar selama itu.
+- `scripts/forensic_overtime_tz.py` diperluas: paritas feed↔DB per **kunci
+  desain upsert** + simulasi transisi ISO→wall-clock. Hasil setelah full sync:
+  Driver **8.764=8.764**, OB **603=603** — 0 hilang/0 extra/0 selisih field;
+  UID stabil 2000/2000 & 614/614 → **redeploy nanti TANPA re-seed, tanpa
+  duplikat**.
+- Temuan: 11 pengajuan OB ganda (orang sama, tanggal & jam mulai sama,
+  Timestamp beda) di-dedup by design — baris terakhir sheet menang.
+- `docs/internal/WORKER_MIGRATION_PLAN.md` ditulis ulang: DRAFT → **referensi
+  arsitektur status final** (Jalur A tereksekusi; invariant di-guard 6 test).
+
 ### 🔴 Bug v2.39.2 yang tertangkap SEBELUM deploy
 
 Deteksi `socketio_async_mode` berbasis environment (`GUNICORN_CMD_ARGS` /
