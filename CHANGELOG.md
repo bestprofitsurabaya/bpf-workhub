@@ -19,6 +19,10 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
   duplikat**.
 - Temuan: 11 pengajuan OB ganda (orang sama, tanggal & jam mulai sama,
   Timestamp beda) di-dedup by design — baris terakhir sheet menang.
+- **+15 unit test** `tests/test_overtime_forensic.py` — skrip forensik kini
+  terlindungi CI (klasifikasi format, verdict census, paritas per kunci
+  desain dgn DB mock, dedup duplikat OB, simulasi transisi UID stabil);
+  skrip juga kini bisa di-import dari repo host (tak lagi hardcode `/app`).
 - `docs/internal/WORKER_MIGRATION_PLAN.md` ditulis ulang: DRAFT → **referensi
   arsitektur status final** (Jalur A tereksekusi; invariant di-guard 6 test).
 

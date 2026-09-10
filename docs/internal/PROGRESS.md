@@ -95,6 +95,10 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 4. **WORKER_MIGRATION_PLAN.md ditulis ulang** — DRAFT → referensi arsitektur
    status final v2.39.3: tabel status, kronologi keputusan (insiden 8/10 Sep),
    invariant yang di-guard 6 test, checklist hasil, langkah sisa naik 26.x.
+5. **+15 unit test** `tests/test_overtime_forensic.py` — forensik overtime
+   terlindungi CI (DB di-mock, tanpa jaringan); skrip kini importable dari
+   repo host; fix kecil `_norm_val` (datetime 00:00:00 tidak lagi terformat
+   tanggal saja).
 
 ### Sesi 2026-09-10 (lanjutan 2) — v2.39.3: fix deteksi async_mode + forensik zona sheet + smoke CI ✅ SELESAI di repo
 

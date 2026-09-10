@@ -14,12 +14,21 @@ Output JSON: /tmp/bpf_ot_tz_forensic.json
 Jalankan di container: python3 /tmp/forensic_overtime_tz.py
 """
 import json
+import os
 import re
 import sys
 from collections import Counter
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
-sys.path.insert(0, '/app')
+# Jalankan di container (/app) maupun dari repo host: kandidat path root
+# repo = parent folder scripts/, plus '/app' (cwd container).
+_ROOT_CANDIDATES = [
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    '/app',
+]
+for _root in _ROOT_CANDIDATES:
+    if os.path.isdir(os.path.join(_root, 'modules')):
+        sys.path.insert(0, _root)
 
 from modules.config import get_db_connection                              # noqa: E402
 from modules.overtime_helpers import (normalize_driver_row, map_headers,  # noqa: E402
@@ -40,13 +49,17 @@ DB_TABLES = {'driver': 'overtime_driver', 'ob': 'overtime_ob_security'}
 
 
 def _norm_val(v):
-    """Nilai DB/feed → string pembanding (datetime/date → format standar)."""
+    """Nilai DB/feed → string pembanding (datetime/date → format standar).
+
+    datetime (termasuk tengah malam 00:00:00) → '%Y-%m-%d %H:%M:%S';
+    date murni → '%Y-%m-%d'; lainnya str().strip().
+    """
     if v is None:
         return ''
-    if hasattr(v, 'strftime'):
-        fmt = '%Y-%m-%d' if not getattr(v, 'hour', None) and type(v).__name__ == 'date' \
-            else '%Y-%m-%d %H:%M:%S'
-        return v.strftime(fmt)
+    if isinstance(v, datetime):
+        return v.strftime('%Y-%m-%d %H:%M:%S')
+    if isinstance(v, date):
+        return v.strftime('%Y-%m-%d')
     return str(v).strip()
 
 

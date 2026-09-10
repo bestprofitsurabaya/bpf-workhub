@@ -213,7 +213,7 @@ python -m pytest tests/ -v
 cd frontend && npm test
 ```
 
-**Status:** 578 pytest (pass) + 8 skip + 141 vitest · Semua ✅ PASS + audit dependensi bersih (v2.39.2 — CI GitHub Actions: Backend pytest + pip-audit, Frontend unit test/build + npm audit, Image scan Trivy; hijau di tiap push)
+**Status:** 593 pytest (pass) + 8 skip + 141 vitest · Semua ✅ PASS + audit dependensi bersih (v2.39.2 — CI GitHub Actions: Backend pytest + pip-audit, Frontend unit test/build + npm audit, Image scan Trivy; hijau di tiap push)
 
 ---
 
