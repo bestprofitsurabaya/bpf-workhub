@@ -709,6 +709,7 @@ ROLE_HOME = {
     'chief_driver': '/app/chief-driver',
     'driver': '/app/driver',
     'ob': '/app/water',
+    'security': '/app/overtime-me',   # v2.39: user Security — form overtime sendiri
     'finance': '/app/finance',   # v2.7: dashboard khusus Finance (rekap air minum + kasbon)
     'ga': '/app/ga',             # v2.8: dashboard khusus GA (antrean klaim + kasbon + trip)
     'receptionist': '/app/receptionist',  # v2.16: sistem pelamar kerja (verifikasi & kehadiran)

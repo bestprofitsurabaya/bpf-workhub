@@ -42,6 +42,7 @@ REVIEW_BY_KEY = 'access_review_last_by'
 ROLE_LABELS = {
     'admin': 'Admin', 'ga': 'GA', 'finance': 'Finance', 'marketing': 'Marketing',
     'chief_driver': 'Chief Driver', 'driver': 'Driver', 'ob': 'OB',
+    'security': 'Security',
     'receptionist': 'Receptionist', 'traineer': 'Traineer', 'ga_hr': 'GA HR',
     'it_sby': 'IT Surabaya', 'it_hu': 'IT Jakarta HO', 'it_jkt2': 'IT Jakarta 2',
     'it_bdg': 'IT Bandung', 'it_smg': 'IT Semarang', 'it_mlg': 'IT Malang',

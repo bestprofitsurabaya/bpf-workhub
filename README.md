@@ -46,7 +46,8 @@ BPF WorkHub adalah aplikasi web yang membantu tim operasional PT Bestprofit Futu
 
 ### ⏰ Overtime (Lembur)
 - **Dua sumber data**: Driver & OB/Security, masing-masing disinkronkan dari Google Sheet private lewat **Apps Script Web App** (tanpa membuka akses sheet)
-- Form publik untuk OB/Security (tanpa login) + form Driver dari PWA
+- **Waktu sesuai sheet (v2.39.0)**: bridge Apps Script mengirim tanggal/jam sesuai tampilan sheet (zona spreadsheet) — jam di aplikasi = jam di sheet, di zona apa pun; feed script lama (ISO UTC → WIB) tetap didukung
+- **Form publik** untuk OB/Security (tanpa login) + **form dalam aplikasi** untuk user OB & Security (`/app/overtime-me`, identitas terkunci dari sesi login)
 - **Auto-refresh** di background saat GA HR/Admin login/logout (debounce 30 dtk) + tombol Refresh manual
 - Riwayat **8.675 sesi Driver** (2020–2026) & **599 sesi OB/Security** tersimpan; tanggal terbaru selalu di posisi teratas
 - 3 format PDF resmi berlogo BPF: laporan rekap, detail per karyawan (PDF/Excel), & Formulir Permohonan (foto tersemat, blok TTD 5 kolom)
@@ -74,7 +75,7 @@ BPF WorkHub adalah aplikasi web yang membantu tim operasional PT Bestprofit Futu
 | **GA HR** | Kelola data lembur | Staff HRD |
 | **Marketing** | Buat & pantau appointment | Marketing |
 | **Chief Driver** | Assign driver ke appointment | Supervisor |
-| **OB/Security** | Submit lembur lewat form publik | OB, Security |
+| **OB/Security** | Submit lembur (form dalam aplikasi + form publik) | OB, Security |
 
 ---
 
@@ -120,15 +121,15 @@ Akun seed yang dibuat otomatis saat inisialisasi database (terverifikasi login):
 Username dibuat agar **langsung terbaca divisi & cabang pemiliknya**:
 
 - Satu orang per divisi di cabang → `{divisi}_{cabang}` — contoh: `finance_sby`,
-  `ga_sby`, `gahr_sby`, `receptionist_sby`, `it_bdg`.
+  `ga_sby`, `gahr_sby`, `receptionist_sby`, `it_bdg`, `security_sby`.
 - Lebih dari satu orang per divisi di cabang yang sama → `{divisi}_{nama}_{cabang}`
-  — contoh: `ob_faisol_sby`, `ob_febri_sby` (bukan `ob1`/`ob2`), `marketing_yusie_sby`.
+  — contoh: `ob_faisol_sby`, `ob_febri_sby` (bukan `ob1`/`ob2`), `security_budi_sby`, `marketing_yusie_sby`.
 - Khusus **Driver** username tetap nama orang (`akhad`, `wicak`, …) karena
   dipakai login PWA di HP (form pendek) & dibuat otomatis dari tabel `drivers`.
 - Divisi `it` memakai cabang sebagai role (`it_sby` … `it_lpg`) — pola lama yang
   dipertahankan; divisi lain cukup 1 role + kolom `branch_code`.
 - **Divalidasi backend sejak v2.29.9**: role back-office WAJIB diawali divisi
-  (`finance_`, `ob_`, …) — username `uang` utk Finance ditolak sistem.
+  (`finance_`, `ob_`, `security_`, …) — username `uang` utk Finance ditolak sistem.
   Pengecualian: Driver (nama orang), Admin, `it_*`; akun lama yang sudah ada
   tetap bisa disimpan tanpa rename.
 >

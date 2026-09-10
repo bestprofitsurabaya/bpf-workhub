@@ -213,6 +213,13 @@ bukan `.env`:
 > `docs.google.com/…/edit`. Tautan sheet mentah hanya menghasilkan HTML yang tidak bisa dibaca
 > server. Template script: `scripts/apps_script_overtime_driver_v2.gs` dan
 > `scripts/apps_script_overtime_ob_security.gs` (lihat USER_GUIDE §11.6 cara deploy).
+>
+> 🕐 **Waktu sesuai sheet (v2.39):** template Apps Script kini mengirim tanggal/jam
+> sesuai tampilan sheet (zona spreadsheet), bukan ISO UTC. **Setelah update ke v2.39,
+> deploy ulang kedua Web App** (Deploy → Manage deployments → Edit → New version)
+> dengan kode terbaru, lalu GA HR klik 🔄 Refresh (full sync) — baris lama yang
+> tersimpan bergeser ikut terkoreksi (kunci `source_uid` stabil). Feed ISO UTC
+> dari script lama tetap diterima (fallback +7 WIB).
 
 ---
 
@@ -405,6 +412,7 @@ server {
 | `/app/ga` | Dashboard GA |
 | `/app/finance` | Dashboard Finance |
 | `/app/ga-hr` | Data overtime (Driver & OB/Security) + PDF |
+| `/app/overtime-me` | Form Overtime Saya — user OB & Security (v2.39, login) |
 | `/app/water` | Air minum (OB) / verifikasi (Finance) |
 | `/app/marketing` · `/app/chief-driver` · `/app/driver` | Marketing / Chief Driver / PWA Driver |
 | `/app/receptionist` · `/app/traineer` · `/app/assets` | Pelamar kerja / Traineer / Aset |
@@ -425,6 +433,8 @@ server {
 | POST | `/api/overtime/refresh?module=…` | Refresh dari Google Sheet (manual, tombol GA HR) |
 | GET | `/api/overtime/detail-report?…` | Laporan detail per nama (PDF/Excel, terkini di atas) |
 | GET | `/api/overtime/form/<id>` | Formulir Permohonan PDF per baris |
+| POST | `/api/overtime/me/submit` | Submit overtime oleh user OB/Security login (identitas dari sesi, v2.39) |
+| GET | `/api/overtime/mine` | Riwayat overtime sendiri (role ob/security, v2.39) |
 | GET | `/api/water/purchases` · `POST /api/water/purchases` | Pengajuan air minum OB |
 | POST | `/api/water/purchases/<id>/verify` | Verifikasi Finance (→ PDF Tanda Terima) |
 | POST | `/api/users/sync` · `/api/users/reset-pin` | Manajemen user (admin) |

@@ -11,6 +11,17 @@
  *   - Summary mode: ?summary=true — tanpa foto/link berat
  *   - Cache data di memory selama 5 menit untuk mengurangi beban sheet
  *
+ * v2.39 — KONTRAK TANGGAL/JAM BARU (fix "jam tidak sesuai sumber"):
+ *   Nilai Date dari getValues() TIDAK lagi di-JSON.stringify mentah (yang
+ *   mengirim ISO UTC dan membuat server menambah +7 jam dengan asumsi sheet
+ *   berzona WIB). Kini sel Date diserialisasi sebagai TEKS sesuai tampilan
+ *   sheet memakai Utilities.formatDate + zona waktu SPREADSHEET:
+ *   - Kolom tanggal (Tanggal Overtime) → 'yyyy-MM-dd'
+ *   - Kolom timestamp (Timestamp)      → 'yyyy-MM-dd HH:mm:ss'
+ *   - Kolom jam (Dari/IN, Sampai/OUT)  → 'HH:mm:ss' (epoch 1899 tetap benar)
+ *   Server menampilkan nilai ini APA ADANYA (tanpa offset) — jam di aplikasi
+ *   = jam di sheet, di zona waktu spreadsheet mana pun.
+ *
  * PARAMETER (query string):
  *   ?year=2025        — Filter tahun
  *   ?month=08         — Filter bulan (1-12)
@@ -34,6 +45,59 @@
 var _cache = {};
 var _CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
+// ====== ZONA WAKTU & SERIALIZASI (v2.39 — wall-clock sesuai sheet) ======
+var _tzCache = null;
+function sheetTimeZone_() {
+  if (_tzCache) return _tzCache;
+  try {
+    _tzCache = SpreadsheetApp.openById(SHEET_ID).getSpreadsheetTimeZone();
+  } catch (err) {
+    _tzCache = Session.getScriptTimeZone() || 'Asia/Jakarta';
+  }
+  return _tzCache;
+}
+
+function isTimeColumn_(header) {
+  var h = String(header || '').toLowerCase();
+  if (/(tanggal|date|timestamp)/.test(h)) return false;
+  return /(waktu|jam|mulai|selesai|dari|\bin\b|sampai|\bout\b|time)/.test(h);
+}
+
+function isDateOnlyColumn_(header) {
+  var h = String(header || '').toLowerCase();
+  return /(tanggal|date)/.test(h) && !/timestamp/.test(h);
+}
+
+function dateToText_(v, header) {
+  var tz = sheetTimeZone_();
+  if (v.getFullYear() < 1900) {
+    // Sel JAM murni — epoch waktu Google Sheets (basis 1899-12-30).
+    return Utilities.formatDate(v, tz, 'HH:mm:ss');
+  }
+  if (isTimeColumn_(header)) return Utilities.formatDate(v, tz, 'HH:mm:ss');
+  if (isDateOnlyColumn_(header)) return Utilities.formatDate(v, tz, 'yyyy-MM-dd');
+  return Utilities.formatDate(v, tz, 'yyyy-MM-dd HH:mm:ss');
+}
+
+function cellToText_(v, header) {
+  if (v instanceof Date) return dateToText_(v, header);
+  if (v === null || v === undefined) return '';
+  if (v instanceof Object) return JSON.stringify(v);
+  return v;
+}
+
+// Parse string wall-clock 'yyyy-MM-dd[ HH:mm[:ss]]' secara deterministik
+// (waktu lokal script) — dipakai untuk bandingkan filter tanggal/since.
+function parseWall_(s) {
+  if (s instanceof Date) return s;
+  var m = String(s || '').match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+  if (m) return new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +(m[6] || 0));
+  var dOnly = String(s || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (dOnly) return new Date(+dOnly[1], +dOnly[2] - 1, +dOnly[3]);
+  var d = new Date(s);
+  return isNaN(d.getTime()) ? null : d;
+}
+
 function doGet(e) {
   var SHEET_ID = '1L-7ZT0p48gVZEbDJS-azMqpGobmvmqCDB9J6sAB3DGM';
 
@@ -45,7 +109,7 @@ function doGet(e) {
     var month     = params.month     ? parseInt(params.month, 10)     : null;
     var fromDate  = params.from      ? parseDate_(params.from)         : null;
     var toDate    = params.to        ? parseDate_(params.to)           : null;
-    var since     = params.since     ? new Date(params.since)          : null;
+    var since     = params.since     ? parseWall_(params.since)        : null;
     var limit     = params.limit     ? Math.max(parseInt(params.limit, 10) || 0, 0) : 0;
     var offset    = params.offset    ? Math.max(parseInt(params.offset, 10) || 0, 0) : 0;
     var fields    = params.fields    ? params.fields.split(',').map(function(f) { return f.trim(); }) : null;
@@ -105,26 +169,16 @@ function filterRows_(rows, year, month, fromDate, toDate, since) {
     // Use Timestamp for since filter (faster, always present)
     var tsRaw = since ? row['Timestamp'] : null;
     if (since && tsRaw) {
-      var tsDate;
-      if (tsRaw instanceof Date) {
-        tsDate = tsRaw;
-      } else {
-        tsDate = new Date(tsRaw);
-      }
-      if (!isNaN(tsDate.getTime()) && tsDate < since) return false;
+      var tsDate = parseWall_(tsRaw);
+      if (tsDate && tsDate < since) return false;
     }
 
     // Use Tanggal Overtime for year/month/date filters
     var ts = row['Tanggal Overtime'] || row['Timestamp'];
     if (!ts) return false;
 
-    var d;
-    if (ts instanceof Date) {
-      d = ts;
-    } else {
-      d = new Date(ts);
-    }
-    if (isNaN(d.getTime())) return false;
+    var d = parseWall_(ts);
+    if (!d) return false;
 
     // Year filter
     if (year && d.getFullYear() !== year) return false;
@@ -198,7 +252,8 @@ function getCachedData_(sheetId) {
   for (var i = 1; i < values.length; i++) {
     var row = {};
     for (var j = 0; j < headers.length; j++) {
-      row[headers[j]] = values[i][j];
+      // v2.39: sel Date diserialisasi wall-clock sesuai sheet (bukan ISO UTC).
+      row[headers[j]] = cellToText_(values[i][j], headers[j]);
     }
     out.push(row);
   }

@@ -42,6 +42,7 @@ CHAIN_OVERTIME = ('ga_hr', 'admin')         # ACC-1 GA HR, ACC-2 Admin
 _ROLE_SUPERVISOR_DEFAULT = {
     'driver': 'chief_driver',
     'ob': 'ga_hr',
+    'security': 'ga_hr',  # v2.39: pengaju overtime Security — rantai sama dgn OB
 }
 
 DOC_TYPES = ('cash', 'bbm', 'overtime_driver', 'overtime_ob')

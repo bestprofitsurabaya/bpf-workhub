@@ -20,7 +20,7 @@ import hashlib
 import requests
 from datetime import datetime, date, timedelta
 
-from flask import request, jsonify, make_response
+from flask import request, jsonify, make_response, session
 from modules.config import get_db_connection
 from modules.helpers import (role_required, log_activity_async,
                              generate_display_id, production_pool_executor)
@@ -38,6 +38,10 @@ from modules.pdf_generator import OvertimeReportPDF
 from modules.approvals import hook_create_approval, gate_approval  # v2.36.0
 
 POSITIONS = ('OB', 'Security')
+
+# v2.39: role yang boleh mengisi overtime dari dalam aplikasi (halaman "Overtime
+# Saya") & melihat riwayatnya sendiri — OB dan Security (identitas dari sesi).
+_SELF_SUBMIT_ROLES = ('ob', 'security')
 
 # Tabel & kolom yang boleh diedit/dihapus GA HR (v2.22.1) — didefinisikan di
 # level modul agar bisa diuji & dipakai ulang.
@@ -647,6 +651,106 @@ def register_overtime_routes(app):
         except Exception as e:
             return jsonify({'error': str(e)}), 500
 
+    # ================================================================
+    # FORM OVERTIME USER OB & SECURITY (v2.39) — dari dalam aplikasi
+    # (login required). Identitas TIDAK bisa dipalsukan: nama & posisi
+    # diambil dari sesi (ob → 'OB', security → 'Security'), bukan dari body.
+    # Tersimpan di DB cabang sesi (get_db_connection branch-aware).
+    # ================================================================
+    @app.route('/api/overtime/me/submit', methods=['POST'])
+    @role_required(list(_SELF_SUBMIT_ROLES))
+    def api_overtime_me_submit():
+        """Submit overtime oleh user OB/Security yang sedang login."""
+        try:
+            ip = request.remote_addr or '?'
+            if not _rate_ok(ip):
+                return jsonify({'status': 'error',
+                                'msg': 'Terlalu banyak pengiriman dari perangkat ini. '
+                                       'Coba lagi beberapa saat.'}), 429
+            data = request.get_json(silent=True) or {}
+            # Identitas dari sesi — anti impersonasi (paritas endpoint Driver).
+            role = session.get('user_role', '')
+            data['nama'] = (session.get('full_name', '') or session.get('user_name', '')).strip()
+            data['posisi'] = 'Security' if role == 'security' else 'OB'
+
+            is_valid, errors, cleaned = validate_overtime_data(data, modul='ob')
+            if not is_valid:
+                msg = '; '.join(f'{k}: {v}' for k, v in errors.items())
+                return jsonify({'status': 'error', 'msg': msg}), 400
+
+            nama = cleaned['nama']
+            posisi = cleaned['posisi']
+
+            conn = get_db_connection()  # DB cabang sesi (branch-aware)
+            if not conn:
+                return jsonify({'status': 'error', 'msg': 'DB error'}), 500
+            cursor = conn.cursor(dictionary=True)
+            display_id = generate_display_id(get_display_prefix('ob'), conn)
+            source_uid = 'form-' + make_source_uid(display_id, nama, posisi)
+
+            cleaned['foto_mulai'] = _save_overtime_foto(cleaned['foto_mulai_b64'], display_id, 'mulai')
+            cleaned['foto_selesai'] = _save_overtime_foto(cleaned['foto_selesai_b64'], display_id, 'selesai')
+
+            sql, _ = build_insert_sql('ob')
+            params = build_insert_params(display_id, cleaned, source='form', modul='ob', source_uid=source_uid)
+            cursor.execute(sql, params)
+            ob_row_id = cursor.lastrowid
+            conn.commit()
+
+            # v2.36.0: jurnal ACC berjenjang (GA HR → Admin) — best-effort.
+            hook_create_approval(conn, 'overtime_ob', ob_row_id, display_id=display_id, role=role)
+
+            log_activity_async(None, 'overtime_submit', role, nama,
+                               new_data={'display_id': display_id, 'posisi': posisi},
+                               ip=ip)
+            try:
+                from modules.notifications import push_overtime_notification
+                push_overtime_notification(
+                    'overtime_new', 'ob_form',
+                    f'{posisi} {nama} mengisi overtime baru — No. {display_id}',
+                    ref_id=display_id, count=1)
+            except Exception as ne:
+                print(f"[overtime-notif] {ne}")
+            cursor.close(); conn.close()
+            return jsonify({'status': 'success', 'display_id': display_id,
+                            'msg': f'Overtime {posisi} tercatat! No. {display_id}'})
+        except Exception as e:
+            return jsonify({'status': 'error', 'msg': str(e)}), 500
+
+    @app.route('/api/overtime/mine')
+    @role_required(list(_SELF_SUBMIT_ROLES))
+    def api_overtime_mine():
+        """Riwayat overtime milik user OB/Security yang sedang login.
+
+        Dicocokkan lewat nama sesi (full_name) — data form sendiri pasti cocok;
+        baris hasil sinkronisasi sheet ikut tampil bila ejaan namanya sama.
+        """
+        try:
+            nama = (session.get('full_name', '') or session.get('user_name', '')).strip()
+            if not nama:
+                return jsonify({'data': [], 'total': 0})
+            d_from = _parse_date_filter(request.args.get('date_from'), 'Tanggal dari')
+            d_to = _parse_date_filter(request.args.get('date_to'), 'Tanggal sampai')
+            where, params = ['nama LIKE %s'], [f'%{nama}%']
+            if d_from:
+                where.append('tanggal >= %s'); params.append(d_from.isoformat())
+            if d_to:
+                where.append('tanggal <= %s'); params.append(d_to.isoformat())
+            conn = get_db_connection()
+            if not conn:
+                return jsonify({'error': 'DB error'}), 500
+            cursor = conn.cursor(dictionary=True)
+            sql = ("SELECT * FROM overtime_ob_security WHERE " + " AND ".join(where) +
+                   " ORDER BY tanggal DESC, id DESC LIMIT 2000")
+            cursor.execute(sql, params)
+            rows = [_serialize(r) for r in cursor.fetchall()]
+            cursor.close(); conn.close()
+            return jsonify({'data': rows, 'total': len(rows)})
+        except ValueError as e:
+            return jsonify({'error': str(e)}), 400
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
     @app.route('/api/overtime', methods=['POST'])
     def api_overtime_submit():
         """Submit overtime OB/Security dari form publik (tanpa login)."""
@@ -720,7 +824,9 @@ def register_overtime_routes(app):
             data = request.get_json(silent=True) or {}
             # Driver identity dari session (anti impersonasi)
             # Always override — client must NOT be able to submit as someone else.
-            data['nama'] = session.get('full_name', '') or session.get('user_name', '')
+            # v2.39: fix NameError — `session` dipakai langsung di sini tanpa
+            # import level-modul (hanya diimpor lokal di session_user()).
+            data['nama'] = (session.get('full_name', '') or session.get('user_name', ''))
 
             # Shared validation
             is_valid, errors, cleaned = validate_overtime_data(data, modul='driver')
@@ -802,7 +908,9 @@ def register_overtime_routes(app):
             sql = "SELECT * FROM overtime_driver"
             if where:
                 sql += " WHERE " + " AND ".join(where)
-            sql += " ORDER BY tanggal DESC, id DESC LIMIT 2000"
+            # v2.39.1: LIMIT 2000 -> 20000 — 8.7rb+ baris produksi (2020-2026)
+            # tak lagi tampil utuh tanpa filter tanggal.
+            sql += " ORDER BY tanggal DESC, id DESC LIMIT 20000"
             cursor.execute(sql, params)
             rows = [_serialize(r) for r in cursor.fetchall()]
             cursor.execute("SELECT COUNT(*) c FROM overtime_driver")
@@ -908,7 +1016,8 @@ def register_overtime_routes(app):
             sql = "SELECT * FROM overtime_ob_security"
             if where:
                 sql += " WHERE " + " AND ".join(where)
-            sql += " ORDER BY tanggal DESC, id DESC LIMIT 2000"
+            # v2.39.1: LIMIT 2000 -> 20000 — paritas list dgn jumlah baris sheet.
+            sql += " ORDER BY tanggal DESC, id DESC LIMIT 20000"
             cursor.execute(sql, params)
             rows = [_serialize(r) for r in cursor.fetchall()]
             cursor.execute("SELECT COUNT(*) c FROM overtime_ob_security")
@@ -962,7 +1071,9 @@ def register_overtime_routes(app):
             sql = f'SELECT * FROM {table}'
             if where:
                 sql += ' WHERE ' + ' AND '.join(where)
-            sql += ' ORDER BY tanggal DESC, id DESC LIMIT 3000'
+            # v2.39.1: LIMIT 3000 -> 50000 — rekap tanpa filter tanggal mencakup
+            # seluruh arsip 2020-2026 (8.7rb+ baris Driver).
+            sql += ' ORDER BY tanggal DESC, id DESC LIMIT 50000'
             cursor.execute(sql, params)
             rows = cursor.fetchall()
             cursor.close(); conn.close()
@@ -1036,7 +1147,9 @@ def register_overtime_routes(app):
                 where.append('tanggal >= %s'); params.append(d_from.isoformat())
             if d_to:
                 where.append('tanggal <= %s'); params.append(d_to.isoformat())
-            sql = f"SELECT * FROM {table} WHERE {' AND '.join(where)} ORDER BY tanggal DESC, waktu_mulai DESC, id DESC LIMIT 500"
+            # v2.39.1: LIMIT 500 -> 10000 — detail per karyawan utk pemilik jam
+            # lembur terbanyak tetap utuh tanpa filter tanggal.
+            sql = f"SELECT * FROM {table} WHERE {' AND '.join(where)} ORDER BY tanggal DESC, waktu_mulai DESC, id DESC LIMIT 10000"
             cursor.execute(sql, params)
             rows = cursor.fetchall()
             cursor.close(); conn.close()

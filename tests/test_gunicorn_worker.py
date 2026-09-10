@@ -1,11 +1,14 @@
 """Smoke test worker gunicorn — cegah regresi seperti gunicorn 26 (8 Sep 2026).
 
-gunicorn 26.x menghapus worker bawaan eventlet/gevent (jadi extra terpisah).
+gunicorn 26.x menghapus worker BAWAAN eventlet/gevent (menjadi extra
+terpisah: `gunicorn[gevent]` TERSEDIA, `gunicorn[eventlet]` TIDAK ADA).
 CI lulus karena pytest tidak pernah memulai worker, tapi produksi crash-loop:
 `gunicorn --worker-class eventlet` → ImportError entry point tidak ditemukan.
 
-Test ini mem-parse CMD Dockerfile dan memastikan worker-class tersebut
-terdaftar di entry point `gunicorn.workers` versi yang ter-install.
+Sejak v2.38.0 worker produksi = gevent (eventlet deprecated). Test ini
+mem-parse CMD Dockerfile dan memastikan worker-class tersebut terdaftar di
+gunicorn versi yang ter-install — mencegah naik ke versi/konfigurasi yang
+worker-nya tidak tersedia (eventlet di 26.x, atau gevent tanpa extra).
 
 Jalankan: python3 -m pytest tests/test_gunicorn_worker.py -v
 """
@@ -26,11 +29,11 @@ DOCKERFILE = os.path.join(os.path.dirname(__file__), '..', 'Dockerfile')
 
 
 def _worker_class_from_dockerfile():
-    """Ambil nilai --worker-class dari CMD Dockerfile (default eventlet)."""
+    """Ambil nilai --worker-class dari CMD Dockerfile (default gevent)."""
     try:
         text = open(DOCKERFILE, encoding='utf-8').read()
     except OSError:
-        return 'eventlet'
+        return 'gevent'
     m = re.search(r'--worker-class[=\s]+([A-Za-z_][\w.]*)', text)
     return m.group(1) if m else 'eventlet'
 
@@ -68,20 +71,25 @@ def test_worker_class_tersedia_di_gunicorn():
     assert worker in available or short in available, (
         f"gunicorn {version} tidak menyediakan worker '{worker}' — tersedia: "
         f"{sorted(available)}. Kemungkinan gunicorn >= 26 (worker bawaan "
-        f"dihapus, jadi extra terpisah). Kembali ke gunicorn 23.x ATAU "
-        f"tambahkan extra gunicorn[{worker}] di requirements.txt — lihat "
-        f"insiden 8 Sep 2026."
+        f"dihapus, jadi extra terpisah). Tambahkan extra gunicorn[{worker}] "
+        f"di requirements.txt (khusus gevent — eventlet TIDAK punya extra di "
+        f"26.x) — lihat insiden 8 Sep 2026 & WORKER_MIGRATION_PLAN.md."
     )
 
 
-def test_gunicorn_bukan_versi_26_dengan_worker_eventlet():
-    """Guard eksplisit: gunicorn >= 26 + eventlet = kombinasi produksi mati."""
+def test_gunicorn_26_dengan_eventlet_ditolak():
+    """Guard eksplisit: gunicorn >= 26 + eventlet = kombinasi produksi mati.
+
+    eventlet TIDAK punya extra di gunicorn 26 (tidak seperti gevent), jadi
+    kombinasi ini tidak pernah valid pada versi >= 26.
+    """
     worker = _worker_class_from_dockerfile()
     version = _gunicorn_version()
     major = int(version.split('.')[0])
-    if major >= 26 and worker in ('eventlet', 'gevent', 'gthread'):
+    if major >= 26 and worker == 'eventlet':
         pytest.fail(
-            f"gunicorn {version} + --worker-class {worker} akan gagal start "
-            f"(worker bawaan dihapus di 26.x). Turunkan ke 23.x atau migrasi "
-            f"worker — lihat CHANGELOG 8 Sep 2026."
+            f"gunicorn {version} + --worker-class eventlet akan gagal start "
+            f"(worker bawaan dihapus di 26.x & tidak ada extra `gunicorn["
+            f"eventlet]`). Migrasi ke gevent (v2.38.0) — lihat "
+            f"WORKER_MIGRATION_PLAN.md."
         )

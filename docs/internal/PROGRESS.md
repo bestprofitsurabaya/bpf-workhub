@@ -2,9 +2,9 @@
 
 File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks saat sesi baru dimulai.
 
-**Terakhir diperbarui:** 2026-09-08  
+**Terakhir diperbarui:** 2026-09-10  
 **Branch:** `main`  
-**Versi terbaru:** v2.37.8 (8 Sep — fix SW meng-cache /api/*: list tak update setelah verifikasi/kehadiran) · v2.37.7 (8 Sep — kop Tanda Terima air minum per cabang) · v2.37.6 LIVE (7 Sep — layout export air minum + kop per cabang + PLM dinonaktifkan) · v2.37.5 (export rekap air minum PDF & Excel) · v2.37.4 (filter rentang tanggal) · v2.37.3 (detail snapshot audit log) · v2.37.2 (fix foto bukti 500 + preview verifikasi air minum) · v2.37.1 (hotfix scoping admin cabang) · v2.37.0 (edit/hapus air minum + admin per-cabang + Pengaturan terstruktur) — program 6 tahap ISO 27001 SELESAI
+**Versi terbaru:** v2.39.1 (10 Sep — verifikasi paritas overtime DB↔sheet live + LIMIT list/report dinaikkan + pagination Data Overtime) · v2.39.0 (9 Sep — waktu overtime sesuai sheet Apps Script + form Overtime Saya utk OB & Security + role security) · v2.38.0 (di working tree — migrasi worker eventlet→gevent) · v2.37.8 (8 Sep — fix SW meng-cache /api/*: list tak update setelah verifikasi/kehadiran) · v2.37.7 (8 Sep — kop Tanda Terima air minum per cabang) · v2.37.6 LIVE (7 Sep — layout export air minum + kop per cabang + PLM dinonaktifkan) · v2.37.5 (export rekap air minum PDF & Excel) · v2.37.4 (filter rentang tanggal) · v2.37.3 (detail snapshot audit log) · v2.37.2 (fix foto bukti 500 + preview verifikasi air minum) · v2.37.1 (hotfix scoping admin cabang) · v2.37.0 (edit/hapus air minum + admin per-cabang + Pengaturan terstruktur) — program 6 tahap ISO 27001 SELESAI
 
 ---
 
@@ -12,7 +12,14 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 | Aspek | Status |
 |-------|--------|
-| Versi | **v2.37.8 (8 Sep)** — fix service worker meng-cache `/api/*` (stale-while-revalidate) → daftar tak berubah setelah verifikasi air minum / input kehadiran training sampai refresh manual; SW kini bypass `/api/*` + `/socket.io/*`, hanya shell + asset ber-hash; guard `frontend/src/sw.test.js` (6 vitest). Sebelumnya v2.37.7 kop Tanda Terima per cabang (`get_branch_identity` + `set_identity`); v2.37.6 layout export + kop per cabang + PLM nonaktif |
+| Versi | **v2.39.1 (10 Sep)** — paritas overtime terverifikasi live + LIMIT list/report + pagination; sebelumnya v2.39.0 (9 Sep — waktu overtime sesuai sheet, form Overtime Saya, role security) |
+| Paritas overtime DB↔sheet (v2.39.1) | ✅ **TERVERIFIKASI LIVE** — full sync 2 modul + perbandingan baris-per-baris feed vs DB: Driver 8.763=8.763, OB/Security 603=603 (0 hilang/0 ekstra/0 selisih kolom). ⚠️ Web App produksi masih script LAMA (feed ISO-UTC) — paritas benar selama sheet WIB; deploy ulang Web App utk zona lain |
+| List/report OT terpotong (v2.39.1) | ✅ LIMIT dinaikkan: list 2.000→20.000, rekap 3.000→50.000, detail per karyawan 500→10.000, /mine 200→2.000 — export tanpa filter tanggal kini mencakup arsip 2020–2026 |
+| Pagination Data Overtime (v2.39.1) | ✅ tabel Driver & OB/Security dirender 100 baris/halaman (pager « ‹ 1..5 › »), reset ke hal. 1 saat load/filter — DOM ringan dgn list kini utuh 8.7rb+ baris |
+| Waktu overtime tak sesuai sheet (v2.39.0) | ✅ **AKAR DITEMUKAN + FIX**: bridge Apps Script mengirim Date mentah → JSON.stringify = ISO **UTC**; server menambah +7 jam dgn asumsi sheet WIB — sheet zona lain (mis. GMT+8) menghasilkan tanggal/jam bergeser di DB (keluhan user `gahr_sby`). Fix: bridges kini serialisasi wall-clock sesuai **zona spreadsheet** (`Utilities.formatDate`); parser baru `parse_date_wall`/`parse_time_wall`/`parse_submitted_at_wall` (tanpa offset), feed ISO UTC lama tetap fallback +7 WIB; +18 pytest (`tests/test_overtime_wallclock.py`). **ACTION: deploy ulang Web App Driver & OB/Security setelah update** |
+| Form Overtime OB/Security (v2.39.0) | ✅ `POST /api/overtime/me/submit` + `GET /api/overtime/mine` (role ob/security; nama & posisi dari sesi — anti impersonasi; DB cabang sesi; ACC GA HR→Admin); halaman SPA `/app/overtime-me` "⏰ Overtime Saya" (kolom = sheet sumber: Tanggal, Waktu Mulai, Selesai, Keterangan + foto watermark + GPS); menu sidebar OB & Security |
+| Role security (v2.39.0) | ✅ role baru di ENUM `users.role` (init.sql + upgrade idempoten `appointments_schema.py`); username wajib awalan `security_` (`security_sby` / `security_budi_sby`, wajib isi cabang); home `/overtime-me`; label 🛡️ Security di Users & Access Review; ACC overtime = rantai OB (GA HR→Admin); posisi `Security` di tab OB & Security GA HR (sudah ada) |
+| NameError submit OT Driver | ✅ fix: `session` dipakai di `routes_overtime.py` (driver submit) tanpa import level-modul — import diperbaiki (regresi lama, submit OT Driver dari PWA gagal 500) |
 | Bug list tak update (v2.37.8) | ✅ **AKAR DITEMUKAN**: SW v2.37.5 meng-intercept semua GET incl. `/api/...` dgn stale-while-revalidate → `load()` pasca-aksi dapat respons cache lama (URL sama = cache hit); refresh manual "beres" karena revalidasi background; ganti filter = URL beda = cache miss. Fix: bypass `/api/*`+socket.io di sw.js, CACHE → v2378 |
 | E2E verifikasi SW (8 Sep) | ✅ `frontend/scripts/verify_sw_api_fresh.mjs` — alur UI PERSIS: admin buat pengajuan uji → finance klik ✅ Verifikasi di list → modal remark → PIN step-up → **badge otomatis "Menunggu Verifikasi" → "Terverifikasi" TANPA refresh**; Cache Storage SW = 22 entri shell/asset, 0 entri /api/*; data uji dihapus dari DB |
 | Diagram alir sistem (8 Sep) | ✅ `static/system-diagram.html` + `.js` — 11 seksi SVG interaktif (infra, multi-DB, auth, air minum, overtime, kasbon, training, realtime, SPA, kop, CI/CD); nav sticky + highlight aktif + zoom; CSP-safe (JS eksternal); live di `/static/system-diagram.html` |
@@ -40,7 +47,7 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 | Sync Overtime | ✅ Driver (8.745 baris) & OB/Security (600 baris) via Apps Script; auto-refresh login/logout GA HR/Admin; **v2.36.1**: display_id (UNIQUE) tak diisi upsert → baris baru saling menimpa (silent data loss — penyebab "data tidak aktual" yg dilaporkan user) diperbaiki + Refresh UI kini full sync; **v2.36.2**: identitas baris kini `source_uid` = md5(nama\|submitted_at) — tahan geser baris sheet; data produksi dipulihkan & diverifikasi baris-per-baris vs feed (0 selisih) |
 | Urutan overtime | ✅ Terkini-di-atas di semua daftar + detail report per nama dibalik terkini-dulu (PDF/Excel, commit `733fd2f`) |
 | Data demo air minum | ✅ Dibersihkan 4 Sep — WTR-20260904-10300556, WTR-DEMO-01/02 dihapus (bpf_asset_system + bpf_restore_test); backup `/tmp/bpf_water_demo_backup_20260904.sql`; tabel `water_purchases` kini 0 baris |
-| Deploy | ✅ **v2.36.2 LIVE** (6 Sep: v2.36.0 approval `2df2ba7`, docs `80a84ea`, v2.36.1 `109e7a5`, v2.36.2 `92d2de0`) — sebelumnya v2.35.1/v2.33.0/v2.32.0 juga live; `bbm_web` healthy 0 restart |
+| Deploy | ✅ **v2.39.0 + v2.38.0 LIVE (9 Sep)** — image rebuilt, worker gevent, 9 akun security live, E2E submit OT Security lulus, full sync bersih; `bbm_web` healthy. Sebelumnya v2.36.2 live (6 Sep) |
 | Admin cabang & akun (7 Sep) | ✅ **LIVE**: 10 akun `admin_<kode>` dibuat via API (jkt/sby/bdg/smg/mlg/mdn/bjm/plm/lpg/jkt2, PIN awal 123456 — wajib ganti); `admin` → **`admin_master`** (flag `admin_all_branches=1`, jadi backup bila admin cabang kendala); `e2e_admin_tmp` dinonaktifkan; scoping terverifikasi live (admin_bdg: switch cabang & access-review → 403). **v2.37.6: akun `admin_plm` dinonaktifkan (cabang PLM tidak ada)**. Detail: USER_LIST.md |
 | Foto bukti & verifikasi (v2.37.2) | ✅ **LIVE**: NameError `session` di `/uploads/` (regresi hardening 584ba88) bikin SEMUA foto bukti 500 — di-fix + 4 pytest regression; modal Verifikasi/Tolak kini menampilkan bukti foto + lightbox klik-perbesar + fallback foto rusak (6 vitest); smoke live: foto 200 image/jpeg dgn sesi finance, 401 tanpa sesi |
 | Dashboard Marketing | ✅ Tab "Selesai" kini memakai `/api/appointments/history` (riwayat completed marketing sendiri, lintas tanggal) — sebelumnya memanggil endpoint driver `/completed` → selalu 400/kosong |
@@ -62,6 +69,102 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 ---
 
 ## 🗂️ Riwayat Sesi
+
+### Sesi 2026-09-10 — v2.39.1: verifikasi paritas overtime + list tak terpotong + pagination ✅ SELESAI di repo
+
+> Lanjutan audit "apakah data overtime di sistem sama persis dgn sumber
+> (Google Sheet)". Tiga aksi: verifikasi live, LIMIT, pagination.
+
+1. **Verifikasi live (container `bbm_web`)** — full sync kedua modul
+   (`full_sync=True`, persis tombol 🔄 Refresh UI) lalu feed sheet
+   dinormalisasi dgn fungsi produksi (`normalize_driver_row` /
+   `_normalize_ob_row`) dan dibandingkan baris-per-baris vs DB per
+   `source_uid`: Driver **8.763 = 8.763**, OB/Security **603 = 603** —
+   0 missing, 0 extra, 0 selisih field. Catatan: feed produksi masih
+   ISO-UTC (Web App belum redeploy v2.39) → paritas benar selama sheet WIB;
+   sync pertama sempat 404 transien dari `script.googleusercontent.com/echo`
+   — sukses dgn retry (GET pola sama sukses di percobaan pertama).
+2. **LIMIT dinaikkan** (`modules/routes_overtime.py`): list driver & ob
+   2.000→**20.000**; rekap report 3.000→**50.000**; detail per karyawan
+   500→**10.000**; `/mine` 200→**2.000**. Alasan: arsip 8.7rb+ baris tidak
+   muat di limit lama — export tanpa filter hanya menampilkan sebagian.
+3. **Pagination klien** (`OvertimeView.vue`): 100 baris/halaman per tab,
+   computed `dPageRows`/`oPageRows`, jendela 5 nomor halaman, reset ke
+   hal. 1 saat load/filter berubah.
+4. **Verifikasi**: 77 pytest overtime lulus, 141 vitest lulus, build SPA
+   hijau. Belum di-deploy (menyusul bersama batch berikutnya).
+
+### Sesi 2026-09-09 — v2.39.0: Waktu overtime sesuai sheet + form Overtime Saya OB/Security + role security ✅ SELESAI (di repo, belum deploy)
+
+> Permintaan user: (1) menu Overtime di `gahr_sby` — bagian waktu tidak sesuai
+> sumber data spreadsheet via Apps Script; (2) tambah form input Overtime untuk
+> user OB; (3) tambah user Security (pakai identitas cabang); (4) update dokumen.
+
+#### 🔍 Akar masalah waktu (temuan)
+- Kontrak lama: bridge Apps Script (`apps_script_*`) membaca `getValues()` dan
+  meng-JSON `Date` mentah → ISO **UTC** (`2020-12-12T07:08:54.000Z`).
+- Server (`overtime_helpers.py`) menambah **+7 jam** dengan asumsi sheet WIB.
+- Bila zona spreadsheet ≠ WIB → tanggal & jam tersimpan bergeser dari tampilan
+  sheet (inilah "waktu tidak sesuai" yang dilaporkan `gahr_sby`).
+- Bonus: `NameError: session` di `POST /api/overtime/driver/submit` (import
+  hilang sejak v2.36.2) — submit OT Driver dari PWA gagal 500. Diperbaiki.
+
+#### 🛠️ Yang dikerjakan
+1. **Bridges v2.39** (`apps_script_overtime_driver.gs`, `_v2.gs`,
+   `apps_script_ob_security.gs`): serialisasi wall-clock sesuai **zona
+   spreadsheet** (`getSpreadsheetTimeZone` + `Utilities.formatDate`):
+   tanggal `yyyy-MM-dd`, Timestamp `yyyy-MM-dd HH:mm:ss`, jam `HH:mm:ss`
+   (epoch 1899 tetap benar); filter `since`/tanggal parse wall-clock.
+2. **Parser** (`overtime_helpers.py`): `parse_date_wall` / `parse_time_wall` /
+   `parse_submitted_at_wall` (tanpa offset); `parse_*_any` memprioritaskan
+   wall-clock; **ISO UTC lama tetap fallback +7 WIB** (guard regresi).
+3. **Endpoint baru**: `POST /api/overtime/me/submit` + `GET /api/overtime/mine`
+   (role `ob`/`security`) — identitas dari sesi, DB cabang sesi, ACC
+   berjenjang dengan role pengaju asli.
+4. **Role `security`**: ENUM users.role (init.sql + appointments_schema),
+   prefix `security_`, ROLE_HOME, label (backend + frontend), menu sidebar,
+   halaman SPA **OvertimeMeView** (`/app/overtime-me`), router
+   (`roles: ['ob','security']`), ACC chain default, ROLES dropdown Users/
+   AccessReview.
+5. **Dokumen**: CHANGELOG v2.39.0, README, USER_GUIDE (§3.5 + §11.5),
+   USER_LIST (role table, matriks akses, konvensi `security_<cabang>`),
+   DEPLOYMENT (endpoint + catatan deploy ulang Web App), PROGRESS.
+
+#### ✅ Verifikasi
+- **pytest 575 lulus + 8 skip** (termasuk +18 test baru
+  `tests/test_overtime_wallclock.py`) — lokal, tanpa container;
+  `tests/test_uploads_auth.py` & `test_security_headers.py` di-skip (env lokal
+  tak ada sklearn/DB container — pre-existing).
+- **vitest 141 lulus + build SPA hijau**.
+
+#### 🚀 DEPLOY LIVE (9 Sep 2026, sesi lanjutan)
+- **Image di-build & `bbm_web` healthy** — worker **gevent** aktif (v2.38.0
+  ikut ter-deploy; Flask-SocketIO tanpa `gevent-websocket` → websocket fallback
+  long-polling, pasang `gevent-websocket` di build berikut bila perlu WS).
+- **Bug laten ditemukan & diperbaiki**: MODIFY enum `users.role` di
+  `appointments_schema.py` TIDAK memuat role `it_*` yang sudah ada di
+  produksi → ALTER gagal senyap "Data truncated 1265" di setiap startup
+  sejak `it_*` masuk (berarti upgrade role lama juga tak pernah jalan).
+  Kini superset lengkap + `security` — ALTER sukses di master.
+- **9 akun `security_<cabang>` dibuat live** via `/api/users/sync`
+  (sby/hu/jkt2/bdg/smg/mlg/mdn/bjm/lpg; PLM nonaktif; PIN awal 123456 —
+  wajib ganti; full_name placeholder, mohon Admin isi nama asli orangnya).
+- **E2E live lulus**: login `security_sby` → home `/app/overtime-me` → submit
+  `POST /api/overtime/me/submit` → `OTL-SBY-20260909-0001` (posisi otomatis
+  Security, DB master/branch sesuai) → terlihat di riwayat `/mine` & list GA
+  HR → record uji dihapus.
+- **Full sync kedua modul bersih**: Driver 8.863 baris, OB/Security 613 baris
+  (uid stabil, 0 saling timpa; 22 update normal OB).
+- **Data anomali tanggal (pre-existing, BUKAN bug parser)**: 4 baris Driver
+  dgn tahun tak masuk akal (2923/2096/2033/1921) — typo input Google Form;
+  koreksi via ✏️ Edit GA HR.
+- ⏳ **Menunggu aksi user**: cek zona waktu kedua spreadsheet
+  (File → Settings → Time zone) — bila BUKAN WIB, deploy ulang Web App
+  (kode v2.39 sudah wall-clock) lalu re-seed: `docker exec bbm_web python3
+  scripts/migrate_overtime_driver.py "$URL_DRIVER" --reset` (dan varian OB).
+  Bila sudah WIB, cukup deploy ulang Web App (tanpa re-seed).
+
+---
 
 ### Sesi 2026-09-07 (lanjutan) — v2.37.6: Layout export air minum + kop per cabang + Palembang dinonaktifkan ✅ SELESAI + DEPLOY LIVE
 

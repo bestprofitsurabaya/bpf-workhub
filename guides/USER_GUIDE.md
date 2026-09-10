@@ -72,6 +72,7 @@ Setelah masuk, kamu otomatis diarahkan ke halaman utama sesuai peranmu:
 | Chief Driver | `chief_driver` | Dashboard Chief Driver |
 | Driver | `driver_1`, `driver_2`, ... | Aplikasi Driver |
 | OB | `ob` | Halaman Air Minum |
+| Security | `security_sby`, `security_budi_sby`, ... | Overtime Saya |
 | IT | `it_sby`, `it_hu`, ... | News Scraper |
 
 ### 2.2 Keluar dari Aplikasi
@@ -131,6 +132,24 @@ Pengajuanmu akan muncul di daftar dengan status **"Menunggu Verifikasi"**.
 | Ditolak | Ada yang kurang — perbaiki sesuai alasan |
 
 > 💡 Semua pengajuanmu **hanya terlihat olehmu, Finance, dan Admin**. OB lain tidak bisa melihat pengajuanmu.
+
+### 3.5 Catat Overtime Kamu ⏰ (v2.39)
+
+Selain air minum, kamu (dan user **Security**) punya menu **⏰ Overtime Saya**
+di sidebar untuk mencatat lembur sendiri:
+
+1. Klik menu **⏰ Overtime Saya**.
+2. **Nama & Posisi sudah terisi otomatis** dari akunmu (tidak bisa diubah —
+   mencegah pengisian atas nama orang lain).
+3. Isi **Tanggal**, **Waktu Mulai**, **Waktu Selesai**, dan **Keterangan** —
+   kolom yang sama dengan di Google Sheet sumber data.
+4. (Disarankan) Ambil **foto bukti** mulai & selesai — otomatis diberi
+   watermark perusahaan + tanggal + GPS.
+5. Klik **Kirim Overtime** → simpan nomor bukti `OTL-…`.
+6. Riwayat lemburmu tampil di sisi kanan halaman (terbaru di atas).
+
+> Pengajuanmu diteruskan ke **GA HR** untuk di-ACC lalu **Admin** — sama
+> seperti overtime Driver. Cek status di riwayat atau tanya GA HR.
 
 ---
 
@@ -449,7 +468,7 @@ Semua perubahan papan berjalan realtime — saat driver menyelesaikan tugas, sta
 - **✏️ Edit & 🗑️ Hapus**: tiap baris punya tombol aksi — koreksi typo (nama, kendaraan, tanggal, jam, keterangan, broker/manager) lewat modal edit, atau hapus baris yang keliru. Semua aksi tercatat di Audit Log.
 - Filter **tanggal** & **pencarian** nama/kendaraan/broker/manager/keterangan.
 - Tombol **⚙️ Sumber Data**: URL yang dibaca server. Sheet **private** → gunakan URL Google Apps Script Web App (template: `scripts/apps_script_overtime_driver_v2.gs`). **Tidak perlu akses ke akun pemilik** — cukup akun Google mana pun yang sudah punya akses (termasuk view/read-only) membuat script standalone di `script.google.com` lalu deploy sebagai Web App (*Execute as: Me*, *Who has access: Anyone*). Tautan sheet mentah (`docs.google.com/.../edit`) **tidak** bisa dibaca server.
-- Tanggal & jam dari Apps Script (format ISO UTC) otomatis dikonversi ke **zona WIB** saat disimpan.
+- **Tanggal & jam sesuai sheet (v2.39)**: template Apps Script terbaru mengirim tanggal/jam persis seperti tampil di Google Sheet (zona spreadsheet) — tidak digeser lagi. Script lama yang masih mengirim ISO UTC otomatis dikonversi ke **zona WIB**. **Setelah memperbarui kode script, deploy ulang Web App** (Deploy → Manage deployments → Edit → New version) lalu klik 🔄 Refresh.
 
 ### Tab 🧑‍🔧 OB & Security
 
@@ -464,6 +483,17 @@ Semua perubahan papan berjalan realtime — saat driver menyelesaikan tugas, sta
 
 - Bagikan tautan **`/app/overtime-form`** ke karyawan OB/Security — mereka mengisi sendiri: dropdown **Posisi** (OB/Security) & **Nama** (sesuai data yang ada), tanggal, jam mulai/selesai, keterangan.
 - Setiap pengiriman mendapat nomor bukti `OTL-*` dan langsung tampil di dashboard GA HR.
+
+### Form dalam Aplikasi — "⏰ Overtime Saya" (v2.39, OB & Security)
+
+- User OB & Security kini punya menu sendiri di sidebar: **⏰ Overtime Saya**
+  (`/app/overtime-me`) — tidak perlu lagi buka tautan publik.
+- **Nama & Posisi otomatis dari akun** (tidak bisa dipilih/dipalsukan):
+  role `ob` → posisi **OB**, role `security` → posisi **Security**.
+- Kolom mengikuti sheet sumber: **Tanggal · Waktu Mulai · Waktu Selesai ·
+  Keterangan** + foto bukti (watermark otomatis) & GPS.
+- Riwayat overtime pribadi tampil di halaman yang sama (terbaru di atas) —
+  pengajuan ikut alur **ACC berjenjang: GA HR → Admin**.
 
 ### Akun GA HR
 

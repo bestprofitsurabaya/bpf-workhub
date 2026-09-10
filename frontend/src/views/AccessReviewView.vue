@@ -31,6 +31,7 @@ const ACCOUNT_LABEL = {
 const ROLES = [
   ['admin', '🛡️ Admin'], ['ga', '🧾 GA'], ['finance', '💰 Finance'],
   ['marketing', '📣 Marketing'], ['chief_driver', '🚛 Chief Driver'], ['ob', '🚰 OB'],
+  ['security', '🛡️ Security'],
   ['receptionist', '🪪 Receptionist'], ['traineer', '🎯 Traineer'], ['ga_hr', '⏰ GA HR'],
   ['driver', '🚗 Driver'],
 ]

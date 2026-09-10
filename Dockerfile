@@ -56,13 +56,14 @@ COPY --from=frontend-build /build/dist/ /app/static/app/
 EXPOSE 5000
 
 # Start cron + Flask app via Gunicorn (production WSGI server).
-# - Worker eventlet: dibutuhkan flask-socketio async_mode=eventlet.
-# - -w 1: room SocketIO in-memory per-proses; eventlet menangani konkurensi
-#   via green thread (bukan multi-proses), jadi 1 worker sudah benar.
+# - Worker gevent (v2.38.0): dibutuhkan flask-socketio async_mode=gevent;
+#   eventlet deprecated & dihapus dari worker bawaan gunicorn 26.
+# - -w 1: room SocketIO in-memory per-proses; gevent menangani konkurensi
+#   via greenlet (bukan multi-proses), jadi 1 worker sudah benar.
 # - --timeout 300: request berat (PDF/excel/upload/scraper) butuh waktu lama.
 # - access log JSON sudah dicetak app (after_request) — gunicorn access log
 #   dimatikan agar tidak dobel; error log tetap ke stdout (docker logs).
-CMD service cron start && exec gunicorn --worker-class eventlet -w 1 \
+CMD service cron start && exec gunicorn --worker-class gevent -w 1 \
     --bind 0.0.0.0:5000 --timeout 300 --graceful-timeout 60 \
     --access-logfile /dev/null --error-logfile - --capture-output \
     app:app

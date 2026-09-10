@@ -35,6 +35,7 @@ const MENU = [
   { label: 'Pengaturan', path: '/settings', icon: '⚙️', roles: ['admin'] },
   { label: 'Audit Log', path: '/logs', icon: '📝', roles: ['admin'] },
   { label: 'Air Minum', path: '/water', icon: '🚰', roles: ['ob', 'finance', 'admin'] },
+  { label: 'Overtime Saya', path: '/overtime-me', icon: '⏰', roles: ['ob', 'security'] },
   { label: 'Pelamar Kerja', path: '/receptionist', icon: '🪪', roles: ['receptionist', 'admin'] },
   { label: 'Rekrutan Saya', path: '/traineer', icon: '🎯', roles: ['traineer'] },
   { label: 'Aset & Pemeliharaan', path: '/assets', icon: '🔧', roles: ['ga', 'admin'] },

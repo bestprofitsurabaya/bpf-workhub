@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { api } from '../../api'
 import StatCard from '../../components/StatCard.vue'
 import Modal from '../../components/Modal.vue'
@@ -16,6 +16,15 @@ const dSearch = ref('')
 const dSource = ref('')  // '' | 'sheet' | 'form'
 const dList = ref([])
 
+// Pagination klien (v2.39.1): API kini mengirim hingga 20000 baris — tabel
+// dirender per halaman supaya DOM tetap ringan. Reset ke halaman 1 tiap load.
+const PAGE_SIZE = 100
+const dPage = ref(1)
+const dTotalPages = computed(() => Math.max(1, Math.ceil(dList.value.length / PAGE_SIZE)))
+const dPageRows = computed(() =>
+  dList.value.slice((dPage.value - 1) * PAGE_SIZE, dPage.value * PAGE_SIZE))
+function dGo(p) { dPage.value = Math.min(Math.max(1, p), dTotalPages.value) }
+
 // Filter OB/Security
 const oFrom = ref('')
 const oTo = ref('')
@@ -23,6 +32,22 @@ const oSearch = ref('')
 const oPosisi = ref('')
 const oSource = ref('')  // '' | 'sheet' | 'form' | 'migrasi'
 const oList = ref([])
+
+// Pagination klien tab OB/Security — pola sama dgn tab Driver.
+const oPage = ref(1)
+const oTotalPages = computed(() => Math.max(1, Math.ceil(oList.value.length / PAGE_SIZE)))
+const oPageRows = computed(() =>
+  oList.value.slice((oPage.value - 1) * PAGE_SIZE, oPage.value * PAGE_SIZE))
+function oGo(p) { oPage.value = Math.min(Math.max(1, p), oTotalPages.value) }
+
+// Jendela nomor halaman (maks 5 tombol angka) supaya pager ringkas.
+function pageWindow(page, total) {
+  const out = []
+  for (let i = Math.max(1, page - 2); i <= Math.min(total, page + 2); i++) out.push(i)
+  return out
+}
+const dPagesShown = computed(() => pageWindow(dPage.value, dTotalPages.value))
+const oPagesShown = computed(() => pageWindow(oPage.value, oTotalPages.value))
 
 // Viewer foto bukti overtime (mulai & selesai)
 const fotoRow = ref(null) // baris yang sedang dilihat fotonya
@@ -73,6 +98,7 @@ async function loadDriver() {
   try {
     const d = await api('/api/overtime/driver', { params: { date_from: dFrom.value, date_to: dTo.value, search: dSearch.value, source: dSource.value } })
     dList.value = sortNewestFirst(d.data || [])
+    dPage.value = 1
   } catch (e) { err.value = e.message } finally { loading.value = false }
 }
 
@@ -81,6 +107,7 @@ async function loadOb() {
   try {
     const d = await api('/api/overtime/ob-security', { params: { date_from: oFrom.value, date_to: oTo.value, search: oSearch.value, posisi: oPosisi.value, source: oSource.value } })
     oList.value = sortNewestFirst(d.data || [])
+    oPage.value = 1
   } catch (e) { err.value = e.message } finally { loading.value = false }
 }
 
@@ -329,7 +356,7 @@ watch(tab, loadTab)
             <table class="tbl">
               <thead><tr><th>Tanggal</th><th>Nama</th><th>No. Kendaraan</th><th>Waktu</th><th>Keterangan</th><th>Broker / Manager</th><th>Sumber</th><th></th></tr></thead>
               <tbody>
-                <tr v-for="r in dList" :key="r.id" :data-id="r.id">
+                <tr v-for="r in dPageRows" :key="r.id" :data-id="r.id">
                   <td>{{ r.tanggal || '—' }}</td>
                   <td><b>{{ r.nama }}</b></td>
                   <td class="muted">{{ r.no_kendaraan || '—' }}</td>
@@ -347,6 +374,16 @@ watch(tab, loadTab)
                 <tr v-if="!dList.length"><td colspan="8" class="empty">Belum ada data — klik 🔄 Refresh untuk menarik data dari Google Sheet.</td></tr>
               </tbody>
             </table>
+          </div>
+          <div v-if="dTotalPages > 1" class="row" style="justify-content:space-between;align-items:center;margin-top:8px;flex-wrap:wrap;gap:8px;">
+            <span class="muted" style="font-size:12px;">Halaman {{ dPage }} dari {{ dTotalPages }} · {{ dList.length }} catatan · 100/halaman</span>
+            <div class="row" style="gap:4px;align-items:center;">
+              <button class="btn btn-xs" :disabled="dPage <= 1" @click="dGo(1)">«</button>
+              <button class="btn btn-xs" :disabled="dPage <= 1" @click="dGo(dPage - 1)">‹ Prev</button>
+              <button v-for="p in dPagesShown" :key="p" class="btn btn-xs" :class="{ 'btn-primary': p === dPage }" @click="dGo(p)">{{ p }}</button>
+              <button class="btn btn-xs" :disabled="dPage >= dTotalPages" @click="dGo(dPage + 1)">Next ›</button>
+              <button class="btn btn-xs" :disabled="dPage >= dTotalPages" @click="dGo(dTotalPages)">»</button>
+            </div>
           </div>
         </div>
       </template>
@@ -386,7 +423,7 @@ watch(tab, loadTab)
             <table class="tbl">
               <thead><tr><th>No.</th><th>Tanggal</th><th>Nama</th><th>Posisi</th><th>Waktu</th><th>Keterangan</th><th>Sumber</th><th></th></tr></thead>
               <tbody>
-                <tr v-for="r in oList" :key="r.id">
+                <tr v-for="r in oPageRows" :key="r.id">
                   <td class="muted">{{ r.display_id }}</td>
                   <td>{{ r.tanggal || '—' }}</td>
                   <td><b>{{ r.nama }}</b></td>
@@ -404,6 +441,16 @@ watch(tab, loadTab)
                 <tr v-if="!oList.length"><td colspan="8" class="empty">Belum ada data overtime OB/Security.</td></tr>
               </tbody>
             </table>
+          </div>
+          <div v-if="oTotalPages > 1" class="row" style="justify-content:space-between;align-items:center;margin-top:8px;flex-wrap:wrap;gap:8px;">
+            <span class="muted" style="font-size:12px;">Halaman {{ oPage }} dari {{ oTotalPages }} · {{ oList.length }} catatan · 100/halaman</span>
+            <div class="row" style="gap:4px;align-items:center;">
+              <button class="btn btn-xs" :disabled="oPage <= 1" @click="oGo(1)">«</button>
+              <button class="btn btn-xs" :disabled="oPage <= 1" @click="oGo(oPage - 1)">‹ Prev</button>
+              <button v-for="p in oPagesShown" :key="p" class="btn btn-xs" :class="{ 'btn-primary': p === oPage }" @click="oGo(p)">{{ p }}</button>
+              <button class="btn btn-xs" :disabled="oPage >= oTotalPages" @click="oGo(oPage + 1)">Next ›</button>
+              <button class="btn btn-xs" :disabled="oPage >= oTotalPages" @click="oGo(oTotalPages)">»</button>
+            </div>
           </div>
         </div>
       </template>

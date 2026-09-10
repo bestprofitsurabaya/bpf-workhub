@@ -2,8 +2,9 @@
  * v2.37.8: JANGAN pernah menyentuh /api/* — respons API tidak boleh di-cache.
  * SW sebelumnya (stale-while-revalidate utk semua GET) membuat list API
  * menampilkan data lama setelah verifikasi/kehadiran sampai refresh manual.
+ * v2.38.0: cache bump saja — stamp SPA v2.38.0 (migrasi worker gevent di backend).
  */
-const CACHE = 'bpf-spa-20260908-v2378';
+const CACHE = 'bpf-spa-20260910-v2391';
 const SHELL = ['/app/index.html'];
 
 self.addEventListener('install', (event) => {

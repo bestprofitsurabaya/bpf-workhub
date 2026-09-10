@@ -6,12 +6,15 @@ PT. Bestprofit Futures (Kantor Pusat: Jakarta)
 import warnings, os
 warnings.filterwarnings('ignore')
 os.environ['PYTHONWARNINGS'] = 'ignore'
+# v2.38.0: migrasi worker eventlet → gevent (eventlet deprecated; gunicorn 26
+# menghapus worker bawaannya — insiden 8 Sep 2026). gevent tersedia sebagai
+# extra gunicorn[gevent]; monkey_patch_all() dibutuhkan agar pustaka blocking
+# (mysql-connector, requests) ikut hijau. Fallback threading bila gevent tak ada.
 try:
-    import eventlet
-    eventlet.monkey_patch()
-    socketio_async_mode = 'eventlet'
+    from gevent import monkey
+    monkey.patch_all()
+    socketio_async_mode = 'gevent'
 except Exception:
-    eventlet = None
     socketio_async_mode = 'threading'
 
 from flask_socketio import SocketIO

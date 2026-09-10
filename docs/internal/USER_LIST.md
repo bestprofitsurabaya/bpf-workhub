@@ -46,6 +46,7 @@ Setiap divisi back-office punya user unik per cabang dengan format `{divisi}_{ko
 | Finance | `finance_sby` | `finance_hu` | `finance_jkt2` | `finance_bdg` | `finance_smg` | `finance_mlg` | `finance_mdn` | `finance_bjm` | `finance_plm` | `finance_lpg` |
 | GA HR | `gahr_sby` | `gahr_hu` | `gahr_jkt2` | `gahr_bdg` | `gahr_smg` | `gahr_mlg` | `gahr_mdn` | `gahr_bjm` | `gahr_plm` | `gahr_lpg` |
 | Marketing | `marketing_sby` | `marketing_hu` | `marketing_jkt2` | `marketing_bdg` | `marketing_smg` | `marketing_mlg` | `marketing_mdn` | `marketing_bjm` | `marketing_plm` | `marketing_lpg` |
+| Security | `security_sby` | `security_hu` | `security_jkt2` | `security_bdg` | `security_smg` | `security_mlg` | `security_mdn` | `security_bjm` | `security_plm` | `security_lpg` |
 | IT | `it_sby` | `it_hu` | `it_jkt2` | `it_bdg` | `it_smg` | `it_mlg` | `it_mdn` | `it_bjm` | `it_plm` | `it_lpg` |
 
 > PIN default semua user: diatur saat pembuatan akun (tidak dicantumkan di dokumen ini). Role di DB tetap sama (misal `finance_sby` → role `finance`),
@@ -88,10 +89,11 @@ Sistem mendukung **11 peran inti** (peran `it` dipecah per cabang pada daftar di
 | 4 | `marketing` | 📣 Marketing | `/app/marketing` | Buat & kelola appointment kunjungan nasabah |
 | 5 | `chief_driver` | 🚛 Chief Driver | `/app/chief-driver` | Atur rute perjalanan driver (auto & manual) |
 | 6 | `driver` | 🚗 Driver | `/app/driver` | PWA: submit trip, foto ODO/struk, GPS, notifikasi |
-| 7 | `ob` | 🧹 OB | `/app/water` | Pengajuan pembelian air minum |
-| 8 | `receptionist` | 🪪 Receptionist | `/app/receptionist` | Verifikasi pelamar kerja & kehadiran |
-| 9 | `traineer` | 🎯 Traineer | `/app/traineer` | Pantau rekrutan (read-only) |
-| 10 | `ga_hr` | ⏰ GA HR | `/app/ga-hr` | Data overtime Driver & OB/Security |
+| 7 | `ob` | 🧹 OB | `/app/water` | Pengajuan pembelian air minum + **Overtime Saya** (v2.39) |
+| 8 | `security` | 🛡️ Security | `/app/overtime-me` | **Overtime Saya** — pengajuan lembur Security (v2.39) |
+| 9 | `receptionist` | 🪪 Receptionist | `/app/receptionist` | Verifikasi pelamar kerja & kehadiran |
+| 10 | `traineer` | 🎯 Traineer | `/app/traineer` | Pantau rekrutan (read-only) |
+| 11 | `ga_hr` | ⏰ GA HR | `/app/ga-hr` | Data overtime Driver & OB/Security |
 | 11 | `it_sby` | 📰 IT Surabaya | `/app/it` | News Scraper (SBY) |
 | 12 | `it_hu` | 📰 IT Jakarta HO | `/app/it` | News Scraper (JKT) — lihat semua site |
 | 13 | `it_jkt2` | 📰 IT Jakarta 2 | `/app/it` | News Scraper (JKT2) |
@@ -284,14 +286,37 @@ Sistem mendukung **11 peran inti** (peran `it` dipecah per cabang pada daftar di
 
 ### 🧹 OB (`ob`)
 
-**Akses:** Pengajuan air minum
+**Akses:** Pengajuan air minum + overtime sendiri
 
 **Fitur Khusus:**
 - Buat pengajuan pembelian air minum
 - Upload foto before/after
 - Lihat status pengajuan
+- **Overtime Saya (v2.39)** — isi lembur dari dalam aplikasi; Nama & Posisi
+  otomatis dari akun (tidak bisa dipilih), riwayat pribadi di halaman yang sama
 
-**Halaman:** Air Minum (`/app/water`)
+**Halaman:** Air Minum (`/app/water`) · Overtime Saya (`/app/overtime-me`)
+
+---
+
+### 🛡️ Security (`security`) — v2.39
+
+**Akses:** Overtime sendiri
+
+**Fitur Khusus:**
+- **Overtime Saya** (`/app/overtime-me`) — form pengajuan lembur Security:
+  Tanggal, Waktu Mulai, Waktu Selesai, Keterangan + foto bukti (watermark) &
+  GPS — kolom sama dengan sheet sumber overtime OB/Security
+- Nama & Posisi (`Security`) terkunci dari sesi login — tidak bisa dipalsukan
+- Riwayat overtime pribadi (terbaru di atas)
+- Pengajuan mengikuti ACC berjenjang: GA HR → Admin
+
+**Konvensi username:** `security_<cabang>` (satu orang) /
+`security_<nama>_<cabang>` (bila >1 orang per cabang) — contoh:
+`security_sby`, `security_budi_sby`. Wajib mengisi kolom **Cabang** saat
+membuat akun.
+
+**Halaman:** Overtime Saya (`/app/overtime-me`)
 
 ---
 
@@ -394,26 +419,27 @@ Sistem mendukung **11 peran inti** (peran `it` dipecah per cabang pada daftar di
 
 ## 4. Ringkasan Akses
 
-| Menu | Admin | GA | Finance | Marketing | Chief Driver | Driver | OB | Receptionist | Traineer | GA HR | IT |
-|------|:-----:|:--:|:-------:|:---------:|:------------:|:------:|:--:|:------------:|:--------:|:-----:|:--:|
-| Dashboard Admin | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| Dashboard GA | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| Dashboard Finance | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| Log Perjalanan | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| Assignments | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| Rekap | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| Kasbon / BBM | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| Analytics | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| Marketing Hub | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| Chief Driver | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| Manajemen User | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| Pengaturan | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| Audit Log | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| Air Minum | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ |
-| Pelamar Kerja | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
-| Aset & Pemeliharaan | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| GA HR (Overtime) | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ |
-| News Scraper | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
+| Menu | Admin | GA | Finance | Marketing | Chief Driver | Driver | OB | Security | Receptionist | Traineer | GA HR | IT |
+|------|:-----:|:--:|:-------:|:---------:|:------------:|:------:|:--:|:--------:|:------------:|:--------:|:----:|:--:|
+| Dashboard Admin | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Dashboard GA | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Dashboard Finance | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Log Perjalanan | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Assignments | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Rekap | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Kasbon / BBM | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Analytics | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Marketing Hub | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Chief Driver | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Manajemen User | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Pengaturan | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Audit Log | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Air Minum | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Overtime Saya (v2.39) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Pelamar Kerja | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
+| Aset & Pemeliharaan | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| GA HR (Overtime) | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ |
+| News Scraper | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
 
 ---
 
@@ -442,7 +468,7 @@ Sistem mendukung **11 peran inti** (peran `it` dipecah per cabang pada daftar di
 1. **PIN Default**: Semua user baru (termasuk bulk create driver/marketing) memakai PIN default yang ditetapkan Admin saat pembuatan akun.
 2. **Bulk Create**: Admin bisa membuat akun massal untuk driver aktif dan anggota marketing via `/api/users/bulk-create`.
 3. **Bulk Reset PIN**: Admin bisa reset PIN massal semua driver via tombol di Settings.
-4. **Role Hierarchy**: Admin > GA/Finance > Marketing/Chief Driver > Driver/OB > Receptionist/Traineer/GA HR.
+4. **Role Hierarchy**: Admin > GA/Finance > Marketing/Chief Driver > Driver/OB/Security > Receptionist/Traineer/GA HR.
 5. **Data Tersimpan di DB Master**: Seluruh data user tersimpan di database master (bukan DB cabang).
 
 ---

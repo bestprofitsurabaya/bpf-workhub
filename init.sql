@@ -69,7 +69,7 @@ CREATE TABLE IF NOT EXISTS users (
     -- self-sufficient (migrasi ALTER di startup TIDAK jalan saat seed ini
     -- dieksekusi oleh entrypoint MariaDB, sehingga INSERT users di bawah
     -- gagal 'Unknown column branch_code' di fresh deploy tanpa ini).
-    role ENUM('admin','ga','finance','marketing','chief_driver','driver','ob','receptionist','traineer','ga_hr','it_sby','it_hu','it_jkt2','it_bdg','it_smg','it_mlg','it_mdn','it_bjm','it_plm','it_lpg') NOT NULL DEFAULT 'ga',
+    role ENUM('admin','ga','finance','marketing','chief_driver','driver','ob','receptionist','traineer','ga_hr','security','it_sby','it_hu','it_jkt2','it_bdg','it_smg','it_mlg','it_mdn','it_bjm','it_plm','it_lpg') NOT NULL DEFAULT 'ga',
     pin VARCHAR(255) NOT NULL,
     team_name VARCHAR(100) DEFAULT '',
     branch_code VARCHAR(20) DEFAULT NULL,
@@ -405,7 +405,7 @@ CREATE TABLE IF NOT EXISTS branches (
 INSERT IGNORE INTO branches (code, name, db_name, city, address, phone, company_name, company_subtitle, system_name, system_version)
 VALUES ('SBY', 'Cabang Surabaya', 'bpf_asset_system', 'Surabaya',
         'Graha Bukopin, Lantai 11, Jl. Panglima Sudirman No. 10-18, Surabaya 60271', '031-5349888',
-        'PT BESTPROFIT FUTURES', 'Cabang Surabaya', 'BPF WorkHub', 'v2.37.8');
+        'PT BESTPROFIT FUTURES', 'Cabang Surabaya', 'BPF WorkHub', 'v2.38.0');
 
 -- Kantor Pusat Jakarta (HO) + cabang JKT kedua
 INSERT IGNORE INTO branches (code, name, db_name, city, address, phone, company_name, company_subtitle, system_name, system_version)
@@ -414,7 +414,7 @@ VALUES ('JKT', 'Kantor Pusat Jakarta', 'bpf_branch_jkt', 'Jakarta',
         'PT BESTPROFIT FUTURES', 'Kantor Pusat | Jakarta', 'BPF WorkHub', 'v2.37.8'),
        ('JKT2', 'Cabang Pacific Place', 'bpf_branch_jkt2', 'Jakarta',
         'Pacific Place Mall Shop Lt. 3, Unit 3-99, Jl. Jend. Sudirman Kav. 52-53, SCBD, Jakarta Selatan 12190', '021-57973015',
-        'PT BESTPROFIT FUTURES', 'Cabang Pacific Place', 'BPF WorkHub', 'v2.37.8');
+        'PT BESTPROFIT FUTURES', 'Cabang Pacific Place', 'BPF WorkHub', 'v2.38.0');
 
 -- Add branch_code column to users if not exists
 SET @exists = (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'branch_code');

@@ -9,7 +9,7 @@ const BRANCH_NAMES = {
 
 const BASE_ROLE_LABELS = {
   admin: 'Admin', ga: 'GA', finance: 'Finance', marketing: 'Marketing',
-  chief_driver: 'Chief Driver', driver: 'Driver', ob: 'OB',
+  chief_driver: 'Chief Driver', driver: 'Driver', ob: 'OB', security: 'Security',
   receptionist: 'Receptionist', traineer: 'Traineer', ga_hr: 'GA HR',
   it: 'IT',
 }
@@ -38,6 +38,7 @@ export const ROLE_META = {
   chief_driver: { label: 'Chief Driver', home: '/chief-driver', color: '#7c3aed', icon: '🚛' },
   driver:       { label: 'Driver',       home: '/driver',       color: '#16a34a', icon: '🚛' },
   ob:           { label: 'OB',           home: '/water',        color: '#0d9488', icon: '🚰' },
+  security:     { label: 'Security',     home: '/overtime-me',  color: '#ea580c', icon: '🛡️' },
   receptionist: { label: 'Receptionist', home: '/receptionist', color: '#db2777', icon: '🪪' },
   traineer:     { label: 'Traineer',     home: '/traineer',     color: '#b45309', icon: '🎯' },
   ga_hr:        { label: 'GA HR',        home: '/ga-hr',        color: '#7e22ce', icon: '⏰' },

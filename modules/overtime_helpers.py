@@ -12,6 +12,16 @@ ke field database secara toleran, plus parsing tanggal (M/D/YYYY) & jam
 Khusus sheet DRIVER via Google Apps Script: nilai dikirim sebagai ISO 8601
 UTC (mis. "2020-12-12T07:08:54.000Z" / "1899-12-30T11:47:56.000Z"). Karena
 sheet diisi dalam zona WIB (UTC+7), semua nilai UTC dikonversi +7 jam.
+
+v2.39.0 — KONTRAK BARU (waktu sesuai sheet):
+Jembatan Apps Script kini MENYERIALKAN tanggal/jam sebagai TEKS sesuai tampilan
+sheet (Utilities.formatDate + zona waktu SPREADSHEET), bukan Date UTC.
+Penyebab: +7 jam mengasumsikan sheet berzona WIB — sheet dengan zona lain
+(mis. GMT+8 Jakarta default lama / zona acct diubah) menghasilkan tanggal &
+jam bergeser di DB ("jam tidak sesuai sumber"). Parser baru
+(parse_date_wall / parse_time_wall / parse_submitted_at_wall) menerima teks
+wall-clock apa adanya TANPA offset; parser ISO UTC (+7) dipertahankan hanya
+sebagai fallback untuk feed Apps Script lama yang belum di-deploy ulang.
 """
 import re
 from datetime import datetime, timedelta
@@ -146,30 +156,114 @@ def parse_iso_dt(value):
     return dt + WIB_OFFSET
 
 
-def parse_date_any(value):
-    """Tanggal dari format apa pun: ISO UTC -> WIB, M/D/YYYY, atau YYYY-MM-DD."""
+def parse_date_wall(value):
+    """Tanggal wall-clock dari Apps Script v2.39 ('2020-12-12' / '1/5/2026')
+    -> 'YYYY-MM-DD' TANPA offset apa pun — persis seperti tampil di sheet.
+
+    Sengaja TIDAK memakai parse_iso_dt & menolak format ISO-UTC ('T…Z') agar
+    feed script LAMA tetap masuk jalur +7 jam (fallback). String polos tanpa
+    'Z' justru dilarikan ke parser lain dan berisiko digeser zona.
+
+    >>> parse_date_wall('2020-12-12')
+    '2020-12-12'
+    >>> parse_date_wall('1/5/2026')
+    '2026-01-05'
+    >>> parse_date_wall('2026-08-14 00:00:00')
+    '2026-08-14'
+    >>> parse_date_wall('2020-12-11T17:00:00.000Z') is None
+    True
+    """
     s = clean(value)
     if not s:
         return None
-    dt = parse_iso_dt(s)
-    if dt:
-        return dt.date().isoformat()
-    m = re.match(r'^(\d{4})-(\d{2})-(\d{2})', s)
+    # Wall-clock murni: 'YYYY-MM-DD' atau 'YYYY-MM-DD HH:MM[:SS]' — TANPA
+    # penanda ISO ('T' pemisah / 'Z' zona). ISO-UTC diserahkan ke parse_iso_dt.
+    m = re.match(r'^(\d{4})-(\d{2})-(\d{2})(?: \d{1,2}:\d{2}(?::\d{2})?)?$', s)
     if m:
         try:
             return datetime(int(m.group(1)), int(m.group(2)),
                             int(m.group(3))).date().isoformat()
         except ValueError:
-            pass
+            return None
+    return parse_date_mdy(s)
+
+
+def parse_time_wall(value):
+    """Jam wall-clock Apps Script v2.39 ('14:24' / '2:24:00 PM') -> 'HH:MM'
+    TANPA offset — persis seperti tampil di sheet. None bila tak dikenal.
+
+    >>> parse_time_wall('14:24')
+    '14:24'
+    >>> parse_time_wall('6:29:00 PM')
+    '18:29'
+    """
+    s = clean(value)
+    if not s:
+        return None
+    if re.match(r'^\d{1,2}:\d{2}(:\d{2})?$', s):
+        # 24-jam polos — normalisasi saja zero-padding.
+        m = re.match(r'^(\d{1,2}):(\d{2})', s)
+        hh, mm = int(m.group(1)), int(m.group(2))
+        if hh > 23 or mm > 59:
+            return None
+        return f'{hh:02d}:{mm:02d}'
+    return parse_time_12h(s)
+
+
+def parse_submitted_at_wall(value):
+    """Timestamp submit wall-clock Apps Script v2.39 ('2020-12-12 14:08:54')
+    -> 'YYYY-MM-DD HH:MM:SS' TANPA offset. None bila tak dikenal.
+
+    >>> parse_submitted_at_wall('2020-12-12 14:08:54')
+    '2020-12-12 14:08:54'
+    >>> parse_submitted_at_wall('2020-12-12 14:08')
+    '2020-12-12 14:08:00'
+    """
+    s = clean(value)
+    if not s:
+        return None
+    m = re.match(r'^(\d{4})-(\d{2})-(\d{2})[ T](\d{1,2}):(\d{2})(?::(\d{2}))?$', s)
+    if not m:
+        return None
+    try:
+        dt = datetime(int(m.group(1)), int(m.group(2)), int(m.group(3)),
+                      int(m.group(4)), int(m.group(5)), int(m.group(6) or 0))
+    except ValueError:
+        return None
+    return dt.strftime('%Y-%m-%d %H:%M:%S')
+
+
+def parse_date_any(value):
+    """Tanggal dari format apa pun: ISO UTC -> WIB, M/D/YYYY, atau YYYY-MM-DD.
+
+    v2.39: string wall-clock Apps Script baru ('YYYY-MM-DD' / 'M/D/YYYY')
+    diprioritaskan — tanpa offset — sehingga nilai tidak lagi digeser +7 jam.
+    """
+    s = clean(value)
+    if not s:
+        return None
+    # v2.39: feed Apps Script baru mengirim wall-clock polos — NOL offset.
+    wall = parse_date_wall(s)
+    if wall:
+        return wall
+    dt = parse_iso_dt(s)
+    if dt:
+        return dt.date().isoformat()
     return parse_date_mdy(s)
 
 
 def parse_time_any(value):
     """Jam dari format apa pun: ISO UTC ('1899-12-30T07:24:56Z') -> HH:MM WIB,
-    atau jam 12/24 jam biasa. None bila tidak dikenal."""
+    atau jam 12/24 jam biasa. None bila tidak dikenal.
+
+    v2.39: jam wall-clock polos ('14:24') diprioritaskan — tanpa offset.
+    """
     s = clean(value)
     if not s:
         return None
+    # v2.39: feed Apps Script baru mengirim wall-clock polos — NOL offset.
+    if re.match(r'^\d{1,2}:\d{2}(:\d{2})?$', s):
+        return parse_time_wall(s)
     dt = parse_iso_dt(s)
     if dt:
         return dt.strftime('%H:%M')
@@ -177,10 +271,17 @@ def parse_time_any(value):
 
 
 def parse_submitted_at_any(value):
-    """Timestamp submit: ISO UTC -> WIB ('YYYY-MM-DD HH:MM:SS'), atau format lama."""
+    """Timestamp submit: ISO UTC -> WIB ('YYYY-MM-DD HH:MM:SS'), atau format lama.
+
+    v2.39: timestamp wall-clock Apps Script baru diprioritaskan — tanpa offset.
+    """
     s = clean(value)
     if not s:
         return None
+    # v2.39: feed Apps Script baru mengirim wall-clock polos — NOL offset.
+    wall = parse_submitted_at_wall(s)
+    if wall:
+        return wall
     dt = parse_iso_dt(s)
     if dt:
         return dt.strftime('%Y-%m-%d %H:%M:%S')

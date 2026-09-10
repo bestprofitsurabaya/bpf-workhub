@@ -44,6 +44,7 @@ const msg = ref('')
 const ROLES = [
   ['admin', '🛡️ Admin'], ['ga', '🧾 GA Officer'], ['finance', '💰 Finance'],
   ['marketing', '📣 Marketing'], ['chief_driver', '🚛 Chief Driver'], ['ob', '🚰 OB'],
+  ['security', '🛡️ Security'],
   ['receptionist', '🪪 Receptionist'], ['traineer', '🎯 Traineer'], ['ga_hr', '⏰ GA HR'],
   ['driver', '🚗 Driver'],
   ['it_sby', '📰 IT Surabaya'],
@@ -71,7 +72,7 @@ const branchName = (code) => {
 // Helper text di form — contoh saja, tanpa validasi keras.
 const DIVISI_TOKEN = {
   ga: 'ga', finance: 'finance', marketing: 'marketing', chief_driver: 'chief_driver',
-  ob: 'ob', receptionist: 'receptionist', traineer: 'traineer', ga_hr: 'gahr',
+  ob: 'ob', security: 'security', receptionist: 'receptionist', traineer: 'traineer', ga_hr: 'gahr',
 }
 const usernameHint = computed(() => {
   const role = form.value.role

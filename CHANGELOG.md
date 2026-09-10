@@ -4,6 +4,123 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 
 ---
 
+## v2.39.1 — 10 September 2026 (Overtime: verifikasi paritas sumber↔sistem + pagination)
+
+### 1. ✅ Verifikasi paritas data overtime (DB vs Google Sheet, live)
+
+Audit menyeluruh pipeline overtime — bridge Apps Script → parser → upsert →
+endpoint list → tampilan SPA — lalu verifikasi empiris di produksi:
+
+- Full sync kedua modul (`full_sync=True`, persis tombol 🔄 Refresh UI):
+  Driver 8.863 baris, OB/Security 614 baris ditarik utuh.
+- **Perbandingan baris-per-baris** feed sheet (dinormalisasi dgn fungsi
+  produksi yang sama) vs DB: Driver **8.763 = 8.763** (0 hilang, 0 ekstra,
+  0 selisih kolom), OB/Security **603 = 603** (0/0/0).
+- Verdict: **DB = sumber sheet** — jam di aplikasi = jam di sheet selama
+  feed berzona WIB.
+- ⚠️ **Temuan operasional**: Web App Apps Script produksi masih menjalankan
+  script LAMA (feed ISO-UTC, belum v2.39 wall-clock). Paritas tetap benar
+  selama zona spreadsheet WIB; untuk zona lain, deploy ulang Web App dari
+  kode repo (aksi yang sama dgn catatan v2.39.0).
+
+### 2. 📊 List & report overtime tak lagi terpotong
+
+List API (2.000), rekap PDF (3.000), dan detail per karyawan (500) tidak
+cukup utk arsip 2020–2026 (8.7rb+ baris Driver) — export tanpa filter
+tanggal hanya menampilkan sebagian data:
+
+- `/api/overtime/driver` & `/api/overtime/ob-security`: LIMIT 2.000 → **20.000**
+- `/api/overtime/report` (rekap PDF/Excel): LIMIT 3.000 → **50.000**
+- `/api/overtime/detail-report`: LIMIT 500 → **10.000**
+- Riwayat `/api/overtime/mine` (OB/Security): LIMIT 200 → **2.000**
+
+### 3. 📄 Pagination klien di halaman Data Overtime
+
+Dengan list yang kini utuh (8.7rb+ baris), tabel dirender per halaman
+supaya DOM tetap ringan:
+
+- Tab Driver & OB/Security masing-masing 100 baris/halaman, reset ke
+  halaman 1 saat data dimuat ulang / filter berubah.
+- Pager: « ‹ Prev [jendela 5 nomor] Next › » + label "Halaman X dari Y ·
+  N catatan".
+
+---
+
+## v2.39.0 — 9 September 2026 (Overtime: waktu sesuai sheet + form overtime user OB & Security + role Security)
+
+### 1. 🐛 Fix: waktu overtime tidak sesuai sumber (Google Sheet via Apps Script)
+
+Keluhan user `gahr_sby`: bagian waktu (tanggal/jam mulai–selesai) di menu
+Overtime tidak cocok dengan sumber data di Google Sheet yang diakses lewat
+Apps Script.
+
+**Akar masalah** — bridge Apps Script mengirim nilai sel mentah via
+`JSON.stringify`; objek `Date` dari `getValues()` diserialisasi sebagai ISO
+**UTC** (mis. `2020-12-12T07:08:54.000Z`). Server lalu menambah **+7 jam**
+dgn asumsi sheet berzona WIB. Bila zona spreadsheet bukan WIB (mis. default
+lama GMT+8 atau zona berubah), tanggal & jam tersimpan bergeser dari yang
+tampil di sheet — persis keluhan "waktu tidak sesuai".
+
+**Fix** — kontrak baru Apps Script ↔ server (wall-clock, tanpa offset):
+- Bridges (`scripts/apps_script_overtime_driver.gs`, `_v2.gs`,
+  `scripts/apps_script_overtime_ob_security.gs`) kini menyerialisasi sel Date
+  sebagai **teks sesuai tampilan sheet**: `Utilities.formatDate` + zona waktu
+  **SPREADSHEET** (`getSpreadsheetTimeZone()`), bukan zona script:
+  kolom tanggal → `yyyy-MM-dd`, Timestamp → `yyyy-MM-dd HH:mm:ss`, kolom jam →
+  `HH:mm:ss` (sel jam murni epoch-1899 tetap benar).
+- Parser baru `modules/overtime_helpers.py`: `parse_date_wall`,
+  `parse_time_wall`, `parse_submitted_at_wall` — memakai nilai APA ADANYA.
+  `parse_date_any` / `parse_time_any` / `parse_submitted_at_any` kini
+  memprioritaskan wall-clock polos; **feed ISO UTC script lama tetap diterima**
+  dan dikonversi +7 WIB sebagai fallback (guard regresi khusus).
+- ⚠️ **ACTION SETELAH DEPLOY**: deploy ulang Web App Apps Script (Driver &
+  OB/Security) dari kode terbaru repo → tempel URL `/exec` yang sama →
+  GA HR klik 🔄 **Refresh** (full sync). Baris lama yang tersimpan bergeser
+  ikut terkoreksi saat upsert (kunci `source_uid` stabil).
+- **Bonus fix**: `NameError: session` di `POST /api/overtime/driver/submit`
+  (import `session` level-modul hilang sejak refactor v2.36.2) — submit OT
+  Driver dari PWA gagal 500. Kini diimpor dengan benar.
+
+### 2. 🆕 Form Overtime untuk user OB (dari dalam aplikasi, tanpa sheet)
+
+Sebelumnya OB hanya punya Air Minum; pengisian overtime lewat form publik
+(tanpa login) sehingga bebas nama. Sekarang:
+- Endpoint `POST /api/overtime/me/submit` (role `ob`/`security`): **identitas
+  dari sesi** — nama & posisi terkunci (OB → `OB`, Security → `Security`),
+  tidak bisa dipalsukan; tersimpan ke **DB cabang sesi** (branch-aware);
+  foto bukti watermark + GPS paritas form publik; ACC berjenjang GA HR →
+  Admin (jurnal `approval_requests` dengan role pengaju asli).
+- `GET /api/overtime/mine` — riwayat overtime sendiri (terbaru di atas).
+- Halaman SPA baru **"⏰ Overtime Saya"** (`/app/overtime-me`), menu sidebar
+  untuk OB & Security. Kolom mengikuti sheet sumber: **Tanggal, Waktu Mulai,
+  Waktu Selesai, Keterangan** (+ foto bukti & GPS). Form publik
+  `/app/overtime-form` tetap tersedia sebagai cadangan.
+
+### 3. 🆕 Role `security`
+
+User Security belum ada — kini jadi role sendiri (sebelumnya dijejal ke OB):
+- `users.role` ENUM + `security` (`init.sql` + upgrade idempoten
+  `appointments_schema.py` — DB lama otomatis diperluas saat start).
+- Konvensi username: `security_<cabang>` (satu orang) /
+  `security_<nama>_<cabang>` (bila >1) — divalidasi backend
+  (`routes_api_master.py`), contoh `security_sby`, `security_budi_sby`.
+  **Wajib isi identitas cabang** saat membuat akun (kolom Cabang).
+- Home `/overtime-me`; sidebar "Overtime Saya"; label 🛡️ Security di
+  Manajemen User & Access Review; rantai ACC overtime = OB (GA HR → Admin).
+- Overtime Security tetap masuk tab OB & Security dengan posisi `Security`
+  (dropdown Posisi & filter yang sudah ada — tanpa perubahan GA HR).
+
+### 4. ✅ Test & dokumen
+- **+18 pytest** (`tests/test_overtime_wallclock.py`): parser wall-clock
+  (tanpa geser), fallback ISO UTC tetap +7, baris feed baru Driver & OB,
+  daftar role self-submit. Suite hijau: **575 pytest (+8 skip) · 141 vitest ·
+  build SPA ✓**.
+- README, USER_GUIDE, USER_LIST, DEPLOYMENT, PROGRESS diperbarui.
+- Catatan: stamp versi kode (identity/sw/PDF) mengikuti rilis berikutnya
+  bersama migrasi worker v2.38.0 yang sedang dalam one working tree.
+
+---
+
 ## Dokumen — Diagram Alir Sistem (8 September 2026)
 
 Diagram alir sistem BPF WorkHub yang **interaktif di browser**:

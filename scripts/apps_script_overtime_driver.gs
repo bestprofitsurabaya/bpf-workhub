@@ -29,7 +29,56 @@
  *   6. Klik Deploy → salin URL Web App (https://script.google.com/macros/s/…/exec)
  *   7. Tempel URL itu di dashboard GA HR → tombol ⚙️ Sumber Data → Simpan.
  *      Tombol 🔄 Refresh kini menarik data dari sheet (tetap private).
+ *
+ * v2.39 — KONTRAK TANGGAL/JAM BARU (fix "jam tidak sesuai sumber"):
+ *   Nilai Date dari getValues() TIDAK lagi di-JSON.stringify mentah (ISO UTC,
+ *   yang membuat server menambah +7 jam dengan asumsi sheet berzona WIB).
+ *   Sel Date kini diserialisasi sebagai TEKS sesuai tampilan sheet:
+ *   Utilities.formatDate + zona waktu SPREADSHEET (tanggal → 'yyyy-MM-dd',
+ *   Timestamp → 'yyyy-MM-dd HH:mm:ss', kolom jam → 'HH:mm:ss'). Server
+ *   memakai nilai ini APA ADANYA — jam di aplikasi = jam di sheet.
  */
+
+// ====== ZONA WAKTU & SERIALIZASI (v2.39 — wall-clock sesuai sheet) ======
+var _tzCache = null;
+function sheetTimeZone_() {
+  if (_tzCache) return _tzCache;
+  try {
+    _tzCache = SpreadsheetApp.openById(SHEET_ID).getSpreadsheetTimeZone();
+  } catch (err) {
+    _tzCache = Session.getScriptTimeZone() || 'Asia/Jakarta';
+  }
+  return _tzCache;
+}
+
+function isTimeColumn_(header) {
+  var h = String(header || '').toLowerCase();
+  if (/(tanggal|date|timestamp)/.test(h)) return false;
+  return /(waktu|jam|mulai|selesai|dari|\bin\b|sampai|\bout\b|time)/.test(h);
+}
+
+function isDateOnlyColumn_(header) {
+  var h = String(header || '').toLowerCase();
+  return /(tanggal|date)/.test(h) && !/timestamp/.test(h);
+}
+
+function dateToText_(v, header) {
+  var tz = sheetTimeZone_();
+  if (v.getFullYear() < 1900) {
+    // Sel JAM murni — epoch waktu Google Sheets (basis 1899-12-30).
+    return Utilities.formatDate(v, tz, 'HH:mm:ss');
+  }
+  if (isTimeColumn_(header)) return Utilities.formatDate(v, tz, 'HH:mm:ss');
+  if (isDateOnlyColumn_(header)) return Utilities.formatDate(v, tz, 'yyyy-MM-dd');
+  return Utilities.formatDate(v, tz, 'yyyy-MM-dd HH:mm:ss');
+}
+
+function cellToText_(v, header) {
+  if (v instanceof Date) return dateToText_(v, header);
+  if (v === null || v === undefined) return '';
+  if (v instanceof Object) return JSON.stringify(v);
+  return v;
+}
 
 function doGet(e) {
   // Ganti ID ini bila sheet Driver diganti.
@@ -49,7 +98,8 @@ function doGet(e) {
     for (var i = 1; i < values.length; i++) {
       var row = {};
       for (var j = 0; j < headers.length; j++) {
-        row[headers[j]] = values[i][j];
+        // v2.39: sel Date diserialisasi wall-clock sesuai sheet (bukan ISO UTC).
+        row[headers[j]] = cellToText_(values[i][j], headers[j]);
       }
       out.push(row);
     }
