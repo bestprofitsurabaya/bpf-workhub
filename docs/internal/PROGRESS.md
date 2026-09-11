@@ -73,7 +73,31 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 ## 🗂️ Riwayat Sesi
 
-### Sesi 2026-09-11 — v2.39.4: bridge Apps Script v3 + AKAR MASALAH ISO DITEMUKAN ✅ SELESAI + LIVE
+### Sesi 2026-09-11 (lanjutan) — rev 4/5: DUA akar masalah jam overtime dituntaskan ✅ SELESAI + LIVE
+
+> Laporan user: baris Guruh 9 Sep di aplikasi 18:55–23:29, di sheet 18:30–23:04
+> (selisih +25:08 persis di dua kolom). Investigasi via `?debug=1` rev 4
+> (probe baris spesifik: display vs raw + daftar tab) membongkar akar kedua.
+
+1. **Akar #1 (ISO UTC)**: objek Date lintas-sandbox gagal `instanceof Date`
+   → JSON.stringify → ISO UTC (rev 3: duck-typing + normalisasi).
+2. **Akar #2 (jam bergeser)**: sel jam sheet Driver = **durasi epoch-1899**;
+   zona spreadsheet `Asia/Jakarta` → offset **historis 1899 (+07:07:12)**
+   dipakai formatDate untuk objek tsb → semua jam bergeser sistematis
+   (fingerprint: 17.528 nilai ber-detik `:08`; +25:08 konstan, durasi sama).
+   **rev 5**: sel jam-murni (epoch < 1900) diserialisasi dari
+   **`getDisplayValues()`** — ground truth yang dilihat user; tanggal &
+   timestamp asli tetap formatDate (aman).
+3. **Koreksi dugaan sebelumnya**: jam OB TIDAK pernah bergeser — nilai durasi
+   sel OB memang 18:29 dst; pembacaan 11:29 dari data ISO lama adalah
+   representasi 1899-12-29, bukan jam pengajuan. OB feed/DB konsisten.
+4. **Full sync final (code_rev:5 di kedua bridge)**: Driver 8.764 update,
+   OB 26 update; verifikasi: Guruh 9 Sep DB = sheet = `18:30–23:04`; 0 nilai
+   jam ber-detik non-nol di kedua tabel (8.764 baris Driver format HH:MM).
+5. Commit v2.39.4 (cc408f0) + repair tahun (9838d5b) ter-push; script
+   `?debug=1`/`?marker=1` tersisa sebagai alat diagnostik permanen.
+
+### Sesi 2026-09-11 — v2.39.4: bridge Apps Script v3 (rev 1–3) ✅ SELESAI + LIVE
 
 > Cek hasil redeploy user (11 Sep 08:43, deployment ID & "New version" benar):
 > feed MASIH ISO-UTC. Keputusan user: **buat semua baru** — file baru, proyek

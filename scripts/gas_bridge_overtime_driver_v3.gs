@@ -15,6 +15,14 @@
  *           (bug sandbox/context Apps Script) → masuk cabang JSON.stringify →
  *           ISO UTC. Fix: deteksi via duck-typing (.getTime) + normalisasi ke
  *           Date asli context script; Utilities.formatDate bekerja normal.
+ *   rev 4 — ?debug=1 perluas: probe baris terpilih (display vs raw) + daftar
+ *           tab. TEMUAN: sel jam Driver = durasi epoch-1899; formatDate dgn
+ *           zona 'Asia/Jakarta' memakai offset HISTORIS 1899 (+07:07:12)
+ *           → semua jam bergeser sistematis (display 18:30 terbaca 18:55:08).
+ *   rev 5 — FIX FINAL: sel JAM-MURNI (epoch < 1900) diserialisasi dari
+ *           getDisplayValue() (ground truth yang dilihat user di sheet),
+ *           fallback formatDate bila kosong. Kolom tanggal/timestamp asli
+ *           tetap formatDate (aman — bukan epoch 1899).
  *
  * PENANDA VERSI (anti "script lama menyamar"):
  *   <URL_/exec>?marker=1 →
@@ -42,7 +50,7 @@
 
 // ====== PENANDA VERSI ======
 var BRIDGE_MARKER = 'bpf-ot-driver-2026-09-11-v3';
-var CODE_REV = 3;
+var CODE_REV = 5;
 
 // ====== CACHE (in-memory, reset setiap cold start ~5 min) ======
 var _cacheV3 = {};
@@ -92,12 +100,19 @@ function toDateV3_(v) {
   return null;
 }
 
-function dateToTextV3_(v, header) {
+function dateToTextV3_(v, header, disp) {
   var d = toDateV3_(v);
   if (!d) return (v === null || v === undefined) ? '' : String(v);
   var tz = sheetTimeZoneV3_();
   if (d.getFullYear() < 1900) {
-    // Sel JAM murni — epoch waktu Google Sheets (basis 1899-12-30).
+    // Sel JAM/durasi murni (epoch 1899-12-30). PENTING (rev 5): bila zona
+    // spreadsheet memakai nama kota berzona historis (mis. 'Asia/Jakarta',
+    // offset 1899 = +07:07:12), formatDate menggeser jam sistematis (display
+    // 18:30 terbaca 18:55:08). Ground truth = TAMPILAN SEL yang dilihat user.
+    if (typeof disp === 'string' && /^\d{1,3}:\d{2}(:\d{2})?$/.test(disp.trim())) {
+      var t = disp.trim();
+      return t.length === 5 ? t + ':00' : t;
+    }
     return Utilities.formatDate(d, tz, 'HH:mm:ss');
   }
   if (isTimeColumnV3_(header)) return Utilities.formatDate(d, tz, 'HH:mm:ss');
@@ -123,8 +138,8 @@ function isoUtcToWallV3_(s, header) {
   }
 }
 
-function cellToTextV3_(v, header) {
-  if (isDateLikeV3_(v)) return dateToTextV3_(v, header);
+function cellToTextV3_(v, header, disp) {
+  if (isDateLikeV3_(v)) return dateToTextV3_(v, header, disp);
   if (v === null || v === undefined) return '';
   if (typeof v === 'string' && ISO_UTC_RE_V3.test(v)) return isoUtcToWallV3_(v, header);
   if (v instanceof Object) return JSON.stringify(v);
@@ -171,8 +186,53 @@ function doGet(e) {
         } catch (err3) {
           dbg.ts0_fixed_err = String(err3);
         }
+        try { dbg.sheet_tz = sheetTimeZoneV3_(); } catch (errTz) { /* abaikan */ }
       } catch (err2) {
         dbg.read_error = String(err2);
+      }
+      // rev 4 — bedah baris Guruh terakhir: tampilan sheet vs nilai mentah sel jam
+      try {
+        var ssD = SpreadsheetApp.openById(SHEET_ID);
+        dbg.tabs = ssD.getSheets().map(function(s) { return s.getName() + ':' + s.getLastRow(); }).slice(0, 6);
+        var shD = ssD.getSheets()[0];
+        var headsD = shD.getRange(1, 1, 1, shD.getLastColumn()).getValues()[0];
+        var cols = { nameCol: -1, inCol: -1, outCol: -1, tsCol: -1 };
+        for (var c = 0; c < headsD.length; c++) {
+          var hh = String(headsD[c] || '').toLowerCase();
+          if (cols.nameCol < 0 && hh.indexOf('nama') >= 0) cols.nameCol = c + 1;
+          if (cols.inCol < 0 && hh.indexOf('dari') >= 0) cols.inCol = c + 1;
+          if (cols.outCol < 0 && hh.indexOf('sampai') >= 0) cols.outCol = c + 1;
+          if (cols.tsCol < 0 && hh.indexOf('timestamp') >= 0) cols.tsCol = c + 1;
+        }
+        dbg.cols = cols;
+        var lastRowD = shD.getLastRow();
+        var found = -1;
+        if (cols.nameCol > 0) {
+          var scanFrom = Math.max(2, lastRowD - 500);
+          var names = shD.getRange(scanFrom, cols.nameCol, lastRowD - scanFrom + 1, 1).getValues();
+          for (var i = names.length - 1; i >= 0; i--) {
+            if (String(names[i][0]).toLowerCase().indexOf('guruh') >= 0) { found = scanFrom + i; break; }
+          }
+        }
+        if (found > 0) {
+          var probe = { row: found };
+          ['inCol', 'outCol', 'tsCol'].forEach(function(key) {
+            var cn = cols[key];
+            if (cn > 0) {
+              var disp = shD.getRange(found, cn).getDisplayValue();
+              var raw = shD.getRange(found, cn).getValue();
+              var rawStr = isDateLikeV3_(raw)
+                ? Utilities.formatDate(toDateV3_(raw), sheetTimeZoneV3_(), "yyyy-MM-dd HH:mm:ss.SSSZ")
+                : String(raw);
+              probe[key] = { header: String(headsD[cn - 1]), display: disp, raw: rawStr, typeof: typeof raw };
+            }
+          });
+          dbg.guruh_row = probe;
+        } else {
+          dbg.guruh_row = 'tidak ketemu di ' + (lastRowD - 500) + '..' + lastRowD;
+        }
+      } catch (err4) {
+        dbg.sheet_probe_err = String(err4);
       }
       dbg.len_doGet = String(doGet).length;
       dbg.len_cellToText = String(cellToTextV3_).length;
@@ -326,12 +386,16 @@ function getCachedDataV3_(sheetId) {
   }
 
   var headers = values[0].map(function(h) { return String(h || '').trim(); });
+  // rev 5: tampilan sel = ground truth utk sel jam/durasi (epoch 1899).
+  var dispAll = sheet.getDataRange().getDisplayValues();
   var out = [];
   for (var i = 1; i < values.length; i++) {
     var row = {};
     for (var j = 0; j < headers.length; j++) {
-      // Sel Date / string ISO-UTC diserialisasi wall-clock sesuai sheet.
-      row[headers[j]] = cellToTextV3_(values[i][j], headers[j]);
+      // Sel Date / string ISO-UTC diserialisasi wall-clock sesuai sheet;
+      // sel jam-murni memakai tampilan sel (lihat dateToTextV3_ rev 5).
+      row[headers[j]] = cellToTextV3_(values[i][j], headers[j],
+                                      dispAll[i] ? dispAll[i][j] : undefined);
     }
     out.push(row);
   }

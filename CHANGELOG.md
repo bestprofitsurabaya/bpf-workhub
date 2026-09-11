@@ -34,13 +34,26 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
   sheet, fallback ISO-UTC tetap diterima server) — server tak perlu diubah.
 - **rev 2**: semua helper diberi akhiran `V3_` (tak bisa ditimpa sisa kode
   lama), string ISO-UTC ikut dikonversi, `?debug=1` + `code_rev` di respons.
-- **rev 3 — AKAR MASALAH SEBENARNYA (terbukti via `?debug=1`)**: sel tanggal
+- **rev 3 — AKAR MASALAH pertama (terbukti via `?debug=1`)**: sel tanggal
   dari `getValues()` adalah objek mirip-Date yang **gagal `instanceof Date`**
   (bug sandbox/context Apps Script) → masuk cabang `JSON.stringify` → ISO UTC.
   Inilah sebabnya skrip wall-clock mana pun (termasuk salinan yang diupdate
   di proyek lama) tetap mengirim ISO. Fix: deteksi duck-typing (`isDateLikeV3_`
-  cek `.getTime()`) + normalisasi `toDateV3_()` ke `Date` asli context script;
-  `Utilities.formatDate` bekerja normal → wall-clock sesuai zona sheet.
+  cek `.getTime()`) + normalisasi `toDateV3_()` ke `Date` asli context script.
+- **rev 4/5 — AKAR MASALAH KEDUA (laporan user: jam Driver selisih +25 menit
+  dari sheet)**: probe `?debug=1` menunjukkan display sel `18:30:00` vs raw
+  `1899-12-30 18:55:08.000+0707`. Sel jam di sheet Driver = **durasi epoch
+  1899-12-30**, dan zona spreadsheet Driver `Asia/Jakarta` memakai **offset
+  historis 1899 (+07:07:12)** untuk objek tsb → `formatDate` menggeser semua
+  jam sistematis (fingerprint: 17.528 nilai ber-detik `:08`; selisih konstan
+  +25:08 di dua kolom, durasi tak berubah). Fix rev 5: sel **jam-murni**
+  (epoch < 1900) diserialisasi dari **`getDisplayValues()`** (ground truth
+  yang dilihat user di sheet), fallback formatDate; kolom tanggal/timestamp
+  asli tetap formatDate (bukan epoch 1899, aman).
+- **Hasil akhir live**: feed Driver 17.528/17.528 nilai jam dgn detik `:00`;
+  baris Guruh 9 Sep feed = DB = sheet `18:30–23:04`; OB terbukti tak pernah
+  bergeser (dugaan awal +7 jam OB adalah salah baca data ISO lama — durasi
+  sel OB memang 18:29 dst); full sync final: 0 detik non-nol di kedua tabel.
 - Referensi nama file diperbarui: `OvertimeView.vue` (modal Sumber Data),
   `docs/internal/OT_WEBAPP_REDEPLOY.md` (ditulis ulang: proyek baru + URL
   baru + verifikasi marker + hapus proyek lama), `DEPLOYMENT.md`,

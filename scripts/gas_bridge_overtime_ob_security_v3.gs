@@ -15,6 +15,13 @@
  *           (bug sandbox/context Apps Script) → masuk cabang JSON.stringify →
  *           ISO UTC. Fix: deteksi via duck-typing (.getTime) + normalisasi ke
  *           Date asli context script; Utilities.formatDate bekerja normal.
+ *   rev 5 — FIX FINAL sel JAM-MURNI (epoch < 1900): diserialisasi dari
+ *           getDisplayValue() (ground truth yang dilihat user di sheet),
+ *           fallback formatDate bila kosong. Temuan: konversi zona apa pun
+ *           pada objek epoch-1899 menggeser jam (OB +7:00 — resync dgn rev 3
+ *           sempat menggeser jam OB di DB; display-based mengembalikannya
+ *           ke nilai yang benar sesuai sheet). Kolom tanggal/timestamp asli
+ *           tetap formatDate (aman — bukan epoch 1899).
  *
  * Pola sama dengan gas_bridge_overtime_driver_v3.gs — sheet OB/Security
  * PRIVATE (diisi Google Form); script dieksekusi sbg akun yang punya akses
@@ -53,7 +60,7 @@ var SHEET_ID = '1AsBq-rHssGmv5vHAzorrphZeNxchodkJQXz1wdBPoms';
 
 // ====== PENANDA VERSI ======
 var BRIDGE_MARKER = 'bpf-ot-ob-2026-09-11-v3';
-var CODE_REV = 3;
+var CODE_REV = 5;
 
 // ====== CACHE (in-memory, reset setiap cold start ~5 min) ======
 var _cacheV3 = {};
@@ -103,12 +110,19 @@ function toDateV3_(v) {
   return null;
 }
 
-function dateToTextV3_(v, header) {
+function dateToTextV3_(v, header, disp) {
   var d = toDateV3_(v);
   if (!d) return (v === null || v === undefined) ? '' : String(v);
   var tz = sheetTimeZoneV3_();
   if (d.getFullYear() < 1900) {
-    // Sel JAM murni — epoch waktu Google Sheets (basis 1899-12-30).
+    // Sel JAM/durasi murni (epoch 1899-12-30). PENTING (rev 5): bila zona
+    // spreadsheet memakai nama kota berzona historis (mis. 'Asia/Jakarta',
+    // offset 1899 = +07:07:12), formatDate menggeser jam sistematis.
+    // Ground truth = TAMPILAN SEL yang dilihat user.
+    if (typeof disp === 'string' && /^\d{1,3}:\d{2}(:\d{2})?$/.test(disp.trim())) {
+      var t = disp.trim();
+      return t.length === 5 ? t + ':00' : t;
+    }
     return Utilities.formatDate(d, tz, 'HH:mm:ss');
   }
   if (isTimeColumnV3_(header)) return Utilities.formatDate(d, tz, 'HH:mm:ss');
@@ -134,8 +148,8 @@ function isoUtcToWallV3_(s, header) {
   }
 }
 
-function cellToTextV3_(v, header) {
-  if (isDateLikeV3_(v)) return dateToTextV3_(v, header);
+function cellToTextV3_(v, header, disp) {
+  if (isDateLikeV3_(v)) return dateToTextV3_(v, header, disp);
   if (v === null || v === undefined) return '';
   if (typeof v === 'string' && ISO_UTC_RE_V3.test(v)) return isoUtcToWallV3_(v, header);
   if (v instanceof Object) return JSON.stringify(v);
@@ -332,12 +346,16 @@ function getCachedDataV3_(sheetId) {
   }
 
   var headers = values[0].map(function(h) { return String(h || '').trim(); });
+  // rev 5: tampilan sel = ground truth utk sel jam/durasi (epoch 1899).
+  var dispAll = sheet.getDataRange().getDisplayValues();
   var out = [];
   for (var i = 1; i < values.length; i++) {
     var row = {};
     for (var j = 0; j < headers.length; j++) {
-      // Sel Date / string ISO-UTC diserialisasi wall-clock sesuai sheet.
-      row[headers[j]] = cellToTextV3_(values[i][j], headers[j]);
+      // Sel Date / string ISO-UTC diserialisasi wall-clock sesuai sheet;
+      // sel jam-murni memakai tampilan sel (lihat dateToTextV3_ rev 5).
+      row[headers[j]] = cellToTextV3_(values[i][j], headers[j],
+                                      dispAll[i] ? dispAll[i][j] : undefined);
     }
     out.push(row);
   }
