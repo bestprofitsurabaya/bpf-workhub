@@ -99,6 +99,16 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 6. **Rebuild image final (pasca user konfirmasi hasil sesuai)**: template rev 5
    & repair script kini di dalam image; health 200, 0 restart, log bersih;
    CI hijau di 3 run hari ini (v3, repair, rev 5).
+7. **Audit bug serupa (epoch-1899) di seluruh sistem — aman**: (a) jalur
+   pembaca sheet hanya 2 (`routes_overtime` driver & ob) — keduanya rev 5;
+   (b) tak ada modul lain yang membaca Google Sheet; (c) parser server
+   (`overtime_helpers`) menerima format display rev 5 (jam 1-digit, fallback
+   12-jam, validasi rentang); (d) DB historis bersih — 0 nilai jam ber-detik
+   non-nol di kedua tabel; (e) gviz URL di `overtime_schema.py` hanyalah seed
+   `INSERT IGNORE` utk fresh-deploy (produksi override Apps Script); (f)
+   teka-teki "kenapa OB tak pernah bergeser" terjawab: jalur ISO lama
+   round-trip zona yang sama (11:29Z +7 = 18:29 = durasi sel) — konsisten
+   di semua era sync.
 
 ### Sesi 2026-09-11 — v2.39.4: bridge Apps Script v3 (rev 1–3) ✅ SELESAI + LIVE
 
