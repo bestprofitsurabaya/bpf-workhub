@@ -1,7 +1,7 @@
 # ============================================================
 # Stage 1 — Build SPA Vue 3 (Vite)
 # ============================================================
-FROM node:20-alpine AS frontend-build
+FROM node:22-alpine AS frontend-build
 WORKDIR /build
 COPY frontend/package*.json ./
 RUN npm install --no-audit --no-fund

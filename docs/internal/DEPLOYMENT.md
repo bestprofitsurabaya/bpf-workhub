@@ -460,7 +460,7 @@ lalu arahkan Public Hostname ke `http://bbm_web:5000`.
 ## 13. Antarmuka Admin Vue 3 — Build & Deploy
 
 Antarmuka back-office adalah **SPA Vue 3 + Vite** di `frontend/`. Sejak v2.29.1, SPA di-build
-**di dalam Dockerfile** (multi-stage: `node:20-alpine` → build → hasil disalin ke image Flask),
+**di dalam Dockerfile** (multi-stage: `node:22-alpine` → build → hasil disalin ke image Flask),
 jadi:
 
 ```bash
