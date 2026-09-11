@@ -81,10 +81,10 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
    (Node 20 EOL); DEPLOYMENT.md §13 ikut diperbarui; bbm_web di-rebuild +
    smoke check pasca-bump.
 3. **Push HTTPS** utk commit workflow ditolak (token gh kurang scope
-   `workflow`) → push via SSH remote one-off. ⏳ Peningkatan scope token gh
-   via `gh auth refresh -s workflow` MENUNGGU otorisasi device-flow di
-   browser user (butuh aksi manual); sementara itu push commit workflow
-   lewat SSH (kunci tersedia, sudah terverifikasi).
+   `workflow`) → push via SSH remote one-off. ✅ Token gh dinaikkan scope-nya
+   via `gh auth refresh -s workflow` (device flow, diotorisasi user 11 Sep
+   malam) — `git credential fill` terverifikasi match token baru, push HTTPS
+   normal kini berlaku utk SEMUA commit incl. `.github/workflows/`.
 
 ### Sesi 2026-09-11 (lanjutan 4) — bump CI actions + verifikasi live scrape–publish & scrape ulang 2 artikel ✅ SELESAI (commit menyusul)
 
