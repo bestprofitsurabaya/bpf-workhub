@@ -2,7 +2,7 @@
 
 **Sistem Manajemen Armada untuk PT. Bestprofit Futures — Kantor Pusat Jakarta**
 
-> 📅 Versi 2.37.0 · September 2026 — Edit/hapus transaksi air minum (fitur opsional per cabang) · Admin per-cabang (`admin_<kode>`) · Approval Berjenjang · Program 6 tahap ISO 27001 selesai · Kantor Pusat Jakarta (Equity Tower)
+> 📅 Versi 2.39.5 · September 2026 — Kualitas konten scraper (pembersih boilerplate + H2 utuh + guard gramatika) · Overtime wall-clock sesuai sheet (bridge Apps Script v3 + marker versi) · Form Overtime Saya untuk OB & Security · Edit/hapus transaksi air minum (opsional per cabang) · Admin per-cabang (`admin_<kode>`) · Approval Berjenjang · Program 6 tahap ISO 27001 selesai · Kantor Pusat Jakarta (Equity Tower)
 
 ---
 
@@ -115,6 +115,11 @@ Akun seed yang dibuat otomatis saat inisialisasi database (terverifikasi login):
 > **bukan akun demo publik** — dibuat oleh Admin saat onboarding dan PIN-nya
 > dikelola Admin (ganti setelah login pertama). Jangan andalkan PIN `123456`
 > untuk akun tersebut.
+>
+> 🔑 **Server produksi:** akun seed `admin` telah di-rename menjadi
+> **`admin_master`** (Admin Pusat, 7 Sep 2026) dan semua PIN bawaan sudah
+> diganti — lihat [Daftar User & Role](docs/internal/USER_LIST.md). Tabel
+> di atas hanya berlaku untuk fresh deploy dari `init.sql`.
 
 ### ✍️ Konvensi Username (sejak v2.29.7)
 

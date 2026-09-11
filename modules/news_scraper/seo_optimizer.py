@@ -493,6 +493,32 @@ def _inject_linkable_page_links(content: str) -> str:
 # 3. ARTICLE HTML
 # ===================================================================
 
+def _subheading_candidate(para: str) -> str:
+    """Kandidat subheading H2 dari sebuah paragraf (v2.39.5).
+
+    Mengembalikan kalimat PERTAMA paragraf bila layak jadi H2 — utuh,
+    tidak berupa fragmen ucapan (tanda kutip), dan panjang wajar.
+    Return '' bila tidak ada kandidat layak: paragraf tetap terbit
+    tanpa H2 — lebih baik daripada H2 aneh/terpotong.
+    """
+    if not para:
+        return ''
+    sentences = re.split(r'(?<=[.!?])\s+', para.strip(), maxsplit=1)
+    candidates = [sentences[0].strip()]
+    if len(candidates[0]) > 80 and ',' in candidates[0]:
+        # Kalimat berita panjang → coba klausa pertama sebelum koma.
+        candidates.append(candidates[0].split(',')[0].strip())
+    for first in candidates:
+        if len(first) < 15 or len(first) > 80:
+            continue
+        if first[0] in '"\u201c\u2018\u2019\'':
+            continue  # fragmen ucapan narasumber — jangan jadikan heading
+        if first.count('"') % 2 or first.count('\u201c') > first.count('\u201d'):
+            continue  # kutipan belum tertutup di dalam kandidat
+        return first.rstrip('.!?').strip()
+    return ''
+
+
 def build_article_html(title: str, content: str, article: Dict[str, Any],
                        publish_date: str, publish_time: str) -> str:
     """Build professional article HTML with proper structure.
@@ -555,11 +581,13 @@ def build_article_html(title: str, content: str, article: Dict[str, Any],
     # Build article body with proper paragraph tags
     body_paragraphs = ''
     for i, para in enumerate(paragraphs):
-        # Add subheading every 3 paragraphs
+        # Subheading tiap 3 paragraf — HANYA kalimat utuh pendek (v2.39.5).
+        # Bug lama: H2 = 6 kata pertama paragraf → heading terpotong,
+        # duplikat awal paragraf di bawahnya, dan TOC ikut menampilkan
+        # fragmen ucapan narasumber (kasus artikel Bahlil 11 Sep 2026).
         if i > 0 and i % 3 == 0 and len(para) > 50:
-            words = para.split()[:6]
-            subheading = ' '.join(words)
-            if len(subheading) > 10:
+            subheading = _subheading_candidate(para)
+            if subheading:
                 body_paragraphs += f'<h2>{_esc(subheading)}</h2>'
         body_paragraphs += f'<p>{_esc(para)}</p>'
 
@@ -882,7 +910,7 @@ _SYNONYMS: Dict[str, List[str]] = {
     'menunjukkan': ['menunjukkan', 'menjelaskan', 'memaparkan', 'menyiratkan'],
     'diperkirakan': ['diperkirakan', 'ditaksir', 'diestimasi', 'kemungkinan'],
     'sebelumnya': ['sebelumnya', 'sejak awal', 'di awal', 'sejak lama'],
-    'menjadi': ['menjadi', 'berubah jadi', 'merupakan', 'jatuh ke'],
+    'menjadi': ['menjadi', 'merupakan'],
     'tercatat': ['tercatat', 'terekam', 'menempuh', 'mencapai'],
     'menguat': ['menguat', 'naik', 'melonjak', 'mengalami kenaikan'],
     'melemah': ['melemah', 'turun', 'merosot', 'mengalami penurunan'],
@@ -895,7 +923,7 @@ _SYNONYMS: Dict[str, List[str]] = {
     'analisis': ['analisis', 'analisa', 'ulasan', 'tinjauan'],
     'pergerakan': ['pergerakan', 'koreksi', 'gerakan', 'ayunan'],
     'seiring': ['seiring', 'sejalan', 'bersamaan', 'iring-iringan'],
-    'terhadap': ['terhadap', 'kepada', 'bagi', 'bagi'],
+    'terhadap': ['terhadap', 'kepada'],
     'sentimen': ['sentimen', 'suasana pasar', 'psikologi pasar', 'kondisi pasar'],
 }
 

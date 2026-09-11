@@ -73,6 +73,69 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 ## 🗂️ Riwayat Sesi
 
+### Sesi 2026-09-11 (lanjutan 3) — v2.39.5: kualitas konten scraper ✅ SELESAI + LIVE
+
+> Review 2 artikel live Surabaya (Bahlil impor minyak Rusia; Reli minyak
+> AS–Iran, 11 Sep) menemukan 3 cacat pipeline scraper: H2 otomatis berupa
+> fragmen ucapan terpotong (`quot-bayangkan-…`), boilerplate "SCROLL TO
+> CONTINUE WITH CONTENT" ikut terbit, dan spin sinonim merusak gramatika
+> ("tetap berubah jadi", "serangan bagi infrastruktur"). Detail di
+> CHANGELOG v2.39.5.
+
+1. **Pembersih konten** — `clean_article_content()` (scraper_engine.py):
+   buang boilerplate/penanda paginasi/disclaimer sumber, paragraf terpotong
+   yang kelengkapannya menyusul, dan duplikat persis; idempoten; dipasang
+   di jalur ekstraksi Detik & generik (Newsmaker).
+2. **Gerbang kualitas H2** — `_subheading_candidate()` (seo_optimizer.py):
+   H2 hanya kalimat utuh 15–80 char, tolak fragmen kutipan; fallback
+   klausa sebelum koma; tanpa kandidat → tanpa H2. Generator lama (6 kata
+   pertama paragraf) dihapus.
+3. **Guard sinonim** — `menjadi`→[merupakan], `terhadap`→[kepada]; opsi
+   `berubah jadi`/`jatuh ke`/`bagi` dihapus (kalimat rusak).
+4. **19 test regresi** `tests/test_news_content_cleaning.py` dari kasus
+   nyata; 64 pytest scraper terkait lulus (6 skip pre-existing).
+5. **CSS WP diperiksa + keputusan**: Additional CSS Customizer terverifikasi
+   aktif dipakai (semua kelas utama ada di markup live; font Inter nyata
+   dimuat); CTA scraper ternyata inline-styled (independen). Keputusan
+   user: **keep as-is** — tidak diubah/dihapus.
+6. **Deploy live v2.39.5**: stamp 5 file + stamp DB master & 8 cabang,
+   rebuild bbm_web, smoke check, verifikasi fetch artikel asli di container
+   — output bersih tanpa boilerplate/H2 fragmen.
+
+### Sesi 2026-09-11 (lanjutan 2) — restrukturisasi ringan: stamp v2.39.4 + header dokumen ✅ SELESAI
+
+> Pemanasan sebelum sesi debug UI (user akan menempelkan tangkapan browser
+> console). Codebase dipelajari dari dokumen; hasil audit: struktur sudah
+> rapi (docs/public · docs/internal · guides · modules · scripts), yang
+> perlu dirapikan hanya drift versi.
+
+1. **Stamp versi v2.39.3 → v2.39.4 (5 file)** — rilis v2.39.4 kemarin
+   (commit cc408f0/e7af8e4) melewatkan bump stamp sesuai konvensi commit
+   ac84320: `frontend/public/sw.js` (CACHE → `bpf-spa-20260911-v2394`),
+   `frontend/src/sw.test.js` (marker regex), `frontend/src/stores/identity.js`,
+   `modules/company_identity.py`, `modules/pdf_generator.py` (SYSTEM_VERSION).
+   Efek: SW klien lama kini teraktivasi ulang & stamp PDF/kop menunjukkan
+   versi yang benar.
+2. **Header dokumen v2.37.0 → v2.39.4**: README, DEPLOYMENT.md,
+   USER_GUIDE.md, USER_LIST.md.
+3. **README "Akun Demo" diperjelas**: diberi catatan bahwa di server
+   produksi seed `admin` sudah di-rename `admin_master` (7 Sep) dan semua
+   PIN bawaan diganti — tabel seed hanya berlaku utk fresh deploy
+   `init.sql` (USER_LIST.md tetap sumber kebenaran akun).
+4. Tidak ada perubahan kode fungsional — stamp/header saja; pytest + vitest
+   + build SPA dijalankan utk memastikan tak ada regresi.
+5. **Deploy live (rebuild `bbm_web`)** — health 200 healthy 0 restart, log
+   bersih, SPA/SW ter-serve `bpf-spa-20260911-v2394`, worker gevent
+   terkonfirmasi (`/proc/1/cmdline`), stamp PDF di proses jalan v2.39.4.
+6. **Akar stamp DB basi ditemukan**: `/api/system-config/identity` masih
+   v2.37.8 — `system_config.system_version` (master) TIDAK pernah di-bump
+   sejak v2.37.8 oleh rilis v2.38.0–v2.39.4 (kode default berubah, nilai DB
+   tidak). Fix live: `save_company_identity({'system_version':'v2.39.4'})`
+   di master + `scripts/sync_branch_stamp.py` ke 8 cabang aktif (SBY=master,
+   PLM nonaktif) — semua OK. **Pelajaran utk rilis berikutnya**: bump stamp
+   mencakup 6 titik — 5 file kode + nilai DB `system_config` (lalu sync
+   cabang); pertimbangkan guard test tambahan.
+
 ### Sesi 2026-09-11 (lanjutan) — rev 4/5: DUA akar masalah jam overtime dituntaskan ✅ SELESAI + LIVE
 
 > Laporan user: baris Guruh 9 Sep di aplikasi 18:55–23:29, di sheet 18:30–23:04

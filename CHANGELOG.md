@@ -4,6 +4,52 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 
 ---
 
+## v2.39.5 — 11 September 2026 (Pembersih konten scraper + gerbang kualitas H2 + guard sinonim)
+
+### 🔍 Latar: temuan kualitas pada artikel live Surabaya
+
+Review dua artikel 11 Sep (Bahlil impor minyak Rusia; Reli minyak AS–Iran) di
+best-profit-futures-surabaya.com menemukan 3 cacat konten yang semuanya
+bersumber dari pipeline scraper:
+
+1. **H2 otomatis berupa fragmen ucapan narasumber terpotong** —
+   `<h2 id="quot-bayangkan-orang-dunia-lagi-susah-kita">` — diikuti paragraf
+   lengkap yang dimulai dengan kata yang sama (terbaca sebagai duplikasi).
+   Subheading generator lama mengambil 6 kata pertama paragraf tiap 3 paragraf.
+2. **Boilerplate UI sumber ikut terbit**: "SCROLL TO CONTINUE WITH CONTENT".
+3. **Spin sinonim merusak gramatika**: "tetap berubah jadi penopang"
+   (asal: *tetap menjadi*), "serangan bagi infrastruktur" (asal: *terhadap*).
+
+### 🛠️ Perbaikan
+
+- `scraper_engine.py` — helper baru **`clean_article_content()`**: buang
+  paragraf boilerplate (SCROLL TO CONTINUE, penanda paginasi, kotak "Baca
+  juga" sumber, disclaimer sumber), buang paragraf terpotong yang
+  paragraf berikutnya merupakan kelengkapannya (yang utuh menang), buang
+  duplikat persis. Idempoten; terpasang di jalur ekstraksi Detik **dan**
+  generik (Newsmaker).
+- `seo_optimizer.py` — **`_subheading_candidate()`**: H2 hanya dari kalimat
+  utuh (15–80 karakter), menolak fragmen berawalan/berisi kutipan
+  ucapan; kalimat panjang → fallback klausa pertama sebelum koma;
+  tanpa kandidat layak → **tanpa H2** (lebih baik daripada H2 aneh —
+  skor SEO H2 dibiarkan hilang untuk artikel demikian).
+- `seo_optimizer.py` — sinonim dijaga: `menjadi` kini hanya
+  `[merupakan]`, `terhadap` hanya `[kepada]` — opsi `berubah jadi`,
+  `jatuh ke`, dan `bagi` dihapus karena menghasilkan kalimat rusak.
+- **19 test regresi** `tests/test_news_content_cleaning.py` — kasus nyata
+  artikel Bahlil & Reli Minyak (fragmen kutipan, boilerplate, duplikat,
+  idempotensi, guard gramatika).
+
+### ✅ Verifikasi
+
+- 64 pytest scraper terkait lulus (19 baru + test scraper lama),
+  6 skip (butuh container — pre-existing).
+- Stamp v2.39.5 (SW cache `v2395`, identity, PDF) + stamp DB master & 8
+  cabang disinkronkan; deploy live + smoke check + verifikasi fetch
+  artikel asli di container.
+
+---
+
 ## v2.39.4 — 11 September 2026 (Bridge Apps Script diterbitkan ulang sebagai v3 + marker versi)
 
 ### 🔁 Latar: redeploy "New version" 2× tidak mengalir

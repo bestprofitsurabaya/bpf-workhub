@@ -1,5 +1,5 @@
 # 📘 Panduan Lengkap BPF WorkHub
-### Versi 2.37.0 · PT. Bestprofit Futures — Kantor Pusat Jakarta
+### Versi 2.39.5 · PT. Bestprofit Futures — Kantor Pusat Jakarta
 
 > Dokumen ini adalah panduan untuk memasang, mengatur, dan merawat aplikasi **BPF WorkHub**.
 > Ditulis dengan bahasa sederhana agar bisa dipahami siapa saja — bukan hanya teknisi.

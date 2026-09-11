@@ -59,6 +59,7 @@ __all__ = [
     'scrape_detik_finance',
     'scrape_detik_article',
     'fetch_article_content',
+    'clean_article_content',
     'scrape_rss_feed',
     'DEFAULT_RSS_FEEDS',
     'RateLimiter',
@@ -711,6 +712,8 @@ def scrape_detik_article(article: dict) -> None:
     except requests.RequestException as exc:
         logger.warning('scrape_detik_article failed for %s: %s', url, exc)
 
+    clean_article_content(article)
+
 
 def fetch_article_content(article: dict, session=None) -> None:
     """Fetch & populate full article content for any supported source.
@@ -822,6 +825,74 @@ def fetch_article_content(article: dict, session=None) -> None:
         _sl.scrape_article(article.get('title', '?')[:50], url=url,
                            error=str(exc)[:200])
         logger.warning('fetch_article_content failed for %s: %s', url, exc)
+
+    clean_article_content(article)
+
+
+# ===================================================================
+# CONTENT CLEANING — boilerplate sumber & artefak paginasi (11 Sep 2026)
+# ===================================================================
+
+# Paragraf UI/boilerplate dari halaman sumber yang tidak boleh ikut terbit.
+# Dicocokkan ke SELURUH paragraf (bukan baris) — Boilerplate Detik/Newsmaker
+# selalu menempati paragraf sendiri.
+_BOILERPLATE_RE = re.compile(
+    r'^(?:'
+    r'scroll\s*to\s*continue\b.*'           # Detik: "SCROLL TO CONTINUE WITH CONTENT"
+    r'|scroll\s*untuk\s*melanjutkan\b.*'
+    r'|baca\s*halaman\s*selanjutnya\b.*'    # penanda paginasi
+    r'|halaman\s*berikutnya\b.*'
+    r'|\d+\s*dari\s*\d+\s*$'               # penghitung halaman "1 dari 3"
+    r'|baca\s*juga\s*:.*'                    # kotak tautan internal sumber
+    r'|lihat\s*juga\s*:.*'
+    r'|disclaimer\s*:.*'                     # disclaimer sumber (milik kita
+    r'|artikel\s*ini\s*dikutip\s*dari.*'    #   ditambahkan terpisah nanti)
+    r')\s*$',
+    re.IGNORECASE)
+
+
+def _norm_para(text: str) -> str:
+    """Normalisasi paragraf utk perbandingan: kutip & spasi ganda hilang."""
+    return re.sub(r'[\s"\u201c\u201d\u2018\u2019]+', ' ', text or '').strip().lower()
+
+
+def _is_paragraph_fragment(prev: str, nxt: str) -> bool:
+    """True bila `nxt` adalah kelengkapan paragraf terpotong `prev`.
+
+    Artefak paginasi sumber (Detik/Newsmaker) menggandakan awal paragraf:
+    fragmen `"Bayangkan, orang dunia lagi susah, kita` diikuti paragraf
+    lengkap yang DIMULAI dengan teks yang sama. Paragraf lengkap menang.
+    """
+    a, b = _norm_para(prev), _norm_para(nxt)
+    return bool(a) and len(b) > len(a) and b.startswith(a)
+
+
+def clean_article_content(article: dict) -> None:
+    """Bersihkan `article['content']` dari boilerplate & artefak paginasi.
+
+    Mutates in place; konten tak tersentuh bila tidak ada yang dibuang
+    (idempoten — aman dipanggil berkali-kali). Aturan:
+      1. Buang paragraf boilerplate UI sumber (SCROLL TO CONTINUE, dsb.).
+      2. Buang paragraf terpotong yang paragraf berikutnya merupakan
+         kelengkapannya (dibaca identik di awal, lebih panjang).
+      3. Buang duplikat paragraf persis (efek paginasi sumber).
+    """
+    text = (article.get('content') or '').replace('\r\n', '\n').replace('\r', '\n')
+    if not text:
+        return
+    paras = [p.strip() for p in re.split(r'\n{2,}', text) if p.strip()]
+    out: list = []
+    for i, para in enumerate(paras):
+        if _BOILERPLATE_RE.match(para):
+            continue
+        nxt = paras[i + 1] if i + 1 < len(paras) else ''
+        if _is_paragraph_fragment(para, nxt):
+            continue
+        if para in out:  # duplikat persis
+            continue
+        out.append(para)
+    if out and len(out) != len(paras):
+        article['content'] = '\n\n'.join(out)
 
 
 # ===================================================================
