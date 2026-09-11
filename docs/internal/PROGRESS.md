@@ -96,9 +96,19 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
    feed↔DB OK** (8.764=8.764 & 604=604, 0 hilang/0 extra/0 selisih field —
    konversi = nilai +7 WIB lama); verdict `SCRIPT_V2_WALLCLOCK`; DB contoh
    Muhajir 10 Sep 18:30–21:06 = tampilan sheet.
-5. ⏳ **Sisa**: hapus 2 proyek Apps Script lama (deployment AKfycbyrGkn… &
-   AKfycbzmbVPt…); commit v2.39.4; rebuild image server (repo masih v2.39.1–.4
-   belum ter-build; tidak memengaruhi fix ini — bridge ada di sisi Google).
+5. **Deploy live v2.39.4 (commit cc408f0, push via gh auth)**: image rebuilt,
+   bbm_web healthy 0 restart, worker gevent terdeteksi (fix v2.39.2–.3 live),
+   SW v2393, bundle OvertimeView baru (pagination + template v3) ter-serve.
+   Login API akun produksi ditolak dgn PIN default (bagus — PIN sudah
+   diganti semua).
+6. **18 baris anomali tanggal dibersihkan** (bukan 2 — census penuh via SQL):
+   typo tahun form (1921/2004/2029/2033/2096/2923 Driver ×14, 1926 OB ×4).
+   `scripts/repair_overtime_year_typos.py` (dry-run default, guard
+   `WHERE id AND tanggal=lama`, audit `overtime_update`) → 0 anomali tersisa.
+   ⚠️ **Sumber sheet belum dikoreksi** — full sync menimpa `tanggal` dari
+   sheet; koreksi 18 baris di Google Sheet agar permanen.
+7. ⏳ **Sisa**: hapus 2 proyek Apps Script lama (AKfycbyrGkn… & AKfycbzmbVPt…);
+   koreksi 18 tanggal di 2 Google Sheet; browser-check UI oleh user.
 
 ### Sesi 2026-09-10 (lanjutan 3) — verifikasi overtime menyeluruh + status final arsitektur worker ✅ SELESAI
 

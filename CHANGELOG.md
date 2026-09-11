@@ -55,6 +55,17 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
   (konversi waktu terbukti identik dgn nilai +7 WIB lama). Verdict forensik
   `SCRIPT_V2_WALLCLOCK`; parser memakai nilai apa adanya. Sisa: hapus proyek
   Apps Script lama.
+- **Pembersihan data anomali tanggal (18 baris)**: typo tahun input Google
+  Form berusama bertahun-tahun (Driver: 1921/2004/2029/2033/2096/2923 →
+  Rizky P. 2, Rizky abiem 1, Fajar r. 7, Ahmat M. 2, Rizky Pratama 2;
+  OB: 4 baris "Edwin P" 1926). Koreksi via `scripts/repair_overtime_year_typos.py`
+  (dry-run default, UPDATE ber-guard idempoten, jejak audit `overtime_update`
+  dgn old_data/new_data snapshot) — tahun diarahkan ke tahun `submitted_at`
+  (MM-DD dipertahankan, mundur 1 thn bila melewati pengajuan). Verifikasi:
+  **0 baris anomali tersisa** di kedua tabel. ⚠️ Sumber di Google Sheet belum
+  dikoreksi — full sync menimpa `tanggal` dari sheet, jadi koreksi 18 baris
+  di sheet (kolom Tanggal) diperlukan agar permanen; script ter-dokumentasi
+  dan bisa dipakai ulang bila perlu.
 
 ---
 
