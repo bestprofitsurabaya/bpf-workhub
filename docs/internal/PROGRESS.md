@@ -96,6 +96,9 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
    jam ber-detik non-nol di kedua tabel (8.764 baris Driver format HH:MM).
 5. Commit v2.39.4 (cc408f0) + repair tahun (9838d5b) ter-push; script
    `?debug=1`/`?marker=1` tersisa sebagai alat diagnostik permanen.
+6. **Rebuild image final (pasca user konfirmasi hasil sesuai)**: template rev 5
+   & repair script kini di dalam image; health 200, 0 restart, log bersih;
+   CI hijau di 3 run hari ini (v3, repair, rev 5).
 
 ### Sesi 2026-09-11 — v2.39.4: bridge Apps Script v3 (rev 1–3) ✅ SELESAI + LIVE
 
