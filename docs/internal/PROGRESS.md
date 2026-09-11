@@ -4,7 +4,7 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 **Terakhir diperbarui:** 2026-09-11  
 **Branch:** `main`  
-**Versi terbaru:** v2.39.4 (11 Sep — bridge Apps Script diterbitkan ulang sbg v3 dgn marker versi; file lama dihapus) · v2.39.3 (10 Sep — fix deteksi async_mode via argv + smoke CI import app dgn gevent) · v2.39.2 (10 Sep — fix CI: monkey-patching gevent keluar dari app.py + guard) · v2.39.1 (10 Sep — verifikasi paritas overtime DB↔sheet live + LIMIT list/report dinaikkan + pagination Data Overtime) · v2.39.0 (9 Sep — waktu overtime sesuai sheet Apps Script + form Overtime Saya utk OB & Security + role security) · v2.38.0 (di working tree — migrasi worker eventlet→gevent) · v2.37.8 (8 Sep — fix SW meng-cache /api/*: list tak update setelah verifikasi/kehadiran) · v2.37.7 (8 Sep — kop Tanda Terima air minum per cabang) · v2.37.6 LIVE (7 Sep — layout export air minum + kop per cabang + PLM dinonaktifkan) · v2.37.5 (export rekap air minum PDF & Excel) · v2.37.4 (filter rentang tanggal) · v2.37.3 (detail snapshot audit log) · v2.37.2 (fix foto bukti 500 + preview verifikasi air minum) · v2.37.1 (hotfix scoping admin cabang) · v2.37.0 (edit/hapus air minum + admin per-cabang + Pengaturan terstruktur) — program 6 tahap ISO 27001 SELESAI
+**Versi terbaru:** v2.39.5 (11 Sep — kualitas konten scraper: pembersih konten + gerbang kualitas H2 + guard sinonim) · v2.39.4 (11 Sep — bridge Apps Script diterbitkan ulang sbg v3 dgn marker versi; file lama dihapus) · v2.39.3 (10 Sep — fix deteksi async_mode via argv + smoke CI import app dgn gevent) · v2.39.2 (10 Sep — fix CI: monkey-patching gevent keluar dari app.py + guard) · v2.39.1 (10 Sep — verifikasi paritas overtime DB↔sheet live + LIMIT list/report dinaikkan + pagination Data Overtime) · v2.39.0 (9 Sep — waktu overtime sesuai sheet Apps Script + form Overtime Saya utk OB & Security + role security) · v2.38.0 (di working tree — migrasi worker eventlet→gevent) · v2.37.8 (8 Sep — fix SW meng-cache /api/*: list tak update setelah verifikasi/kehadiran) · v2.37.7 (8 Sep — kop Tanda Terima air minum per cabang) · v2.37.6 LIVE (7 Sep — layout export air minum + kop per cabang + PLM dinonaktifkan) · v2.37.5 (export rekap air minum PDF & Excel) · v2.37.4 (filter rentang tanggal) · v2.37.3 (detail snapshot audit log) · v2.37.2 (fix foto bukti 500 + preview verifikasi air minum) · v2.37.1 (hotfix scoping admin cabang) · v2.37.0 (edit/hapus air minum + admin per-cabang + Pengaturan terstruktur) — program 6 tahap ISO 27001 SELESAI
 
 ---
 
@@ -12,7 +12,7 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 | Aspek | Status |
 |-------|--------|
-| Versi | **v2.39.3 (10 Sep)** — fix deteksi async_mode + smoke CI; sebelumnya v2.39.2 (10 Sep — fix CI monkey-patching + guard), v2.39.1 (10 Sep — paritas overtime live + LIMIT + pagination), v2.39.0 (9 Sep — waktu overtime sesuai sheet, form Overtime Saya, role security) |
+| Versi | **v2.39.5 (11 Sep)** — kualitas konten scraper (pembersih konten, gerbang kualitas H2, guard sinonim); sebelumnya v2.39.4 (11 Sep — bridge Apps Script v3), v2.39.3 (10 Sep — fix deteksi async_mode + smoke CI), v2.39.2 (10 Sep — fix CI monkey-patching + guard), v2.39.1 (10 Sep — paritas overtime live + LIMIT + pagination), v2.39.0 (9 Sep — waktu overtime sesuai sheet, form Overtime Saya, role security) |
 | Zona waktu sheet overtime (10 Sep) | ✅ **TERVERIFIKASI WIB via feed** — `scripts/forensic_overtime_tz.py` (di container): kedua feed masih script LAMA (Driver 8.764/8.864 nilai `T…Z`, OB 614/614); `Tanggal Overtime` driver = `…T17:00:00.000Z` (tengah malam WIB → 17:00Z; GMT+8 akan 16:00Z) → **cukup redeploy Web App §2 OT_WEBAPP_REDEPLOY.md, TANPA re-seed**; fallback +7 parser & normalisasi OB atas feed live OK |
 | Deteksi async_mode (v2.39.3) | ✅ **DI REPO** — deteksi env v2.39.2 (`GUNICORN_CMD_ARGS`/`SERVER_SOFTWARE`) tak pernah benar di produksi (diverifikasi PID 1 bbm_web: env kosong dgn keduanya; SERVER_SOFTWARE = kunci WSGI per-request) → produksi akan boot threading di worker gevent. Kini via **argv** (worker mewarisi argv master: `gunicorn --worker-class gevent …`); simulasi argv worker di container → `gevent` ✓; +1 smoke CI: subprocess `import app` dgn gevent (kondisi persis insiden 34425989650) — skip di host tanpa gevent, jalan di job Backend CI; 4/4 guard lulus di container |
 | Insiden CI monkey-patch (v2.39.2) | ✅ **DI REPO** — CI run 34425989650 merah (587 test lulus tapi error setup): `monkey.patch_all()` v2.38.0 di app.py jalan saat `import app` oleh pytest → lock importlib rusak ("cannot release un-acquired lock"); host lokal hijau karena gevent tak ter-install (fallback threading menyembunyikan bug). Fix: patching kini milik worker gunicorn `--worker-class` (CMD Dockerfile); app.py deteksi env gunicorn utk `socketio_async_mode`; worker gevent Dockerfile+requirements dijaga; +3 guard `tests/test_worker_patch_guard.py`. Verifikasi: 21 pytest terkait + 141 vitest + build SPA hijau |
@@ -72,6 +72,35 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 ---
 
 ## 🗂️ Riwayat Sesi
+
+### Sesi 2026-09-11 (lanjutan 4) — bump CI actions + verifikasi live scrape–publish & scrape ulang 2 artikel ✅ SELESAI (commit menyusul)
+
+1. **CI workflow**: `actions/checkout` v4→**v7**, `actions/setup-node` v4→**v7**
+   (keduanya kini jalan di Node 24), `node-version` 20→**22** — antisipasi
+   penghapusan Node 20 dari GitHub runner 16 Sep 2026 (deprecation warning
+   terlihat di run v2.39.5). ⚠️ Followup: `Dockerfile` stage 1 masih
+   `node:20-alpine` (build SPA; Node 20 EOL) — belum diubah, cakupan sesi ini
+   hanya workflow CI.
+2. **Test scrape–publish ke BPF Surabaya** (via `_upload_articles_to_site`,
+   settings produksi): 6 kandidat Detik hal-1 → 5 di-skip pre-filter "sudah
+   ada di WP" (guard duplikat terbukti), 1 terbit: **Bahlil impor minyak
+   Rusia** (Detik mengubah headline "Rusai"→"Rusia" sehingga normalize_title
+   tak cocok dengan post lama) → post **39041**, SEO 70, featured image
+   re-host (media 39040).
+3. **Scrape ulang artikel lama**: post lama Bahlil-Rusai (39029), Reli
+   (38802) **+ twin duplikat Reli 38868** (judul sama terbit dua kali di WP —
+   temuan bonus; jalankan checker duplikat berkala) → semua di-**trash**
+   (recoverable 30 hari, bukan delete permanen).
+4. **Insiden + fix**: re-fetch Reli via URL Detik lama gagal aman — Detik
+   **mendaur ulang id d-7112912** (redirect ke artikel detikhot "Manga Black
+   Clover") → satu post salah isi sempat terbit (39044) dan langsung
+   di-trash. Sumber asli Reli dikembalikan dari link "Sumber asli" post
+   trash: **Newsmaker.id** → re-fetch 2.028 char bersih → terbit **39047**
+   (SEO 70, media 39046).
+5. **Verifikasi akhir kedua post**: tanpa boilerplate/H2 fragmen/gramatika
+   rusak/paragraf dobel; H2 utuh ("Dalam catatan detikcom", "Di sisi lain,
+   prospek permintaan memberikan tekanan kepada harga"); Sumber asli + CTA
+   utuh. URL lama 404 (per konsep trash), URL baru live.
 
 ### Sesi 2026-09-11 (lanjutan 3) — v2.39.5: kualitas konten scraper ✅ SELESAI + LIVE
 
