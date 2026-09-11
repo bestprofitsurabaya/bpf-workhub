@@ -549,7 +549,7 @@ watch(tab, loadTab)
       </p>
       <ul class="cfg-list">
         <li><b>CSV publik</b> — sheet di-share "Anyone with the link" → pakai URL <code>…/gviz/tq?tqx=out:csv</code></li>
-        <li><b>Google Apps Script Web App</b> — sheet tetap private; cukup akun Google mana pun yang SUDAH punya akses ke sheet (termasuk view/read-only) membuat script standalone (<code>scripts/apps_script_overtime_driver.gs</code>) dan mengembalikan <code>{"rows":[…]}</code> — tidak perlu akses pemilik</li>
+        <li><b>Google Apps Script Web App</b> — sheet tetap private; cukup akun Google mana pun yang SUDAH punya akses ke sheet (termasuk view/read-only) membuat script standalone (<code>scripts/gas_bridge_overtime_driver_v3.gs</code>) dan mengembalikan <code>{"rows":[…]}</code> — tidak perlu akses pemilik</li>
       </ul>
       <!-- Driver -->
       <div class="cfg-section">

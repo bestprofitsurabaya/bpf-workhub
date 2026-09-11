@@ -2,9 +2,9 @@
 
 File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks saat sesi baru dimulai.
 
-**Terakhir diperbarui:** 2026-09-10  
+**Terakhir diperbarui:** 2026-09-11  
 **Branch:** `main`  
-**Versi terbaru:** v2.39.3 (10 Sep — fix deteksi async_mode via argv + smoke CI import app dgn gevent) · v2.39.2 (10 Sep — fix CI: monkey-patching gevent keluar dari app.py + guard) · v2.39.1 (10 Sep — verifikasi paritas overtime DB↔sheet live + LIMIT list/report dinaikkan + pagination Data Overtime) · v2.39.0 (9 Sep — waktu overtime sesuai sheet Apps Script + form Overtime Saya utk OB & Security + role security) · v2.38.0 (di working tree — migrasi worker eventlet→gevent) · v2.37.8 (8 Sep — fix SW meng-cache /api/*: list tak update setelah verifikasi/kehadiran) · v2.37.7 (8 Sep — kop Tanda Terima air minum per cabang) · v2.37.6 LIVE (7 Sep — layout export air minum + kop per cabang + PLM dinonaktifkan) · v2.37.5 (export rekap air minum PDF & Excel) · v2.37.4 (filter rentang tanggal) · v2.37.3 (detail snapshot audit log) · v2.37.2 (fix foto bukti 500 + preview verifikasi air minum) · v2.37.1 (hotfix scoping admin cabang) · v2.37.0 (edit/hapus air minum + admin per-cabang + Pengaturan terstruktur) — program 6 tahap ISO 27001 SELESAI
+**Versi terbaru:** v2.39.4 (11 Sep — bridge Apps Script diterbitkan ulang sbg v3 dgn marker versi; file lama dihapus) · v2.39.3 (10 Sep — fix deteksi async_mode via argv + smoke CI import app dgn gevent) · v2.39.2 (10 Sep — fix CI: monkey-patching gevent keluar dari app.py + guard) · v2.39.1 (10 Sep — verifikasi paritas overtime DB↔sheet live + LIMIT list/report dinaikkan + pagination Data Overtime) · v2.39.0 (9 Sep — waktu overtime sesuai sheet Apps Script + form Overtime Saya utk OB & Security + role security) · v2.38.0 (di working tree — migrasi worker eventlet→gevent) · v2.37.8 (8 Sep — fix SW meng-cache /api/*: list tak update setelah verifikasi/kehadiran) · v2.37.7 (8 Sep — kop Tanda Terima air minum per cabang) · v2.37.6 LIVE (7 Sep — layout export air minum + kop per cabang + PLM dinonaktifkan) · v2.37.5 (export rekap air minum PDF & Excel) · v2.37.4 (filter rentang tanggal) · v2.37.3 (detail snapshot audit log) · v2.37.2 (fix foto bukti 500 + preview verifikasi air minum) · v2.37.1 (hotfix scoping admin cabang) · v2.37.0 (edit/hapus air minum + admin per-cabang + Pengaturan terstruktur) — program 6 tahap ISO 27001 SELESAI
 
 ---
 
@@ -72,6 +72,33 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 ---
 
 ## 🗂️ Riwayat Sesi
+
+### Sesi 2026-09-11 — v2.39.4: bridge Apps Script v3 + AKAR MASALAH ISO DITEMUKAN ✅ SELESAI + LIVE
+
+> Cek hasil redeploy user (11 Sep 08:43, deployment ID & "New version" benar):
+> feed MASIH ISO-UTC. Keputusan user: **buat semua baru** — file baru, proyek
+> Google baru, URL baru. Tetap ISO → `?debug=1` (rev 2) membongkar akar:
+> sel tanggal = objek mirip-Date yang GAGAL `instanceof Date` (bug sandbox
+> Apps Script) → cabang JSON.stringify → ISO UTC; objeknya berisi jam WIB
+> yang benar. rev 3: duck-typing `isDateLikeV3_` + normalisasi `toDateV3_`.
+
+1. **File baru** (lama dihapus): `scripts/gas_bridge_overtime_driver_v3.gs`,
+   `scripts/gas_bridge_overtime_ob_security_v3.gs` — rev 3 final. Helper
+   ber-akhiran `V3_` (anti-timpa), string ISO ikut dikonversi, `?marker=1`
+   (cek versi 30 dtk), `?debug=1` (tipe sel + hasil konversi), `code_rev`.
+2. **Referensi diperbarui**: OvertimeView.vue, OT_WEBAPP_REDEPLOY.md (metode
+   proyek baru), DEPLOYMENT.md, DEPLOY_FRESH.md, USER_GUIDE §11.6, CHANGELOG.
+3. **Deploy live (pemilik)**: 2 proyek baru → URL `/exec` baru dipasang ke
+   `system_config` (via UPDATE DB, setara modal ⚙️ Sumber Data);
+   `code_rev:3` terverifikasi dua-duanya.
+4. **Verifikasi live**: feed 100% wall-clock (Driver 8.764 + OB 615, 0 ISO);
+   full sync Driver 0 baru/8.764 update, OB 1 baru/22 update; **paritas
+   feed↔DB OK** (8.764=8.764 & 604=604, 0 hilang/0 extra/0 selisih field —
+   konversi = nilai +7 WIB lama); verdict `SCRIPT_V2_WALLCLOCK`; DB contoh
+   Muhajir 10 Sep 18:30–21:06 = tampilan sheet.
+5. ⏳ **Sisa**: hapus 2 proyek Apps Script lama (deployment AKfycbyrGkn… &
+   AKfycbzmbVPt…); commit v2.39.4; rebuild image server (repo masih v2.39.1–.4
+   belum ter-build; tidak memengaruhi fix ini — bridge ada di sisi Google).
 
 ### Sesi 2026-09-10 (lanjutan 3) — verifikasi overtime menyeluruh + status final arsitektur worker ✅ SELESAI
 

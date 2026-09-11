@@ -527,8 +527,8 @@ Tiga format PDF tersedia (didukung untuk Driver DAN OB/Security):
 
 | Sheet | Template script |
 |-------|-----------------|
-| Driver | `scripts/apps_script_overtime_driver_v2.gs` |
-| OB/Security | `scripts/apps_script_overtime_ob_security.gs` |
+| Driver | `scripts/gas_bridge_overtime_driver_v3.gs` |
+| OB/Security | `scripts/gas_bridge_overtime_ob_security_v3.gs` |
 
 1. Buka **https://script.google.com** → **New project** (proyek *standalone*, jangan lewat menu sheet — itu butuh akses edit).
 2. Hapus isi `Code.gs`, tempel semua kode dari template di atas (**sheet ID sudah tertanam** di baris `SHEET_ID` — pastikan sesuai sheet tujuan), lalu simpan.

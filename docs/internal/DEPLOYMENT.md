@@ -211,8 +211,10 @@ bukan `.env`:
 
 > ⏰ **Penting (v2.29.6):** kedua URL overtime **wajib** URL Apps Script `/exec`, bukan tautan
 > `docs.google.com/…/edit`. Tautan sheet mentah hanya menghasilkan HTML yang tidak bisa dibaca
-> server. Template script: `scripts/apps_script_overtime_driver_v2.gs` dan
-> `scripts/apps_script_overtime_ob_security.gs` (lihat USER_GUIDE §11.6 cara deploy).
+> server. Template script: `scripts/gas_bridge_overtime_driver_v3.gs` dan
+> `scripts/gas_bridge_overtime_ob_security_v3.gs` (lihat USER_GUIDE §11.6 cara deploy).
+> Setelah deploy, verifikasi versi aktif: buka `<URL_/exec>?marker=1` — respons harus
+> memuat `"marker":"bpf-ot-driver-2026-09-11-v3"` / `"marker":"bpf-ot-ob-2026-09-11-v3"`.
 >
 > 🕐 **Waktu sesuai sheet (v2.39):** template Apps Script kini mengirim tanggal/jam
 > sesuai tampilan sheet (zona spreadsheet), bukan ISO UTC. **Setelah update ke v2.39,

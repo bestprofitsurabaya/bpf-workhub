@@ -207,8 +207,8 @@ docker compose exec web python3 scripts/migrate_applicants_sheet.py /path/to/exp
 > **Apps Script Web App** (`script.google.com/macros/s/…/exec`) — bukan tautan sheet mentah
 > (`docs.google.com/.../edit`), karena itu hanya menghasilkan HTML yang tidak bisa dibaca server.
 > Deploy script dilakukan manual di `script.google.com` (panduan: `USER_GUIDE.md` §11.6).
-> Template: `scripts/apps_script_overtime_driver_v2.gs` (Driver) dan
-> `scripts/apps_script_overtime_ob_security.gs` (OB/Security).
+> Template: `scripts/gas_bridge_overtime_driver_v3.gs` (Driver) dan
+> `scripts/gas_bridge_overtime_ob_security_v3.gs` (OB/Security).
 
 ---
 

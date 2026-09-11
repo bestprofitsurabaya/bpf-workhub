@@ -4,6 +4,60 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 
 ---
 
+## v2.39.4 — 11 September 2026 (Bridge Apps Script diterbitkan ulang sebagai v3 + marker versi)
+
+### 🔁 Latar: redeploy "New version" 2× tidak mengalir
+
+- Pemilik me-redeploy kedua Web App 11 Sep 08:43 ("New version", deployment ID
+  cocok dgn `system_config`) — feed **tetap ISO-UTC** (terverifikasi ulang ±23
+  menit pasca-deploy, dengan cache-buster; Driver masih 8.864 baris termasuk
+  100 baris kosong yang seharusnya difilter script baru → **kode lama masih
+  yang dieksekusi** di proyek tersebut, tanpa error apa pun).
+- Selama itu data tetap aman: paritas ulang Driver **8.764 = 8.764** (0
+  hilang/0 extra/0 selisih), fallback parser +7 WIB aktif, zona kedua sheet
+  terbukti WIB.
+- Keputusan pemilik: **buat semua baru** — file baru di repo, proyek baru di
+  Google, URL `/exec` baru — supaya tidak ada lagi keraguan "lama atau baru".
+
+### 🆕 Bridge v3 + penanda versi
+
+- File baru bernama unik (lama **dihapus**):
+  - `scripts/gas_bridge_overtime_driver_v3.gs` (menggantikan
+    `apps_script_overtime_driver.gs` + `_v2.gs`)
+  - `scripts/gas_bridge_overtime_ob_security_v3.gs` (menggantikan
+    `apps_script_overtime_ob_security.gs`)
+- **Marker versi** di setiap respons JSON (`BRIDGE_MARKER`):
+  `bpf-ot-driver-2026-09-11-v3` / `bpf-ot-ob-2026-09-11-v3`. Cek deployment
+  aktif 30 detik: `<URL_/exec>?marker=1` → JSON kecil tanpa membaca sheet.
+  Respons tanpa marker = pasti script lama.
+- Kontrak output tidak berubah (rows/total/pagination, wall-clock per zona
+  sheet, fallback ISO-UTC tetap diterima server) — server tak perlu diubah.
+- **rev 2**: semua helper diberi akhiran `V3_` (tak bisa ditimpa sisa kode
+  lama), string ISO-UTC ikut dikonversi, `?debug=1` + `code_rev` di respons.
+- **rev 3 — AKAR MASALAH SEBENARNYA (terbukti via `?debug=1`)**: sel tanggal
+  dari `getValues()` adalah objek mirip-Date yang **gagal `instanceof Date`**
+  (bug sandbox/context Apps Script) → masuk cabang `JSON.stringify` → ISO UTC.
+  Inilah sebabnya skrip wall-clock mana pun (termasuk salinan yang diupdate
+  di proyek lama) tetap mengirim ISO. Fix: deteksi duck-typing (`isDateLikeV3_`
+  cek `.getTime()`) + normalisasi `toDateV3_()` ke `Date` asli context script;
+  `Utilities.formatDate` bekerja normal → wall-clock sesuai zona sheet.
+- Referensi nama file diperbarui: `OvertimeView.vue` (modal Sumber Data),
+  `docs/internal/OT_WEBAPP_REDEPLOY.md` (ditulis ulang: proyek baru + URL
+  baru + verifikasi marker + hapus proyek lama), `DEPLOYMENT.md`,
+  `DEPLOY_FRESH.md`, `USER_GUIDE.md` §11.6.
+- Verifikasi: 33 pytest overtime (forensic + wallclock) lulus; tidak ada test
+  yang merujuk nama file lama.
+- ✅ **DEPLOY & VERIFIKASI LIVE (11 Sep)**: proyek baru v3 dibuat pemilik;
+  URL `/exec` baru dipasang ke `system_config`; `code_rev:3` aktif; feed
+  **100% wall-clock** (Driver 8.764 + OB 615, 0 ISO). Full sync: Driver 0
+  baru/8.764 diperbarui; OB 1 baru/22 diperbarui. **Paritas feed↔DB OK**:
+  Driver 8.764=8.764, OB 604=604 — 0 hilang/0 extra/**0 selisih field**
+  (konversi waktu terbukti identik dgn nilai +7 WIB lama). Verdict forensik
+  `SCRIPT_V2_WALLCLOCK`; parser memakai nilai apa adanya. Sisa: hapus proyek
+  Apps Script lama.
+
+---
+
 ## v2.39.3 — 10 September 2026 (Fix deteksi async_mode + smoke CI import app)
 
 ### 🔍 Verifikasi overtime menyeluruh (lanjutan sesi)

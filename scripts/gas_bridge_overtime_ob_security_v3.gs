@@ -1,0 +1,359 @@
+/**
+ * BPF WorkHub — Bridge Google Apps Script untuk sheet Overtime OB & SECURITY.
+ * VERSI 3 (REV 2, 11 Sep 2026) — nama file baru + penanda versi + nama fungsi
+ * unik sehingga TIDAK bisa ditimpa sisa kode lama di proyek manapun.
+ *
+ * RIWAYAT REV:
+ *   rev 1 — terbitan awal v3 (marker + wall-clock utk sel Date).
+ *   rev 2 — (a) SEMUA helper diberi akhiran V3_ (getVachedData_ lama dkk tidak
+ *           bisa menimpa — penyebab tersangka feed ISO saat rev 1);
+ *           (b) sel bertipe STRING ISO-UTC ikut dikonversi ke wall-clock
+ *           (penyebab tersangka kedua: sel sheet tersimpan sbg teks);
+ *           (c) ?debug=1 untuk diagnosis jarak jauh; code_rev di tiap respons.
+ *   rev 3 — AKAR MASALAH SEBENARNYA (terbukti via ?debug=1): sel tanggal dari
+ *           getValues() adalah objek mirip-Date yang GAGAL `instanceof Date`
+ *           (bug sandbox/context Apps Script) → masuk cabang JSON.stringify →
+ *           ISO UTC. Fix: deteksi via duck-typing (.getTime) + normalisasi ke
+ *           Date asli context script; Utilities.formatDate bekerja normal.
+ *
+ * Pola sama dengan gas_bridge_overtime_driver_v3.gs — sheet OB/Security
+ * PRIVATE (diisi Google Form); script dieksekusi sbg akun yang punya akses
+ * baca (view cukup), hasilnya JSON publik. Sheet tidak perlu diubah izinnya.
+ *
+ * PENANDA VERSI:
+ *   <URL_/exec>?marker=1 →
+ *     {"marker":"bpf-ot-ob-2026-09-11-v3","code_rev":2,"module":"ob",...}
+ *   code_rev < 2 → paste lama; tanpa marker → kode lama bukan v3.
+ *   <URL_/exec>?debug=1 → tipe data sel Timestamp baris-1 + jejak panjang
+ *   source fungsi (utk memastikan tidak ada definisi ganda yang menimpa).
+ *
+ * KONTRAK OUTPUT (sama dgn ekspektasi server routes_overtime.py):
+ *   - Row = {header: nilai} dengan key persis nama kolom Google Sheet.
+ *   - Sel Date ATAU string ISO-UTC diserialisasi TEKS sesuai tampilan sheet
+ *     (Utilities.formatDate + zona SPREADSHEET): tanggal → 'yyyy-MM-dd',
+ *     Timestamp → 'yyyy-MM-dd HH:mm:ss', jam → 'HH:mm:ss'. Server memakai
+ *     nilai APA ADANYA (tanpa offset +7) — jam aplikasi = jam sheet.
+ *   - Feed lama (ISO UTC) masih diterima server sebagai fallback.
+ *   - Foto (Upload Foto Mulai/Selesai) berupa URL teks → server simpan utuh.
+ *
+ * PARAMETER:
+ *   ?marker=1 — cek versi (tanpa baca sheet)   ?debug=1 — diagnosis tipe sel
+ *   ?year/?month/?from/?to/?since/?limit/?offset/?fields/?summary — spt sebelumnya
+ *
+ * DEPLOY (11 Sep 2026, proyek baru "BPF OT OB-Security Bridge v3"):
+ *   1. SELECT ALL di Code.gs → DELETE → tempel SEMUA isi file ini (SATU file .gs).
+ *   2. Ctrl+S → Deploy → Manage deployments → ✏️ → Version: New version → Deploy.
+ *   3. URL /exec TIDAK berubah. Verifikasi ?marker=1 → code_rev:3.
+ */
+
+// ====== KONFIGURASI ======
+// ID sheet OB & SECURITY — dari URL:
+// https://docs.google.com/spreadsheets/d/1AsBq-rHssGmv5vHAzorrphZeNxchodkJQXz1wdBPoms/edit
+var SHEET_ID = '1AsBq-rHssGmv5vHAzorrphZeNxchodkJQXz1wdBPoms';
+
+// ====== PENANDA VERSI ======
+var BRIDGE_MARKER = 'bpf-ot-ob-2026-09-11-v3';
+var CODE_REV = 3;
+
+// ====== CACHE (in-memory, reset setiap cold start ~5 min) ======
+var _cacheV3 = {};
+var _CACHE_TTL_V3 = 5 * 60 * 1000; // 5 minutes
+
+// ====== ZONA WAKTU & SERIALIZASI (wall-clock sesuai sheet) ======
+var _tzCacheV3 = null;
+function sheetTimeZoneV3_() {
+  if (_tzCacheV3) return _tzCacheV3;
+  try {
+    _tzCacheV3 = SpreadsheetApp.openById(SHEET_ID).getSpreadsheetTimeZone();
+  } catch (err) {
+    _tzCacheV3 = Session.getScriptTimeZone() || 'Asia/Jakarta';
+  }
+  return _tzCacheV3;
+}
+
+function isTimeColumnV3_(header) {
+  var h = String(header || '').toLowerCase();
+  if (/(tanggal|date|timestamp)/.test(h)) return false;
+  return /(waktu|jam|mulai|selesai|dari|\bin\b|sampai|\bout\b|time)/.test(h);
+}
+
+function isDateOnlyColumnV3_(header) {
+  var h = String(header || '').toLowerCase();
+  return /(tanggal|date)/.test(h) && !/timestamp/.test(h);
+}
+
+// rev 3: Date dari getValues() bisa gagal `instanceof Date` di context
+// Apps Script tertentu (bug sandbox) → JSON.stringify mengirim ISO UTC.
+// Duck-typing: objek dgn .getTime() diperlakukan sbg tanggal, lalu
+// dinormalisasi ke Date asli dalam context script ini.
+function isDateLikeV3_(v) {
+  if (v instanceof Date) return true;
+  if (Object.prototype.toString.call(v) === '[object Date]') return true;
+  return typeof v === 'object' && v !== null && typeof v.getTime === 'function';
+}
+
+function toDateV3_(v) {
+  if (v instanceof Date) return v;
+  try {
+    if (v && typeof v.getTime === 'function') {
+      var t = v.getTime();
+      if (typeof t === 'number' && !isNaN(t)) return new Date(t);
+    }
+  } catch (err) { /* fallthrough */ }
+  return null;
+}
+
+function dateToTextV3_(v, header) {
+  var d = toDateV3_(v);
+  if (!d) return (v === null || v === undefined) ? '' : String(v);
+  var tz = sheetTimeZoneV3_();
+  if (d.getFullYear() < 1900) {
+    // Sel JAM murni — epoch waktu Google Sheets (basis 1899-12-30).
+    return Utilities.formatDate(d, tz, 'HH:mm:ss');
+  }
+  if (isTimeColumnV3_(header)) return Utilities.formatDate(d, tz, 'HH:mm:ss');
+  if (isDateOnlyColumnV3_(header)) return Utilities.formatDate(d, tz, 'yyyy-MM-dd');
+  return Utilities.formatDate(d, tz, 'yyyy-MM-dd HH:mm:ss');
+}
+
+// String ISO-UTC ('2020-12-12T07:08:54.000Z') → wall-clock zona sheet.
+// rev 2: beberapa sheet menyimpan tanggal sbg TEKS, bukan objek Date.
+var ISO_UTC_RE_V3 = /^(\d{4})-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/;
+
+function isoUtcToWallV3_(s, header) {
+  // Sel jam murni (epoch 1899): bagian jam-nya SUDAH wall-clock — pakai apa adanya.
+  if (s.slice(0, 4) === '1899') return s.slice(11, 19); // 'HH:mm:ss'
+  try {
+    var d = new Date(s); // di-parse sebagai UTC instant
+    if (isNaN(d.getTime())) return s;
+    return Utilities.formatDate(
+      d, sheetTimeZoneV3_(),
+      isDateOnlyColumnV3_(header) ? 'yyyy-MM-dd' : 'yyyy-MM-dd HH:mm:ss');
+  } catch (err) {
+    return s;
+  }
+}
+
+function cellToTextV3_(v, header) {
+  if (isDateLikeV3_(v)) return dateToTextV3_(v, header);
+  if (v === null || v === undefined) return '';
+  if (typeof v === 'string' && ISO_UTC_RE_V3.test(v)) return isoUtcToWallV3_(v, header);
+  if (v instanceof Object) return JSON.stringify(v);
+  return v;
+}
+
+// Parse string wall-clock 'yyyy-MM-dd[ HH:mm[:ss]]' secara deterministik
+// (waktu lokal script) — dipakai untuk bandingkan filter tanggal/since.
+function parseWallV3_(s) {
+  var d0 = toDateV3_(s);
+  if (d0) return d0;
+  var m = String(s || '').match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+  if (m) return new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +(m[6] || 0));
+  var dOnly = String(s || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (dOnly) return new Date(+dOnly[1], +dOnly[2] - 1, +dOnly[3]);
+  var d = new Date(s);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function doGet(e) {
+  try {
+    var params = (e && e.parameter) ? e.parameter : {};
+
+    // Penanda versi: /exec?marker=1 → JSON kecil utk verifikasi deployment
+    if (params.marker === '1') {
+      return jsonV3_({ marker: BRIDGE_MARKER, code_rev: CODE_REV, module: 'ob', rows: [], total: 0 });
+    }
+
+    // Diagnosis jarak jauh: tipe sel Timestamp baris-1 + jejak definisi ganda
+    if (params.debug === '1') {
+      var dbg = { code_rev: CODE_REV, sheet_id_tail: String(SHEET_ID).slice(-6) };
+      try {
+        var rows0 = getCachedDataV3_(SHEET_ID);
+        var v0 = rows0.length ? rows0[0]['Timestamp'] : null;
+        dbg.total_rows = rows0.length;
+        dbg.ts0_value = String(v0 === undefined || v0 === null ? '' : v0).slice(0, 60);
+        dbg.ts0_typeof = typeof v0;
+        dbg.ts0_is_date = v0 instanceof Date;
+        dbg.ts0_is_datelike = isDateLikeV3_(v0);
+        try {
+          dbg.ts0_fixed = v0 ? String(cellToTextV3_(v0, 'Timestamp')).slice(0, 40) : null;
+        } catch (err3) {
+          dbg.ts0_fixed_err = String(err3);
+        }
+      } catch (err2) {
+        dbg.read_error = String(err2);
+      }
+      dbg.len_doGet = String(doGet).length;
+      dbg.len_cellToText = String(cellToTextV3_).length;
+      dbg.len_getCachedData = String(getCachedDataV3_).length;
+      return jsonV3_({ marker: BRIDGE_MARKER, module: 'ob', debug: dbg, rows: [], total: 0 });
+    }
+
+    // Parse parameters
+    var year      = params.year      ? parseInt(params.year, 10)      : null;
+    var month     = params.month     ? parseInt(params.month, 10)     : null;
+    var fromDate  = params.from      ? parseDateV3_(params.from)       : null;
+    var toDate    = params.to        ? parseDateV3_(params.to)         : null;
+    var since     = params.since     ? parseWallV3_(params.since)      : null;
+    var limit     = params.limit     ? Math.max(parseInt(params.limit, 10) || 0, 0) : 0;
+    var offset    = params.offset    ? Math.max(parseInt(params.offset, 10) || 0, 0) : 0;
+    var fields    = params.fields    ? params.fields.split(',').map(function(f) { return f.trim(); }) : null;
+    var summary   = params.summary === 'true';
+
+    // Get all data (with cache)
+    var allRows = getCachedDataV3_(SHEET_ID);
+
+    // Filter
+    var filtered = filterRowsV3_(allRows, year, month, fromDate, toDate, since);
+    var total = filtered.length;
+
+    // Pagination: limit=0 means ALL (backward compatible)
+    var paged;
+    if (limit > 0) {
+      paged = filtered.slice(offset, offset + limit);
+    } else {
+      paged = filtered;
+    }
+
+    // Format output
+    var output;
+    if (summary) {
+      output = paged.map(function(row) { return summarizeV3_(row); });
+    } else if (fields) {
+      output = paged.map(function(row) { return pickFieldsV3_(row, fields); });
+    } else {
+      output = paged;
+    }
+
+    var response = {
+      marker: BRIDGE_MARKER,
+      code_rev: CODE_REV,
+      rows: output,
+      total: total
+    };
+
+    // Only include pagination metadata when limit is used
+    if (limit > 0) {
+      response.limit = limit;
+      response.offset = offset;
+      response.hasMore = (offset + limit) < total;
+    }
+
+    return jsonV3_(response);
+
+  } catch (err) {
+    return jsonV3_({ error: String(err), marker: BRIDGE_MARKER, code_rev: CODE_REV, rows: [], total: 0 });
+  }
+}
+
+// ====== FILTER ======
+function filterRowsV3_(rows, year, month, fromDate, toDate, since) {
+  if (!year && !month && !fromDate && !toDate && !since) {
+    return rows; // No filter, return all
+  }
+
+  return rows.filter(function(row) {
+    // Use Timestamp for since filter (faster, always present)
+    var tsRaw = since ? row['Timestamp'] : null;
+    if (since && tsRaw) {
+      var tsDate = parseWallV3_(tsRaw);
+      if (tsDate && tsDate < since) return false;
+    }
+
+    // Use Tanggal (overtime date) for year/month/date filters
+    var ts = row['Tanggal'] || row['Timestamp'];
+    if (!ts) return false;
+
+    var d = parseWallV3_(ts);
+    if (!d) return false;
+
+    // Year filter
+    if (year && d.getFullYear() !== year) return false;
+
+    // Month filter (1-indexed)
+    if (month && (d.getMonth() + 1) !== month) return false;
+
+    // Date range filter
+    if (fromDate && d < fromDate) return false;
+    if (toDate && d > toDate) return false;
+
+    return true;
+  });
+}
+
+// ====== PARSE DATE ======
+function parseDateV3_(str) {
+  // Accept YYYY-MM-DD format
+  var parts = String(str).split('-');
+  if (parts.length === 3) {
+    return new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+  }
+  return new Date(str);
+}
+
+// ====== SUMMARIZE (remove heavy fields like photo URLs) ======
+function summarizeV3_(row) {
+  return {
+    'Timestamp':           row['Timestamp'],
+    'Email Address':       row['Email Address'],
+    'Nama Lengkap':        row['Nama Lengkap'],
+    'Tanggal':             row['Tanggal'],
+    'Waktu Mulai Overtime': row['Waktu Mulai Overtime'],
+    'Waktu Selesai Overtime': row['Waktu Selesai Overtime'],
+    'Keterangan':          row['Keterangan']
+  };
+}
+
+// ====== PICK SPECIFIC FIELDS ======
+function pickFieldsV3_(row, fields) {
+  var out = {};
+  fields.forEach(function(f) {
+    if (row.hasOwnProperty(f)) {
+      out[f] = row[f];
+    }
+  });
+  return out;
+}
+
+// ====== CACHED DATA ======
+function getCachedDataV3_(sheetId) {
+  var now = Date.now();
+  if (_cacheV3.data && _cacheV3.sheetId === sheetId && (now - _cacheV3.time) < _CACHE_TTL_V3) {
+    return _cacheV3.data;
+  }
+
+  var ss = SpreadsheetApp.openById(sheetId);
+  var sheet = ss.getSheets()[0];
+  var values = sheet.getDataRange().getValues();
+
+  if (values.length < 2) {
+    _cacheV3 = { data: [], sheetId: sheetId, time: now };
+    return [];
+  }
+
+  var headers = values[0].map(function(h) { return String(h || '').trim(); });
+  var out = [];
+  for (var i = 1; i < values.length; i++) {
+    var row = {};
+    for (var j = 0; j < headers.length; j++) {
+      // Sel Date / string ISO-UTC diserialisasi wall-clock sesuai sheet.
+      row[headers[j]] = cellToTextV3_(values[i][j], headers[j]);
+    }
+    out.push(row);
+  }
+
+  _cacheV3 = { data: out, sheetId: sheetId, time: now };
+  return out;
+}
+
+// ====== JSON RESPONSE ======
+function jsonV3_(obj) {
+  return ContentService
+    .createTextOutput(JSON.stringify(obj))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+// POST support (anti-cache)
+function doPost(e) {
+  return doGet(e);
+}

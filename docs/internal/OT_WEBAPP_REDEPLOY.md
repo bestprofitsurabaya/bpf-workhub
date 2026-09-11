@@ -1,17 +1,29 @@
-# 🔁 Redeploy Web App Apps Script — Overtime (v2.39)
+# 🔁 Redeploy Web App Apps Script — Overtime (v3)
 
-> **Kapan panduan ini dipakai:** setelah update server ke v2.39+, Web App
-> Apps Script produksi masih menjalankan **script lama** (terverifikasi
-> 10 Sep 2026 — feed masih ISO UTC). Kontrak v2.39 mengirim tanggal/jam
-> **sesuai tampilan sheet** (zona spreadsheet), sehingga jam di aplikasi =
-> jam di sheet **di zona apa pun**. Selama script lama masih jalan, data
-> hanya benar bila sheet berzona **WIB**.
+> **Kapan panduan ini dipakai:** Web App Apps Script produksi masih menjalankan
+> **script lama** (terverifikasi 10–11 Sep 2026 — feed masih ISO UTC; redeploy
+> "New version" 2× di proyek lama tidak mengalir). Kontrak v2.39/v3 mengirim
+> tanggal/jam **sesuai tampilan sheet** (zona spreadsheet), sehingga jam di
+> aplikasi = jam di sheet **di zona apa pun**. Selama script lama masih jalan,
+> data hanya benar bila sheet berzona **WIB** (zona kedua sheet terbukti WIB —
+> aman sementara).
 
 ---
 
 ## 1. Cek Versi Script yang Aktif (30 detik)
 
-Ambil 1 baris dari feed — lihat format kolom `Timestamp`:
+**Cara paling cepat & pasti — marker versi (script v3+):**
+
+```bash
+curl -sL "<URL_/exec_driver>?marker=1"
+```
+
+| Respons `?marker=1` | Arti | Aksi |
+|---|---|---|
+| `"marker":"bpf-ot-driver-2026-09-11-v3"` / `"bpf-ot-ob-2026-09-11-v3"` | Script **v3** aktif | ✅ Selesai |
+| JSON lain / error / tanpa `marker` | Script **LAMA** | Redeploy (§2) |
+
+**Cara lama (masih berlaku utk feed mana pun)** — lihat format kolom `Timestamp`:
 
 ```bash
 curl -sL "<URL_/exec_driver>" | head -c 400
@@ -20,7 +32,7 @@ curl -sL "<URL_/exec_driver>" | head -c 400
 | Output kolom Timestamp | Arti | Aksi |
 |---|---|---|
 | `"2020-12-12T07:08:54.000Z"` | Script **LAMA** (ISO UTC) | Redeploy (§2) |
-| `"2020-12-12 14:08:54"` | Script **v2.39** (wall-clock) | ✅ Tidak perlu apa-apa |
+| `"2020-12-12 14:08:54"` | Script **v2.39+** (wall-clock) | ✅ Tidak perlu apa-apa |
 
 > Terminal "since" / filter tanggal feed lama memakai `T…Z` — parser server
 > tetap menerima keduanya, jadi cek ini aman dilakukan kapan saja.
@@ -29,30 +41,33 @@ curl -sL "<URL_/exec_driver>" | head -c 400
 
 ## 2. Langkah Redeploy (per Web App — Driver & OB/Security identik)
 
-**Prasyarat:** akun Google yang punya akses ke sheet (view/read-only cukup)
-dan tahu URL `/exec` yang terpasang di sistem (lihat `system_config`
-`overtime_driver_sheet_url` / `overtime_ob_sheet_url`, atau dashboard GA HR →
-⚙️ Sumber Data).
+> 🆕 **11 Sep 2026 — metode BARU: proyek baru + URL baru.** Redeploy "New
+> version" di proyek lama dua kali gagal mengalir (feed tetap ISO-UTC walau
+> deployment ID & versi sudah benar). Keputusan pemilik: buat SEMUA baru.
+> Setiap script kini punya **penanda versi** sehingga tidak ada lagi keraguan
+> "lama atau baru" — cek 30 detik: `<URL_/exec>?marker=1`.
 
-1. Buka **https://script.google.com** → proyek Apps Script yang ada
-   (bukan buat baru — URL `/exec` harus tetap sama agar tidak perlu ubah
-   konfigurasi sistem).
+**Prasyarat:** akun Google yang punya akses ke sheet (view/read-only cukup).
+
+1. Buka **https://script.google.com** → **New project** (standalone).
+   Beri nama jelas, mis. `BPF OT Driver Bridge v3` / `BPF OT OB-Security Bridge v3`.
 2. Hapus seluruh isi `Code.gs`, tempel kode terbaru dari repo:
-   - Driver → `scripts/apps_script_overtime_driver_v2.gs`
-   - OB/Security → `scripts/apps_script_overtime_ob_security.gs`
-   (⚠️ perhatikan variabel `SHEET_ID` di baris atas — milik script masing-masing,
-   jangan tertukar.)
+   - Driver → `scripts/gas_bridge_overtime_driver_v3.gs`
+   - OB/Security → `scripts/gas_bridge_overtime_ob_security_v3.gs`
+   (⚠️ `SHEET_ID` sudah tertanam per script — jangan tertukar.)
+   Panel file kiri harus berisi **satu file .gs saja** (dua `doGet` = yang lama
+   diam-diam menang).
 3. **File → Save** (Ctrl+S).
-4. Klik **Deploy → Manage deployments** → ikon ✏️ (Edit) pada deployment
-   **"Web app"** yang aktif → **Version: New version** → **Deploy**.
-   - *Execute as*: **Me** (akun pemilik script)
-   - *Who has access*: **Anyone** — jangan diubah
-5. Selesai. URL `/exec` **tidak berubah** — tidak ada konfigurasi sistem
-   yang perlu disentuh.
-
-> Jangan pakai "Deploy → New deployment" (membuat URL `/exec` baru).
-> Kalau tidak sengaja terlanjur: salin URL baru itu ke dashboard GA HR →
-> ⚙️ Sumber Data → simpan, lalu hapus deployment lama.
+4. **Deploy → New deployment → Web app**:
+   - *Execute as*: **Me** (akun yang punya akses sheet)
+   - *Who has access*: **Anyone**
+5. Salin URL `/exec` BARU → dashboard GA HR → ⚙️ Sumber Data (modul sesuai)
+   → Simpan → 🔄 Refresh.
+6. **Verifikasi marker**: buka `<URL_baru>/exec?marker=1` → respons harus
+   `"marker":"bpf-ot-driver-2026-09-11-v3"` (Driver) atau
+   `"marker":"bpf-ot-ob-2026-09-11-v3"` (OB/Security).
+7. Hapus proyek/deployment Apps Script LAMA (Drive Google → hilangkan, atau
+   Deploy → Manage deployments → Archive) supaya tidak tertukar lagi.
 
 ---
 
