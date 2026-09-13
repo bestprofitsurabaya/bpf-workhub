@@ -6,13 +6,78 @@ Dipakai bersama oleh:
 
 Tujuan: kurangi duplikasi antara modul Driver & OB/Security.
 """
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from modules.overtime_helpers import (
     clean, parse_date_mdy, parse_time_12h, parse_time_any,
-    parse_date_any, normalize_name
+    parse_date_any, parse_submitted_at_any, normalize_name
 )
 
 POSITIONS = ('OB', 'Security')
+
+# ============================================================
+# 0. Batas waktu submit overtime (v2.40.0)
+# ============================================================
+DEFAULT_OT_SUBMIT_DEADLINE_HOURS = 24   # default: 24 jam setelah jam selesai OT
+
+
+def get_submit_deadline_hours(conn):
+    """Baca config 'overtime_submit_deadline_hours' dari system_config.
+
+    Return int jam (1-168). Bila config tidak ada / tak valid / DB error,
+    kembalikan DEFAULT_OT_SUBMIT_DEADLINE_HOURS — fitur indikator tidak
+    boleh menggagalkan alur utama overtime.
+    """
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT config_value FROM system_config WHERE config_key=%s",
+            ('overtime_submit_deadline_hours',))
+        row = cursor.fetchone()
+        cursor.close()
+        if not row:
+            return DEFAULT_OT_SUBMIT_DEADLINE_HOURS
+        hours = int(str(row[0]).strip())
+        if hours < 1 or hours > 168:
+            return DEFAULT_OT_SUBMIT_DEADLINE_HOURS
+        return hours
+    except Exception:
+        return DEFAULT_OT_SUBMIT_DEADLINE_HOURS
+
+
+def compute_submit_late(row, deadline_hours, now=None):
+    """Hitung flag terlambat-submit untuk satu baris overtime.
+
+    Terlambat = waktu submit > (tanggal + waktu_selesai + deadline jam).
+    Baris tanpa submitted_at yang bisa diparse dianggap TIDAK terlambat
+    (data sheet lama tanpa timestamp) — tidak menandai tanpa bukti.
+    Return (late: bool, deadline: datetime|None).
+    """
+    try:
+        tanggal = parse_date_any(row.get('tanggal'))
+        jam_selesai = parse_time_any(row.get('waktu_selesai'))
+        submitted = parse_submitted_at_any(row.get('submitted_at'))
+        if not tanggal or not jam_selesai or not submitted:
+            return False, None
+        # submitted_at berupa string 'YYYY-MM-DD HH:MM[:SS]' — parse ke datetime
+        try:
+            submitted_dt = datetime.strptime(submitted, '%Y-%m-%d %H:%M:%S')
+        except ValueError:
+            submitted_dt = datetime.strptime(submitted, '%Y-%m-%d %H:%M')
+        mulai = datetime.strptime(f'{tanggal} {jam_selesai}', '%Y-%m-%d %H:%M')
+        deadline = mulai + timedelta(hours=deadline_hours)
+        return submitted_dt > deadline, deadline
+    except Exception:
+        return False, None
+
+
+def annotate_submit_late(rows, deadline_hours, now=None):
+    """Tambahkan 'submit_late' & 'submit_deadline' ke tiap dict baris overtime."""
+    rows = rows if rows is not None else []
+    for r in rows:
+        late, deadline = compute_submit_late(r, deadline_hours, now=now)
+        r['submit_late'] = late
+        r['submit_deadline'] = deadline.strftime('%Y-%m-%d %H:%M') if deadline else None
+    return rows
 
 # ============================================================
 # 1. Shared Validation

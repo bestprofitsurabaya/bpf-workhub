@@ -7,7 +7,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from modules.overtime_shared import (
     validate_overtime_data, build_insert_sql, build_insert_params,
-    serialize_overtime_row, get_display_prefix, make_source_uid, POSITIONS
+    serialize_overtime_row, get_display_prefix, make_source_uid, POSITIONS,
+    compute_submit_late, annotate_submit_late  # v2.40.0
 )
 
 
@@ -256,6 +257,68 @@ class TestHelpers(unittest.TestCase):
         }
         result = serialize_overtime_row(row)
         self.assertEqual(result['modul'], 'driver')
+
+
+# ============================================================
+# Batas waktu submit overtime (v2.40.0)
+# ============================================================
+class TestSubmitDeadline(unittest.TestCase):
+    """compute_submit_late & annotate_submit_late — penanda terlambat-submit."""
+
+    def _row(self, tanggal='2026-09-12', selesai='23:00', submitted='2026-09-13 23:30:00'):
+        return {'tanggal': tanggal, 'waktu_selesai': selesai, 'submitted_at': submitted}
+
+    def test_late_after_deadline(self):
+        # selesai 23:00 + 24 jam = deadline besok 23:00; submit 23:30 → terlambat
+        late, dl = compute_submit_late(self._row(), 24)
+        self.assertTrue(late)
+        self.assertEqual(str(dl), '2026-09-13 23:00:00')
+
+    def test_exactly_at_deadline_not_late(self):
+        late, _ = compute_submit_late(self._row(submitted='2026-09-13 23:00:00'), 24)
+        self.assertFalse(late)
+
+    def test_within_deadline_not_late(self):
+        late, _ = compute_submit_late(self._row(submitted='2026-09-13 22:00:00'), 24)
+        self.assertFalse(late)
+
+    def test_no_submitted_at_not_late(self):
+        """Baris sheet lama tanpa timestamp tidak ditandai (tidak menuduh tanpa bukti)."""
+        late, dl = compute_submit_late(self._row(submitted=''), 24)
+        self.assertFalse(late)
+        self.assertIsNone(dl)
+
+    def test_bad_row_safe(self):
+        """Field kotor/tidak lengkap → False, tidak pernah raise."""
+        for row in ({}, {'tanggal': '', 'waktu_selesai': '23:00', 'submitted_at': 'x'},
+                    {'tanggal': 'bukan-tanggal', 'waktu_selesai': '25:99',
+                     'submitted_at': '2026-13-99 99:99:99'}):
+            late, _ = compute_submit_late(row, 24)
+            self.assertFalse(late)
+
+    def test_custom_deadline_hours(self):
+        # selesai 12 Sep 23:00 + 48 jam = deadline 14 Sep 23:00
+        # → submit 15 Sep 00:30 terlambat; 14 Sep 22:00 masih tepat waktu
+        late, dl = compute_submit_late(
+            self._row(submitted='2026-09-15 00:30:00'), 48)
+        self.assertTrue(late)
+        self.assertEqual(str(dl), '2026-09-14 23:00:00')
+        late2, _ = compute_submit_late(
+            self._row(submitted='2026-09-14 22:00:00'), 48)
+        self.assertFalse(late2)
+
+    def test_annotate_adds_flags(self):
+        rows = [self._row(), self._row(submitted='2026-09-13 22:00:00'),
+                self._row(submitted='')]
+        annotate_submit_late(rows, 24)
+        self.assertTrue(rows[0]['submit_late'])
+        self.assertEqual(rows[0]['submit_deadline'], '2026-09-13 23:00')
+        self.assertFalse(rows[1]['submit_late'])
+        self.assertFalse(rows[2]['submit_late'])
+        self.assertIsNone(rows[2]['submit_deadline'])
+
+    def test_annotate_none_rows_safe(self):
+        self.assertEqual(annotate_submit_late(None, 24), [])
 
 
 if __name__ == '__main__':

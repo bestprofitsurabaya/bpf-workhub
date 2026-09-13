@@ -67,6 +67,16 @@ const cfgUrl = ref('')
 const cfgObUrl = ref('')
 const cfgSaving = ref(false)
 
+// v2.40.0 — batas waktu submit overtime (jam setelah jam selesai OT)
+const deadlineHours = ref(24)
+const deadlineHoursDraft = ref(24)
+const deadlineSaving = ref(false)
+
+// Penanda visual baris yang disubmit melewati batas waktu (kolom kiri merah)
+function lateRowStyle(r) {
+  return r.submit_late ? { borderLeft: '4px solid #ef4444', background: 'rgba(239,68,68,0.06)' } : {}
+}
+
 // Edit & hapus data overtime
 const editModul = ref('driver')
 const editing = ref(null)   // row asli
@@ -142,6 +152,8 @@ async function openConfig() {
     const d = await api('/api/overtime/config')
     cfgUrl.value = d.sheet_url || ''
     cfgObUrl.value = d.ob_sheet_url || ''
+    deadlineHours.value = d.submit_deadline_hours || 24
+    deadlineHoursDraft.value = deadlineHours.value
   } catch { cfgUrl.value = ''; cfgObUrl.value = '' }
 }
 
@@ -160,6 +172,25 @@ async function saveConfigOb() {
     showConfig.value = false
   } catch (e) { alert('❌ ' + e.message) } finally { cfgSaving.value = false }
 }
+
+// v2.40.0 — simpan batas waktu submit overtime
+async function saveConfigDeadline() {
+  const h = parseInt(deadlineHoursDraft.value, 10)
+  if (!Number.isFinite(h) || h < 1 || h > 168) {
+    alert('❌ Batas waktu harus angka 1–168 jam')
+    return
+  }
+  deadlineSaving.value = true
+  try {
+    const r = await api('/api/overtime/config', { method: 'PATCH', body: { submit_deadline_hours: h } })
+    deadlineHours.value = h
+    alert('✅ ' + (r.msg || 'Batas waktu disimpan'))
+  } catch (e) { alert('❌ ' + e.message) } finally { deadlineSaving.value = false }
+}
+
+// v2.40.0 — jumlah baris terlambat-submit (per tab)
+const dLateCount = computed(() => dList.value.filter(r => r.submit_late).length)
+const oLateCount = computed(() => oList.value.filter(r => r.submit_late).length)
 
 function downloadBlob(blob, fname) {
   const url = URL.createObjectURL(blob)
@@ -235,6 +266,11 @@ function fmtWaktu(r) {
   const a = r.waktu_mulai || '—'
   const b = r.waktu_selesai || ''
   return b ? `${a} – ${b}` : a
+}
+
+// v2.40.0 — badge penanda submit melebihi batas waktu
+function lateBadge(r) {
+  return r.submit_late ? '⏳ Lewat batas' : ''
 }
 
 function cetakForm(r, modul) {
@@ -356,8 +392,12 @@ watch(tab, loadTab)
             <table class="tbl">
               <thead><tr><th>Tanggal</th><th>Nama</th><th>No. Kendaraan</th><th>Waktu</th><th>Keterangan</th><th>Broker / Manager</th><th>Sumber</th><th></th></tr></thead>
               <tbody>
-                <tr v-for="r in dPageRows" :key="r.id" :data-id="r.id">
-                  <td>{{ r.tanggal || '—' }}</td>
+                <tr v-for="r in dPageRows" :key="r.id" :data-id="r.id" :style="lateRowStyle(r)">
+                  <td>
+                    {{ r.tanggal || '—' }}
+                    <span v-if="r.submit_late" class="badge" style="background:#ef4444;color:#fff;font-size:10px;margin-left:4px;"
+                          :title="'Batas: ' + (r.submit_deadline || '?')">⏳ Lewat batas</span>
+                  </td>
                   <td><b>{{ r.nama }}</b></td>
                   <td class="muted">{{ r.no_kendaraan || '—' }}</td>
                   <td>{{ fmtWaktu(r) }}</td>
@@ -372,6 +412,7 @@ watch(tab, loadTab)
                   </td>
                 </tr>
                 <tr v-if="!dList.length"><td colspan="8" class="empty">Belum ada data — klik 🔄 Refresh untuk menarik data dari Google Sheet.</td></tr>
+                <tr v-if="dLateCount"><td colspan="8" style="font-size:11px;color:#ef4444;padding:6px 8px;">⏳ {{ dLateCount }} pengajuan lewat batas submit ({{ deadlineHours }} jam setelah jam selesai OT)</td></tr>
               </tbody>
             </table>
           </div>
@@ -423,9 +464,13 @@ watch(tab, loadTab)
             <table class="tbl">
               <thead><tr><th>No.</th><th>Tanggal</th><th>Nama</th><th>Posisi</th><th>Waktu</th><th>Keterangan</th><th>Sumber</th><th></th></tr></thead>
               <tbody>
-                <tr v-for="r in oPageRows" :key="r.id">
+                <tr v-for="r in oPageRows" :key="r.id" :style="lateRowStyle(r)">
                   <td class="muted">{{ r.display_id }}</td>
-                  <td>{{ r.tanggal || '—' }}</td>
+                  <td>
+                    {{ r.tanggal || '—' }}
+                    <span v-if="r.submit_late" class="badge" style="background:#ef4444;color:#fff;font-size:10px;margin-left:4px;"
+                          :title="'Batas: ' + (r.submit_deadline || '?')">⏳ Lewat batas</span>
+                  </td>
                   <td><b>{{ r.nama }}</b></td>
                   <td><span class="badge" :class="r.posisi === 'Security' ? 'badge-purple' : 'badge-cyan'">{{ r.posisi }}</span></td>
                   <td>{{ fmtWaktu(r) }}</td>
@@ -439,6 +484,7 @@ watch(tab, loadTab)
                   </td>
                 </tr>
                 <tr v-if="!oList.length"><td colspan="8" class="empty">Belum ada data overtime OB/Security.</td></tr>
+                <tr v-if="oLateCount"><td colspan="8" style="font-size:11px;color:#ef4444;padding:6px 8px;">⏳ {{ oLateCount }} pengajuan lewat batas submit ({{ deadlineHours }} jam setelah jam selesai OT)</td></tr>
               </tbody>
             </table>
           </div>
@@ -571,6 +617,21 @@ watch(tab, loadTab)
         </div>
         <div class="row" style="justify-content:flex-end;margin-top:6px;">
           <button class="btn btn-primary" :disabled="cfgSaving" @click="saveConfigOb">💾 Simpan OB/Security</button>
+        </div>
+      </div>
+      <!-- v2.40.0 — Batas waktu submit overtime -->
+      <div class="cfg-section" style="margin-top:16px;border-top:1px solid var(--border);padding-top:14px;">
+        <label style="font-weight:700;font-size:13px;">⏳ Batas Waktu Submit Overtime</label>
+        <div class="field" style="margin-top:4px;">
+          <label style="font-size:11px;">Maksimal jam setelah jam selesai overtime (1–168; default 24)</label>
+          <input class="input" type="number" min="1" max="168" v-model="deadlineHoursDraft" style="max-width:120px;" />
+        </div>
+        <p class="muted" style="font-size:11px;margin:6px 0 0;">
+          Contoh: jam selesai OT 23.00 + batas 24 jam → wajib submit sebelum besok 23.00.
+          Pengajuan yang disubmit lewat batas ditandai 🔴 merah di daftar Driver &amp; OB/Security.
+        </p>
+        <div class="row" style="justify-content:flex-end;margin-top:6px;">
+          <button class="btn btn-primary" :disabled="deadlineSaving" @click="saveConfigDeadline">💾 Simpan Batas Waktu</button>
         </div>
       </div>
       <div class="row" style="justify-content:flex-end;margin-top:16px;">

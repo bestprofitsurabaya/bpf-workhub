@@ -25,6 +25,14 @@ const done = ref(null) // { display_id, msg }
 const history = ref([])
 const histLoading = ref(false)
 
+// v2.40.0 — batas waktu submit & penanda terlambat
+const deadlineHours = ref(24)
+const submitLate = ref(false)
+const lateHistCount = computed(() => history.value.filter(r => r.submit_late).length)
+function lateRowStyle(r) {
+  return r.submit_late ? { borderLeft: '4px solid #ef4444', background: 'rgba(239,68,68,0.06)' } : {}
+}
+
 // --- GPS (paritas form publik) ---
 const gps = ref({ lat: '', lon: '', address: '', kelurahan: '', kecamatan: '', kota: '', provinsi: '', kode_pos: '' })
 const gpsStatus = ref('')
@@ -111,6 +119,7 @@ async function submit() {
     if (fotoSelesaiFile.value) payload.foto_selesai = await blobToBase64(fotoSelesaiFile.value)
     const d = await api('/api/overtime/me/submit', { method: 'POST', body: payload })
     done.value = { display_id: d.display_id, msg: d.msg }
+    submitLate.value = !!d.submit_late
     loadHistory()
   } catch (e) {
     error.value = e.message || 'Gagal mengirim. Coba lagi.'
@@ -140,7 +149,16 @@ async function loadHistory() {
 onMounted(() => {
   locate()
   loadHistory()
+  loadDeadline()
 })
+
+// v2.40.0 — ambil batas jam submit (untuk penanda terlambat)
+async function loadDeadline() {
+  try {
+    const d = await api('/api/overtime/form-meta')
+    if (d?.submit_deadline_hours) deadlineHours.value = d.submit_deadline_hours
+  } catch { /* default 24 jam */ }
+}
 </script>
 
 <template>
@@ -162,6 +180,9 @@ onMounted(() => {
           <div class="info-box">
             <div><span>No. Pengajuan</span><b>{{ done.display_id }}</b></div>
             <div><span>Status</span><b>{{ done.msg }}</b></div>
+          </div>
+          <div v-if="submitLate" style="margin-top:10px;padding:8px 10px;border:1px solid #ef4444;border-radius:10px;background:rgba(239,68,68,0.08);color:#ef4444;font-size:12px;font-weight:600;">
+            ⏳ Pengajuan ini melewati batas {{ deadlineHours }} jam setelah jam selesai overtime — akan diberi penanda khusus di sisi GA HR.
           </div>
           <p class="muted" style="font-size:11px;margin-top:10px;">
             Simpan nomor di atas sebagai bukti. Data bisa dilihat oleh GA HR.
@@ -266,14 +287,20 @@ onMounted(() => {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="r in history" :key="r.id">
+            <tr v-for="r in history" :key="r.id" :style="lateRowStyle(r)">
               <td style="font-size:11px;">{{ r.display_id }}</td>
-              <td>{{ r.tanggal || '—' }}</td>
+              <td>{{ r.tanggal || '—' }}
+                <span v-if="r.submit_late" style="background:#ef4444;color:#fff;font-size:10px;padding:1px 6px;border-radius:8px;margin-left:4px;"
+                      :title="'Batas: ' + (r.submit_deadline || '?')">⏳ Lewat batas</span>
+              </td>
               <td>{{ [r.waktu_mulai || '—', r.waktu_selesai].filter(Boolean).join(' – ') }}</td>
               <td style="font-size:11px;">{{ r.keterangan || '—' }}</td>
             </tr>
           </tbody>
         </table>
+        <div v-if="lateHistCount" style="font-size:11px;color:#ef4444;margin-top:6px;">
+          ⏳ {{ lateHistCount }} pengajuan lewat batas submit ({{ deadlineHours }} jam setelah jam selesai OT)
+        </div>
       </div>
     </div>
   </div>

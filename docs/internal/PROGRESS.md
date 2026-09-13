@@ -4,7 +4,7 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 **Terakhir diperbarui:** 2026-09-11  
 **Branch:** `main`  
-**Versi terbaru:** v2.39.6 (13 Sep — form PDF OB/Security tanpa kolom TTD MANAGER; manager hanya utk driver) · v2.39.5 (11 Sep — kualitas konten scraper: pembersih konten + gerbang kualitas H2 + guard sinonim) · v2.39.4 (11 Sep — bridge Apps Script diterbitkan ulang sbg v3 dgn marker versi; file lama dihapus) · v2.39.3 (10 Sep — fix deteksi async_mode via argv + smoke CI import app dgn gevent) · v2.39.2 (10 Sep — fix CI: monkey-patching gevent keluar dari app.py + guard) · v2.39.1 (10 Sep — verifikasi paritas overtime DB↔sheet live + LIMIT list/report dinaikkan + pagination Data Overtime) · v2.39.0 (9 Sep — waktu overtime sesuai sheet Apps Script + form Overtime Saya utk OB & Security + role security) · v2.38.0 (di working tree — migrasi worker eventlet→gevent) · v2.37.8 (8 Sep — fix SW meng-cache /api/*: list tak update setelah verifikasi/kehadiran) · v2.37.7 (8 Sep — kop Tanda Terima air minum per cabang) · v2.37.6 LIVE (7 Sep — layout export air minum + kop per cabang + PLM dinonaktifkan) · v2.37.5 (export rekap air minum PDF & Excel) · v2.37.4 (filter rentang tanggal) · v2.37.3 (detail snapshot audit log) · v2.37.2 (fix foto bukti 500 + preview verifikasi air minum) · v2.37.1 (hotfix scoping admin cabang) · v2.37.0 (edit/hapus air minum + admin per-cabang + Pengaturan terstruktur) — program 6 tahap ISO 27001 SELESAI
+**Versi terbaru:** v2.40.0 (13 Sep — batas waktu submit overtime bisa diatur GA HR + penanda visual terlambat di GA HR & driver/OB/Security) · v2.39.6 (13 Sep — form PDF OB/Security tanpa kolom TTD MANAGER; manager hanya utk driver) · v2.39.5 (11 Sep — kualitas konten scraper: pembersih konten + gerbang kualitas H2 + guard sinonim) · v2.39.4 (11 Sep — bridge Apps Script diterbitkan ulang sbg v3 dgn marker versi; file lama dihapus) · v2.39.3 (10 Sep — fix deteksi async_mode via argv + smoke CI import app dgn gevent) · v2.39.2 (10 Sep — fix CI: monkey-patching gevent keluar dari app.py + guard) · v2.39.1 (10 Sep — verifikasi paritas overtime DB↔sheet live + LIMIT list/report dinaikkan + pagination Data Overtime) · v2.39.0 (9 Sep — waktu overtime sesuai sheet Apps Script + form Overtime Saya utk OB & Security + role security) · v2.38.0 (di working tree — migrasi worker eventlet→gevent) · v2.37.8 (8 Sep — fix SW meng-cache /api/*: list tak update setelah verifikasi/kehadiran) · v2.37.7 (8 Sep — kop Tanda Terima air minum per cabang) · v2.37.6 LIVE (7 Sep — layout export air minum + kop per cabang + PLM dinonaktifkan) · v2.37.5 (export rekap air minum PDF & Excel) · v2.37.4 (filter rentang tanggal) · v2.37.3 (detail snapshot audit log) · v2.37.2 (fix foto bukti 500 + preview verifikasi air minum) · v2.37.1 (hotfix scoping admin cabang) · v2.37.0 (edit/hapus air minum + admin per-cabang + Pengaturan terstruktur) — program 6 tahap ISO 27001 SELESAI
 
 ---
 
@@ -12,7 +12,7 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 | Aspek | Status |
 |-------|--------|
-| Versi | **v2.39.6 (13 Sep)** — form PDF OB/Security tanpa kolom TTD MANAGER; sebelumnya v2.39.5 (11 Sep — kualitas konten scraper), v2.39.4 (11 Sep — bridge Apps Script v3), v2.39.3 (10 Sep — fix deteksi async_mode + smoke CI), v2.39.2 (10 Sep — fix CI monkey-patching + guard), v2.39.1 (10 Sep — paritas overtime live + LIMIT + pagination), v2.39.0 (9 Sep — waktu overtime sesuai sheet, form Overtime Saya, role security) |
+| Versi | **v2.40.0 (13 Sep)** — batas waktu submit overtime (default 24 jam, config GA HR 1–168 jam) + penanda terlambat-submit; sebelumnya v2.39.6 (13 Sep — form PDF OB/Security tanpa TTD MANAGER), v2.39.5 (11 Sep — kualitas konten scraper), v2.39.4 (11 Sep — bridge Apps Script v3), v2.39.3 (10 Sep — fix deteksi async_mode + smoke CI), v2.39.2 (10 Sep — fix CI monkey-patching + guard), v2.39.1 (10 Sep — paritas overtime live + LIMIT + pagination), v2.39.0 (9 Sep — waktu overtime sesuai sheet, form Overtime Saya, role security) |
 | Zona waktu sheet overtime (10 Sep) | ✅ **TERVERIFIKASI WIB via feed** — `scripts/forensic_overtime_tz.py` (di container): kedua feed masih script LAMA (Driver 8.764/8.864 nilai `T…Z`, OB 614/614); `Tanggal Overtime` driver = `…T17:00:00.000Z` (tengah malam WIB → 17:00Z; GMT+8 akan 16:00Z) → **cukup redeploy Web App §2 OT_WEBAPP_REDEPLOY.md, TANPA re-seed**; fallback +7 parser & normalisasi OB atas feed live OK |
 | Deteksi async_mode (v2.39.3) | ✅ **DI REPO** — deteksi env v2.39.2 (`GUNICORN_CMD_ARGS`/`SERVER_SOFTWARE`) tak pernah benar di produksi (diverifikasi PID 1 bbm_web: env kosong dgn keduanya; SERVER_SOFTWARE = kunci WSGI per-request) → produksi akan boot threading di worker gevent. Kini via **argv** (worker mewarisi argv master: `gunicorn --worker-class gevent …`); simulasi argv worker di container → `gevent` ✓; +1 smoke CI: subprocess `import app` dgn gevent (kondisi persis insiden 34425989650) — skip di host tanpa gevent, jalan di job Backend CI; 4/4 guard lulus di container |
 | Insiden CI monkey-patch (v2.39.2) | ✅ **DI REPO** — CI run 34425989650 merah (587 test lulus tapi error setup): `monkey.patch_all()` v2.38.0 di app.py jalan saat `import app` oleh pytest → lock importlib rusak ("cannot release un-acquired lock"); host lokal hijau karena gevent tak ter-install (fallback threading menyembunyikan bug). Fix: patching kini milik worker gunicorn `--worker-class` (CMD Dockerfile); app.py deteksi env gunicorn utk `socketio_async_mode`; worker gevent Dockerfile+requirements dijaga; +3 guard `tests/test_worker_patch_guard.py`. Verifikasi: 21 pytest terkait + 141 vitest + build SPA hijau |
@@ -113,6 +113,31 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
    rusak/paragraf dobel; H2 utuh ("Dalam catatan detikcom", "Di sisi lain,
    prospek permintaan memberikan tekanan kepada harga"); Sumber asli + CTA
    utuh. URL lama 404 (per konsep trash), URL baru live.
+
+### Sesi 2026-09-13 (lanjutan) — v2.40.0: batas waktu submit overtime + penanda terlambat ✅ SELESAI
+
+> Permintaan pemilik: GA HR bisa mengatur batas waktu submit overtime
+> (mis. jam selesai OT 23.00 + batas 24 jam = wajib submit sebelum besok
+> 23.00). Yang lewat batas diberi penanda khusus agar terlihat — di sisi
+> GA HR maupun driver/OB/Security.
+
+1. **Config** `overtime_submit_deadline_hours` (system_config, default 24,
+   clamp 1–168) — diatur GA HR dari modal Pengaturan Data Overtime
+   (PATCH /api/overtime/config {submit_deadline_hours}), ter-audit.
+2. **Helper** `get_submit_deadline_hours` / `compute_submit_late` /
+   `annotate_submit_late` (overtime_shared.py) — tepat di batas TIDAK
+   terlambat; baris tanpa timestamp (sheet lama) tidak ditandai; DB down →
+   fallback default (fitur indikator tak pernah menggagalkan submit).
+3. **Flag di semua sisi**: list GA HR (Driver & OB/Security), riwayat
+   Overtime Saya, form-meta; respons 3 jalur submit menyertakan
+   `submit_late` + pesan peringatan.
+4. **Visual**: baris terlambat = garis kiri merah + latar merah tipis +
+   badge 🔴 "⏳ Lewat batas" (tooltip deadline) + ringkasan jumlah di bawah
+   tabel; kotak peringatan pasca-submit; form Driver PWA menampilkan
+   peringatan real-time saat target melewati batas.
+5. **Test**: 8 pytest (TestSubmitDeadline) + 5 vitest
+   (OvertimeMeView.test.js); 68 pytest overtime & 154 vitest lulus.
+6. Deploy digabung dgn image berpatch CVE (apt-get upgrade, f5dd883).
 
 ### Sesi 2026-09-13 — v2.39.6: form PDF OB/Security tanpa TTD MANAGER ✅ SELESAI + LIVE
 

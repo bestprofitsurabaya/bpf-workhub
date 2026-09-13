@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch } from 'vue'
+import { ref, watch, onMounted } from 'vue'
 import { useDriverStore } from '../../stores/driverStore'
 import { api } from '../../api'
 import { applyWatermark, fileToDataUrl } from '../../utils/watermark'
@@ -7,10 +7,36 @@ import { applyWatermark, fileToDataUrl } from '../../utils/watermark'
 const store = useDriverStore()
 const emit = defineEmits(['toast'])
 
+// v2.40.0 — batas waktu submit & penanda terlambat
+const deadlineHours = ref(24)
+const submitLate = ref(false)
+onMounted(async () => {
+  try {
+    const d = await api('/api/overtime/form-meta')
+    if (d?.submit_deadline_hours) deadlineHours.value = d.submit_deadline_hours
+  } catch { /* default 24 jam */ }
+})
+
+// Peringatan real-time: target submit > jam selesai OT + batas jam (v2.40.0)
+const latePreview = computed(() => {
+  if (!form.value.tanggal || !form.value.waktu_selesai) return null
+  const [y, m, d] = form.value.tanggal.split('-').map(Number)
+  const [hh, mm] = form.value.waktu_selesai.split(':').map(Number)
+  if (!y || !hh && hh !== 0 || Number.isNaN(mm)) return null
+  const deadline = new Date(y, m - 1, d, hh, mm || 0, 0)
+  deadline.setHours(deadline.getHours() + (Number(deadlineHours.value) || 24))
+  const now = new Date()
+  if (now <= deadline) return null
+  const over = Math.floor((now - deadline) / 3600000)
+  const overMin = Math.round(((now - deadline) % 3600000) / 60000)
+  return { over, overMin, deadline }
+})
+
 const form = ref({
   tanggal: '', waktu_mulai: '', waktu_selesai: '', keterangan: '',
   no_kendaraan: '', broker: '', manager: '',
 })
+import { computed } from 'vue'
 const error = ref('')
 const loading = ref(false)
 const done = ref(null)
@@ -92,7 +118,8 @@ async function submit() {
     if (store.online) {
       const d = await api('/api/overtime/driver/submit', { method: 'POST', body: payload })
       done.value = { display_id: d.display_id, msg: d.msg }
-      emit('toast', `✅ Overtime tercatat: ${d.display_id}`, 'success')
+      submitLate.value = !!d.submit_late
+      emit('toast', d.submit_late ? `⏳ Overtime tercatat (LEWAT BATAS): ${d.display_id}` : `✅ Overtime tercatat: ${d.display_id}`, d.submit_late ? 'warning' : 'success')
     } else {
       // Offline: simpan ke antrean
       await store.enqueue('overtime_queue', payload)
@@ -140,6 +167,9 @@ function reset() {
         <div><span>No.</span><b>{{ done.display_id }}</b></div>
         <div><span>Status</span><b>{{ done.msg }}</b></div>
       </div>
+      <div v-if="submitLate" style="margin-top:10px;padding:8px 10px;border:1px solid #ef4444;border-radius:10px;background:rgba(239,68,68,0.08);color:#ef4444;font-size:12px;font-weight:600;">
+        ⏳ Pengajuan ini melewati batas {{ deadlineHours }} jam setelah jam selesai overtime — akan diberi penanda khusus di sisi GA HR.
+      </div>
       <p style="font-size:11px;color:var(--text-3);margin-top:10px;">
         Simpan nomor di atas sebagai bukti. Data bisa dilihat oleh GA HR.
       </p>
@@ -164,6 +194,12 @@ function reset() {
           <label>Waktu Selesai</label>
           <input class="input" type="time" v-model="form.waktu_selesai" />
         </div>
+      </div>
+
+      <!-- v2.40.0 — peringatan real-time melewati batas waktu submit -->
+      <div v-if="latePreview" style="margin:8px 0;padding:8px 10px;border:1px solid #ef4444;border-radius:10px;background:rgba(239,68,68,0.08);color:#ef4444;font-size:11px;font-weight:600;">
+        ⏳ Melewati batas {{ deadlineHours }} jam: pengajuan ini terlambat {{ latePreview.over }} jam {{ latePreview.overMin }} menit
+        (batas {{ latePreview.deadline.toLocaleString('id-ID') }}) — akan diberi penanda khusus di GA HR.
       </div>
 
       <div class="field">

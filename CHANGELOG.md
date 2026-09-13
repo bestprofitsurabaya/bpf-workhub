@@ -4,6 +4,46 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 
 ---
 
+## v2.40.0 — 13 September 2026 (Batas waktu submit overtime + penanda terlambat)
+
+### ⏳ Latar: pengajuan yang disubmit sangat terlambat tak terbedakan
+
+Sebelumnya GA HR tidak bisa membedakan pengajuan overtime yang diisi tepat
+waktu dengan yang diisi berhari-hari kemudian. Kini GA HR dapat mengatur
+**batas waktu submit** (jam setelah jam selesai OT; default **24 jam**), dan
+pengajuan yang melewati batas diberi **penanda visual** di semua sisi.
+
+### 🛠️ Implementasi
+
+- `overtime_shared.py` — helper baru: `get_submit_deadline_hours()` (config
+  `overtime_submit_deadline_hours` di system_config, clamp 1–168 jam, fallback
+  aman 24 bila DB bermasalah), `compute_submit_late()` (terlambat =
+  `submitted_at > tanggal + waktu_selesai + batas jam`; tepat di batas tidak
+  terlambat; baris tanpa timestamp — sheet lama — tidak ditandai),
+  `annotate_submit_late()` (flag `submit_late` + `submit_deadline` per baris).
+- `routes_overtime.py` — list GA HR Driver & OB/Security, riwayat "Overtime
+  Saya", dan `form-meta` kini mengirim flag terlambat + batas jam;
+  `PATCH /api/overtime/config` menerima `{submit_deadline_hours: 1..168}`
+  (ter-audit via log_activity); respons 3 jalur submit (form publik OB,
+  Overtime Saya, Driver PWA) menyertakan `submit_late` + pesan peringatan.
+- **GA HR (Data Overtime)** — baris terlambat diberi garis kiri merah + latar
+  merah tipis, badge 🔴 **"⏳ Lewat batas"** (tooltip: deadline), ringkasan
+  jumlah di bawah tabel; modal Pengaturan menampung input batas jam.
+- **Driver/OB/Security** — riwayat Overtime Saya diberi badge yang sama;
+  setelah submit terlambat muncul kotak peringatan; form Driver PWA menampilkan
+  **peringatan real-time** saat target melewati batas ("terlambat X jam Y menit").
+- PDF laporan tidak diubah (indikator hanya di aplikasi).
+
+### ✅ Verifikasi
+
+- 8 unit test baru `TestSubmitDeadline` (test_overtime_shared.py) — tepat di
+  batas tidak terlambat, 24,5 jam terlambat, kustom 48 jam, baris kotor aman.
+- 5 vitest baru `OvertimeMeView.test.js` — badge riwayat, ringkasan, kotak
+  peringatan pasca-submit.
+- 68 pytest overtime + 154 vitest lulus.
+
+---
+
 ## v2.39.6 — 13 September 2026 (Form PDF OB/Security tanpa tanda tangan MANAGER)
 
 ### 🖋️ Latar: kolom TTD MANAGER salah tampil di form OB/Security

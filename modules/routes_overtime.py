@@ -32,7 +32,9 @@ from modules.overtime_helpers import (clean, map_headers, parse_date_mdy,
                                       normalize_driver_row)
 from modules.overtime_shared import (
     validate_overtime_data, build_insert_sql, build_insert_params,
-    serialize_overtime_row, get_display_prefix, make_source_uid, POSITIONS
+    serialize_overtime_row, get_display_prefix, make_source_uid, POSITIONS,
+    get_submit_deadline_hours, annotate_submit_late, compute_submit_late,
+    DEFAULT_OT_SUBMIT_DEADLINE_HOURS  # v2.40.0
 )
 from modules.pdf_generator import OvertimeReportPDF
 from modules.approvals import hook_create_approval, gate_approval  # v2.36.0
@@ -151,6 +153,15 @@ def _rate_ok(ip):
     ts.append(now)
     _submit_log[ip] = ts
     return True
+
+
+def _deadline_hours_safe(conn=None):
+    """Batas jam submit dgn fallback aman bila DB down (v2.40.0) —
+    fitur indikator tidak boleh menggagalkan submit."""
+    try:
+        return get_submit_deadline_hours(conn or get_db_connection())
+    except Exception:
+        return DEFAULT_OT_SUBMIT_DEADLINE_HOURS
 
 
 def _current_user():
@@ -642,11 +653,15 @@ def register_overtime_routes(app):
                 "SELECT DISTINCT keterangan FROM overtime_ob_security "
                 "WHERE keterangan<>'' ORDER BY keterangan LIMIT 100")
             keterangan = [r['keterangan'] for r in cursor.fetchall()]
+            # v2.40.0: batas waktu submit utk hint & penanda terlambat
+            # (dibaca sebelum koneksi ditutup)
+            _dh = get_submit_deadline_hours(conn)
             cursor.close(); conn.close()
             return jsonify({
                 'positions': list(POSITIONS),
                 'names': names,
                 'keterangan': keterangan,
+                'submit_deadline_hours': _dh,
             })
         except Exception as e:
             return jsonify({'error': str(e)}), 500
@@ -712,8 +727,16 @@ def register_overtime_routes(app):
             except Exception as ne:
                 print(f"[overtime-notif] {ne}")
             cursor.close(); conn.close()
+            # v2.40.0: penanda terlambat-submit pada respons submit
+            _dh = _deadline_hours_safe()
+            late, _dl = compute_submit_late(
+                {'tanggal': cleaned['tanggal'], 'waktu_selesai': cleaned['waktu_selesai'],
+                 'submitted_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')}, _dh)
+            _msg = f'Overtime {posisi} tercatat! No. {display_id}'
+            if late:
+                _msg += f' — ⏳ Terlambat: melewati batas {_dh} jam setelah jam selesai OT.'
             return jsonify({'status': 'success', 'display_id': display_id,
-                            'msg': f'Overtime {posisi} tercatat! No. {display_id}'})
+                            'submit_late': late, 'msg': _msg})
         except Exception as e:
             return jsonify({'status': 'error', 'msg': str(e)}), 500
 
@@ -744,8 +767,12 @@ def register_overtime_routes(app):
                    " ORDER BY tanggal DESC, id DESC LIMIT 2000")
             cursor.execute(sql, params)
             rows = [_serialize(r) for r in cursor.fetchall()]
+            # v2.40.0: penanda terlambat-submit di riwayat Overtime Saya
+            _dh = get_submit_deadline_hours(conn)
+            annotate_submit_late(rows, _dh)
             cursor.close(); conn.close()
-            return jsonify({'data': rows, 'total': len(rows)})
+            return jsonify({'data': rows, 'total': len(rows),
+                            'submit_deadline_hours': _dh})
         except ValueError as e:
             return jsonify({'error': str(e)}), 400
         except Exception as e:
@@ -803,8 +830,16 @@ def register_overtime_routes(app):
             except Exception as ne:
                 print(f"[overtime-notif] {ne}")
             cursor.close(); conn.close()
+            # v2.40.0: penanda terlambat-submit pada respons submit
+            _dh = _deadline_hours_safe()
+            late, _dl = compute_submit_late(
+                {'tanggal': cleaned['tanggal'], 'waktu_selesai': cleaned['waktu_selesai'],
+                 'submitted_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')}, _dh)
+            _msg = f'Overtime {posisi} tercatat! No. {display_id}'
+            if late:
+                _msg += f' — ⏳ Terlambat: melewati batas {_dh} jam setelah jam selesai OT.'
             return jsonify({'status': 'success', 'display_id': display_id,
-                            'msg': f'Overtime {posisi} tercatat! No. {display_id}'})
+                            'submit_late': late, 'msg': _msg})
         except Exception as e:
             return jsonify({'status': 'error', 'msg': str(e)}), 500
 
@@ -869,8 +904,16 @@ def register_overtime_routes(app):
             except Exception as ne:
                 print(f"[overtime-notif] {ne}")
             cursor.close(); conn.close()
+            # v2.40.0: penanda terlambat-submit pada respons submit
+            late, deadline = compute_submit_late(
+                {'tanggal': cleaned['tanggal'], 'waktu_selesai': cleaned['waktu_selesai'],
+                 'submitted_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')},
+                _deadline_hours_safe())
+            _msg = f'Overtime Driver tercatat! No. {display_id}'
+            if late:
+                _msg += f' — ⏳ Terlambat: melewati batas {_dh} jam setelah jam selesai OT.'
             return jsonify({'status': 'success', 'display_id': display_id,
-                            'msg': f'Overtime Driver tercatat! No. {display_id}'})
+                            'submit_late': late, 'msg': _msg})
         except Exception as e:
             return jsonify({'status': 'error', 'msg': str(e)}), 500
 
@@ -915,8 +958,12 @@ def register_overtime_routes(app):
             rows = [_serialize(r) for r in cursor.fetchall()]
             cursor.execute("SELECT COUNT(*) c FROM overtime_driver")
             total = cursor.fetchone()['c']
+            # v2.40.0: penanda terlambat-submit (melebihi batas jam)
+            _dh = get_submit_deadline_hours(conn)
+            annotate_submit_late(rows, _dh)
             cursor.close(); conn.close()
-            return jsonify({'data': rows, 'total': total})
+            return jsonify({'data': rows, 'total': total,
+                            'submit_deadline_hours': _dh})
         except ValueError as e:
             return jsonify({'error': str(e)}), 400
         except Exception as e:
@@ -1022,8 +1069,12 @@ def register_overtime_routes(app):
             rows = [_serialize(r) for r in cursor.fetchall()]
             cursor.execute("SELECT COUNT(*) c FROM overtime_ob_security")
             total = cursor.fetchone()['c']
+            # v2.40.0: penanda terlambat-submit (melebihi batas jam)
+            _dh = get_submit_deadline_hours(conn)
+            annotate_submit_late(rows, _dh)
             cursor.close(); conn.close()
-            return jsonify({'data': rows, 'total': total})
+            return jsonify({'data': rows, 'total': total,
+                            'submit_deadline_hours': _dh})
         except ValueError as e:
             return jsonify({'error': str(e)}), 400
         except Exception as e:
@@ -1337,12 +1388,21 @@ def register_overtime_routes(app):
             cursor.execute("SELECT config_key, config_value FROM system_config "
                            "WHERE config_key LIKE 'overtime_%'")
             cfg = {r['config_key']: r['config_value'] for r in cursor.fetchall()}
+            # v2.40.0: batas waktu submit (baca dari cfg sebelum koneksi ditutup)
+            try:
+                _dh = int(str(cfg.get('overtime_submit_deadline_hours', '')).strip())
+                if not (1 <= _dh <= 168):
+                    _dh = DEFAULT_OT_SUBMIT_DEADLINE_HOURS
+            except (TypeError, ValueError):
+                _dh = DEFAULT_OT_SUBMIT_DEADLINE_HOURS
             cursor.close(); conn.close()
             return jsonify({
                 'sheet_url': cfg.get('overtime_driver_sheet_url', ''),
                 'last_refresh': cfg.get('overtime_driver_last_refresh', 'Belum pernah refresh'),
                 'ob_sheet_url': cfg.get('overtime_ob_sheet_url', ''),
                 'ob_last_refresh': cfg.get('overtime_ob_last_refresh', 'Belum pernah refresh'),
+                # v2.40.0: batas waktu submit overtime (jam setelah jam selesai OT)
+                'submit_deadline_hours': _dh,
             })
         except Exception as e:
             return jsonify({'error': str(e)}), 500
@@ -1352,6 +1412,30 @@ def register_overtime_routes(app):
     def api_overtime_config_set():
         try:
             data = request.get_json(silent=True) or {}
+            # v2.40.0: pengaturan batas waktu submit (jam setelah jam selesai OT)
+            # — dikirim tanpa sheet_url, mis. {submit_deadline_hours: 24}
+            if data.get('submit_deadline_hours') is not None:
+                try:
+                    hours = int(data.get('submit_deadline_hours'))
+                except (TypeError, ValueError):
+                    return jsonify({'status': 'error', 'msg': 'Batas waktu harus angka jam'}), 400
+                if hours < 1 or hours > 168:
+                    return jsonify({'status': 'error', 'msg': 'Batas waktu harus 1-168 jam'}), 400
+                conn = get_db_connection()
+                if not conn:
+                    return jsonify({'status': 'error', 'msg': 'DB error'}), 500
+                cursor = conn.cursor()
+                cursor.execute(
+                    "INSERT INTO system_config (config_key, config_value) VALUES (%s,%s) "
+                    "ON DUPLICATE KEY UPDATE config_value=VALUES(config_value)",
+                    ('overtime_submit_deadline_hours', str(hours)))
+                conn.commit()
+                cursor.close(); conn.close()
+                user = _current_user()
+                log_activity_async(None, 'overtime_config', user['role'], user['full_name'],
+                                   new_data={'submit_deadline_hours': hours}, ip=request.remote_addr)
+                return jsonify({'status': 'success',
+                                'msg': f'Batas waktu submit: {hours} jam setelah jam selesai OT'})
             modul = clean(data.get('modul', 'driver'))
             if modul not in ('driver', 'ob'):
                 modul = 'driver'
