@@ -81,9 +81,17 @@ const historyBusy = ref(false)
 const logs = ref([])
 const showLog = ref(false)
 const logLevelFilter = ref('')
+const logCategoryFilter = ref('')
 const filteredLogs = computed(() => {
-  if (!logLevelFilter.value) return logs.value
-  return logs.value.filter(l => l.level === logLevelFilter.value)
+  let out = logs.value
+  if (logLevelFilter.value) out = out.filter(l => l.level === logLevelFilter.value)
+  if (logCategoryFilter.value) out = out.filter(l => (l.category || '').toUpperCase() === logCategoryFilter.value)
+  return out
+})
+const logCategories = computed(() => {
+  const set = new Set()
+  logs.value.forEach(l => { if (l.category) set.add(String(l.category).toUpperCase()) })
+  return [...set].sort()
 })
 function logLevelColor(level) {
   const colors = { ERROR: '#ef4444', WARNING: '#f59e0b', INFO: '#10b981', DEBUG: '#6b7280', CRITICAL: '#ec4899' }
@@ -295,6 +303,33 @@ async function deleteDuplicate(postIds) {
   dupBusy.value = true
   try { await api('/api/scraper/duplicates/delete', { method: 'POST', body: { site_name: dupSite.value, post_ids: postIds } }); await checkDuplicates() }
   catch { /* noop */ }
+  finally { dupBusy.value = false }
+}
+
+// --- Delete All ---
+async function deleteAllPosts() {
+  if (!dupSite.value || dupBusy.value) return
+  const dupCount = duplicates.value.reduce((s, d) => s + (d.count || 0), 0)
+  const summary = duplicates.value.length
+    ? `Ringkasan cek terakhir: ${dupCount} post dalam ${duplicates.value.length} grup duplikat. PERHATIAN: SEMUA post di site ini akan dihapus, bukan hanya duplikat.`
+    : 'PERHATIAN: SEMUA post di site ini akan dihapus (bukan hanya duplikat). Jalankan Check dulu untuk ringkasan.'
+  // Confirm 1: summary + permanence warning
+  if (!confirm(`⚠️ Hapus SEMUA post di "${dupSite.value}"?\n\n${summary}\nTindakan ini PERMANEN dan tidak bisa dibatalkan!`)) return
+  // Confirm 2: typed confirmation token
+  const token = (prompt(`Konfirmasi final: ketik "HAPUS SEMUA" untuk menghapus semua post di "${dupSite.value}":`) || '').trim().toUpperCase()
+  if (token !== 'HAPUS SEMUA') return
+  dupBusy.value = true
+  try {
+    const r = await api('/api/scraper/duplicates/delete-all', {
+      method: 'POST',
+      body: { site_name: dupSite.value, confirm: token },
+    })
+    msg.value = `🗑 Hapus semua selesai: ${r.deleted}/${r.total_posts} post dihapus${r.truncated ? ' (jumlah post melebihi batas paginasi)' : ''}`
+    await checkDuplicates()
+    // Activity log: refresh agar aksi ini langsung tampil (siapa menghapus apa).
+    loadLog()
+  }
+  catch (e) { msg.value = '❌ ' + e.message }
   finally { dupBusy.value = false }
 }
 
@@ -634,6 +669,9 @@ onMounted(() => { loadSites(); loadDashboard(); document.documentElement.classLi
             <button class="btn" :disabled="dupBusy || !dupSite" @click="checkDuplicates">
               {{ dupBusy ? '⏳ Checking...' : '🔍 Check' }}
             </button>
+            <button class="btn btn-sm btn-danger" :disabled="dupBusy || !dupSite" @click="deleteAllPosts">
+              {{ dupBusy ? '⏳ ...' : '🗑 Hapus Semua' }}
+            </button>
           </div>
           <div v-if="duplicates.length" class="dup-list">
             <div v-for="(d, i) in duplicates" :key="i" class="dup-item">
@@ -897,6 +935,10 @@ onMounted(() => { loadSites(); loadDashboard(); document.documentElement.classLi
         <button class="btn btn-sm" :class="{ 'btn-primary': logLevelFilter === 'WARNING' }" @click="logLevelFilter = 'WARNING'" style="color:#f59e0b;">⚠️ Warning</button>
         <button class="btn btn-sm" :class="{ 'btn-primary': logLevelFilter === 'INFO' }" @click="logLevelFilter = 'INFO'" style="color:#10b981;">ℹ️ Info</button>
         <button class="btn btn-sm" :class="{ 'btn-primary': logLevelFilter === 'DEBUG' }" @click="logLevelFilter = 'DEBUG'" style="color:#6b7280;">🔍 Debug</button>
+        <select class="select" v-model="logCategoryFilter" style="max-width:180px;padding:4px 8px;font-size:12px;">
+          <option value="">Semua kategori</option>
+          <option v-for="c in logCategories" :key="c" :value="c">{{ c }}</option>
+        </select>
       </div>
       <div class="config-list" style="max-height:400px;overflow-y:auto;font-family:monospace;font-size:12px;">
         <div v-for="(l, i) in filteredLogs" :key="i" class="log-item" :style="{ borderLeft: '3px solid ' + logLevelColor(l.level) }">
@@ -905,6 +947,9 @@ onMounted(() => { loadSites(); loadDashboard(); document.documentElement.classLi
             <span :style="{ color: logLevelColor(l.level), fontWeight: 600, minWidth: '55px' }">[{{ l.level }}]</span>
             <span style="color:#6366f1;font-weight:500;min-width:90px;">{{ l.category || '' }}</span>
             <span class="log-text" style="flex:1;">{{ l.msg || l.message || '' }}</span>
+          </div>
+          <div v-if="l.user" style="margin-left:160px;margin-top:2px;font-size:11px;color:#94a3b8;">
+            👤 {{ l.user }}
           </div>
           <div v-if="l.extra" style="margin-left:160px;margin-top:2px;font-size:11px;color:#94a3b8;">
             <span v-for="(val, key) in l.extra" :key="key" style="margin-right:8px;">{{ key }}={{ typeof val === 'object' ? JSON.stringify(val) : val }}</span>

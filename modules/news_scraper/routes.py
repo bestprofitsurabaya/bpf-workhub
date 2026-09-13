@@ -3,7 +3,7 @@ modules/news_scraper/routes.py
 Flask route handlers for the news scraper module.
 """
 
-import os, json, time, io, csv, re, threading
+import os, json, time, io, csv, re, threading, html
 from datetime import datetime
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
@@ -45,13 +45,28 @@ def _save_json(path, data):
 
 
 def _log_scraper(message, user='unknown'):
-    """Append an entry to the scraper activity log."""
+    """Append an entry to the scraper activity log.
+
+    ``message`` may be a plain string (legacy shape: time/user/message) or a
+    structured dict (level/category/msg/extra) that the activity log modal
+    renders with full detail (who did what).
+    """
+    if isinstance(message, dict):
+        entry = dict(message)
+        entry.setdefault('ts', datetime.now().isoformat())
+        entry.setdefault('user', user)
+        entry.setdefault('level', 'INFO')
+        entry.setdefault('category', 'general')
+        entry.setdefault('msg', '')
+        entry.setdefault('extra', {})
+    else:
+        entry = {
+            'time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'user': user,
+            'message': message,
+        }
     logs = _load_json(SCRAPER_LOG_FILE, [])
-    logs.append({
-        'time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-        'user': user,
-        'message': message,
-    })
+    logs.append(entry)
     _save_json(SCRAPER_LOG_FILE, logs[-2000:])
 
 
@@ -816,10 +831,55 @@ def upload_articles_multi():
 
 # ----- DUPLICATE CHECKER -----
 
+# Hard limit on pagination so a misbehaving site cannot loop forever.
+_MAX_POST_PAGES = 50
+
+
+def _fetch_all_posts(client, nonce, per_page=100, max_pages=_MAX_POST_PAGES):
+    """Fetch every post from a WP site via paginated get_posts calls.
+
+    Returns ``(posts, complete)``. ``complete`` is True only when pagination
+    ended naturally: an empty page, a short page, or WP's own end-of-range
+    signal (HTTP 400 ``rest_post_invalid_page_number``). Hitting ``max_pages``
+    or a transport/server error marks the result incomplete, i.e. more posts
+    may exist on the site.
+    """
+    posts = []
+    page = 1
+    while page <= max_pages:
+        try:
+            r = client.get_posts(nonce,
+                                 params={'page': page, 'per_page': per_page,
+                                         'orderby': 'date', 'order': 'desc'})
+            if r.status_code == 400:
+                # WP signals "page out of range" = we reached the end.
+                return posts, True
+            if r.status_code != 200:
+                return posts, False
+            page_posts = r.json()
+            if not page_posts:
+                return posts, True
+            posts.extend(page_posts)
+            if len(page_posts) < per_page:
+                return posts, True
+        except Exception:
+            return posts, False
+        page += 1
+        time.sleep(0.1)
+    return posts, False
+
+
+def _normalized_post_title(post):
+    """Canonical fuzzy key for a WP post title (entities, tags, punctuation,
+    case and whitespace are all normalized away)."""
+    raw = (post.get('title') or {}).get('rendered', '')
+    return normalize_title(html.unescape(re.sub(r'<[^>]+>', '', raw)))
+
+
 @news_scraper_bp.route('/api/scraper/duplicates', methods=['POST'])
 @role_required(SCRAPER_ROLES)
 def check_duplicates():
-    """Check for duplicate articles on a WordPress site."""
+    """Check for duplicate articles on a WordPress site (fuzzy title match)."""
     try:
         d = request.get_json(force=True)
         site_name = (d.get('site_name') or '').strip()
@@ -836,36 +896,29 @@ def check_duplicates():
         if not login_ok:
             return jsonify({'ok': False, 'error': f'Login gagal: {nonce_or_err}', 'duplicates': [], 'total_posts': 0}), 401
 
-        posts = []
-        page = 1
-        while True:
-            try:
-                r = client.get_posts(nonce_or_err,
-                                   params={'page': page, 'per_page': 100, 'orderby': 'date', 'order': 'desc'})
-                if r.status_code != 200:
-                    break
-                page_posts = r.json()
-                if not page_posts:
-                    break
-                posts.extend(page_posts)
-                page += 1
-                time.sleep(0.1)
-            except Exception:
-                break
+        posts, complete = _fetch_all_posts(client, nonce_or_err)
 
-        title_count = Counter()
-        posts_by_title = {}
+        # Group by normalized title so near-identical titles (HTML entities,
+        # punctuation, case, stray whitespace) are detected as duplicates.
+        norm_count = Counter()
+        posts_by_norm = {}
+        display_title = {}
         for post in posts:
-            t = post.get('title', {}).get('rendered', '')
-            title_count[t] += 1
-            posts_by_title.setdefault(t, []).append(post)
+            raw = post.get('title', {}).get('rendered', '')
+            key = _normalized_post_title(post)
+            if not key:
+                continue
+            norm_count[key] += 1
+            posts_by_norm.setdefault(key, []).append(post)
+            if key not in display_title or len(raw) < len(display_title[key]):
+                display_title[key] = raw
 
         duplicates = []
-        for title, count in title_count.items():
+        for key, count in norm_count.items():
             if count > 1:
-                plist = posts_by_title[title]
+                plist = posts_by_norm[key]
                 duplicates.append({
-                    'title': title,
+                    'title': display_title[key],
                     'count': count,
                     'post_ids': [p['id'] for p in plist],
                     'dates': [p.get('date', '') for p in plist],
@@ -909,6 +962,94 @@ def delete_duplicates():
 
     _log_scraper(f"Deleted {deleted} duplicate posts", session.get('user_name', 'unknown'))
     return jsonify({'ok': True, 'deleted': deleted})
+
+
+# ----- DELETE ALL POSTS -----
+
+_DELETE_ALL_CONFIRM = 'HAPUS SEMUA'   # token the client must echo back
+_DELETE_ALL_CAP = 500                 # default safety cap
+_DELETE_ALL_MAX_CAP = 2000            # absolute ceiling (opt-in via `cap`)
+_DELETE_ALL_WORKERS = 5               # parallel delete threads
+
+
+@news_scraper_bp.route('/api/scraper/duplicates/delete-all', methods=['POST'])
+@role_required(SCRAPER_ROLES)
+def delete_all_posts():
+    """Delete ALL posts on a WordPress site.
+
+    Extremely destructive, so it is triple-guarded: an explicit confirm
+    token, a post-count cap (opt-in raisable up to _DELETE_ALL_MAX_CAP),
+    and deletion runs through a small thread pool for speed.
+    """
+    try:
+        d = request.get_json(force=True) or {}
+        site_name = (d.get('site_name') or '').strip()
+        if not site_name:
+            return jsonify({'error': 'Pilih WordPress site'}), 400
+        if (d.get('confirm') or '').strip().upper() != _DELETE_ALL_CONFIRM:
+            return jsonify({'error': f'Konfirmasi wajib: kirim confirm="{_DELETE_ALL_CONFIRM}"'}), 400
+
+        try:
+            cap = int(d.get('cap') or _DELETE_ALL_CAP)
+        except (TypeError, ValueError):
+            cap = _DELETE_ALL_CAP
+        cap = max(1, min(cap, _DELETE_ALL_MAX_CAP))
+
+        sites = _load_json(WP_SITES_FILE, {})
+        if site_name not in sites:
+            return jsonify({'error': f'Site "{site_name}" tidak ditemukan'}), 404
+
+        site = sites[site_name]
+        client = _make_wp_client(site)
+        login_ok, nonce_or_err = client.login()
+        if not login_ok:
+            return jsonify({'ok': False, 'error': f'Login gagal: {nonce_or_err}', 'deleted': 0}), 401
+
+        posts, complete = _fetch_all_posts(client, nonce_or_err)
+        if not posts:
+            return jsonify({'ok': True, 'deleted': 0, 'total_posts': 0, 'truncated': False})
+        if len(posts) > cap:
+            return jsonify({
+                'ok': False,
+                'error': (f'Site memiliki {len(posts)} post (> cap {cap}). '
+                          f'Naikkan cap (maks {_DELETE_ALL_MAX_CAP}) atau hapus bertahap.'),
+                'total_posts': len(posts),
+                'deleted': 0,
+                'cap': cap,
+            }), 400
+
+        def _delete_one(pid):
+            try:
+                r = client.request('DELETE', f"{site['wp_url']}/{pid}", nonce_or_err,
+                                   params={'force': True}, timeout=15)
+                return 1 if r.status_code == 200 else 0
+            except Exception:
+                return 0
+
+        deleted = 0
+        with ThreadPoolExecutor(max_workers=_DELETE_ALL_WORKERS) as pool:
+            for ok in pool.map(_delete_one, [p['id'] for p in posts]):
+                deleted += ok
+
+        user = session.get('user_name', 'unknown')
+        _log_scraper({
+            'level': 'WARNING' if deleted < len(posts) else 'INFO',
+            'category': 'DELETE_ALL',
+            'msg': f"Hapus semua: {deleted}/{len(posts)} post dihapus dari site '{site_name}'",
+            'extra': {
+                'user': user,
+                'site': site_name,
+                'deleted': deleted,
+                'total_posts': len(posts),
+                'failed': len(posts) - deleted,
+                'truncated': not complete,
+                'cap': cap,
+            },
+        }, user)
+        return jsonify({'ok': True, 'deleted': deleted, 'total_posts': len(posts),
+                        'truncated': not complete})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': f'Hapus semua gagal: {str(e)}', 'deleted': 0}), 500
 
 
 # ----- BACKLINKS MANAGEMENT -----
