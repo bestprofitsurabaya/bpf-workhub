@@ -17,8 +17,10 @@ RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
 WORKDIR /app
 
-# Install MySQL client (untuk mysqldump) + cron (untuk auto-cleanup foto OT)
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# Install MySQL client (untuk mysqldump) + cron (untuk auto-cleanup foto OT).
+# apt-get upgrade -y: tarik fix keamanan paket OS dari base image (gerbang Trivy
+# HIGH/CRITICAL di CI — A.8.8; gagal build bila ada CVE yg sudah punya fix).
+RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
     default-mysql-client \
     cron \
     poppler-utils \
