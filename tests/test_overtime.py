@@ -517,3 +517,54 @@ class TestOvertimePDF:
         assert 'OB & SECURITY' in txt.upper() or 'Overtime OB' in txt
         assert 'SECURITY' in txt.upper()
         assert 'MUHAJIR' in txt.upper()
+
+
+# ============================================================
+# Form PDF Overtime — blok tanda tangan (v2.39.6)
+# TTD MANAGER hanya utk modul driver; OB/Security tanpa kolom MANAGER.
+# ============================================================
+class TestOvertimeFormPDFSignatures:
+    def _form_pdf_text(self, modul):
+        from modules.pdf_generator import OvertimeFormPDF
+        from tests.pdf_text import _pdf_text
+        row = {
+            'display_id': 'OTX-001', 'email': 'user@mail.com',
+            'nama': 'Budi Santoso', 'tanggal': date(2026, 9, 13),
+            'waktu_mulai': '18:00', 'waktu_selesai': '21:00',
+            'keterangan': 'OT malam',
+        }
+        if modul == 'driver':
+            row.update({'no_kendaraan': 'B 1234 XYZ', 'broker': 'Broker A',
+                        'manager': 'Pak Manajer'})
+        else:
+            row['posisi'] = 'Security'
+        pdf = OvertimeFormPDF()
+        pdf.generate(row, modul=modul)
+        buf = io.BytesIO()
+        pdf.output(buf)
+        return _pdf_text(buf.getvalue())
+
+    def test_driver_form_has_manager_signature(self):
+        txt = self._form_pdf_text('driver').upper()
+        assert 'MANAGER' in txt          # blok TTD + field NAMA MANAGER
+        assert 'FINANCE' in txt
+        assert 'GA HR' in txt
+        assert 'KEPALA CABANG' in txt
+
+    def test_ob_security_form_has_no_manager_signature(self):
+        txt = self._form_pdf_text('ob').upper()
+        assert 'FINANCE' in txt
+        assert 'GA HR' in txt
+        assert 'KEPALA CABANG' in txt
+        assert 'MANAGER' not in txt      # kolom MANAGER dihapus utk OB/Security
+
+    def test_direct_signature_blocks_default_is_driver(self):
+        """Tanpa argumen (pemanggil lama), blok TTD tetap memuat MANAGER."""
+        from modules.pdf_generator import OvertimeFormPDF
+        from tests.pdf_text import _pdf_text
+        pdf = OvertimeFormPDF()
+        pdf.add_page()
+        pdf._signature_blocks()
+        buf = io.BytesIO()
+        pdf.output(buf)
+        assert 'MANAGER' in _pdf_text(buf.getvalue()).upper()

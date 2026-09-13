@@ -4,6 +4,35 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 
 ---
 
+## v2.39.6 — 13 September 2026 (Form PDF OB/Security tanpa tanda tangan MANAGER)
+
+### 🖋️ Latar: kolom TTD MANAGER salah tampil di form OB/Security
+
+Form PDF "Permohonan Overtime" (`/api/overtime/form-pdf`) selama ini mencetak
+blok tanda tangan yang sama untuk dua modul: MANAGER, FINANCE, GA HR,
+Checked Chief Driver, KEPALA CABANG. Padahal aturannya: **tanda tangan
+manager hanya untuk overtime driver** (nama manager memang hanya diisi
+pada form driver). Form OB/Security jadi membawa kolom kosong yang tak
+seharusnya ada.
+
+### 🛠️ Perbaikan
+
+- `pdf_generator.py` — `OvertimeFormPDF._signature_blocks()` kini menerima
+  `is_driver`: modul **driver** tetap 5 kolom (MANAGER s/d KEPALA CABANG),
+  modul **ob** 4 kolom **tanpa MANAGER**. Field detail "NAMA MANAGER" memang
+  hanya pernah dicetak untuk driver — kini blok TTD-nya konsisten.
+- Pemanggil lama tanpa argumen tetap default `is_driver=True` (aman).
+
+### ✅ Verifikasi
+
+- 3 test regresi baru di `tests/test_overtime.py`
+  (`TestOvertimeFormPDFSignatures`): teks PDF driver memuat MANAGER/FINANCE/
+  GA HR/KEPALA CABANG; teks PDF OB **tidak** memuat "MANAGER" sama sekali;
+  default helper tetap driver. `pytest tests/test_overtime.py` 40/40 lulus.
+- Stamp v2.39.6 (SW cache `v2396`, identity, PDF) + deploy live.
+
+---
+
 ## v2.39.5 — 11 September 2026 (Pembersih konten scraper + gerbang kualitas H2 + guard sinonim)
 
 ### 🔍 Latar: temuan kualitas pada artikel live Surabaya

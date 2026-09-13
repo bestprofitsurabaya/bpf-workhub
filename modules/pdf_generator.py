@@ -11,7 +11,7 @@ from modules.company_identity import get_company_identity, IDENTITY_DEFAULTS  # 
 # ============================================================
 COMPANY_NAME = 'PT BESTPROFIT FUTURES'
 COMPANY_SUBTITLE = 'Kantor Pusat | Jakarta'
-SYSTEM_VERSION = 'BPF WorkHub v2.39.5'
+SYSTEM_VERSION = 'BPF WorkHub v2.39.6'
 LOGO_FILENAMES = ['icon-512.png', 'icon-192.png']
 PHOTO_FIELDS = [
     ('foto_odo_sebelum', 'ODO Sebelum'),
@@ -1616,8 +1616,8 @@ class OvertimeFormPDF(BPFBasePDF):
         self.cell(0, 6, ': ', new_x='LMARGIN', new_y='NEXT')
         self.ln(8)
 
-        # Blok TTD
-        self._signature_blocks()
+        # Blok TTD — v2.39.6: Manager hanya utk Driver (OB/Security tanpa MANAGER)
+        self._signature_blocks(is_driver=is_driver)
         self.ln(6)
 
         # Foto links
@@ -1630,9 +1630,16 @@ class OvertimeFormPDF(BPFBasePDF):
         self.cell(0, 4, 'PENTING: Dokumen ini wajib disimpan dan dipelihara kerahasiaannya sesuai dengan Standar ISO 27001:2022', align='C', new_x='LMARGIN', new_y='NEXT')
         self.set_text_color(*INK)
 
-    def _signature_blocks(self):
-        """Blok TTD: Manager, Finance, GA HR, Chief Driver, Kepala Cabang."""
-        labels = ['MANAGER', 'FINANCE', 'GA HR', 'Checked Chief Driver', 'KEPALA CABANG']
+    def _signature_blocks(self, is_driver=True):
+        """Blok TTD form overtime.
+
+        Driver (5 kolom): MANAGER, FINANCE, GA HR, Checked Chief Driver,
+        KEPALA CABANG. OB/Security (4 kolom): kolom MANAGER dihapus —
+        tanda tangan manager hanya berlaku untuk overtime driver.
+        """
+        labels = ['FINANCE', 'GA HR', 'Checked Chief Driver', 'KEPALA CABANG']
+        if is_driver:
+            labels = ['MANAGER'] + labels
         self.set_font(self._font(), 'B', 9)
         self.set_text_color(*INK)
         self.cell(0, 5, 'TANDA TANGAN', align='C', new_x='LMARGIN', new_y='NEXT')
