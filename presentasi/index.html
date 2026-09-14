@@ -156,7 +156,8 @@
       <tr><td><b>GA</b></td><td>Dashboard GA — klaim, kasbon, trip, verifikasi anomali</td></tr>
       <tr><td><b>Finance</b></td><td>Dashboard Finance — rekap air minum &amp; kasbon</td></tr>
       <tr><td><b>Driver</b></td><td>Aplikasi Driver (PWA) — BBM, kasbon, trip, rapor</td></tr>
-      <tr><td><b>OB</b></td><td>Halaman Air Minum</td></tr>
+      <tr><td><b>OB</b></td><td>Halaman Air Minum + ⏰ Overtime Saya</td></tr>
+      <tr><td><b>Security</b></td><td>⏰ Overtime Saya — pengajuan lembur dgn foto bukti</td></tr>
       <tr><td><b>Marketing / Chief Driver</b></td><td>Marketing Hub / Board Chief Driver</td></tr>
     </table>
     <div class="key">🔒 <b>Kunci:</b> satu aplikasi untuk semua — tapi setiap orang <b>hanya melihat dunia yang menjadi tugasnya</b> (least privilege).</div>
@@ -198,9 +199,24 @@
     <div class="notes">Demo: login bergantian ga_sby → finance_sby → admin. Tunjukkan tombol approve/tolak & export CSV.</div>
   </div></section>
 
-  <!-- 6: KASBON & KODE UNIK -->
+  <!-- 6: OVERTIME & ACC BERJENJANG -->
   <section class="slide"><div class="slide-inner">
     <div class="kicker">Demo Utama 3</div>
+    <h2>⏰ Overtime &amp; ACC Berjenjang</h2>
+    <p class="lead">Google Form untuk lembur <b>tidak dipakai lagi</b> — semuanya dari dalam aplikasi, dengan bukti foto.</p>
+    <div class="cards">
+      <div class="card"><div class="ico">📸</div><b>Submit dgn foto bukti</b><span>Driver (PWA), OB &amp; Security — nama &amp; posisi otomatis dari akun; foto mulai &amp; selesai + watermark &amp; GPS</span></div>
+      <div class="card"><div class="ico">⏳</div><b>Batas waktu bisa diatur</b><span>Default 24 jam selesai lembur — terlambat tetap diterima, diberi tanda ⏳ di daftar GA HR (transparan)</span></div>
+      <div class="card"><div class="ico">✅</div><b>ACC berjenjang</b><span>GA HR → Admin — data terkunci selama menunggu; penolakan wajib beralasan; semua keputusan tercatat di audit log</span></div>
+      <div class="card"><div class="ico">📄</div><b>Formulir OT PDF</b><span>Formulir permohonan resmi dengan <b>foto bukti tersemat</b> — arsip tanpa kertas</span></div>
+    </div>
+    <div class="key">🔗 <b>Kunci:</b> dari pengajuan sampai PDF resmi — <b>terstruktur, terbukti, bisa diaudit</b>; alur lengkap sudah diuji end-to-end di produksi.</div>
+    <div class="notes">Demo: login ob → ⏰ Overtime Saya (isi + foto) → GA HR lihat di daftar → ACC → Admin ACC → buka 📄 Formulir OT PDF (tunjukkan foto di dalam PDF).</div>
+  </div></section>
+
+  <!-- 7: KASBON & KODE UNIK -->
+  <section class="slide"><div class="slide-inner">
+    <div class="kicker">Demo Utama 4</div>
     <h2>💰 Klaim BBM &amp; Kasbon</h2>
     <p class="lead">Alur relay: <b>Driver → GA → Finance → LPJ → Selesai 🎉</b></p>
     <table>
@@ -217,7 +233,7 @@
 
   <!-- 7: REALTIME -->
   <section class="slide"><div class="slide-inner">
-    <div class="kicker">Demo Utama 4</div>
+    <div class="kicker">Demo Utama 5</div>
     <h2>⚡ Realtime &amp; Notifikasi</h2>
     <div class="cards">
       <div class="card"><div class="ico">🔔</div><b>Toast &amp; Lonceng</b><span>Pengajuan baru muncul seketika — ikon per jenis (klaim, trip, air minum, appointment)</span></div>
@@ -230,7 +246,7 @@
 
   <!-- 8: DRIVER OFFLINE -->
   <section class="slide"><div class="slide-inner">
-    <div class="kicker">Demo Utama 5</div>
+    <div class="kicker">Demo Utama 6</div>
     <h2>📱 Driver: Offline di Jalan</h2>
     <ul>
       <li>Login PIN — <b>identitas menempel otomatis</b> di semua laporan (tidak bisa mengaku-ngaku).</li>
@@ -276,7 +292,7 @@
     <div class="kicker">Kredibilitas</div>
     <h2>🧪 Kualitas &amp; Kepatuhan</h2>
     <div class="cards">
-      <div class="card"><div class="ico">✅</div><b>179 uji otomatis</b><span>97 backend + 82 frontend — setiap perubahan diuji</span></div>
+      <div class="card"><div class="ico">✅</div><b>±850 uji otomatis</b><span>±700 backend (pytest) + 154 frontend (vitest) — diuji otomatis di CI tiap rilis</span></div>
       <div class="card"><div class="ico">🌐</div><b>E2E di produksi</b><span>Alur kritis diverifikasi di lingkungan nyata</span></div>
       <div class="card"><div class="ico">📜</div><b>Standar ISO</b><span>27001 (keamanan) · 9241-11 (UX) · 9001 (mutu)</span></div>
       <div class="card"><div class="ico">♿</div><b>Aksesibilitas</b><span>Fokus keyboard, kontras ≥4,5:1, mode kontras tinggi &amp; gelap</span></div>

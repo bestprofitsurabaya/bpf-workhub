@@ -1,4 +1,4 @@
-# 🎤 Materi Presentasi — BPF WorkHub v2.37.0
+# 🎤 Materi Presentasi — BPF WorkHub v2.40.3
 
 Panduan demo lengkap untuk presentasi di depan audiens. Urutan disusun dari yang paling berkesan ke yang paling teknis. Tiap bagian berisi tujuan, apa yang ditampilkan di layar, poin yang dibicarakan, dan satu kalimat kunci.
 
@@ -17,23 +17,24 @@ Telp: 031-5349888
 3. [Satu Aplikasi, Semua Peran](#3-satu-aplikasi-semua-peran)
 4. [Demo Utama 1 — Air Minum](#4-demo-utama-1--air-minum)
 5. [Demo Utama 2 — Dashboard per Peran](#5-demo-utama-2--dashboard-per-peran)
-6. [Demo Utama 3 — Klaim BBM & Kasbon](#6-demo-utama-3--klaim-bbm--kasbon)
-7. [Demo Utama 4 — Realtime & Notifikasi](#7-demo-utama-4--realtime--notifikasi)
-8. [Demo Utama 5 — Driver PWA Offline](#8-demo-utama-5--driver-pwa-offline)
-9. [Demo Pendukung — Marketing & Chief Driver](#9-demo-pendukung--marketing--chief-driver)
-10. [Demo Pendukung — IT Surabaya & News Scraper](#10-demo-pendukung--it-surabaya--news-scraper-2-menit-)
-11. [Demo Pendukung — Pelamar Kerja](#11-demo-pendukung--pelamar-kerja)
-12. [Keamanan & Tata Kelola](#12-keamanan--tata-kelola)
-13. [Kualitas & Kepatuhan](#13-kualitas--kepatuhan)
-14. [Penutup — Nilai & Langkah Berikutnya](#14-penutup--nilai--langkah-berikutnya)
-15. [Persiapan Demo](#15-persiapan-demo)
-16. [Kemungkinan Pertanyaan Audiens](#16-kemungkinan-pertanyaan-audiens)
-17. [Kata Penutup](#17-kata-penutup)
+6. [Demo Utama 3 — Overtime & ACC Berjenjang](#6-demo-utama-3--overtime--acc-berjenjang)
+7. [Demo Utama 4 — Klaim BBM & Kasbon](#7-demo-utama-4--klaim-bbm--kasbon)
+8. [Demo Utama 5 — Realtime & Notifikasi](#8-demo-utama-5--realtime--notifikasi)
+9. [Demo Utama 6 — Driver PWA Offline](#9-demo-utama-6--driver-pwa-offline)
+10. [Demo Pendukung — Marketing & Chief Driver](#10-demo-pendukung--marketing--chief-driver)
+11. [Demo Pendukung — IT Surabaya & News Scraper](#11-demo-pendukung--it-surabaya--news-scraper-2-menit-)
+12. [Demo Pendukung — Pelamar Kerja](#12-demo-pendukung--pelamar-kerja)
+13. [Keamanan & Tata Kelola](#13-keamanan--tata-kelola)
+14. [Kualitas & Kepatuhan](#14-kualitas--kepatuhan)
+15. [Penutup — Nilai & Langkah Berikutnya](#15-penutup--nilai--langkah-berikutnya)
+16. [Persiapan Demo](#16-persiapan-demo)
+17. [Kemungkinan Pertanyaan Audiens](#17-kemungkinan-pertanyaan-audiens)
+18. [Kata Penutup](#18-kata-penutup)
 
 **Dokumen Pendukung:**
 - 🖥️ Slide deck interaktif: `presentasi/index.html`
-- 📄 Versi PDF: `presentasi/BPF_Fleet_BBM_System_Presentasi.pdf`
-- 🖊️ Versi PPTX: `presentasi/BPF_Fleet_BBM_System_Presentasi.pptx`
+- 📄 Versi PDF: `presentasi/BPF_WorkHub_Presentasi.pdf`
+- 🖊️ Versi PPTX: `presentasi/BPF_WorkHub_Presentasi.pptx`
 - 📋 Ringkasan satu halaman: `ONEPAGER.md`
 - 🎬 Video walkthrough: `presentasi/videos/`
 - 🎯 Lembar latihan: `PELATIHAN.md`
@@ -49,17 +50,18 @@ Telp: 031-5349888
 | 1 | Satu aplikasi, semua peran | 2 mnt | Gambaran besar sebelum detail |
 | 2 | Demo: Air Minum (OB → Finance) | 3 mnt | Fitur terbaru, unik, mudah dipahami |
 | 3 | Demo: Dashboard per peran | 3 mnt | Menunjukkan pemisahan hak akses |
-| 4 | Demo: Klaim BBM + Kasbon | 3 mnt | Alur uang — inti bisnis |
-| 5 | Demo: Realtime & notifikasi | 2 mnt | "Wow factor", teknologi terasa |
-| 6 | Demo: Driver PWA offline | 2 mnt | Relevan untuk pengguna lapangan |
-| 7 | Demo: Marketing & Chief Driver | 2 mnt | Fitur pendukung penjualan |
-| 8 | Demo: Pelamar Kerja | 2 mnt | Menggantikan Google Form |
-| 9 | Demo: IT Surabaya & News Scraper | 2 mnt | Content management + SEO |
-| 10 | Keamanan & tata kelola | 3 mnt | Menjawab kekhawatiran pengambil keputusan |
-| 11 | Kualitas & kepatuhan | 2 mnt | Bukti kredibilitas teknis |
-| 12 | Penutup: nilai & langkah berikutnya | 2 mnt | Ajakan bertindak |
+| 4 | Demo: Overtime + ACC berjenjang | 3 mnt | Fitur terbaru — bukti foto & persetujuan terstruktur |
+| 5 | Demo: Klaim BBM + Kasbon | 3 mnt | Alur uang — inti bisnis |
+| 6 | Demo: Realtime & notifikasi | 2 mnt | "Wow factor", teknologi terasa |
+| 7 | Demo: Driver PWA offline | 2 mnt | Relevan untuk pengguna lapangan |
+| 8 | Demo: Marketing & Chief Driver | 2 mnt | Fitur pendukung penjualan |
+| 9 | Demo: Pelamar Kerja | 2 mnt | Menggantikan Google Form |
+| 10 | Demo: IT Surabaya & News Scraper | 2 mnt | Content management + SEO |
+| 11 | Keamanan & tata kelola | 3 mnt | Menjawab kekhawatiran pengambil keputusan |
+| 12 | Kualitas & kepatuhan | 2 mnt | Bukti kredibilitas teknis |
+| 13 | Penutup: nilai & langkah berikutnya | 2 mnt | Ajakan bertindak |
 
-**Total durasi:** ±15 menit (demo inti) atau ±30 menit (versi lengkap)
+**Total durasi:** ±18 menit (demo inti) atau ±30 menit (versi lengkap)
 
 ---
 
@@ -136,7 +138,29 @@ Telp: 031-5349888
 
 ---
 
-## 6. Demo Utama 3 — Klaim BBM, Kasbon & Kode Unik (3 menit) 🚗💰
+## 6. Demo Utama 3 — Overtime & ACC Berjenjang (3 menit) ⏰
+
+> **Fitur terbaru (v2.39–v2.40.3).** Google Form untuk lembur tidak dipakai lagi —
+> semuanya dari dalam aplikasi, dengan bukti foto.
+
+- **Submit dari 3 peran:** Driver (PWA), OB, dan Security — nama & posisi otomatis
+  dari akun (tidak bisa mengaku-ngaku), foto bukti mulai & selesai dengan watermark + GPS.
+- **Batas waktu submit bisa diatur GA HR** (default 24 jam selesai lembur) — pengajuan
+  terlambat tetap diterima tapi diberi tanda ⏳ di daftar (transparan, tidak disembunyikan).
+- **ACC berjenjang: GA HR → Admin.** Selama menunggu persetujuan, data terkunci
+  (tidak bisa diedit/dihapus); penolakan wajib beralasan; semua keputusan tercatat di audit log.
+- **Formulir Permohonan Overtime PDF** — foto bukti tersemat sebagai gambar; arsip resmi
+  tanpa kertas.
+- *Bukti kualitas:* alur lengkap ini sudah diuji end-to-end di lingkungan produksi
+  (submit → ACC → PDF) pada September 2026.
+
+**Demo:** login `ob` → ⏰ Overtime Saya (isi + foto) → login GA HR → lihat di daftar
+(dengan tanda terlambat bila ada) → ACC → login Admin → ACC → buka 📄 Formulir OT PDF
+(tunjukkan foto di dalam PDF).
+
+---
+
+## 7. Demo Utama 4 — Klaim BBM, Kasbon & Kode Unik (3 menit) 🚗💰
 
 **Skenario:** ceritakan alur "bayar dulu, ganti belakangan" dengan 4 peran.
 
@@ -156,7 +180,7 @@ Telp: 031-5349888
 
 ---
 
-## 7. Demo Utama 4 — Realtime & Notifikasi (2 menit) ⚡
+## 8. Demo Utama 5 — Realtime & Notifikasi (2 menit) ⚡
 
 **Skenario:** buka Dashboard GA dan Dashboard Finance bersebelahan (2 tab browser), lalu:
 1. Login OB di tab 3 → buat pengajuan air minum.
@@ -172,7 +196,7 @@ Telp: 031-5349888
 
 ---
 
-## 8. Demo Utama 5 — Driver PWA: Offline di Jalan (2 menit) 📱
+## 9. Demo Utama 6 — Driver PWA: Offline di Jalan (2 menit) 📱
 
 **Skenario:** buka `/app/driver` (bisa di mode ponsel DevTools).
 
@@ -188,7 +212,7 @@ Telp: 031-5349888
 
 ---
 
-## 9. Demo Pendukung — Marketing & Chief Driver (2 menit) 📣
+## 10. Demo Pendukung — Marketing & Chief Driver (2 menit) 📣
 
 **Poin yang dibicarakan:**
 - Marketing: input jadwal kunjungan + jam kunjungan untuk driver, pantau status.
@@ -199,7 +223,7 @@ Telp: 031-5349888
 
 ---
 
-## 10. Demo Pendukung — IT Surabaya & News Scraper (2 menit) 📰
+## 11. Demo Pendukung — IT Surabaya & News Scraper (2 menit) 📰
 
 **Skenario:** login sebagai IT Surabaya, tunjukkan alur scrape → upload → SEO.
 
@@ -217,7 +241,7 @@ Telp: 031-5349888
 
 ---
 
-## 11. Demo Pendukung — Pelamar Kerja (2 menit) 🪪
+## 12. Demo Pendukung — Pelamar Kerja (2 menit) 🪪
 
 **Alur demo:**
 1. Buka `/app/apply` (tanpa login) → isi form → muncul No. Registrasi PLM-* + jam interview otomatis.
@@ -231,7 +255,7 @@ Telp: 031-5349888
 
 ---
 
-## 11. Keamanan & Tata Kelola (3 menit) 🔐
+## 13. Keamanan & Tata Kelola (3 menit) 🔐
 
 > Bagian ini yang paling sering ditanya pengambil keputusan.
 
@@ -252,10 +276,10 @@ Telp: 031-5349888
 
 ---
 
-## 12. Kualitas & Kepatuhan (2 menit) 🧪
+## 14. Kualitas & Kepatuhan (2 menit) 🧪
 
 **Poin yang dibicarakan:**
-- 482 uji otomatis backend (pytest) + 109 uji frontend (vitest) — dipastikan hijau di CI tiap rilis.
+- ±850 uji otomatis: ±700 backend (pytest) + 154 frontend (vitest) — dipastikan hijau di CI tiap rilis, termasuk guard stamp versi & guard peta database.
 - Uji end-to-end di produksi untuk alur kritis.
 - Pemetaan standar: ISO/IEC 27001, ISO 9241-11, ISO 9001.
 - Aksesibilitas: fokus keyboard, kontras warna, mode kontras tinggi, mode gelap.
@@ -266,7 +290,7 @@ Telp: 031-5349888
 
 ---
 
-## 13. Penutup — Nilai & Langkah Berikutnya (2 menit)
+## 15. Penutup — Nilai & Langkah Berikutnya (2 menit)
 
 **Rangkum dalam 3 angka:**
 > - **1 aplikasi** untuk semua peran.
@@ -280,7 +304,7 @@ Telp: 031-5349888
 
 ---
 
-## 14. Persiapan Demo
+## 16. Persiapan Demo
 
 | Persiapan | Detail |
 |-----------|--------|
@@ -295,13 +319,15 @@ Telp: 031-5349888
 
 ---
 
-## 15. Kemungkinan Pertanyaan Audiens
+## 17. Kemungkinan Pertanyaan Audiens
 
 | Pertanyaan | Jawaban Singkat |
 |------------|-----------------|
 | "Kalau internet mati?" | Driver tetap bisa kerja (offline-first, sinkron otomatis). |
 | "Data aman?" | Login PIN, hak akses per peran, audit log, percobaan login dibatasi. |
 | "Bisa diakses dari mana?" | Dari browser apa pun — komputer, laptop, HP. |
+| "Google Form lembur masih dipakai?" | Tidak — form overtime internal (Driver/OB/Security) dengan foto bukti; PDF resmi tercetak otomatis. |
+| "Kalau pengajuan lembur telat?" | Tetap diterima dan ditandai terlambat — batasnya bisa diatur GA HR; transparan di daftar. |
 | "Bagaimana kalau ada sopir baru / OB baru?" | Admin membuat akun dalam hitungan menit dari halaman Users. |
 | "Bisa integrasi Excel?" | Sudah: export CSV rekap air minum, export Excel logsheet & rekap harian. |
 | "Apakah ini bisa dipakai untuk cabang lain?" | Ya — tinggal tambah pengguna & data master; alurnya sama. |
@@ -311,7 +337,7 @@ Telp: 031-5349888
 
 ---
 
-## 16. Kata Penutup
+## 18. Kata Penutup
 
 > "Kami tidak hanya membuat aplikasi — kami merapikan cara kerja sehari-hari. Sopir tidak perlu menunggu uangnya diganti berhari-hari. Finance tidak perlu menerka struk ini milik siapa. OB tidak perlu bingung bukti pembeliannya. Semuanya tercatat, terverifikasi, dan bisa dipertanggungjawabkan — dengan satu aplikasi yang dipakai semua orang, sesuai porsinya masing-masing. Terima kasih."
 
@@ -325,4 +351,4 @@ Telp: 031-5349888
 
 ---
 
-*BPF WorkHub v2.37.0 · Materi Presentasi · Diperbarui 6 September 2026*
+*BPF WorkHub v2.40.3 · Materi Presentasi · Diperbarui 14 September 2026*

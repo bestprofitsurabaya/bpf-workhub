@@ -150,6 +150,16 @@ di sidebar untuk mencatat lembur sendiri:
 
 > Pengajuanmu diteruskan ke **GA HR** untuk di-ACC lalu **Admin** — sama
 > seperti overtime Driver. Cek status di riwayat atau tanya GA HR.
+>
+> ⏱️ **Batas waktu submit (v2.40.0):** kirim sebelum melewati batas yang
+> ditetapkan perusahaan (default **24 jam** sejak jam selesai lembur).
+> Kalau terlambat, pengajuanmu **tetap diterima** tapi diberi tanda
+> **⏳ Terlambat** di riwayat dan daftar GA HR — jadi jangan kaget bila
+> ditanya alasannya.
+>
+> 📸 **Foto bukti tampil resmi:** foto mulai & selesai bisa dibuka langsung
+> dari daftar (preview), dan ikut **tercetak di Formulir Permohonan
+> Overtime PDF** — bukti lembur lengkap tanpa Google Form.
 
 ---
 
@@ -642,6 +652,9 @@ Halaman ini kini punya **peta seksi** di atas (sticky) — klik untuk lompat:
   Terverifikasi, dan menghapus pengajuan secara permanen. Setiap perubahan
   wajib PIN & tercatat di Audit Log (snapshot data lama tersimpan).
   **NONAKTIF** (default) = perilaku lama, tidak ada tombol edit/hapus.
+- **⏱️ Batas Waktu Submit Overtime (sejak v2.40.0)** — atur berapa jam
+  setelah jam selesai lembur pengajuan dianggap "terlambat" (1–168 jam,
+  default 24). Pengajuan terlambat tetap masuk, diberi tanda ⏳ di daftar.
 - Pengaturan lain sesuai kebutuhan kantor.
 
 ### 12.4 Audit Log (Jejak Digital)
@@ -737,6 +750,12 @@ back-office — sesuai struktur perusahaan:
 **Bagi GA/Admin:** pengajuan yang belum selesai ACC tidak bisa di-approve
 — sistem menampilkan pesan "Menunggu ACC atasan (…)" beserta posisi ACC
 saat ini. Dokumen lama (sebelum fitur ini) tetap bisa diproses normal.
+
+**Sudah terverifikasi end-to-end:** alur overtime lengkap — submit dgn foto
+bukti dari Driver/OB/Security → pengeditan tertahan (409) selama ACC
+berjalan → ACC-1 GA HR → ACC-2 Admin → status final *approved* → **Formulir
+Permohonan Overtime PDF tercetak dengan kedua foto tersemat**. Rantai ini
+diuji langsung di produksi (September 2026).
 
 **Atasan khusus per user (Admin):** di **Manajemen User** ada kolom
 **Atasan (ACC berjenjang)** — isi username atasan jika pengajuan seorang

@@ -93,7 +93,7 @@ Sistem mendukung **11 peran inti** (peran `it` dipecah per cabang pada daftar di
 | 8 | `security` | 🛡️ Security | `/app/overtime-me` | **Overtime Saya** — pengajuan lembur Security (v2.39) |
 | 9 | `receptionist` | 🪪 Receptionist | `/app/receptionist` | Verifikasi pelamar kerja & kehadiran |
 | 10 | `traineer` | 🎯 Traineer | `/app/traineer` | Pantau rekrutan (read-only) |
-| 11 | `ga_hr` | ⏰ GA HR | `/app/ga-hr` | Data overtime Driver & OB/Security |
+| 11 | `ga_hr` | ⏰ GA HR | `/app/ga-hr` | Data overtime Driver & OB/Security — termasuk ACC berjenjang (langkah 1) & atur batas waktu submit (v2.40.0) |
 | 11 | `it_sby` | 📰 IT Surabaya | `/app/it` | News Scraper (SBY) |
 | 12 | `it_hu` | 📰 IT Jakarta HO | `/app/it` | News Scraper (JKT) — lihat semua site |
 | 13 | `it_jkt2` | 📰 IT Jakarta 2 | `/app/it` | News Scraper (JKT2) |
@@ -525,4 +525,4 @@ Telp: 031-5349888
 
 ---
 
-*BPF WorkHub v1.0 · Daftar User & Role*
+*BPF WorkHub v2.40.3 · Daftar User & Role*

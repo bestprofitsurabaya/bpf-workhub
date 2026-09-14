@@ -13,6 +13,18 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
   selalu menulis `system_version` dari versi kode (`IDENTITY_DEFAULTS`), bukan dari tabel
   `branches` — startup tak bisa lagi menimpa stamp `system_config` cabang dgn versi lama.
 - Marker CACHE sw.js memakai versi lengkap (`bpf-spa-YYYYMMDD-vX.Y.Z`); test SW ikut dinormalisasi.
+- **Deploy + verifikasi produksi:** fix anti-revert terbukti live (8 DB cabang otomatis
+  ter-stamp dari kode saat boot); E2E alur ACC berjenjang dgn foto asli lulus penuh
+  (submit Driver/OB/Security → gate 409 saat pending → ACC-1 GA HR → ACC-2 Admin →
+  final approved → PDF Formulir OT embed 2 JPEG).
+- **Guard peta cabang→DB:** `modules/branch_db_map.py` + `scripts/check_branch_db_map.py`
+  — step CI "Check branch DB map" menjaga konvensi peta (cabang default SBY memakai DB
+  master, cabang lain via `branches.db_name`) + anti-hardcode literal `bpf_branch_*` di
+  kode aplikasi; mode `--with-db` memvalidasi peta live (split-brain & DB hilang);
+  +17 test (`tests/test_branch_db_map_guard.py`).
+- **Higienis DB:** DB uji-restore `bpf_restore_test` (38 tabel, sisa drill 4 Sep) di-drop
+  dgn dump pengaman `/tmp/bpf_restore_test_backup_20260914.sql` — server kini hanya
+  master + 9 DB cabang.
 
 ---
 

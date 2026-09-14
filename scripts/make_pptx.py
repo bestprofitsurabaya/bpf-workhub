@@ -177,7 +177,7 @@ cards(s, [
     ("🧾", "GA & Finance", "Verifikasi, persetujuan, rekap"),
     ("📣", "Marketing & Chief Driver", "Appointment & pembagian tugas"),
 ], y=Inches(3.8))
-footer(s, 1, 12)
+footer(s, 1, 13)
 
 # ================================================================
 # SLIDE 2 — Cerita Masalah
@@ -192,7 +192,7 @@ bullets(s, [
     "Laporan perjalanan hilang atau telat, tidak ada jejak siapa yang mengerjakan apa.",
 ], y=Inches(1.95), size=19, color=GRAY, spacing=1.6)
 keybox(s, "💡  Kunci: dari \u201ccatat di kertas, rekap di Excel\u201d menjadi satu aplikasi, semua tercatat otomatis, semua bisa diaudit.")
-footer(s, 2, 12)
+footer(s, 2, 13)
 
 # ================================================================
 # SLIDE 3 — Satu Aplikasi Semua Peran
@@ -209,11 +209,12 @@ table(s, [
     ["GA", "Dashboard GA — klaim, kasbon, trip, verifikasi anomali"],
     ["Finance", "Dashboard Finance — rekap air minum & kasbon"],
     ["Driver", "Aplikasi Driver (PWA) — BBM, kasbon, trip, rapor"],
-    ["OB", "Halaman Air Minum"],
+    ["OB", "Halaman Air Minum + Overtime Saya"],
+    ["Security", "Overtime Saya — pengajuan lembur dgn foto bukti"],
     ["Marketing / Chief Driver", "Marketing Hub / Board Chief Driver"],
 ], y=Inches(2.35), h=Inches(3.2), col_w=[4.2, 7.3])
 keybox(s, "🔒  Kunci: satu aplikasi untuk semua — tapi setiap orang hanya melihat dunia yang menjadi tugasnya (least privilege).")
-footer(s, 3, 12)
+footer(s, 3, 13)
 
 # ================================================================
 # SLIDE 4 — Air Minum
@@ -231,7 +232,7 @@ bullets(s, [
     "Tanpa foto bukti, pengajuan tidak bisa diproses.",
 ], y=Inches(4.55), size=16)
 keybox(s, "🏁  Kunci: dari pembelian galon sampai tanda terima resmi — tercatat, terbukti, bisa diaudit, tanpa kertas.")
-footer(s, 4, 12)
+footer(s, 4, 13)
 
 # ================================================================
 # SLIDE 5 — Dashboard per Peran
@@ -250,13 +251,31 @@ bullets(s, [
     "Klaim bertanda ⚠️ melewati verifikasi anomali khusus.",
 ], y=Inches(4.7), size=16)
 keybox(s, "🎯  Kunci: pekerjaan selesai dari satu halaman — tidak berpindah-pindah menu.")
-footer(s, 5, 12)
+footer(s, 5, 13)
 
 # ================================================================
-# SLIDE 6 — Kasbon & Kode Unik
+# SLIDE 6 — Overtime & ACC Berjenjang
 # ================================================================
 s = new_slide()
 kicker(s, "Demo Utama 3")
+title(s, "Overtime & ACC Berjenjang")
+text(s, Inches(0.9), Inches(1.7), Inches(11.5), Inches(0.5),
+     "Google Form untuk lembur tidak dipakai lagi — semuanya dari dalam aplikasi, dengan bukti foto.",
+     size=18, color=GRAY)
+cards(s, [
+    ("📸", "Submit dgn foto bukti", "Driver (PWA), OB & Security — nama & posisi otomatis dari akun; foto mulai & selesai + watermark & GPS"),
+    ("⏳", "Batas waktu bisa diatur", "Default 24 jam — terlambat tetap diterima, diberi tanda ⏳ di daftar GA HR (transparan)"),
+    ("✅", "ACC berjenjang", "GA HR → Admin — data terkunci selama menunggu; penolakan wajib beralasan; tercatat di audit log"),
+    ("📄", "Formulir OT PDF", "Formulir permohonan resmi dengan foto bukti tersemat — arsip tanpa kertas"),
+], y=Inches(2.35))
+keybox(s, "🔗  Kunci: dari pengajuan sampai PDF resmi — terstruktur, terbukti, bisa diaudit; alur lengkap sudah diuji end-to-end di produksi.")
+footer(s, 6, 13)
+
+# ================================================================
+# SLIDE 7 — Kasbon & Kode Unik
+# ================================================================
+s = new_slide()
+kicker(s, "Demo Utama 4")
 title(s, "Klaim BBM & Kasbon")
 text(s, Inches(0.9), Inches(1.7), Inches(11.5), Inches(0.5),
      "Alur relay: Driver → GA → Finance → LPJ → Selesai 🎉", size=18, color=GRAY)
@@ -269,13 +288,13 @@ table(s, [
     ["Verifikasi LPJ", "GA", "Selesai 🎉"],
 ], y=Inches(2.35), h=Inches(3.1), col_w=[5.6, 2.9, 3.0])
 keybox(s, "🔢  Kode unik: kasbon Rp 100.000 otomatis menjadi Rp 100.023 — nominal persis inilah bukti \u201cuang ini untuk kasbon siapa\u201d.")
-footer(s, 6, 12)
+footer(s, 6, 13)
 
 # ================================================================
 # SLIDE 7 — Realtime
 # ================================================================
 s = new_slide()
-kicker(s, "Demo Utama 4")
+kicker(s, "Demo Utama 5")
 title(s, "Realtime & Notifikasi")
 cards(s, [
     ("🔔", "Toast & Lonceng", "Pengajuan baru muncul seketika — ikon per jenis (klaim, trip, air minum, appointment)"),
@@ -283,13 +302,13 @@ cards(s, [
     ("🟢", "Indikator hidup", "\u201c⚡ Realtime\u201d di pojok — jika putus tampil merah"),
 ], y=Inches(2.1))
 keybox(s, "📡  Kunci: aplikasi ini \u201chidup\u201d — begitu ada yang mengajukan, yang berwenang langsung tahu, bukan besok pagi.")
-footer(s, 7, 12)
+footer(s, 7, 13)
 
 # ================================================================
 # SLIDE 8 — Driver Offline
 # ================================================================
 s = new_slide()
-kicker(s, "Demo Utama 5")
+kicker(s, "Demo Utama 6")
 title(s, "Driver: Offline di Jalan")
 bullets(s, [
     "Login PIN — identitas menempel otomatis di semua laporan (tidak bisa mengaku-ngaku).",
@@ -299,7 +318,7 @@ bullets(s, [
     "Bisa dipasang di layar utama HP seperti aplikasi biasa (PWA).",
 ], y=Inches(2.0), size=19, spacing=1.7)
 keybox(s, "🌐  Kunci: sopir di jalan tetap produktif — sinyal hilang bukan alasan data hilang.")
-footer(s, 8, 12)
+footer(s, 8, 13)
 
 # ================================================================
 # SLIDE 9 — Marketing & Chief Driver
@@ -312,7 +331,7 @@ cards(s, [
     ("🚛", "Chief Driver", "Papan pembagian tugas: kendaraan belum ditugaskan, beban tiap driver, unduh rekap harian Excel"),
 ], y=Inches(2.2))
 keybox(s, "🗂️  Kunci: bukan hanya BBM — penjadwalan kunjungan & pembagian sopir juga satu pintu.")
-footer(s, 9, 12)
+footer(s, 9, 13)
 
 # ================================================================
 # SLIDE 10 — Keamanan
@@ -329,7 +348,7 @@ table(s, [
     ["Kerahasiaan", "Sesi aman (HTTPS) · cookie ketat · foto bukti terlindungi"],
 ], y=Inches(1.95), h=Inches(3.4), col_w=[4.0, 7.5])
 keybox(s, "🛡️  Kunci: keamanan berlapis — dari PIN pengguna sampai jejak audit setiap transaksi.")
-footer(s, 10, 12)
+footer(s, 10, 13)
 
 # ================================================================
 # SLIDE 11 — Kualitas
@@ -338,13 +357,13 @@ s = new_slide()
 kicker(s, "Kredibilitas")
 title(s, "Kualitas & Kepatuhan")
 cards(s, [
-    ("✅", "179 uji otomatis", "97 backend + 82 frontend — setiap perubahan diuji"),
+    ("✅", "±850 uji otomatis", "±700 backend (pytest) + 154 frontend (vitest) — diuji otomatis di CI tiap rilis"),
     ("🌐", "E2E di produksi", "Alur kritis diverifikasi di lingkungan nyata"),
     ("📜", "Standar ISO", "27001 (keamanan) · 9241-11 (UX) · 9001 (mutu)"),
     ("♿", "Aksesibilitas", "Fokus keyboard, kontras ≥ 4,5:1, mode kontras tinggi & gelap"),
 ], y=Inches(2.1))
 keybox(s, "🏆  Kunci: bukan prototipe — sistem yang diuji, diamankan, dan siap dipakai harian.")
-footer(s, 11, 12)
+footer(s, 11, 13)
 
 # ================================================================
 # SLIDE 12 — Penutup
@@ -363,7 +382,7 @@ bullets(s, [
     "Langkah berikutnya: lengkapi data master (armada, driver, merk), pelatihan singkat per peran, dan prioritas pengembangan berikutnya.",
 ], y=Inches(4.4), size=17)
 keybox(s, "🙏  Terima kasih. Siap menjawab pertanyaan dan mendampingi penerapan.")
-footer(s, 12, 12)
+footer(s, 12, 13)
 
 OUT = "presentasi/BPF_WorkHub_Presentasi.pptx"
 prs.save(OUT)
