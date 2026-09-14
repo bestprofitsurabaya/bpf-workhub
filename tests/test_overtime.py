@@ -598,3 +598,39 @@ class TestDriverLateSubmitNoNameError:
         body = self._driver_submit_body()
         # f-string pesan terlambat harus memakai {_dh}, bukan variabel lain
         assert "melewati batas {_dh} jam" in body
+
+
+class TestOvertimeFotoRegression:
+    """v2.40.1 — 2 bug foto bukti form (ditemukan via E2E live):
+
+    1. `import re` hilang sejak commit 1963283 (25 Agu) → _save_overtime_foto
+       gagal 'name re is not defined' → SEMUA foto bukti form dibuang
+       diam-diam (preview & PDF kosong).
+    2. Route serving hanya /uploads/<filename> (1 segmen) — foto OT di
+       subfolder /uploads/overtime/ (2 segmen) selalu 404.
+    """
+
+    def test_routes_overtime_imports_re(self):
+        src = open('modules/routes_overtime.py', encoding='utf-8').read()
+        assert 'import re' in src, 'routes_overtime.py wajib import re (re.sub di 3 lokasi)'
+
+    def test_uploads_route_catches_subfolder(self):
+        src = open('modules/routes_driver.py', encoding='utf-8').read()
+        assert "/uploads/<path:filename>" in src, (
+            'route uploads wajib <path:filename> — foto overtime di subfolder')
+
+    def test_foto_save_works(self):
+        """_save_overtime_foto benar-benar menyimpan JPEG & return path."""
+        import base64
+        import io as _io
+        import os
+        from PIL import Image
+        from modules.routes_overtime import _save_overtime_foto, _FOTO_DIR
+        buf = _io.BytesIO()
+        Image.new('RGB', (32, 32), (10, 120, 200)).save(buf, 'JPEG', quality=85)
+        b64 = 'data:image/jpeg;base64,' + base64.b64encode(buf.getvalue()).decode()
+        url = _save_overtime_foto(b64, 'E2E-UNIT-FOTO', 'mulai')
+        assert url == '/uploads/overtime/E2E-UNIT-FOTO_mulai.jpg', url
+        path = os.path.join(_FOTO_DIR, 'E2E-UNIT-FOTO_mulai.jpg')
+        assert os.path.exists(path)
+        os.remove(path)  # bersihkan

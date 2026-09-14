@@ -181,11 +181,15 @@ def register_driver_routes(app, socketio):
         except Exception as e:
             return jsonify({'status': 'error', 'msg': str(e)}), 500
 
-    @app.route('/uploads/<filename>')
+    @app.route('/uploads/<path:filename>')
     def uploaded_file(filename):
         # Auth check: require login session to access uploaded files (IDOR prevention).
         if not session.get('user_name') and not session.get('driver_name'):
             return jsonify({'error': 'Login diperlukan'}), 401
+        # v2.40.1: <filename> -> <path:filename> — foto bukti overtime disimpan
+        # di SUBFOLDER uploads/overtime/ (URL 2 segmen) yang tidak tertangkap
+        # route lama 1-segmen → preview & PDF foto form selalu 404.
+        # send_from_directory tetap men-guard path traversal ('..').
         # Hardening (ISO/IEC 27001): file bukti dibuka inline, tapi cegah
         # MIME sniffing & eksekusi sebagai HTML (stored XSS).
         resp = make_response(send_from_directory(app.config['UPLOAD_FOLDER'], filename))
