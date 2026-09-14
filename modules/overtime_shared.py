@@ -180,28 +180,31 @@ def build_insert_sql(modul):
     if modul == 'ob':
         sql = """INSERT INTO overtime_ob_security
             (display_id, nama, posisi, tanggal, waktu_mulai, waktu_selesai,
-             keterangan, foto_mulai, foto_selesai, email, source, source_uid,
+             keterangan, foto_mulai, foto_selesai, email, submitted_at, source, source_uid,
              gps_lat, gps_lon, gps_address, gps_kelurahan, gps_kecamatan,
              gps_kota, gps_provinsi, gps_kode_pos)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"""
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"""
         cols = ['display_id', 'nama', 'posisi', 'tanggal', 'waktu_mulai', 'waktu_selesai',
-                'keterangan', 'foto_mulai', 'foto_selesai', 'email', 'source', 'source_uid',
+                'keterangan', 'foto_mulai', 'foto_selesai', 'email', 'submitted_at',
+                'source', 'source_uid',
                 'gps_lat', 'gps_lon', 'gps_address', 'gps_kelurahan', 'gps_kecamatan',
                 'gps_kota', 'gps_provinsi', 'gps_kode_pos']
     elif modul == 'driver':
         # v2.36.2: source_uid ikut disimpan (kunci stabil baris — paritas OB).
         # sheet_row tetap literal 0 utk submit form (NOT NULL, tidak lagi UNIQUE).
+        # v2.40.1: submitted_at = NOW() — sebelumnya kolom dibiarkan NULL (tidak
+        # punya DEFAULT) → penanda terlambat-submit v2.40.0 mati utk baris form.
         sql = """INSERT INTO overtime_driver
             (display_id, sheet_row, source_uid, nama, tanggal, waktu_mulai, waktu_selesai,
-             keterangan, no_kendaraan, broker, manager,
+             keterangan, no_kendaraan, broker, manager, submitted_at,
              foto_mulai, foto_selesai, source,
              gps_lat, gps_lon, gps_address, gps_kelurahan, gps_kecamatan,
              gps_kota, gps_provinsi, gps_kode_pos)
-            VALUES (%s,0,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"""
+            VALUES (%s,0,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"""
         # Note: sheet_row is hardcoded as literal 0 in the SQL VALUES,
         # so it is NOT included in cols (cols maps 1:1 with params tuple).
         cols = ['display_id', 'source_uid', 'nama', 'tanggal', 'waktu_mulai', 'waktu_selesai',
-                'keterangan', 'no_kendaraan', 'broker', 'manager',
+                'keterangan', 'no_kendaraan', 'broker', 'manager', 'submitted_at',
                 'foto_mulai', 'foto_selesai', 'source',
                 'gps_lat', 'gps_lon', 'gps_address', 'gps_kelurahan', 'gps_kecamatan',
                 'gps_kota', 'gps_provinsi', 'gps_kode_pos']
@@ -221,6 +224,8 @@ def build_insert_params(display_id, cleaned, source='form', modul='ob', source_u
             cleaned['tanggal'], cleaned['waktu_mulai'], cleaned['waktu_selesai'],
             cleaned['keterangan'], cleaned.get('foto_mulai', ''),
             cleaned.get('foto_selesai', ''), cleaned['email'],
+            # v2.40.1: timestamp submit (WIB dari clock app) — paritas kolom PDF
+            datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
             source, source_uid,
             cleaned['gps_lat'], cleaned['gps_lon'], cleaned['gps_address'],
             cleaned['gps_kelurahan'], cleaned['gps_kecamatan'],
@@ -232,6 +237,8 @@ def build_insert_params(display_id, cleaned, source='form', modul='ob', source_u
             cleaned['tanggal'], cleaned['waktu_mulai'], cleaned['waktu_selesai'],
             cleaned['keterangan'], cleaned.get('no_kendaraan', ''),
             cleaned.get('broker', ''), cleaned.get('manager', ''),
+            # v2.40.1: timestamp submit (WIB dari clock app)
+            datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
             cleaned.get('foto_mulai', ''), cleaned.get('foto_selesai', ''),
             source,
             cleaned['gps_lat'], cleaned['gps_lon'], cleaned['gps_address'],

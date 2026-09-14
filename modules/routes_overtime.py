@@ -905,10 +905,14 @@ def register_overtime_routes(app):
                 print(f"[overtime-notif] {ne}")
             cursor.close(); conn.close()
             # v2.40.0: penanda terlambat-submit pada respons submit
+            # v2.40.1: fix NameError — pesan memakai `_dh` yang tidak pernah
+            # didefinisikan di jalur ini → submit terlambat Driver 500 SETELAH
+            # baris tersimpan (user melihat gagal & coba submit lagi).
+            _dh = _deadline_hours_safe()
             late, deadline = compute_submit_late(
                 {'tanggal': cleaned['tanggal'], 'waktu_selesai': cleaned['waktu_selesai'],
                  'submitted_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')},
-                _deadline_hours_safe())
+                _dh)
             _msg = f'Overtime Driver tercatat! No. {display_id}'
             if late:
                 _msg += f' — ⏳ Terlambat: melewati batas {_dh} jam setelah jam selesai OT.'

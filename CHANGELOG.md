@@ -4,6 +4,58 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 
 ---
 
+## v2.40.1 — 14 September 2026 (Fix E2E live v2.40.0: penanda terlambat-submit buta di baris form + 500 submit Driver)
+
+### 🔍 Latar: verifikasi E2E live menemukan 3 cacat pada fitur v2.40.0
+
+Fitur penanda terlambat-submit diverifikasi end-to-end langsung di produksi
+(security login → submit → list GA HR → ubah config). Hasil: 15/17 langkah
+lulus — dan 2 kegagalan tersebut adalah bug nyata di produksi, bukan salah
+uji:
+
+1. **Penanda terlambat BUTA untuk semua baris form (Driver & OB/Security)** —
+   INSERT form tidak mengisi `submitted_at` (refactor v2.39.0 memindahkan
+   INSERT ke `build_insert_sql`/`build_insert_params` tanpa kolom tsb), dan
+   kolom DB `submitted_at DATETIME NULL` tidak punya DEFAULT → baris form
+   tersimpan NULL → `compute_submit_late` selalu `False, None`. Respons submit
+   memang benar (menghitung dari `datetime.now()`), tapi list GA HR & riwayat
+   "Overtime Saya" tidak pernah menandai baris form sebagai terlambat.
+   *(Belum ada korban: 0 baris form asli sejak v2.39.0 — diverifikasi live.)*
+2. **Submit terlambat Driver → HTTP 500 SETELAH baris tersimpan** — pesan
+   sukses memakai `_dh` yang tidak pernah didefinisikan di jalur tersebut
+   (`name '_dh' is not defined`). Driver yang submit terlambat melihat error
+   & berpotensi submit ulang → data ganda. Jalur OB/me & form publik aman.
+3. **Bonus temuan verifikasi**: baris sheet lama tanpa `submitted_at`
+   didesain tidak ditandai (dokumentasi v2.40.0 tidak menyorot konsekuensinya
+   — 6.940 dari 8.768 baris Driver adalah era lama tanpa timestamp, jadi
+   mayoritas arsip memang tidak akan pernah ter-flag).
+
+### 🛠️ Perbaikan
+
+- `overtime_shared.py` — `build_insert_sql()` + `build_insert_params()` kini
+  menyertakan `submitted_at` = `datetime.now()` (clock app, WIB — jam kontainer
+  & DB terverifikasi identik) untuk modul driver & ob.
+- `routes_overtime.py` — jalur submit Driver mengikat `_dh =
+  _deadline_hours_safe()` sebelum dipakai pesan terlambat (fix NameError).
+- `overtime_schema.py` — backfill idempoten: baris form (`source <> 'sheet'`)
+  dengan `submitted_at` NULL diisi dari `created_at` (perkiraan terbaik waktu
+  submit; jalan otomatis di startup master + tiap cabang).
+- Test: +4 `TestFormInsertSubmittedAt` (INSERT memuat submitted_at, jumlah
+  placeholder = jumlah param, timestamp segar) + 2 guard sumber
+  `TestDriverLateSubmitNoNameError` (paritas test_worker_patch_guard.py).
+
+### ✅ Verifikasi
+
+- Reproduksi live sebelum fix: submit security terlambat → 200 + flag di
+  respons, tapi baris DB `submitted_at=NULL`, list GA HR & /mine
+  `submit_late=False`; submit driver terlambat → 500 `name '_dh' is not
+  defined`. Config PATCH 24↔168 jam + validasi 1–168 terverifikasi live;
+  seluruh data uji dihapus (0 residu; audit log dibiarkan utk jejak).
+- 647 pytest + 9 skip lulus (host; test sklearn/DB-container jalan di CI),
+  vitest sw+OvertimeMeView 11 lulus, build SPA hijau.
+
+---
+
 ## v2.40.0 — 13 September 2026 (Batas waktu submit overtime + penanda terlambat)
 
 ### ⏳ Latar: pengajuan yang disubmit sangat terlambat tak terbedakan

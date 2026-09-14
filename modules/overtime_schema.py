@@ -183,6 +183,22 @@ def ensure_overtime_schema(conn=None):
             WHERE (display_id IS NULL OR display_id = '') AND source = 'sheet'
         """, cursor, "overtime_driver.display_id_backfill")
 
+        # v2.40.1: backfill submitted_at baris FORM yang NULL (kolom tanpa
+        # DEFAULT & INSERT lama tidak mengisi → penanda terlambat-submit
+        # v2.40.0 buta utk seluruh baris form). Perkiraan terbaik = created_at
+        # (waktu baris dibuat, akurasi detik). Sheet rows punya timestamp
+        # asli Google Form — tidak disentuh. Idempoten.
+        _run("""
+            UPDATE overtime_driver
+            SET submitted_at = created_at
+            WHERE submitted_at IS NULL AND source <> 'sheet'
+        """, cursor, "overtime_driver.submitted_at_backfill")
+        _run("""
+            UPDATE overtime_ob_security
+            SET submitted_at = created_at
+            WHERE submitted_at IS NULL AND source <> 'sheet'
+        """, cursor, "overtime_ob_security.submitted_at_backfill")
+
         conn.commit()
         cursor.close()
         print("✔ Overtime schema ready")

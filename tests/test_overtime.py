@@ -568,3 +568,33 @@ class TestOvertimeFormPDFSignatures:
         buf = io.BytesIO()
         pdf.output(buf)
         assert 'MANAGER' in _pdf_text(buf.getvalue()).upper()
+
+
+# ============================================================
+# v2.40.1 — guard NameError _dh pada submit Driver terlambat
+# ============================================================
+class TestDriverLateSubmitNoNameError:
+    """Guard sumber (paritas test_worker_patch_guard.py):
+
+    Insiden live: pesan sukses submit Driver memakai `_dh` yang tidak
+    pernah didefinisikan di jalur tersebut → submit TERLAMBAT Driver
+    selalu HTTP 500 — SETELAH baris tersimpan (user melihat gagal,
+    berpotensi submit ulang → data ganda).
+    """
+
+    def _driver_submit_body(self):
+        src = open('modules/routes_overtime.py', encoding='utf-8').read()
+        i = src.find("def api_overtime_driver_submit")
+        j = src.find("@app.route('/api/overtime/driver')", i)
+        assert i != -1 and j != -1, "blok fungsi submit Driver tidak ditemukan"
+        return src[i:j]
+
+    def test_driver_submit_binds_deadline_before_use(self):
+        body = self._driver_submit_body()
+        assert "_dh = _deadline_hours_safe()" in body, (
+            "jalur submit Driver wajib bind `_dh` sebelum dipakai pesan terlambat")
+
+    def test_driver_submit_message_uses_bound_var(self):
+        body = self._driver_submit_body()
+        # f-string pesan terlambat harus memakai {_dh}, bukan variabel lain
+        assert "melewati batas {_dh} jam" in body

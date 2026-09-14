@@ -321,5 +321,59 @@ class TestSubmitDeadline(unittest.TestCase):
         self.assertEqual(annotate_submit_late(None, 24), [])
 
 
+class TestFormInsertSubmittedAt(unittest.TestCase):
+    """v2.40.1: INSERT form wajib mengisi submitted_at.
+
+    Regresi live: kolom DB `submitted_at DATETIME NULL` tanpa DEFAULT &
+    INSERT form tidak mengisinya → baris form tersimpan dengan NULL →
+    penanda terlambat-submit v2.40.0 buta di list & riwayat (submit_late
+    selalu False)."""
+
+    def _cleaned(self):
+        return {
+            'nama': 'Budi Santoso', 'posisi': 'OB',
+            'tanggal': '2026-09-12', 'waktu_mulai': '08:00',
+            'waktu_selesai': '17:00', 'keterangan': 'uji',
+            'email': 'budi@example.com',
+            'foto_mulai': '', 'foto_selesai': '',
+            'gps_lat': '', 'gps_lon': '', 'gps_address': '',
+            'gps_kelurahan': '', 'gps_kecamatan': '', 'gps_kota': '',
+            'gps_provinsi': '', 'gps_kode_pos': '',
+            'no_kendaraan': 'L 1 ABC', 'broker': 'Broker', 'manager': 'Manajer',
+        }
+
+    def test_ob_insert_contains_submitted_at(self):
+        sql, cols = build_insert_sql('ob')
+        self.assertIn('submitted_at', sql)
+        self.assertIn('submitted_at', cols)
+
+    def test_driver_insert_contains_submitted_at(self):
+        sql, cols = build_insert_sql('driver')
+        self.assertIn('submitted_at', sql)
+        self.assertIn('submitted_at', cols)
+
+    def test_params_placeholder_count_match(self):
+        """Jumlah placeholder %s == jumlah param (kesalahan hitung = 500 saat submit)."""
+        for modul in ('ob', 'driver'):
+            sql, _cols = build_insert_sql(modul)
+            params = build_insert_params(
+                'OTX-TEST', self._cleaned(), source='form', modul=modul,
+                source_uid='uid-uji')
+            self.assertEqual(sql.count('%s'), len(params), modul)
+
+    def test_params_carry_fresh_timestamp(self):
+        """Param submitted_at = 'YYYY-MM-DD HH:MM:SS' jam app (WIB) saat ini."""
+        from datetime import datetime
+        for modul in ('ob', 'driver'):
+            _sql, cols = build_insert_sql(modul)
+            params = build_insert_params(
+                'OTX-TEST', self._cleaned(), source='form', modul=modul,
+                source_uid='uid-uji')
+            ts = params[cols.index('submitted_at')]
+            parsed = datetime.strptime(ts, '%Y-%m-%d %H:%M:%S')
+            delta = abs((datetime.now() - parsed).total_seconds())
+            self.assertLess(delta, 60, f"{modul}: timestamp tidak segar ({ts})")
+
+
 if __name__ == '__main__':
     unittest.main()
