@@ -219,7 +219,7 @@ def save_branch(data, conn=None):
 
 def write_branch_identity(branch, conn=None):
     """Tulis identitas cabang ke system_config DB cabang (idempoten)."""
-    from modules.company_identity import IDENTITY_KEYS
+    from modules.company_identity import IDENTITY_DEFAULTS, IDENTITY_KEYS
     db_name = branch.get('db_name')
     if not db_name or db_name == DB_CONFIG['database']:
         # Cabang utama memakai master — identitas dibiarkan di system_config master.
@@ -241,6 +241,10 @@ def write_branch_identity(branch, conn=None):
             'company_address': branch.get('address'),
             'company_phone': branch.get('phone'),
         }
+        # v2.40.3: system_version selalu mengikuti versi kode — bump versi yang
+        # lupa meng-update tabel branches tidak lagi membuat startup menimpa
+        # stamp system_config cabang dgn versi lama (insiden revert stamp v2.40.2).
+        mapping['system_version'] = IDENTITY_DEFAULTS['system_version']
         for key in IDENTITY_KEYS:
             val = str(mapping.get(key, '') or '').strip()
             cursor.execute(

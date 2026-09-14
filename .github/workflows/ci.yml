@@ -78,6 +78,10 @@ jobs:
       # Gagal bila ada vuln diketahui pada versi ter-pin di requirements.txt.
       - name: Audit dependencies (pip-audit)
         run: pip install pip-audit && pip-audit -r requirements.txt
+      # Konsistensi 7 titik stamp versi (v2.40.3) — bump yang lupa menyentuh
+      # satu titik gagal di sini SEBELUM deploy (insiden revert stamp cabang).
+      - name: Check version stamps
+        run: python scripts/check_version_stamps.py
       - name: Run tests (unit, DB service tersedia)
         run: python -m pytest tests/ -q
 

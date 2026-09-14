@@ -80,7 +80,7 @@ describe('service worker (public/sw.js)', () => {
     expect(ev.respondWith).toHaveBeenCalled()
   })
 
-  it('nama CACHE memuat marker v2402 (memicu aktivasi SW baru di klien lama)', () => {
-    expect(src).toMatch(/const CACHE = 'bpf-spa-\d{8}-v2402'/)
+  it('nama CACHE memuat versi lengkap (memicu aktivasi SW baru di klien lama)', () => {
+    expect(src).toMatch(/const CACHE = 'bpf-spa-\d{8}-v\d+\.\d+\.\d+'/)
   })
 })

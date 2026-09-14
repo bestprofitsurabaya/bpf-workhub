@@ -4,6 +4,18 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 
 ---
 
+## v2.40.3 — 14 September 2026 (Guard 7 titik stamp versi di CI + fix struktural anti-revert stamp cabang)
+
+- **Guard CI:** `modules/version_stamp.py` + `scripts/check_version_stamps.py` — 7 titik
+  stamp versi wajib konsisten; step baru "Check version stamps" di CI gagal bila bump
+  versi menyisakan satu titik tertinggal (bisa diuji lokal: `python3 scripts/check_version_stamps.py --with-db`).
+- **Fix struktural anti-revert (akar insiden v2.40.2):** `write_branch_identity()` kini
+  selalu menulis `system_version` dari versi kode (`IDENTITY_DEFAULTS`), bukan dari tabel
+  `branches` — startup tak bisa lagi menimpa stamp `system_config` cabang dgn versi lama.
+- Marker CACHE sw.js memakai versi lengkap (`bpf-spa-YYYYMMDD-vX.Y.Z`); test SW ikut dinormalisasi.
+
+---
+
 ## v2.40.2 — 14 September 2026 (Fix foto bukti form: `import re` hilang + route uploads subfolder)
 
 ### 🔍 Latar: pertanyaan migrasi Google Form
