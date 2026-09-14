@@ -4,6 +4,39 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 
 ---
 
+## v2.40.2 — 14 September 2026 (Fix foto bukti form: `import re` hilang + route uploads subfolder)
+
+### 🔍 Latar: pertanyaan migrasi Google Form
+
+Pemilik bertanya: jika user input via formulir OT di sistem (sesuai role),
+apakah foto bukti tampil di preview & PDF? Verifikasi E2E live menjawab
+**TIDAK** — dan menemukan 2 bug:
+
+1. **`import re` hilang** (regresi commit 1963283, 25 Agu — review keamanan
+   menambah `re.sub` di 3 lokasi tanpa import): `_save_overtime_foto()` selalu
+   gagal `name 're' is not defined` → **semua foto bukti dari form dibuang
+   diam-diam** (Driver PWA, form publik OB, Overtime Saya); DB tanpa path,
+   preview & PDF tanpa foto. 0 korban data: seluruh baris lama berasal dari
+   Google Form (URL Drive), belum ada submit form asli sejak 25 Agu.
+2. **Route serving 1-segmen**: `/uploads/<filename>` tidak menangkap foto OT
+   di subfolder `/uploads/overtime/<file>` (2 segmen) → 404 walau file ada.
+   Kini `<path:filename>`; `send_from_directory` tetap men-guard traversal.
+
+Bonus: folder `uploads/overtime/` di host di-chown 1000:1000 (dibuat root
+oleh image lama — berisiko utk backup & test host).
+
+### ✅ Verifikasi E2E live pasca-fix
+
+- Submit security dgn 2 JPEG → file tersimpan di volume persisten `./uploads`
+- GET foto tanpa sesi → 401 ✓; dgn sesi → 200 image/jpeg ✓ (preview OK)
+- **Form PDF OB meng-embed 2 foto JPEG** (`/DCTDecode` ×2 di PDF 74KB) ✓
+- Laporan rekap memang tanpa foto (by design — foto ada di Formulir OT &
+  preview); foto Google Form lama tetap tampil sebagai link klik di PDF
+  (Drive memblok hotlink) & gambar di preview
+- 650 pytest + vitest + build SPA hijau; CI run 34800217908 success
+
+---
+
 ## v2.40.1 — 14 September 2026 (Fix E2E live v2.40.0: penanda terlambat-submit buta di baris form + 500 submit Driver)
 
 ### 🔍 Latar: verifikasi E2E live menemukan 3 cacat pada fitur v2.40.0

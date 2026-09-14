@@ -1,4 +1,4 @@
-# 📖 Panduan Pengguna BPF WorkHub v2.40.1
+# 📖 Panduan Pengguna BPF WorkHub v2.40.2
 
 > **Siapa pun kamu — sopir, OB, admin, atau pimpinan — panduan ini ditulis untuk kamu.**
 > Tidak perlu paham teknis. Cukup ikuti langkah-langkah sesuai bagianmu.
