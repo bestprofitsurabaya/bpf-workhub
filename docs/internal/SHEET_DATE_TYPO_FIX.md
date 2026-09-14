@@ -49,3 +49,66 @@ https://docs.google.com/spreadsheets/d/1AsBq-rHssGmv5vHAzorrphZeNxchodkJQXz1wdBP
    OTL-SH-1a34…) akan JADI yatim karena kunci sinkronnya memuat tanggal —
    setelah sync ulang saya yang menghapusnya dari DB (ber-jejak audit).
 4. KHUSUS Driver: aman otomatis — kunci sinkron (nama|timestamp) tidak berubah.
+
+---
+
+## 📨 Template pesan permintaan akses edit sheet Driver
+
+Salin-teks pesan di bawah ini untuk dikirim ke pemilik spreadsheet
+(email/WA). Isi tabel sudah final — cukup ganti [NAMA] sebelum kirim.
+
+---
+
+**Subjek: Permohonan akses edit — Sheet Overtime Driver (14 tanggal perlu dikoreksi)**
+
+Selamat pagi/siang Pak/Bu,
+
+Saya [NAMA] dari tim IT — PT Bestprofit Futures. Menghubungi terkait
+spreadsheet **Overtime Driver** yang dikelola Bapak/Ibu:
+
+https://docs.google.com/spreadsheets/d/1L-7ZT0p48gVZEbDJS-azMqpGobmvmqCDB9J6sAB3DGM/edit
+
+Dari audit data overtime (14 September), ditemukan **14 baris dengan salah
+ketik tahun** pada kolom "Tanggal Overtime" (contoh: 2923-06-15, 2033-11-23,
+1926-01-08). Kemungkinan besar salah ketik saat input, dan nilai ini ikut
+tersalin ke aplikasi BPF WorkHub setiap kali data disinkronkan.
+
+Mohon kesediaan Bapak/Ibu untuk **memberi akses edit** (Share → role *Editor*
+ke alamat tim IT) **atau langsung mengoreksi 14 sel berikut** di **tab paling
+kiri/k pertama** spreadsheet:
+
+| Baris | Nama | Tanggal sekarang | Ubah menjadi |
+|---:|---|---|---|
+| 1921 | Rizky Pratama | *sel rusak berformat jam (00:25:08)** | **2021-09-22** |
+| 2783 | Rizky pratama adi nugraha | 2923-06-15 | **2023-06-15** |
+| 2786 | Rizky pratama adi nugraha | 2923-06-16 | **2023-06-16** |
+| 3567 | Fajar rahmat gemilang | 2033-11-23 | **2023-11-23** |
+| 3570 | Fajar rahmat gemilang | 2033-11-24 | **2023-11-24** |
+| 3573 | Fajar rahmat gemilang | 2033-11-27 | **2023-11-27** |
+| 3579 | Fajar rahmat gemilang | 2033-11-30 | **2023-11-30** |
+| 3583 | Fajar rahmat gemilang | 2033-12-04 | **2023-12-04** |
+| 3589 | Fajar rahmat gemilang | 2033-12-08 | **2023-12-08** |
+| 3626 | Fajar rahmat gemilang | 2033-11-15 | **2023-11-15** |
+| 3646 | Fajar rahmat gemilang | 2033-12-26 | **2023-12-26** |
+| 4635 | Rizky abiem s | 2004-07-15 | **2024-07-15** |
+| 8348 | Ahmat Mauliddin Haryadi | 2029-06-29 | **2026-06-29** |
+| 8709 | Ahmat Mauliddin Haryadi | 2096-08-27 | **2026-08-27** |
+
+\* Khusus baris 1921: sel tanggalnya tersimpan berformat **jam**, bukan
+tanggal. Ubah dulu format selnya ke tanggal (Format → Number → Date), baru
+isi nilainya.
+
+Catatan: baris 3626 & 3646 diisi Januari 2024 untuk overtime November/Desember
+2023 — karena tanggal overtime tidak mungkin setelah tanggal pengajuan, tahun
+dikoreksi mundur ke 2023.
+
+Setelah dikoreksi, tim IT akan menjalankan sinkronisasi ulang dan memastikan
+tidak ada lagi anomali tanggal di aplikasi. Data di sisi aplikasi saat ini
+sudah sementara diperbaiki dan tercatat di audit log, namun dapat tertimpa
+kembali bila sheet sumber belum dikoreksi.
+
+Terima kasih banyak atas bantuan Bapak/Ibu.
+
+Hormat kami,
+[NAMA] — Tim IT
+PT Bestprofit Futures
