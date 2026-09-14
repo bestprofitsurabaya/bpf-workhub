@@ -14,7 +14,7 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 |-------|--------|
 | Versi | **v2.40.1 (14 Sep)** — fix E2E live v2.40.0 (submitted_at form NULL, NameError _dh submit Driver); sebelumnya v2.40.0 (13 Sep — batas waktu submit + penanda terlambat-submit), v2.39.6 (13 Sep — form PDF OB/Security tanpa TTD MANAGER), v2.39.5 (11 Sep — kualitas konten scraper), v2.39.4 (11 Sep — bridge Apps Script v3), v2.39.3 (10 Sep — fix deteksi async_mode + smoke CI), v2.39.2 (10 Sep — fix CI monkey-patching + guard), v2.39.1 (10 Sep — paritas overtime live + LIMIT + pagination), v2.39.0 (9 Sep — waktu overtime sesuai sheet, form Overtime Saya, role security) |
 | Verifikasi E2E live v2.40.1 (14 Sep) | ✅ **SELESAI + DEPLOY LIVE (rebuild bbm_web, health ok, CI hijau 34795955236)** — 3 CACAT DITEMUKAN + DIFIX + diverifikasi ulang live 5/5: (A) baris FORM tersimpan `submitted_at=NULL` (INSERT v2.39.0 tak mengisi + kolom tanpa DEFAULT) → penanda terlambat BUTA di list/riwayat meski respons submit benar — fix: INSERT kini mengisi submitted_at=NOW() + backfill created_at utk baris form NULL; (B) submit Driver TERLAMBAT → 500 `name '_dh' is not defined` SETELAH baris tersimpan (regresi v2.40.0) — fix: bind `_dh` sebelum dipakai; (C) baris sheet lama tanpa timestamp didesain tak ditandai (6.940/8.768 Driver arsip era lama — mayoritas tak akan pernah ter-flag). Pasca-deploy: security submit terlambat → flag True di /mine & list GA HR dgn submitted_at terisi; driver submit terlambat → 200 + pesan Terlambat + flag True di list. 647 pytest + vitest + build hijau; stamp DB master + 8 cabang v2.40.1. **Data uji dibersihkan 100% — 0 korban nyata: 0 baris form asli sejak v2.39.0** |
-| Typo tanggal sheet (14 Sep) | 🔶 **DB DIKOREKSI ULANG + PAKET KOREKSI SHEET SIAP (`docs/internal/SHEET_DATE_TYPO_FIX.md`)** — koreksi DB 11 Sep TERTIMPA full sync (sheet belum dikoreksi; `ON DUPLICATE KEY UPDATE tanggal`) → `repair_overtime_year_typos.py --apply` dijalankan ulang: 17 baris (13 Driver + 4 OB Edwin P) dikoreksi + audit `overtime_update`; +1 baris sel rusak (Rizky Pratama, submit 23 Sep 2021 — sel sheet berformat JAM `00:25:08`, tanggal tak terbaca bridge → tadinya NULL) diisi ESTIMASI `2021-09-22` (MM-DD census 11 Sep + thn submit) ber-jejak audit. **Paket sheet**: 18 sel — Driver 14 (baris sheet 2783, 2786, 3567, 3570, 3573, 3579, 3583, 3589, 3626⚠️, 3646⚠️, 4635, 8348, 8709 + baris 1921 sel rusak) & OB 4 (baris 55/56/60/75 Edwin P). ⚠️ = thn mundur 2023 (submit Jan-2024 utk OT Nov/Des). **PENTING**: OB sync-key memuat tanggal → koreksi sheet akan menghasilkan baris DB BARU; 4 baris lama (OTL-SH-3567…/468f…/e457…/1a34…) dihapus setelah sync ulang (ber-jejak audit); Driver aman otomatis (kunci nama|timestamp) |
+| Typo tanggal sheet (14 Sep) | 🔶 **OB/SECURITY BERES TOTAL — DRIVER MENUNGGU AKSES EDIT SHEET (owner)** — user memperbaiki sendiri 4 sel Edwin P di sheet OB (terverifikasi via feed: 0 anomali) → full sync OB: 4 baru/22 update/616 baris → 4 baris yatim lama (OTL-SH-3567…/468f…/e457…/1a34…, kunci lama dgn tanggal 1926) **dihapus ber-jejak audit `overtime_delete`** → OB total 605, anomali 0, paritas sheet↔DB pulih. DB koreksi 14 baris Driver (13 typo + 1 sel rusak est. 2021-09-22) masih utuh & anomali 0. Paket koreksi 14 sel Driver: `docs/internal/SHEET_DATE_TYPO_FIX.md` — **user tidak punya akses edit sheet Driver**; koreksi sheet menunggu owner. ⚠️ Sambil menunggu: JANGAN klik 🔄 Refresh (full sync) di tab Driver — akan menimpa kembali 13 tanggal dari sheet (auto-refresh incremental aman) |
 | Zona waktu sheet overtime (10 Sep) | ✅ **TERVERIFIKASI WIB via feed** — `scripts/forensic_overtime_tz.py` (di container): kedua feed masih script LAMA (Driver 8.764/8.864 nilai `T…Z`, OB 614/614); `Tanggal Overtime` driver = `…T17:00:00.000Z` (tengah malam WIB → 17:00Z; GMT+8 akan 16:00Z) → **cukup redeploy Web App §2 OT_WEBAPP_REDEPLOY.md, TANPA re-seed**; fallback +7 parser & normalisasi OB atas feed live OK |
 | Deteksi async_mode (v2.39.3) | ✅ **DI REPO** — deteksi env v2.39.2 (`GUNICORN_CMD_ARGS`/`SERVER_SOFTWARE`) tak pernah benar di produksi (diverifikasi PID 1 bbm_web: env kosong dgn keduanya; SERVER_SOFTWARE = kunci WSGI per-request) → produksi akan boot threading di worker gevent. Kini via **argv** (worker mewarisi argv master: `gunicorn --worker-class gevent …`); simulasi argv worker di container → `gevent` ✓; +1 smoke CI: subprocess `import app` dgn gevent (kondisi persis insiden 34425989650) — skip di host tanpa gevent, jalan di job Backend CI; 4/4 guard lulus di container |
 | Insiden CI monkey-patch (v2.39.2) | ✅ **DI REPO** — CI run 34425989650 merah (587 test lulus tapi error setup): `monkey.patch_all()` v2.38.0 di app.py jalan saat `import app` oleh pytest → lock importlib rusak ("cannot release un-acquired lock"); host lokal hijau karena gevent tak ter-install (fallback threading menyembunyikan bug). Fix: patching kini milik worker gunicorn `--worker-class` (CMD Dockerfile); app.py deteksi env gunicorn utk `socketio_async_mode`; worker gevent Dockerfile+requirements dijaga; +3 guard `tests/test_worker_patch_guard.py`. Verifikasi: 21 pytest terkait + 141 vitest + build SPA hijau |
@@ -101,6 +101,28 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
    md5(nama|submitted_at)` → aman otomatis.
 4. ⏳ **Menunggu owner**: eksekusi 18 edit di Google Sheet (paket lengkap),
    lalu kabari → full sync + verifikasi census = 0 + hapus 4 baris yatim OB.
+
+### Sesi 2026-09-14 (lanjutan 2) — OB sheet fixed oleh user + cleanup yatim ✅ SELESAI / Driver menunggu akses edit ⏳
+
+> User memperbaiki sendiri 4 sel Edwin P di sheet OB/Security. Sheet Driver:
+> user TIDAK punya akses edit (pemilik sheet lain).
+
+1. **Verifikasi feed OB**: 0 anomali tersisa; 4 baris Edwin P kini
+   2026-01-08/09/13/14 (konsisten dgn Timestamp submit).
+2. **Full sync OB** (`_do_refresh_ob(full_sync=True)`): 4 baru / 22 update /
+   616 baris — 4 baris pengganti masuk dgn uid baru (kunci memuat tanggal,
+   sesuai prediksi).
+3. **Cleanup 4 baris yatim** (id 4795/4796/4800/4815, guard id+display_id+
+   source='sheet', 4/4 ditemukan) dihapus + audit `overtime_delete` dgn
+   snapshot old_data lengkap. OB total kembali 605, anomali 0.
+4. **Driver**: 14 koreksi DB utuh, anomali 0; sheet masih salah (user tanpa
+   akses edit) → **jangan full-sync Driver** sampai sheet dikoreksi (auto-
+   refresh incremental aman: tidak menyentuh baris lama). Paket edit:
+   `docs/internal/SHEET_DATE_TYPO_FIX.md`.
+5. **Log produksi sejak v2.40.1 dibersihkan**: 0 traceback/500, 159 req 200,
+   0 restart; 404 favicon + Apps Script echo-404 transien (retry sukses);
+   warning mariadb "aborted connection" = sisa koneksi container lama saat
+   redeploy (benign).
 
 ### Sesi 2026-09-11 (lanjutan 5) — bump setup-python v7 + Dockerfile node:22 ✅ SELESAI
 
