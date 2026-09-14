@@ -17,4 +17,4 @@ gevent>=24.10.1
 redis>=5.0.0
 pytest>=7.4.0
 beautifulsoup4>=4.15.0
-lxml>=4.9.0
+lxml>=6.1.3
