@@ -14,7 +14,7 @@ gunicorn[gevent]==23.0.0
 openpyxl>=3.1.0
 flask-socketio>=5.6.1
 gevent>=24.10.1
-redis>=5.0.0
+redis>=8.1.0
 pytest>=7.4.0
 beautifulsoup4>=4.15.0
 lxml>=4.9.0
