@@ -4,7 +4,7 @@ mysql-connector-python==9.7.0
 fpdf2==2.7.5
 Pillow==12.3.0
 scikit-learn==1.9.0
-numpy==1.26.0
+numpy==2.5.3
 pandas==3.0.5
 requests==2.34.2
 # v2.38.0: migrasi eventlet → gevent (eventlet deprecated; worker bawaan
