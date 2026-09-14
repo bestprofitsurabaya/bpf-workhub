@@ -82,6 +82,11 @@ jobs:
       # satu titik gagal di sini SEBELUM deploy (insiden revert stamp cabang).
       - name: Check version stamps
         run: python scripts/check_version_stamps.py
+      # Konsistensi peta cabang→DB (v2.40.3): seed init.sql sesuai konvensi
+      # (SBY = master, lainnya bpf_branch_<x>) + anti-hardcode literal nama DB
+      # di kode aplikasi — peta hanya boleh lewat branches.db_name.
+      - name: Check branch DB map
+        run: python scripts/check_branch_db_map.py
       - name: Run tests (unit, DB service tersedia)
         run: python -m pytest tests/ -q
 
