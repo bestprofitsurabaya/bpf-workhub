@@ -30,6 +30,7 @@
     - [12.8 Retensi & Arsip Dokumen (Admin) 🗄️](#128-retensi--arsip-dokumen-admin-)
     - [12.9 Verifikasi & Registri Dokumen (Admin) 🔏](#129-verifikasi--registri-dokumen-admin-)
     - [12.10 ACC Berjenjang — Persetujuan Atasan ✅](#1210-acc-berjenjang--persetujuan-atasan--sejak-v2360)
+    - [12.11 Sumber Sheet Receptionist & Bridge Apps Script 🔗](#1211-sumber-sheet-receptionist--bridge-apps-script-)
 13. [Kasbon: Alur Lengkap dari A sampai Z](#13-kasbon-alur-lengkap-dari-a-sampai-z)
 14. [Untuk IT — News Scraper & Content Management 📰](#14-untuk-it-sebagai-cabang--news-scraper--content-management-)
 15. [Mengatasi Masalah (Troubleshooting)](#15-mengatasi-masalah-troubleshooting)
@@ -421,6 +422,13 @@ Semua perubahan papan berjalan realtime — saat driver menyelesaikan tugas, sta
 
 - Pilih **tahap laporan** (Interview / Training H1–H4), atur rentang tanggal + filter UPLINE/User sesuai kombinasi yang biasa kamu pakai, lalu klik **📄 Laporan PDF**.
 - Hasilnya dokumen resmi **berkop & berlogo BPF**, berisi tabel kehadiran, ringkasan total, dan blok tanda tangan Receptionist — siap cetak/arsip.
+
+### 9.5 Data Google Sheet & Input Manual (sejak v2.41.0) 🔄
+
+- **🔄 Sync Sheet** — tarik data terbaru dari Google Sheet pendaftaran (Google Form lama). Sync juga berjalan **otomatis tiap 30 menit** dan saat login/logout. Data yang sudah kamu kelola di sini (status, kehadiran, verifikasi) **tidak tersentuh** sync.
+- **＋ Input Pelamar** — catat pelamar baru langsung dari aplikasi (pengganti input manual di sheet). Tanggal & jam interview kosong = otomatis waktu submit; kolom Tanggal H2 opsional. User baru otomatis masuk pilihan dropdown (§9.4).
+- **🚪 In-Out Karyawan** (menu terpisah) — catatan keluar-masuk karyawan *read-only* dari Google Sheet, lengkap filter tanggal, pencarian, dan statistik. Tidak ada input dari aplikasi — sumber tetap sheet-nya.
+- Bila sync gagal berulang (mis. sheet dibuat privat), Admin mendapat notifikasi dan mengatur sumbernya lewat **Pengaturan → 🔗 Sumber Sheet** (lihat §12.11).
 
 ---
 
@@ -821,6 +829,58 @@ telepon berubah, Admin Pusat memperbaruinya langsung dari UI — tanpa SQL:
 > Verifikasi otomatis alur ini tersedia di
 > `frontend/scripts/verify_branch_edit_ui.mjs` (puppeteer, 9 cek — login,
 > buka modal, ubah alamat, cek DB, restore).
+
+### 12.11 Sumber Sheet Receptionist & Bridge Apps Script 🔗 (sejak v2.41.2)
+
+Data **Pelamar Kerja** dan **In-Out Karyawan** bersumber dari Google Sheet dan
+otomatis tersinkron ke aplikasi **tiap 30 menit** (plus saat Receptionist/Admin
+login & logout). Admin mengelola sumbernya di **Pengaturan → 🔗 Sumber Sheet
+Receptionist** — tanpa akses database.
+
+#### Kapan Perlu Bridge Apps Script?
+
+| Kondisi sheet | Yang dipakai |
+|---|---|
+| Publik (*"Anyone with the link"*) | URL gviz CSV langsung (default) |
+| **Privat** (data HR sebaiknya begini) | URL **Apps Script Web App** |
+
+> Tautan sheet mentah (`docs.google.com/…/edit`) **tidak bisa** dibaca server
+> saat sheet privat. Solusinya: *bridge* — script kecil yang dideploy akun
+> Google mana pun yang punya akses sheet (termasuk view-only), lalu Web App
+> menyajikan datanya sebagai JSON. Yang publik hanya Web App-nya, sheet tetap
+> privat. Template siap pakai: **`scripts/gas_bridge_receptionist_v1.gs`**.
+
+#### Langkah Deploy Bridge (±10 menit)
+
+1. Buka [script.google.com](https://script.google.com) → **New project**, beri
+   nama mis. `BPF Receptionist Bridge v1`.
+2. Salin **SHEET_ID** dari URL spreadsheet (`/spreadsheets/d/`**`<ID>`**`/edit`),
+   tempel ke baris `SHEET_ID` di template, ganti tulisan
+   `GANTI_DENGAN_ID_SPREADSHEET`.
+3. SELECT ALL di editor `Code.gs` → DELETE → tempel **seluruh isi**
+   `scripts/gas_bridge_receptionist_v1.gs` → **Ctrl+S**.
+4. **Deploy → New deployment → Web app** → *Execute as*: **Me**, *Who has
+   access*: **Anyone** → **Deploy** → salin URL **`/exec`**.
+5. Uji di browser: buka `<URL>/exec?marker=1` — harus tampil
+   `"marker":"bpf-rec-sheet-2026-09-15-v1"`. Cek juga `<URL>/exec` — harus
+   muncul `"rows":[…]` berisi data sheet.
+6. Tempel URL `/exec` ke **Pengaturan → 🔗 Sumber Sheet Receptionist**
+   (kolom sheet yang bersangkutan) → klik **🧪 Uji** → pastikan ✅
+   `header dikenali: YA` → **💾 Simpan URL**.
+7. Sinkronisasi berikutnya (maks. 30 menit, atau saat login/logout
+   Receptionist) memakai sumber baru — tercatat di Audit Log.
+
+> 🧪 Tombol **Uji** membaca URL apa adanya (belum menyimpan) sehingga aman
+> dicoba berulang. Bila *header dikenali: TIDAK*, cek urutan kolom/pemilihan
+> modul di dropdown uji.
+>
+> 🔁 **Update kode script**: Deploy → *Manage deployments* → ✏️ → *Version:
+> New version* → Deploy (URL `/exec` tidak berubah). Versi script dapat
+> diverifikasi lewat `?marker=1` (kolom `code_rev`).
+>
+> ❗ **Auto-sync gagal ≥3× beruntun** (mis. sheet dibuat privat tanpa bridge)
+> → Admin menerima **notifikasi** otomatis berisi petunjuk ke halaman ini.
+> Receptionist juga bisa menekan **🔄 Sync Sheet** manual kapan saja.
 
 ---
 
