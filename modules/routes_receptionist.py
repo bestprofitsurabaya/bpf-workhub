@@ -415,6 +415,30 @@ _last_trigger = {'applicants': 0.0, 'inout': 0.0}
 
 _TRIGGER_ROLES = ('receptionist', 'admin')
 
+# v2.41.2: pelacak kegagalan beruntun — admin dinotifikasi bila sync gagal
+# berkali-kali (sheet dibuat privat / dihapus / URL salah). Counter
+# in-memory; reset ke 0 saat sync sukses.
+_FAIL_THRESHOLD = 3
+_sync_failures = {'applicants': 0, 'inout': 0}
+
+
+def _notify_sync_failure(modul, err):
+    """Beri tahu admin (room ga_hr_board + tabel notifications) bila sync
+    gagal beruntun >= _FAIL_THRESHOLD. Best-effort, tak pernah raise."""
+    count = _sync_failures[modul]
+    if count < _FAIL_THRESHOLD:
+        return
+    label = 'Pelamar' if modul == 'applicants' else 'In-Out Karyawan'
+    try:
+        from modules.notifications import push_overtime_notification
+        push_overtime_notification(
+            'receptionist_sync_failed', f'sync_{modul}_failed',
+            f'❌ Auto-sync sheet {label} gagal {count}x beruntun — '
+            f'cek URL di Pengaturan: {str(err)[:140]}',
+            ref_id=None)
+    except Exception as ne:
+        print(f'[receptionist-sync] notif gagal: {ne}')
+
 
 def trigger_receptionist_sync_async(role, full_name, ip=None):
     """Picu sync kedua sheet di background saat login/logout receptionis/admin.
@@ -456,9 +480,13 @@ def start_receptionist_auto_sync(interval=AUTO_SYNC_INTERVAL):
                           ('inout', _do_sync_inout)):
                 try:
                     result = fn()
+                    _sync_failures[m] = 0
                     print(f'[receptionist-sync] periodik ({m}): {result.get("summary")}')
                 except Exception as e:
-                    print(f'[receptionist-sync] periodik ({m}) gagal: {e}')
+                    _sync_failures[m] += 1
+                    print(f'[receptionist-sync] periodik ({m}) gagal '
+                          f'({_sync_failures[m]}x beruntun): {e}')
+                    _notify_sync_failure(m, e)
             threading.Event().wait(interval)
 
     try:
@@ -581,6 +609,76 @@ def register_receptionist_routes(app):
             })
         except Exception as e:
             return jsonify({'status': 'error', 'msg': str(e)}), 500
+
+    # ---- PENGATURAN: URL sumber sheet (v2.41.2, admin) -------------------
+    @app.route('/api/receptionist/sheet-urls', methods=['GET'])
+    @role_required(['admin'])
+    def api_receptionist_sheet_urls_get():
+        try:
+            conn = get_db_connection()
+            if not conn:
+                return jsonify({'status': 'error', 'msg': 'DB error'}), 500
+            data = {m: _get_sheet_url(conn, m) for m in ('applicants', 'inout')}
+            data['last_sync'] = {
+                'applicants': _get_last_sync(conn, 'applicants_last_sync'),
+                'inout': _get_last_sync(conn, 'inout_last_sync'),
+            }
+            conn.close()
+            return jsonify({'status': 'success', 'data': data})
+        except Exception as e:
+            return jsonify({'status': 'error', 'msg': str(e)}), 500
+
+    @app.route('/api/receptionist/sheet-urls', methods=['POST'])
+    @role_required(['admin'])
+    def api_receptionist_sheet_urls_set():
+        try:
+            data = request.get_json(silent=True) or {}
+            updates = {m: clean(str(data.get(m, '') or '')).strip()
+                       for m in ('applicants', 'inout')}
+            for m, url in updates.items():
+                if url and not (url.startswith('http://') or url.startswith('https://')):
+                    return jsonify({'status': 'error',
+                                    'msg': f'URL {m} harus diawali http(s)://'}), 400
+            conn = get_db_connection()
+            if not conn:
+                return jsonify({'status': 'error', 'msg': 'DB error'}), 500
+            cursor = conn.cursor()
+            for m, url in updates.items():
+                if not url:
+                    continue
+                cursor.execute(
+                    "INSERT INTO system_config (config_key, config_value) VALUES (%s, %s) "
+                    "ON DUPLICATE KEY UPDATE config_value=VALUES(config_value)",
+                    (SHEET_URL_KEYS[m], url))
+            conn.commit()
+            cursor.close()
+            conn.close()
+            log_activity_async(None, 'receptionist_sheet_url_update',
+                               session.get('user_role', ''),
+                               session.get('full_name', session.get('user_name', '')),
+                               new_data=updates, ip=request.remote_addr)
+            return jsonify({'status': 'success', 'msg': 'URL sumber sheet disimpan'})
+        except Exception as e:
+            return jsonify({'status': 'error', 'msg': str(e)}), 500
+
+    @app.route('/api/receptionist/test-url', methods=['POST'])
+    @role_required(['admin'])
+    def api_receptionist_test_url():
+        """Uji URL sebelum dipakai: fetch + hitung baris + cek header dikenal."""
+        try:
+            data = request.get_json(silent=True) or {}
+            modul = data.get('modul') if data.get('modul') in ('applicants', 'inout') else 'applicants'
+            url = clean(str(data.get('url', '') or '')).strip()
+            if not url:
+                return jsonify({'status': 'error', 'msg': 'URL wajib diisi'}), 400
+            rows = _fetch_sheet_rows(url)
+            mapping = APPLICANT_HEADERS if modul == 'applicants' else INOUT_HEADERS
+            known = any(_map_headers(r.keys(), mapping) for r in rows[:5])
+            sample = ', '.join(list(rows[0].keys())[:6]) if rows else ''
+            return jsonify({'status': 'success', 'rows': len(rows),
+                            'header_ok': bool(known), 'sample_header': sample})
+        except Exception as e:
+            return jsonify({'status': 'error', 'detail': str(e)[:200]}), 502
 
     # ---- LIST: in-out karyawan (read-only) --------------------------------
     @app.route('/api/receptionist/inout')

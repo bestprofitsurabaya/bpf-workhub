@@ -4,6 +4,19 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 
 ---
 
+## v2.41.2 — 15 September 2026 (Pengaturan URL sheet di UI + notifikasi gagal sync)
+
+- **Pengaturan URL sheet (admin):** seksi baru "🔗 Sumber Sheet Receptionist" di
+  Pengaturan — lihat/ubah URL sumber sheet Pelamar & In-Out Karyawan tanpa akses
+  DB, lengkap dengan metadata sinkron terakhir dan tombol "🧪 Uji" (fetch +
+  validasi header dikenal sebelum URL dipakai). Endpoint:
+  GET/POST `/api/receptionist/sheet-urls`, POST `/api/receptionist/test-url`
+  (admin-only, ter-audit).
+- **Notifikasi gagal beruntun:** auto-sync yang gagal ≥3x beruntun (sheet dibuat
+  privat/dihapus, URL salah) mengirim notifikasi ke admin via kanal realtime
+  ga_hr_board + tabel notifications — message berisi jumlah kegagalan dan
+  petunjuk ke halaman Pengaturan. Counter reset saat sync sukses.
+
 ## v2.41.1 — 15 September 2026 (Auto-sync sheet berkala + URL sumber configurable)
 
 - **Auto-sync background (paritas overtime v2.22.1):** daemon thread menyinkronkan

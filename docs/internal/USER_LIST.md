@@ -1,4 +1,4 @@
-# 📋 Daftar User & Role — BPF WorkHub v2.41.1
+# 📋 Daftar User & Role — BPF WorkHub v2.41.2
 
 Dokumen ini menjelaskan semua role yang didukung sistem, siapa yang memakainya, dan apa yang bisa dilakukan masing-masing.
 
@@ -525,4 +525,4 @@ Telp: 031-5349888
 
 ---
 
-*BPF WorkHub v2.41.1 · Daftar User & Role*
+*BPF WorkHub v2.41.2 · Daftar User & Role*

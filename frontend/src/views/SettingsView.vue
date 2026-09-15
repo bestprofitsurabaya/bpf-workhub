@@ -286,6 +286,47 @@ async function loadWaterNames() {
   } catch { /* noop */ }
 }
 
+// ---- URL sumber sheet Receptionist (v2.41.2) ----
+const sheetUrls = ref({ applicants: '', inout: '' })
+const sheetSyncMeta = ref({ applicants: '', inout: '' })
+const sheetMsg = ref('')
+const sheetBusy = ref(false)
+const sheetTest = ref(null)
+const sheetTestBusy = ref('')
+
+async function loadSheetUrls() {
+  try {
+    const d = await api('/api/receptionist/sheet-urls')
+    sheetUrls.value = { applicants: d.data?.applicants || '', inout: d.data?.inout || '' }
+    sheetSyncMeta.value = {
+      applicants: d.data?.last_sync?.applicants || '',
+      inout: d.data?.last_sync?.inout || '',
+    }
+  } catch { /* noop */ }
+}
+
+async function saveSheetUrls() {
+  sheetBusy.value = true; sheetMsg.value = ''
+  try {
+    const r = await api('/api/receptionist/sheet-urls', { method: 'POST', body: sheetUrls.value })
+    sheetMsg.value = '✅ ' + (r.msg || 'URL disimpan')
+    loadSheetUrls()
+  } catch (e) { sheetMsg.value = '❌ ' + e.message }
+  finally { sheetBusy.value = false }
+}
+
+async function testSheetUrl(modul) {
+  const url = (sheetUrls.value[modul] || '').trim()
+  if (!url) { sheetMsg.value = '⚠️ Isi URL dulu sebelum diuji.'; return }
+  sheetTestBusy.value = modul; sheetMsg.value = ''; sheetTest.value = null
+  try {
+    const r = await api('/api/receptionist/test-url', { method: 'POST', body: { modul, url } })
+    sheetTest.value = { modul, ...r }
+  } catch (e) {
+    sheetTest.value = { modul, status: 'error', detail: e.message }
+  } finally { sheetTestBusy.value = '' }
+}
+
 async function saveWaterNames() {
   busy.value = true; waterMsg.value = ''
   try {
@@ -455,6 +496,7 @@ function fmtDT(s) {
 const SECTIONS = [
   { id: 'sec-master', label: '🚗 Data Master' },
   { id: 'sec-air', label: '🚰 Air Minum' },
+  { id: 'sec-sheetsync', label: '🔗 Sumber Sheet' },
   { id: 'sec-cabang', label: '🏢 Cabang & Nomor' },
   { id: 'sec-kepatuhan', label: '🗄️ Kepatuhan (ISO)' },
   { id: 'sec-branding', label: '🎨 Identitas' },
@@ -473,7 +515,7 @@ function scrollToSection(id) {
 }
 
 let _secObserver = null
-onMounted(() => { load(); loadWaterNames(); loadEditEnabled(); loadIdentityForm(); loadDemoStatus(); loadBranches(); loadDocSequences(); loadRetention(); loadDocs() })
+onMounted(() => { load(); loadWaterNames(); loadEditEnabled(); loadIdentityForm(); loadDemoStatus(); loadBranches(); loadDocSequences(); loadRetention(); loadDocs(); loadSheetUrls() })
 onMounted(() => {
   // Highlight seksi aktif saat scroll (IntersectionObserver — ringan).
   _secObserver = new IntersectionObserver((entries) => {
@@ -551,6 +593,46 @@ onMounted(() => {
             </label>
           </div>
           <span v-if="waterEditMsg" class="muted" style="font-size:12px;">{{ waterEditMsg }}</span>
+        </div>
+      </div>
+
+      <div id="sec-sheetsync" class="card card-pad" style="margin-bottom:16px;">
+        <h3 style="margin:0;">🔗 Sumber Sheet Receptionist <span class="badge badge-blue" style="font-size:10px;vertical-align:middle;">v2.41</span></h3>
+        <p class="muted" style="font-size:11px;">
+          URL Google Sheet sumber data <b>Pelamar</b> &amp; <b>In-Out Karyawan</b> (auto-sync tiap 30 menit).
+          Bila sheet dibuat <i>privat</i>, deploy Google Apps Script Web App (JSON <code>{"rows": [...]}</code>)
+          dengan akun yang punya akses, lalu tempel URL <code>/exec</code> di sini — tanpa ubah kode.
+        </p>
+        <div class="form-grid" style="margin-top:12px;">
+          <div class="field" style="grid-column:1/-1;">
+            <label>Sheet Pelamar (kolom: Tanggal Interview, Jam, Nama, …)</label>
+            <div class="row" style="gap:6px;">
+              <input class="input" v-model="sheetUrls.applicants" placeholder="https://docs.google.com/…/gviz/tq?tqx=out:csv atau …/exec" style="flex:1;" />
+              <button class="btn btn-sm" :disabled="sheetTestBusy === 'applicants'" @click="testSheetUrl('applicants')">{{ sheetTestBusy === 'applicants' ? '⏳…' : '🧪 Uji' }}</button>
+            </div>
+            <div v-if="sheetSyncMeta.applicants" class="muted" style="font-size:11px;margin-top:4px;">Sinkron terakhir: {{ sheetSyncMeta.applicants }}</div>
+          </div>
+          <div class="field" style="grid-column:1/-1;">
+            <label>Sheet In-Out Karyawan (kolom: Nama, Jabatan, Pergi, …)</label>
+            <div class="row" style="gap:6px;">
+              <input class="input" v-model="sheetUrls.inout" placeholder="https://docs.google.com/…/gviz/tq?tqx=out:csv atau …/exec" style="flex:1;" />
+              <button class="btn btn-sm" :disabled="sheetTestBusy === 'inout'" @click="testSheetUrl('inout')">{{ sheetTestBusy === 'inout' ? '⏳…' : '🧪 Uji' }}</button>
+            </div>
+            <div v-if="sheetSyncMeta.inout" class="muted" style="font-size:11px;margin-top:4px;">Sinkron terakhir: {{ sheetSyncMeta.inout }}</div>
+          </div>
+        </div>
+        <div v-if="sheetTest" class="alert" :class="sheetTest.status === 'success' && sheetTest.header_ok ? 'alert-success' : sheetTest.status === 'success' ? 'alert-warning' : 'alert-error'" style="margin-top:10px;font-size:12px;">
+          <template v-if="sheetTest.status === 'success'">
+            {{ sheetTest.header_ok ? '✅' : '⚠️' }} {{ sheetTest.rows }} baris terbaca.
+            Header dikenali: {{ sheetTest.header_ok ? 'YA' : 'TIDAK' }}.
+            <span v-if="sheetTest.sample_header">Contoh: {{ sheetTest.sample_header }}</span>
+            <template v-if="!sheetTest.header_ok"> Periksa kembali pemetaan kolom / modul yang dipilih.</template>
+          </template>
+          <template v-else>❌ Gagal mengambil: {{ sheetTest.detail }}</template>
+        </div>
+        <div class="row" style="justify-content:flex-end;gap:8px;margin-top:8px;">
+          <span class="muted" style="font-size:12px;">{{ sheetMsg }}</span>
+          <button class="btn btn-primary btn-sm" :disabled="sheetBusy" @click="saveSheetUrls">💾 Simpan URL</button>
         </div>
       </div>
 
