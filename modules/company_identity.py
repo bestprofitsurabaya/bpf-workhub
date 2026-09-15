@@ -14,7 +14,7 @@ IDENTITY_DEFAULTS = {
     'company_name': 'PT BESTPROFIT FUTURES',
     'company_subtitle': 'Kantor Pusat | Jakarta',
     'system_name': 'BPF WorkHub',
-    'system_version': 'v2.40.3',
+    'system_version': 'v2.41.0',
     'company_address': 'Equity Tower, SCBD Lot 9, Jl. Jend. Sudirman Kav. 52-53, Jakarta Selatan 12190',
     'company_phone': '031-5349888',
 }

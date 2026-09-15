@@ -38,9 +38,12 @@ def test_checker_mendeteksi_titik_yang_tertinggal(tmp_path):
         dst = tmp_path / relpath
         dst.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy(src, dst)
-    # Turunkan satu titik ke versi lama (simulasi lupa bump)
+    # Turunkan satu titik ke versi lama (simulasi lupa bump). Versi diambil
+    # dinamis dari repo asli agar test tetap valid setiap kali bump versi
+    # (sebelumnya hardcode v2.40.3 — rusak tiap bump).
+    cur = check_all()['version']
     sw = tmp_path / 'frontend' / 'public' / 'sw.js'
-    sw.write_text(sw.read_text(encoding='utf-8').replace('v2.40.3', 'v2.39.9'), encoding='utf-8')
+    sw.write_text(sw.read_text(encoding='utf-8').replace(cur, 'v0.0.1'), encoding='utf-8')
 
     report = check_all(str(tmp_path))
     assert not report['all_ok'], "Checker harus gagal saat ada titik versi lama"

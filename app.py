@@ -115,6 +115,11 @@ for _attempt in range(5):
         break
     _time.sleep(3)
 
+# Receptionist sheet sync (v2.41.0): tabel employee_inout + kolom sync di
+# applicants (safe on every startup, paritas schema ensure lainnya).
+from modules.routes_receptionist import ensure_receptionist_schema
+ensure_receptionist_schema()
+
 # Multi-cabang (v2.19.2): tabel branches + kolom users.branch_code + cabang utama,
 # lalu sinkronkan skema untuk setiap cabang aktif yang punya database sendiri.
 from modules import branch_manager as bm
@@ -274,6 +279,7 @@ from modules.routes_assets import register_asset_routes
 from modules.routes_branches import register_branch_routes
 from modules.routes_docseq import register_docseq_routes
 from modules.routes_overtime import register_overtime_routes
+from modules.routes_receptionist import register_receptionist_routes
 from modules.routes_spa import register_spa_routes
 from modules.news_scraper import register_news_scraper_routes
 from modules.security import register_health_routes
@@ -300,6 +306,7 @@ register_asset_routes(app)
 register_branch_routes(app)
 register_docseq_routes(app)
 register_overtime_routes(app)
+register_receptionist_routes(app)
 register_spa_routes(app)
 register_news_scraper_routes(app)
 register_health_routes(app)

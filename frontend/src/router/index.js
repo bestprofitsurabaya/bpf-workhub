@@ -34,6 +34,8 @@ const routes = [
       // Form overtime user OB & Security (v2.39) — dari dalam aplikasi (login)
       { path: 'overtime-me', name: 'overtime-me', component: () => import('../views/OvertimeMeView.vue'), meta: { roles: ['ob', 'security'] } },
       { path: 'receptionist', name: 'receptionist', component: () => import('../views/dashboard/ReceptionistView.vue'), meta: { roles: ['receptionist', 'admin'] } },
+      // In-Out Karyawan (v2.41.0) — catatan keluar-masuk (read-only, sync sheet)
+      { path: 'inout', name: 'inout', component: () => import('../views/dashboard/EmployeeInOutView.vue'), meta: { roles: ['receptionist', 'admin'] } },
       { path: 'traineer', name: 'traineer', component: () => import('../views/dashboard/TraineerView.vue'), meta: { roles: ['traineer'] } },
       { path: 'assets', name: 'assets', component: () => import('../views/dashboard/AssetsView.vue'), meta: { roles: ['ga', 'admin'] } },
       { path: 'ga-hr', name: 'ga-hr', component: () => import('../views/dashboard/OvertimeView.vue'), meta: { roles: ['ga_hr', 'admin'] } },

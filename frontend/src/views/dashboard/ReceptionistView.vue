@@ -141,6 +141,43 @@ async function doDelete(a) {
   finally { busy.value = false }
 }
 
+// ---- SYNC Google Sheet pelamar (v2.41.0) ----
+const syncing = ref(false)
+async function syncSheet() {
+  if (!confirm('Tarik data terbaru dari Google Sheet pelamar? Baris sheet baru akan ditambahkan, data yang dikelola di sini (status/kehadiran) tidak tersentuh.')) return
+  syncing.value = true; msg.value = ''
+  try {
+    const r = await api('/api/receptionist/sync/applicants', { method: 'POST' })
+    msg.value = '✅ ' + (r.summary || 'Sinkronisasi selesai')
+    load(); loadMeta()
+  } catch (e) { msg.value = '❌ ' + e.message }
+  finally { syncing.value = false }
+}
+
+// ---- Input manual pelamar (form dalam aplikasi, v2.41.0) ----
+const addModal = ref(false)
+const addForm = ref({ nama_lengkap: '', pendidikan: '', no_hp: '', upline: '', user: '', posisi: '', interview_at: '', h2_date: '' })
+const savingAdd = ref(false)
+
+function openAdd() {
+  addForm.value = { nama_lengkap: '', pendidikan: '', no_hp: '', upline: '', user: '', posisi: '', interview_at: '', h2_date: '' }
+  addModal.value = true
+}
+async function saveAdd() {
+  if (!addForm.value.nama_lengkap.trim()) {
+    msg.value = '⚠️ Nama Lengkap wajib diisi.'
+    return
+  }
+  savingAdd.value = true; msg.value = ''
+  try {
+    const r = await api('/api/applicants/manual', { method: 'POST', body: addForm.value })
+    msg.value = '✅ ' + (r.msg || 'Pelamar tercatat')
+    addModal.value = false
+    load()
+  } catch (e) { msg.value = '❌ ' + e.message }
+  finally { savingAdd.value = false }
+}
+
 // ---- Laporan PDF ----
 function reportUrl() {
   const p = new URLSearchParams({ stage: reportStage.value })
@@ -245,6 +282,8 @@ onMounted(() => { load(); loadMeta() })
             <option value="training_4">📕 Training H4</option>
           </select></div>
         <a class="btn btn-primary" :href="reportUrl()" target="_blank">📄 Laporan PDF</a>
+        <button class="btn btn-primary" :disabled="syncing" title="Tarik data terbaru dari Google Sheet pelamar (Google Form lama)" @click="syncSheet">{{ syncing ? '⏳ Sinkron…' : '🔄 Sync Sheet' }}</button>
+        <button class="btn btn-primary" title="Catat pelamar baru langsung dari aplikasi" @click="openAdd">＋ Input Pelamar</button>
         <button class="btn" title="Kelola pilihan User untuk dropdown form" @click="openOptions">⚙️ Kelola User</button>
       </div>
       <div v-if="msg" class="alert" :class="msg.startsWith('✅') ? 'alert-success' : msg.startsWith('⚠️') ? 'alert-warning' : 'alert-error'" style="margin-top:10px;">{{ msg }}</div>
@@ -324,6 +363,39 @@ onMounted(() => { load(); loadMeta() })
       <div class="row" style="justify-content:flex-end;gap:6px;margin-top:10px;">
         <button class="btn" @click="editAppt = null">Batal</button>
         <button class="btn btn-primary" :disabled="savingEdit" @click="saveEdit">{{ savingEdit ? '⏳…' : '💾 Simpan' }}</button>
+      </div>
+    </Modal>
+
+    <!-- Modal Input Manual Pelamar (v2.41.0) -->
+    <Modal v-if="addModal" title="＋ Input Pelamar Baru" @close="addModal = false">
+      <p class="muted" style="font-size:12px;margin-bottom:10px;">
+        Pengganti input manual di Google Sheet/Google Form. Kolom tanggal & jam kosong = otomatis sekarang.
+      </p>
+      <div class="form-grid">
+        <div class="field"><label>Nama Lengkap <span class="req">*</span></label><input class="input" v-model="addForm.nama_lengkap" placeholder="cth: YOGA DWI REGAFIT" /></div>
+        <div class="field"><label>Pendidikan Terakhir</label>
+          <select class="select" v-model="addForm.pendidikan">
+            <option value="">— pilih —</option>
+            <option>SMP</option><option>SMA</option><option>SMK</option><option>D3</option><option>S1</option><option>S2</option>
+          </select></div>
+        <div class="field"><label>Nomor Telepon/HP</label><input class="input" v-model="addForm.no_hp" inputmode="tel" placeholder="cth: 85648127317" /></div>
+        <div class="field"><label>UPLINE</label><input class="input" v-model="addForm.upline" placeholder="cth: BELA" /></div>
+        <div class="field"><label>User</label>
+          <select class="select" v-model="addForm.user">
+            <option value="">— (kosong) —</option>
+            <option v-for="u in meta.user_options" :key="u.id" :value="u.name">{{ u.name }}</option>
+          </select></div>
+        <div class="field"><label>Posisi Yang Dilamar</label>
+          <select class="select" v-model="addForm.posisi">
+            <option value="">— pilih —</option>
+            <option>STAFF</option><option>ADMIN</option><option>MARKETING</option><option>DRIVER</option><option>OB</option><option>SECURITY</option>
+          </select></div>
+        <div class="field"><label>Tanggal & Jam Interview</label><input class="input" type="datetime-local" v-model="addForm.interview_at" /></div>
+        <div class="field"><label>Tanggal H2 (opsional)</label><input class="input" type="date" v-model="addForm.h2_date" /></div>
+      </div>
+      <div class="row" style="justify-content:flex-end;gap:6px;margin-top:10px;">
+        <button class="btn" @click="addModal = false">Batal</button>
+        <button class="btn btn-primary" :disabled="savingAdd" @click="saveAdd">{{ savingAdd ? '⏳…' : '💾 Simpan' }}</button>
       </div>
     </Modal>
 

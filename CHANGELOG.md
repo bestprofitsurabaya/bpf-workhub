@@ -4,6 +4,22 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 
 ---
 
+## v2.41.0 — 15 September 2026 (Sinkronisasi Google Sheet Pelamar & In-Out Karyawan)
+
+- **Sync Sheet Pelamar (Receptionist):** tombol "🔄 Sync Sheet" di Pelamar Kerja
+  menarik Google Sheet pendaftaran (Google Form lama) lalu upsert ke tabel
+  `applicants` — kunci stabil `source_uid` md5(nama|tanggal|jam), paritas pola
+  sync overtime v2.22. Data yang dikelola di app (status, kehadiran, verifikasi)
+  tidak tersentuh sync.
+- **Input Pelamar dari aplikasi:** form "＋ Input Pelamar" menggantikan input
+  manual di sheet — tanggal/jam kosong otomatis memakai waktu submit (paritas
+  form publik), User baru otomatis masuk opsi dropdown.
+- **Menu In-Out Karyawan:** halaman read-only catatan keluar-masuk karyawan
+  (tabel `employee_inout`, full-replace tiap sync) dengan filter tanggal,
+  pencarian, dan statistik; tombol sync paritas Sheet Pelamar.
+- Kolom baru `applicants`: `source_uid` (UNIQUE), `sheet_row`, `h2_date`;
+  tabel baru `employee_inout` (schema idempoten di startup).
+
 ## v2.40.3 — 14 September 2026 (Guard 7 titik stamp versi di CI + fix struktural anti-revert stamp cabang)
 
 - **Guard CI:** `modules/version_stamp.py` + `scripts/check_version_stamps.py` — 7 titik

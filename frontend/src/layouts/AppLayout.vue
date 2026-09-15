@@ -37,6 +37,7 @@ const MENU = [
   { label: 'Air Minum', path: '/water', icon: '🚰', roles: ['ob', 'finance', 'admin'] },
   { label: 'Overtime Saya', path: '/overtime-me', icon: '⏰', roles: ['ob', 'security'] },
   { label: 'Pelamar Kerja', path: '/receptionist', icon: '🪪', roles: ['receptionist', 'admin'] },
+  { label: 'In-Out Karyawan', path: '/inout', icon: '🚪', roles: ['receptionist', 'admin'] },
   { label: 'Rekrutan Saya', path: '/traineer', icon: '🎯', roles: ['traineer'] },
   { label: 'Aset & Pemeliharaan', path: '/assets', icon: '🔧', roles: ['ga', 'admin'] },
   { label: 'Overtime', path: '/ga-hr', icon: '⏰', roles: ['ga_hr', 'admin'] },
