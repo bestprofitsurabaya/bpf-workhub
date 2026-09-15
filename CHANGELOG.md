@@ -4,6 +4,22 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 
 ---
 
+## v2.41.1 — 15 September 2026 (Auto-sync sheet berkala + URL sumber configurable)
+
+- **Auto-sync background (paritas overtime v2.22.1):** daemon thread menyinkronkan
+  sheet Pelamar & In-Out Karyawan tiap 30 menit (sync pertama ditunda 60 detik
+  agar startup cepat) + trigger fire-and-forget saat login/logout
+  receptionis/admin dengan debounce 30 detik — kegagalan sync tidak pernah
+  menghalangi auth.
+- **URL sumber pindah ke `system_config`** (`receptionist_applicants_sheet_url`,
+  `receptionist_inout_sheet_url`; seed `INSERT IGNORE` — URL kustom tidak
+  tertimpa redeploy). Bila sheet di-share privat, admin cukup mengganti URL
+  dengan Google Apps Script Web App (JSON) tanpa ubah kode — `_fetch_sheet_rows`
+  sudah mendukung CSV gviz & JSON sejak awal.
+- Dengan dua mekanisme ini (periodik + saat-akses), data receptionis selalu
+  segar walau tidak ada yang membuka halaman, dan sumber tetap bisa dipindah
+  ke Apps Script seperti pola overtime.
+
 ## v2.41.0 — 15 September 2026 (Sinkronisasi Google Sheet Pelamar & In-Out Karyawan)
 
 - **Sync Sheet Pelamar (Receptionist):** tombol "🔄 Sync Sheet" di Pelamar Kerja

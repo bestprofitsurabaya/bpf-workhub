@@ -129,6 +129,14 @@ def register_spa_routes(app):
                                      ip=request.remote_addr)
         except Exception:
             pass  # sinkronisasi gagal tidak boleh menghalangi login
+        # v2.41.1: sheet pelamar & in-out karyawan ikut disync saat login
+        # receptionis/admin (fire-and-forget, debounce 30 detik).
+        try:
+            from modules.routes_receptionist import trigger_receptionist_sync_async
+            trigger_receptionist_sync_async(user['role'], user['full_name'],
+                                            ip=request.remote_addr)
+        except Exception:
+            pass  # sinkronisasi gagal tidak boleh menghalangi login
         return jsonify({
             'status': 'success',
             'user': {'role': user['role'], 'user_name': user['username'], 'full_name': user['full_name'],
@@ -149,6 +157,13 @@ def register_spa_routes(app):
                                                   trigger_ob_refresh_async)
             trigger_driver_refresh_async(role, full_name, ip=request.remote_addr)
             trigger_ob_refresh_async(role, full_name, ip=request.remote_addr)
+        except Exception:
+            pass  # sinkronisasi gagal tidak boleh menghalangi logout
+        # v2.41.1: sheet pelamar & in-out karyawan ikut disync saat logout
+        # receptionis/admin (fire-and-forget, debounce 30 detik).
+        try:
+            from modules.routes_receptionist import trigger_receptionist_sync_async
+            trigger_receptionist_sync_async(role, full_name, ip=request.remote_addr)
         except Exception:
             pass  # sinkronisasi gagal tidak boleh menghalangi logout
         session.clear()

@@ -16,6 +16,8 @@ manual, fetch CSV gviz / JSON Apps Script, upsert kunci stabil):
 Role: `receptionist` & `admin`.
 """
 import hashlib
+import threading
+import time
 from datetime import datetime
 
 from flask import request, jsonify, session
@@ -26,12 +28,21 @@ from modules.helpers import (role_required, log_activity_async,
 from modules.overtime_helpers import clean, parse_date_mdy, parse_time_12h, parse_time_any
 from modules.routes_overtime import _fetch_sheet_rows
 
-# Sheet sumber (publik via gviz CSV; bisa diganti Apps Script Web App JSON —
-# _fetch_sheet_rows mendukung keduanya, paritas overtime).
-APPLICANTS_SHEET_URL = ('https://docs.google.com/spreadsheets/d/'
-                        '1VIavwXGX1e9R6dbfkmLltEUo0QgpgDEalUPxD2SF8a0/gviz/tq?tqx=out:csv')
-INOUT_SHEET_URL = ('https://docs.google.com/spreadsheets/d/'
-                   '1oBmm62eY06QDzErmt1jWw0VX4usScd0hOKqX0I0o2gM/gviz/tq?tqx=out:csv')
+# Sheet sumber (default publik via gviz CSV). URL sesungguhnya dibaca dari
+# system_config — bila sheet diubah jadi privat, admin cukup mengganti URL
+# dengan Google Apps Script Web App (JSON) tanpa ubah kode; _fetch_sheet_rows
+# mendukung keduanya (paritas overtime_driver_sheet_url).
+DEFAULT_APPLICANTS_SHEET_URL = (
+    'https://docs.google.com/spreadsheets/d/'
+    '1VIavwXGX1e9R6dbfkmLltEUo0QgpgDEalUPxD2SF8a0/gviz/tq?tqx=out:csv')
+DEFAULT_INOUT_SHEET_URL = (
+    'https://docs.google.com/spreadsheets/d/'
+    '1oBmm62eY06QDzErmt1jWw0VX4usScd0hOKqX0I0o2gM/gviz/tq?tqx=out:csv')
+
+SHEET_URL_KEYS = {
+    'applicants': 'receptionist_applicants_sheet_url',
+    'inout': 'receptionist_inout_sheet_url',
+}
 
 
 # ================================================================
@@ -91,6 +102,17 @@ def ensure_receptionist_schema(conn=None):
                                'ADD UNIQUE KEY uq_applicants_source_uid (source_uid)')
             except Exception as e:
                 print(f'[receptionist-schema] uq source_uid: {e}')
+        # Seed URL sheet (v2.41.1) — INSERT IGNORE agar URL kustom yang
+        # diganti admin (mis. Apps Script Web App) tidak tertimpa redeploy.
+        for key, default in (
+                ('receptionist_applicants_sheet_url', DEFAULT_APPLICANTS_SHEET_URL),
+                ('receptionist_inout_sheet_url', DEFAULT_INOUT_SHEET_URL)):
+            try:
+                cursor.execute(
+                    'INSERT IGNORE INTO system_config (config_key, config_value) '
+                    'VALUES (%s, %s)', (key, default))
+            except Exception as e:
+                print(f'[receptionist-schema] seed {key}: {e}')
         conn.commit()
         cursor.close()
         print('✔ Receptionist sync schema ready')
@@ -252,6 +274,22 @@ def _get_last_sync(conn, key):
         return ''
 
 
+def _get_sheet_url(conn, modul='applicants'):
+    """URL sumber sheet dari system_config (paritas _get_sheet_url overtime).
+    Fallback ke default bila baris belum di-seed / kosong."""
+    key = SHEET_URL_KEYS.get(modul, SHEET_URL_KEYS['applicants'])
+    default = (DEFAULT_APPLICANTS_SHEET_URL if modul == 'applicants'
+               else DEFAULT_INOUT_SHEET_URL)
+    try:
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT config_value FROM system_config WHERE config_key=%s", (key,))
+        row = cursor.fetchone()
+        cursor.close()
+        return ((row or {}).get('config_value') or default).strip() or default
+    except Exception:
+        return default
+
+
 def _do_sync_applicants():
     """Tarik sheet pelamar lalu upsert ke `applicants` (source_uid stabil).
 
@@ -261,7 +299,7 @@ def _do_sync_applicants():
     if not conn:
         raise RuntimeError('DB error')
     try:
-        rows = _fetch_sheet_rows(APPLICANTS_SHEET_URL)
+        rows = _fetch_sheet_rows(_get_sheet_url(conn, 'applicants'))
         cursor = conn.cursor(dictionary=True)
         added = updated = skipped = 0
         for n, r in enumerate(rows):
@@ -323,7 +361,7 @@ def _do_sync_inout():
     if not conn:
         raise RuntimeError('DB error')
     try:
-        rows = _fetch_sheet_rows(INOUT_SHEET_URL)
+        rows = _fetch_sheet_rows(_get_sheet_url(conn, 'inout'))
         cursor = conn.cursor()
         cursor.execute('DELETE FROM employee_inout')
         replaced = skipped = 0
@@ -363,6 +401,74 @@ def _serialize(row):
         if hasattr(v, 'strftime'):
             row[k] = v.strftime('%Y-%m-%d %H:%M:%S')
     return row
+
+
+# ================================================================
+# AUTO-SYNC berkala + trigger saat login/logout (v2.41.1)
+# Paritas pola overtime v2.22.1: fire-and-forget background thread,
+# debounce mencegah spam Google saat user login/logout berulang.
+# ================================================================
+
+AUTO_SYNC_INTERVAL = 30 * 60      # 30 menit (detik)
+_DEBOUNCE_MIN_INTERVAL = 30       # jeda minimum antar sync dipicu login/logout
+_last_trigger = {'applicants': 0.0, 'inout': 0.0}
+
+_TRIGGER_ROLES = ('receptionist', 'admin')
+
+
+def trigger_receptionist_sync_async(role, full_name, ip=None):
+    """Picu sync kedua sheet di background saat login/logout receptionis/admin.
+    Debounce 30 detik; gagal diam-diam — auth tidak boleh terganggu."""
+    if role not in _TRIGGER_ROLES:
+        return
+    now = time.time()
+    due = [m for m in ('applicants', 'inout')
+           if now - _last_trigger[m] >= _DEBOUNCE_MIN_INTERVAL]
+    if not due:
+        return
+    for m in due:
+        _last_trigger[m] = now
+
+    def _run():
+        for m in due:
+            fn = _do_sync_applicants if m == 'applicants' else _do_sync_inout
+            try:
+                result = fn()
+                print(f'[receptionist-sync] auto ({m}, trigger={role}): {result.get("summary")}')
+            except Exception as e:
+                print(f'[receptionist-sync] auto ({m}, trigger={role}) gagal: {e}')
+
+    try:
+        threading.Thread(target=_run, daemon=True).start()
+    except Exception as e:
+        print(f'[receptionist-sync] gagal start thread trigger: {e}')
+
+
+def start_receptionist_auto_sync(interval=AUTO_SYNC_INTERVAL):
+    """Daemon thread: sync kedua sheet tiap `interval` detik (default 30 menit).
+    Sync pertama ditunda 60 detik agar startup app tetap cepat."""
+
+    def _loop():
+        # Tunda sync pertama — beri jeda startup (schema ensure dulu selesai).
+        time.sleep(60)
+        while True:
+            for m, fn in (('applicants', _do_sync_applicants),
+                          ('inout', _do_sync_inout)):
+                try:
+                    result = fn()
+                    print(f'[receptionist-sync] periodik ({m}): {result.get("summary")}')
+                except Exception as e:
+                    print(f'[receptionist-sync] periodik ({m}) gagal: {e}')
+            threading.Event().wait(interval)
+
+    try:
+        t = threading.Thread(target=_loop, daemon=True, name='receptionist-auto-sync')
+        t.start()
+        print(f'[receptionist-sync] Auto-sync thread started (tiap {interval // 60} menit)')
+        return t
+    except Exception as e:
+        print(f'[receptionist-sync] gagal start auto-sync thread: {e}')
+        return None
 
 
 # ================================================================

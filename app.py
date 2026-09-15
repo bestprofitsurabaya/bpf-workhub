@@ -120,6 +120,11 @@ for _attempt in range(5):
 from modules.routes_receptionist import ensure_receptionist_schema
 ensure_receptionist_schema()
 
+# v2.41.1: auto-sync sheet pelamar & in-out karyawan tiap 30 menit
+# (background daemon thread, paritas auto-cleanup foto overtime).
+from modules.routes_receptionist import start_receptionist_auto_sync
+start_receptionist_auto_sync()
+
 # Multi-cabang (v2.19.2): tabel branches + kolom users.branch_code + cabang utama,
 # lalu sinkronkan skema untuk setiap cabang aktif yang punya database sendiri.
 from modules import branch_manager as bm
