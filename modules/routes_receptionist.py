@@ -27,6 +27,7 @@ Role: `receptionist` & `admin`.
 import hashlib
 import io
 import json
+import re
 import secrets
 import threading
 import time
@@ -335,17 +336,44 @@ def _log_inout_event(cursor, inout_id, event_type, row=None, payload=None):
         print(f'[receptionist-inout] audit gagal ({event_type}): {e}')
 
 
+def _parse_time_with_sec(value):
+    """Jam sheet receptionist ('6:53:19 AM', '14:24:05', '9:56') -> 'HH:MM:SS'.
+
+    v2.43.1: detik dipertahankan — sebelumnya memakai parse_time_12h/any
+    (warisan overtime, HH:MM) sehingga 9:56:16 tersimpan 09:56:00 dan data di
+    aplikasi tak sama dgn sumber sheet (1.103 baris tergeser detiknya).
+    Return None bila format tak dikenal.
+    """
+    s = clean(str(value or ''))
+    if not s:
+        return None
+    m = re.match(r'^(\d{1,2}):(\d{2})(?::(\d{2}))?\s*([AP]M)?$', s, re.I)
+    if not m:
+        # Fallback format lain (ISO dsb.) via helper overtime, lalu lengkapi detik.
+        t = parse_time_any(s)
+        return f'{t}:00' if t else None
+    hh, mm, ss = int(m.group(1)), int(m.group(2)), int(m.group(3) or 0)
+    ampm = (m.group(4) or '').upper()
+    if ampm == 'PM' and hh < 12:
+        hh += 12
+    elif ampm == 'AM' and hh == 12:
+        hh = 0
+    if mm > 59 or ss > 59:
+        return None
+    return f'{hh:02d}:{mm:02d}:{ss:02d}'
+
+
 def _parse_dt_parts(date_raw, time_raw):
-    """'9/14/2026' + '6:53:19 AM' -> '2026-09-14 06:53:00' atau None."""
+    """'9/14/2026' + '6:53:19 AM' -> '2026-09-14 06:53:19' atau None."""
     d = parse_date_mdy(date_raw)
     if not d:
         return None
-    jam = parse_time_12h(time_raw) or parse_time_any(time_raw) or '00:00'
-    return f'{d} {jam}:00'
+    jam = _parse_time_with_sec(time_raw) or '00:00:00'
+    return f'{d} {jam}'
 
 
 def _parse_full_dt(raw):
-    """'5/1/2026 9:56:16' -> '2026-05-01 09:56:00' atau None."""
+    """'5/1/2026 9:56:16' -> '2026-05-01 09:56:16' atau None (detik dipertahankan, v2.43.1)."""
     raw = clean(str(raw or ''))
     if not raw:
         return None
@@ -355,8 +383,8 @@ def _parse_full_dt(raw):
     d = parse_date_mdy(date_part)
     if not d:
         return None
-    jam = parse_time_any(time_part) or '00:00'
-    return f'{d} {jam}:00'
+    jam = _parse_time_with_sec(time_part) or '00:00:00'
+    return f'{d} {jam}'
 
 
 def normalize_applicant_row(r, idx):
