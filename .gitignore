@@ -45,3 +45,4 @@ NewsScraper_V1.5.1.py
 scripts/.cleanup_done_*
 backup_*.json
 mikrotik-migration/
+backups/
