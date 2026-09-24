@@ -4,6 +4,29 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 
 ---
 
+## v2.44.0 — 24 September 2026 (Revisi otoritas ACC: ACC-2 overtime = Admin Pusat, bukan Admin Cabang)
+
+**Koreksi sesuai struktur perusahaan:** Admin Cabang (`admin_sby`, dst)
+sama sekali tidak berperan dalam alur ACC, tetapi secara fungsi sebelumnya
+memiliki otoritas melihat & memberi ACC (rantai langkah kedua memakai role
+`admin` yang melekat pada SEMUA akun admin).
+
+- **Rantai baru:** overtime = GA HR (ACC-1) → **Admin Pusat** (ACC-2).
+  Langkah kedua kini ber-username Admin Pusat aktif (`admin` /
+  `ADMIN_HO_USERNAMES` / flag `admin_all_branches`) + role virtual
+  `ho_admin`; label langkah: "Admin Pusat".
+- **Enforcement:** `decision_allowed` & endpoint decision memakai paritas
+  `admin_scope.is_ho_admin` — Admin Cabang ditolak (403 / gagal langkah);
+  Admin Pusat via flag `admin_all_branches` tetap berwenang.
+- **Menu:** ✅ ACC Atasan disembunyikan dari Admin Cabang (hoOnly);
+  list approvals hanya menampilkan baris relevan bagi sesi.
+- Jurnal ACC pending ber-chain lama (role `admin`) ikut terlindungi:
+  hanya Admin Pusat yang bisa memutuskannya; pengajuan baru memakai
+  chain baru (ber-nama Admin Pusat aktif — saat ini `admin_master`,
+  satu-satunya akun ber-flag `admin_all_branches`).
+- Test: build_chain 'ho_admin', ACC-2 ditolak utk Admin Cabang, ACC
+  final via flag `admin_all_branches`.
+
 ## v2.43.3 — 24 September 2026 (SW anti-racun cache + auto-recovery chunk-lama pasca-deploy)
 
 Setelah beberapa deploy berturut-turut, klien dengan shell lama menabrak

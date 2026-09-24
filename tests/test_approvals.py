@@ -58,6 +58,12 @@ class FakeCursor:
                 self.rows = [dict(r) for r in self.store['appr'].values()
                              if r.get('status') == 'pending']
             self.rowcount = len(self.rows)
+        elif 'ADMIN_ALL_BRANCHES' in up and up.startswith('SELECT'):
+            # v2.44.0: admin_scope._admin_row — flag Admin Pusat per username
+            u = self.store['users'].get(params[0])
+            if u and u.get('is_active', False):
+                self.rows = [{'admin_all_branches': bool(u.get('admin_all_branches'))}]
+            self.rowcount = len(self.rows)
         elif 'FROM USERS' in up and up.startswith('SELECT'):
             # _lookup_supervisor: JOIN users u2 (manager aktif)
             uname = params[0]
@@ -142,6 +148,9 @@ def store():
                             'is_active': True, 'manager_username': None},
             'chief': {'username': 'chief', 'full_name': 'Chief Satu',
                       'is_active': True, 'manager_username': None},
+            # v2.44.0: Admin Pusat (dipakai test daftar/keputusan sesi admin)
+            'root': {'username': 'root', 'full_name': 'root', 'is_active': True,
+                     'manager_username': None, 'admin_all_branches': True},
         },
     }
 
@@ -163,9 +172,12 @@ class TestBuildChain:
         assert [s['role'] for s in chain] == ['chief_driver', 'ga']
         assert all(s['approver'] for s in chain)
 
-    def test_default_ob_ga_hr_lalu_admin(self, store):
+    def test_default_ob_ga_hr_lalu_admin(self, store, monkeypatch):
+        """v2.44.0: ACC-2 overtime = 'ho_admin' (Admin Pusat), bukan role admin."""
+        monkeypatch.setattr(am, '_lookup_ho_admin', lambda conn: 'admin')
         chain = build_chain(_conn(store), 'overtime_ob', 'Ob Satu', 'ob')
-        assert [s['role'] for s in chain] == ['ga_hr', 'admin']
+        assert [s['role'] for s in chain] == ['ga_hr', 'ho_admin']
+        assert chain[1]['approver'] == 'admin'
 
     def test_override_manager_username(self, store):
         store['users']['Budi Driver']['manager_username'] = 'chief'
@@ -301,14 +313,30 @@ class TestDecide:
         ok, msg = decide(conn, 'cash', 5, 'approved', 'ga1', 'ga')
         assert not ok and 'sudah diproses' in msg
 
-    def test_overtime_chain_ga_hr_lalu_admin(self, store):
+    def test_overtime_chain_ga_hr_lalu_ho_admin(self, store, monkeypatch):
+        """v2.44.0: ACC-2 overtime = Admin Pusat (role 'admin' saja tak cukup)."""
         conn = _pending(store, doc_type='overtime_driver',
                         requested_by='Budi', requester_role='driver')
         ok, _ = decide(conn, 'overtime_driver', 5, 'approved', 'hr', 'ga_hr')
         assert ok
+        # Admin Cabang (role admin, bukan Admin Pusat) → DITOLAK
+        monkeypatch.setattr(am, 'is_ho_admin', lambda: False)
+        ok, msg = decide(conn, 'overtime_driver', 5, 'approved', 'admin_sby', 'admin')
+        assert not ok
+        # Admin Pusat → ACC final
+        monkeypatch.setattr(am, 'is_ho_admin', lambda: True)
         ok, _ = decide(conn, 'overtime_driver', 5, 'approved', 'root', 'admin')
         assert ok
         assert approval_status(conn, 'overtime_driver', 5)[0] == 'approved'
+
+    def test_ho_admin_via_flag_admin_all_branches(self, store, monkeypatch):
+        """Admin cabang dgn flag admin_all_branches berperilaku Admin Pusat."""
+        conn = _pending(store, doc_type='overtime_driver',
+                        requested_by='Budi', requester_role='driver')
+        decide(conn, 'overtime_driver', 5, 'approved', 'hr', 'ga_hr')
+        monkeypatch.setattr(am, 'is_ho_admin', lambda: True)
+        ok, _ = decide(conn, 'overtime_driver', 5, 'approved', 'admin_sby', 'admin')
+        assert ok
 
     def test_decision_allowed_tanpa_langkah_aktif(self, store):
         conn = _pending(store)

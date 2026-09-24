@@ -1,9 +1,12 @@
 """Approval Berjenjang (v2.36.0) — ACC atasan sebelum diproses back-office.
 
-Keputusan produk (6 Sep 2026):
+Keputusan produk (6 Sep 2026, direvisi v2.44.0):
 - Cakupan  : overtime (driver + OB/Security), klaim BBM (transactions), kasbon.
 - Rantai   : BBM & kasbon = Chief Driver (ACC-1) → GA (ACC-2, titik proses
-             approve-ga yang sudah ada); overtime = GA HR (ACC-1) → Admin (ACC-2).
+             approve-ga yang sudah ada); overtime = GA HR (ACC-1) →
+             **Admin Pusat** (ACC-2; v2.44.0 — sebelumnya "role admin" yang
+             juga melekat pada Admin Cabang `admin_<kode>` yang tidak
+             berperan dalam alur ACC).
 - Atasan   : default dari role pengaju (driver→chief_driver, ob→ga_hr),
              override per user via kolom `users.manager_username` (Admin).
 - Pengecualian: tidak ada (semua pengajuan lewat atasan).
@@ -25,18 +28,22 @@ Langkah ber-role cocok untuk siapa pun memegang role itu (divalidasi
 actor_role); langkah ber-nama hanya untuk user tersebut.
 """
 import json
+import os
 
 from flask import jsonify, request, session
 
 from modules.helpers import client_ip, log_activity_async, role_required
 from modules.config import get_master_connection
+from modules.admin_scope import is_ho_admin  # v2.44.0: otoritas Admin Pusat
 
 APPROVAL_CODE = 'SUPERVISOR_APPROVAL_REQUIRED'
 APPROVAL_MSG = 'Menunggu persetujuan atasan (approval berjenjang).'
 
 # Rantai default per jenis dokumen (langkah ber-role).
+# v2.44.0: langkah kedua overtime = 'ho_admin' (Admin Pusat) — BUKAN role
+# 'admin', agar Admin Cabang (admin_<kode>) tidak ikut berwenang ACC.
 CHAIN_CASH_BBM = ('chief_driver', 'ga')     # ACC-1 Chief Driver, ACC-2 GA (approve-ga)
-CHAIN_OVERTIME = ('ga_hr', 'admin')         # ACC-1 GA HR, ACC-2 Admin
+CHAIN_OVERTIME = ('ga_hr', 'ho_admin')      # ACC-1 GA HR, ACC-2 Admin Pusat
 
 # Role pengaju → role atasan default (langkah 1) — override via manager_username.
 _ROLE_SUPERVISOR_DEFAULT = {
@@ -46,6 +53,58 @@ _ROLE_SUPERVISOR_DEFAULT = {
 }
 
 DOC_TYPES = ('cash', 'bbm', 'overtime_driver', 'overtime_ob')
+
+# v2.44.0 — daftar username Admin Pusat (selain flag admin_all_branches):
+# paritas dgn admin_scope.HO_ADMIN_USERNAMES (admin + env ADMIN_HO_USERNAMES).
+_HO_ADMIN_USERNAMES = {'admin'} | {
+    u.strip().lower() for u in os.environ.get('ADMIN_HO_USERNAMES', '').split(',')
+    if u.strip()
+}
+
+# Label langkah (tampil ke user di gate 409 & menu) —
+# 'ho_admin' bukan role users, jadi diberi label eksplisit.
+_STEP_LABELS = {'ho_admin': 'Admin Pusat', 'admin': 'Admin'}
+
+
+def _actor_is_ho():
+    """v2.44.0: is_ho_admin() yang aman dipanggil di mana pun.
+
+    Di luar request context (CLI/cron/script) → False (fail-closed):
+    langkah ber-nama tetap bisa diputus pemegang nama; langkah role
+    ho_admin menunggu sesi Admin Pusat yang sah.
+    """
+    try:
+        return bool(is_ho_admin())
+    except Exception:
+        return False
+
+
+def _lookup_ho_admin(conn):
+    """v2.44.0: cari SATU Admin Pusat aktif utk langkah ber-role 'ho_admin'.
+
+    Aturan paritas dgn admin_scope.is_ho_admin (fail-closed):
+    - username di daftar pusat (admin / ADMIN_HO_USERNAMES), ATAU
+    - flag users.admin_all_branches = TRUE.
+    Bila tidak ada → None (langkah tetap ber-role; ACC menunggu Admin Pusat
+    yang ditunjuk — tidak jatuh ke Admin Cabang).
+    """
+    if conn is None:
+        return None
+    try:
+        cur = conn.cursor(dictionary=True)
+        ho = sorted(_HO_ADMIN_USERNAMES)
+        ph = ', '.join(['%s'] * len(ho))
+        cur.execute(
+            "SELECT username FROM users WHERE role='admin' AND is_active=TRUE "
+            f"AND (username IN ({ph}) OR admin_all_branches=TRUE) LIMIT 1",
+            tuple(ho))
+        row = cur.fetchone()
+        cur.close()
+        if row and row.get('username'):
+            return str(row['username']).strip() or None
+    except Exception:
+        pass
+    return None
 
 
 def _doc_chain(doc_type):
@@ -176,6 +235,16 @@ def build_chain(conn, doc_type, requester_name, requester_role):
     default = _doc_chain(doc_type)
     if str(doc_type).startswith('overtime'):
         first = {'approver': default[0], 'role': default[0]}
+        # v2.44.0: langkah kedua ber-nama Admin Pusat aktif (bukan role
+        # 'admin' — itu melekat juga pada Admin Cabang). Role 'ho_admin'
+        # disertakan agar ACC tetap bisa diproses bila Admin Pusat berganti
+        # akun (paritas langkah cadangan ber-role).
+        ho_user = _lookup_ho_admin(conn)
+        second = ({'approver': ho_user, 'role': 'ho_admin'} if ho_user
+                  else {'approver': default[1], 'role': default[1]})
+        if first['role'] == second['role']:
+            return [first]
+        return [first, second]
     else:
         supervisor = _lookup_supervisor(conn, requester_name)
         if supervisor:
@@ -317,7 +386,11 @@ def current_step(row):
 def step_label(step):
     if not step:
         return '?'
-    return step.get('approver') or step.get('role') or '?'
+    if step.get('approver'):
+        return step['approver']
+    role = step.get('role') or step.get('approver') or '?'
+    # v2.44.0: label ramah utk langkah virtual (bukan role users)
+    return _STEP_LABELS.get(role, role)
 
 
 def decision_allowed(row, actor, actor_role):
@@ -335,11 +408,17 @@ def decision_allowed(row, actor, actor_role):
         if approver.lower() == str(actor).lower():
             return True
         if step.get('role'):
+            # v2.44.0: langkah Admin Pusat ('ho_admin' baru + 'admin' lama)
+            # hanya bisa diputus Admin Pusat — bukan Admin Cabang.
+            if str(step['role']).lower() in ('ho_admin', 'admin'):
+                return _actor_is_ho()
             return str(actor_role or '').lower() == str(step['role']).lower()
         # Langkah ber-nama tanpa info role: cocokkan role hanya bila langkah
         # lain di chain memegang role itu (build_chain selamenya mengisi role).
         return False
     if step.get('role'):
+        if str(step['role']).lower() in ('ho_admin', 'admin'):
+            return _actor_is_ho()
         return str(actor_role or '').lower() == str(step['role']).lower()
     return False
 
@@ -462,7 +541,9 @@ def register_approval_routes_full(app, role_required):
             step = current_step(r)
             if step is None:
                 continue
-            if decision_allowed(r, actor, actor_role) or actor_role == 'admin':
+            # v2.44.0: 'admin' tak lagi otomatis melihat semua — hanya Admin
+            # Pusat; Admin Cabang hanya melihat langkah yang boleh diputusnya.
+            if decision_allowed(r, actor, actor_role) or (actor_role == 'admin' and is_ho_admin()):
                 vis = dict(r)
                 vis['chain'] = json.loads(r['chain']) if isinstance(r['chain'], str) else (r['chain'] or [])
                 vis['pending_at'] = step_label(step)
@@ -480,6 +561,11 @@ def register_approval_routes_full(app, role_required):
         if decision == 'rejected' and not str(data.get('note', '') or '').strip():
             return jsonify({'status': 'error', 'msg': 'Alasan penolakan wajib diisi'}), 400
         actor, actor_role = _actor()
+        # v2.44.0: Admin Cabang (role admin tanpa otoritas pusat) bukan
+        # pihak dalam alur ACC — tolak eksplisit, bukan cuma simbolis.
+        if actor_role == 'admin' and not is_ho_admin():
+            return jsonify({'status': 'error',
+                            'msg': 'ACC overtime adalah wewenang Admin Pusat (GA HR → Admin Pusat).'}), 403
         conn = get_master_connection()
         if not conn:
             return jsonify({'status': 'error', 'msg': 'DB error'}), 500

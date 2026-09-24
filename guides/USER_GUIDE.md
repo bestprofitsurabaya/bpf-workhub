@@ -1,4 +1,4 @@
-# 📖 Panduan Pengguna BPF WorkHub v2.43.3
+# 📖 Panduan Pengguna BPF WorkHub v2.44.0
 
 > **Siapa pun kamu — sopir, OB, admin, atau pimpinan — panduan ini ditulis untuk kamu.**
 > Tidak perlu paham teknis. Cukup ikuti langkah-langkah sesuai bagianmu.
@@ -747,7 +747,12 @@ back-office — sesuai struktur perusahaan:
 | Pengajuan | Siapa meng-ACC (urutan) |
 |---|---|
 | Kasbon & Klaim BBM | **Chief Driver** → **GA** |
-| Overtime (Driver & OB/Security) | **GA HR** → **Admin** |
+| Overtime (Driver & OB/Security) | **GA HR** → **Admin Pusat** |
+
+> **Revisi v2.44.0:** ACC-2 overtime adalah wewenang **Admin Pusat saja**
+> (akun `admin` / ber-flag `admin_all_branches`). **Admin Cabang**
+> (`admin_sby`, `admin_bdg`, …) tidak berperan dalam alur ACC — menu
+> ✅ ACC Atasan disembunyikan dan keputusannya ditolak sistem (403).
 
 **Cara kerja bagi atasan (Chief Driver / GA HR):**
 
@@ -766,7 +771,7 @@ saat ini. Dokumen lama (sebelum fitur ini) tetap bisa diproses normal.
 
 **Sudah terverifikasi end-to-end:** alur overtime lengkap — submit dgn foto
 bukti dari Driver/OB/Security → pengeditan tertahan (409) selama ACC
-berjalan → ACC-1 GA HR → ACC-2 Admin → status final *approved* → **Formulir
+berjalan → ACC-1 GA HR → ACC-2 Admin Pusat → status final *approved* → **Formulir
 Permohonan Overtime PDF tercetak dengan kedua foto tersemat**. Rantai ini
 diuji langsung di produksi (September 2026).
 
@@ -790,8 +795,9 @@ Konvensi username `{divisi}_{cabang}` sekarang berlaku juga untuk admin:
 
 Yang **tidak bisa** dilakukan Admin Cabang: mengganti cabang kerja, mengelola
 cabang lain, reset nomor dokumen cabang lain, arsip audit trail global,
-Access Review & Audit Log lintas cabang. Menu-menu itu otomatis disembunyikan
-dari sidebar-nya (bertanda "🔒 Cabang").
+Access Review & Audit Log lintas cabang, **memberi ACC overtime** (wewenang
+Admin Pusat — menu ✅ ACC Atasan disembunyikan, keputusan ditolak 403).
+Menu-menu itu otomatis disembunyikan dari sidebar-nya (bertanda "🔒 Cabang").
 
 Kasus khusus (diatur Admin Pusat langsung via database):
 - Satu admin untuk **2 cabang** → isi `users.managed_branches` = `SBY,BDG`
