@@ -210,6 +210,27 @@ def annotate_foto_issue(rows, foto_dir=None):
     return rows
 
 
+def group_foto_issue_users(rows):
+    """Kelompokkan baris ber-foto_issue ke daftar per user (v2.43.0).
+
+    Return list dict {nama, posisi, total, records} terurut dari user
+    dengan pengajuan terdampak terbanyak — untuk panel tindak lanjut GA HR.
+    """
+    users = {}
+    for r in rows if rows else []:
+        if not r.get('foto_issue'):
+            continue
+        u = users.setdefault(r.get('nama') or '(tanpa nama)', {
+            'nama': r.get('nama') or '(tanpa nama)',
+            'posisi': r.get('posisi') or 'OB',
+            'total': 0,
+            'records': [],
+        })
+        u['total'] += 1
+        u['records'].append(r)
+    return sorted(users.values(), key=lambda x: -x['total'])
+
+
 # ============================================================
 # 1. Shared Validation
 # ============================================================

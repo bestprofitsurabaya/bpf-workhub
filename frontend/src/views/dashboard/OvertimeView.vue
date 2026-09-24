@@ -89,6 +89,94 @@ const allNames = ref([])
 
 const formLink = window.location.origin + '/app/overtime-form'
 
+// ============================================================
+// v2.43.0 — Foto bukti duplikat (mulai = selesai): panel tindak lanjut
+// Insiden Sep 2026: kedua slot foto berisi foto sama (tertimpa sejak
+// unggah). Panel ini mendaftar baris terdampak per user + memudahkan
+// penggantian foto setelah user mengirim foto aslinya.
+// ============================================================
+const fiPanel = ref(false)
+const fiUsers = ref([])
+const fiTotal = ref(0)
+const fiLoaded = ref(false)
+const fiLoading = ref(false)
+const fiErr = ref('')
+const fiDetail = ref(null)   // user terpilih { nama, posisi, records[] }
+const fiReplace = ref(null)  // { row, slot }
+const fiFile = ref(null)
+const fiSaving = ref(false)
+const fiCopied = ref(false)
+
+function fileToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader()
+    r.onload = () => resolve(r.result)
+    r.onerror = reject
+    r.readAsDataURL(file)
+  })
+}
+
+// Pesan siap kirim (WhatsApp/SMS) untuk user terdampak
+function fiNoticeWA(u) {
+  return `Halo ${u.nama}, kami dari GA HR. Dari pemeriksaan data overtime, ada ${u.total} pengajuan OT ${u.posisi} Anda yang foto bukti MULAI dan SELESAI-nya tercatat sama (kemungkinan foto yang sama terunggah di kedua slot saat pengisian form). Kami mohon kesediaan Anda mengunggah ulang FOTO MULAI OT yang asli (foto saat mulai bekerja) untuk pengajuan yang tertera — foto bisa dikirim via WhatsApp ke nomor ini atau langsung dibawa ke kantor GA HR. Terima kasih atas kerja samanya. — GA HR PT Bestprofit Futures`
+}
+
+function fiPeriode(u) {
+  const t = (u.records || []).map(r => r.tanggal).filter(Boolean).sort()
+  return t.length ? `${t[0]} s/d ${t[t.length - 1]}` : '—'
+}
+
+async function loadFotoIssues(force = false) {
+  if (fiLoaded.value && !force) return
+  fiLoading.value = true
+  fiErr.value = ''
+  try {
+    const d = await api('/api/overtime/foto-issues')
+    fiUsers.value = d.users || []
+    fiTotal.value = d.total_issue || 0
+    fiLoaded.value = true
+  } catch (e) {
+    fiErr.value = e.message || 'Gagal memuat daftar'
+  } finally { fiLoading.value = false }
+}
+
+function fiOpenDetail(u) { fiDetail.value = u }
+
+function fiReplaceOpen(r, slot) {
+  fiReplace.value = { row: r, slot }
+  fiFile.value = null
+}
+
+function fiReplaceFile(e) { fiFile.value = e.target.files?.[0] || null }
+
+async function fiReplaceSave() {
+  const rep = fiReplace.value
+  if (!rep || !fiFile.value) return
+  fiSaving.value = true
+  try {
+    const foto = await fileToDataUrl(fiFile.value)
+    await api(`/api/overtime/${rep.row.modul || 'ob'}/${rep.row.id}/replace-foto`, {
+      method: 'POST', body: { slot: rep.slot, foto },
+    })
+    fiReplace.value = null
+    fotoRow.value = null
+    await Promise.all([loadOb(), loadFotoIssues(true)])
+    // Segarkan detail user yang sedang terbuka
+    if (fiDetail.value) {
+      const u = fiUsers.value.find(x => x.nama === fiDetail.value.nama)
+      fiDetail.value = u || null
+    }
+  } catch (e) { alert('❌ ' + e.message) } finally { fiSaving.value = false }
+}
+
+async function fiCopyNotice() {
+  try {
+    await navigator.clipboard.writeText(fiNoticeWA(fiDetail.value))
+    fiCopied.value = true
+    setTimeout(() => { fiCopied.value = false }, 2000)
+  } catch { alert('Gagal menyalin — salin manual dari kotak teks.') }
+}
+
 async function loadStats() {
   try { stats.value = await api('/api/overtime/stats') } catch { stats.value = null }
 }
@@ -335,6 +423,7 @@ onMounted(() => {
   loadStats()
   loadTab()
   loadNames()
+  loadFotoIssues()  // v2.43.0
 })
 
 watch(tab, loadTab)
@@ -354,6 +443,12 @@ watch(tab, loadTab)
 
     <div v-if="refreshMsg" class="alert alert-success">✅ Refresh selesai: {{ refreshMsg }}</div>
     <div v-if="err" class="alert alert-error">{{ err }}</div>
+
+    <!-- v2.43.0 — strip ringkasan foto duplikat -->
+    <div v-if="fiTotal > 0" class="alert" style="border:1px solid #f59e0b;background:rgba(245,158,11,0.08);display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+      <span>⚠️ <b>{{ fiTotal }} pengajuan overtime</b> terdeteksi foto MULAI = foto SELESAI ({{ fiUsers.length }} orang).</span>
+      <button class="btn btn-xs" @click="fiPanel = true; loadFotoIssues(true)">🔎 Lihat daftar per user</button>
+    </div>
 
     <div class="stat-grid" style="margin-bottom:16px;">
       <StatCard icon="🚗" label="Overtime Driver" :value="stats?.driver?.total ?? '—'" color="#2563eb" :sub="'Refresh terakhir: ' + (stats?.driver?.last_refresh || 'belum')" />
@@ -465,7 +560,10 @@ watch(tab, loadTab)
               <thead><tr><th>No.</th><th>Tanggal</th><th>Nama</th><th>Posisi</th><th>Waktu</th><th>Keterangan</th><th>Sumber</th><th></th></tr></thead>
               <tbody>
                 <tr v-for="r in oPageRows" :key="r.id" :style="lateRowStyle(r)">
-                  <td class="muted">{{ r.display_id }}</td>
+                  <td class="muted">{{ r.display_id }}
+                    <span v-if="r.foto_issue" class="badge" style="background:#f59e0b;color:#fff;font-size:10px;"
+                          title="Foto mulai = foto selesai — buka 📷 lalu ganti foto">⚠️ Foto</span>
+                  </td>
                   <td>
                     {{ r.tanggal || '—' }}
                     <span v-if="r.submit_late" class="badge" style="background:#ef4444;color:#fff;font-size:10px;margin-left:4px;"
@@ -524,6 +622,11 @@ watch(tab, loadTab)
         </div>
       </template>
       <p v-else class="empty">Tidak ada foto tersimpan untuk catatan ini.</p>
+      <!-- v2.43.0 — ganti foto langsung dari viewer -->
+      <div class="row" style="gap:8px;margin-top:12px;flex-wrap:wrap;">
+        <button v-if="fotoUrl(fotoRow.foto_mulai)" class="btn" @click="fiReplaceOpen(fotoRow, 'mulai')">🔄 Ganti Foto Mulai</button>
+        <button v-if="fotoUrl(fotoRow.foto_selesai)" class="btn" @click="fiReplaceOpen(fotoRow, 'selesai')">🔄 Ganti Foto Selesai</button>
+      </div>
       <div class="row" style="justify-content:flex-end;margin-top:12px;">
         <button class="btn" @click="fotoRow = null">Tutup</button>
       </div>
@@ -657,6 +760,83 @@ watch(tab, loadTab)
         <button class="btn" @click="showDetailModal = false">Batal</button>
         <button class="btn" :disabled="!detailDriver" @click="downloadDetailPdf()">📄 PDF</button>
         <button class="btn btn-primary" :disabled="!detailDriver" @click="downloadDetailExcel()">📊 Excel</button>
+      </div>
+    </Modal>
+
+    <!-- v2.43.0 — Panel tindak lanjut foto duplikat -->
+    <Modal v-if="fiPanel" title="⚠️ Foto Overtime Duplikat (Mulai = Selesai)" @close="fiPanel = false">
+      <p class="muted" style="font-size:12px;margin-bottom:10px;">
+        Baris berikut tersimpan dengan foto bukti MULAI dan SELESAI yang sama — foto mulai asli tertimpa sejak unggah
+        (insiden Sep 2026). Tindak lanjuti per user: minta foto mulai asli, lalu ganti lewat tombol 🔄.
+      </p>
+      <div v-if="fiLoading" class="empty skeleton">⏳ Memuat…</div>
+      <div v-else-if="fiErr" class="alert alert-error">{{ fiErr }}</div>
+      <div v-else-if="!fiUsers.length" class="empty">✅ Tidak ada baris dengan foto duplikat.</div>
+      <div v-else class="table-wrap" style="max-height:380px;overflow:auto;">
+        <table class="tbl">
+          <thead><tr><th>User</th><th>Posisi</th><th>Jumlah OT</th><th>Periode</th><th></th></tr></thead>
+          <tbody>
+            <tr v-for="u in fiUsers" :key="u.nama">
+              <td><b>{{ u.nama }}</b></td>
+              <td><span class="badge" :class="u.posisi === 'Security' ? 'badge-purple' : 'badge-cyan'">{{ u.posisi }}</span></td>
+              <td><span class="badge" style="background:#f59e0b;color:#fff;">{{ u.total }}</span></td>
+              <td class="muted">{{ fiPeriode(u) }}</td>
+              <td class="row-actions">
+                <button class="btn btn-xs" @click="fiOpenDetail(u)">📄 Detail</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="row" style="justify-content:flex-end;margin-top:12px;">
+        <button class="btn" @click="fiPanel = false">Tutup</button>
+      </div>
+    </Modal>
+
+    <!-- Modal: detail per user + pesan siap kirim -->
+    <Modal v-if="fiDetail" :title="'⚠️ Foto Duplikat — ' + fiDetail.nama" @close="fiDetail = null">
+      <p class="muted" style="font-size:12px;">
+        {{ fiDetail.total }} pengajuan OT dengan foto mulai = selesai. Klik 🔄 untuk mengganti foto setelah user mengirim foto aslinya.
+      </p>
+      <div class="table-wrap" style="max-height:300px;overflow:auto;margin-top:8px;">
+        <table class="tbl">
+          <thead><tr><th>No.</th><th>Tanggal</th><th>Waktu</th><th></th></tr></thead>
+          <tbody>
+            <tr v-for="r in fiDetail.records" :key="r.id">
+              <td class="muted">{{ r.display_id }}</td>
+              <td>{{ r.tanggal || '—' }}</td>
+              <td>{{ fmtWaktu(r) }}</td>
+              <td class="row-actions">
+                <button class="btn btn-xs" @click="openFoto(r)">📷</button>
+                <button v-if="r.foto_mulai" class="btn btn-xs" title="Ganti foto mulai" @click="fiReplaceOpen(r, 'mulai')">🔄 Mulai</button>
+                <button v-if="r.foto_selesai" class="btn btn-xs" title="Ganti foto selesai" @click="fiReplaceOpen(r, 'selesai')">🔄 Selesai</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="field" style="margin-top:12px;">
+        <label>📨 Pesan siap kirim untuk {{ fiDetail.nama }} (WhatsApp/SMS)</label>
+        <textarea class="input" rows="5" readonly :value="fiNoticeWA(fiDetail)" style="font-size:12px;"></textarea>
+      </div>
+      <div class="row" style="justify-content:flex-end;margin-top:8px;gap:8px;">
+        <button class="btn" @click="fiCopyNotice">{{ fiCopied ? '✅ Tersalin' : '📋 Salin Pesan' }}</button>
+        <button class="btn" @click="fiDetail = null">Tutup</button>
+      </div>
+    </Modal>
+
+    <!-- Modal: ganti foto bukti -->
+    <Modal v-if="fiReplace" :title="'🔄 Ganti Foto ' + (fiReplace.slot === 'mulai' ? 'Mulai' : 'Selesai') + ' — ' + (fiReplace.row.display_id || fiReplace.row.nama || '')" @close="fiReplace = null">
+      <p class="muted" style="font-size:12px;">
+        Pilih file foto pengganti (JPG/PNG, maks 5MB). Foto lama pada record ini akan ditimpa.
+        Pastikan foto berasal dari user yang bersangkutan.
+      </p>
+      <div class="field" style="margin-top:10px;">
+        <input class="input" type="file" accept="image/*" @change="fiReplaceFile" />
+      </div>
+      <div class="row" style="justify-content:flex-end;margin-top:12px;gap:8px;">
+        <button class="btn" @click="fiReplace = null">Batal</button>
+        <button class="btn btn-primary" :disabled="!fiFile || fiSaving" @click="fiReplaceSave">{{ fiSaving ? '⏳ Mengunggah…' : '💾 Ganti Foto' }}</button>
       </div>
     </Modal>
   </div>

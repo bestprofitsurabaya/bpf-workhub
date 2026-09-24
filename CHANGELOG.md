@@ -4,6 +4,23 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 
 ---
 
+## v2.43.0 — 24 September 2026 (Panel tindak lanjut foto duplikat per user + penggantian foto bukti)
+
+- **Panel admin "Foto Duplikat"** di halaman Data Overtime (GA HR/Admin):
+  strip ringkasan ⚠️ + daftar user terdampak (nama, posisi, jumlah OT,
+  periode) via endpoint baru `GET /api/overtime/foto-issues` — klasifikasi
+  isi file (MD5 + piksel) sama dengan riwayat user.
+- **Detail per user + pesan siap kirim:** modal detail menampilkan seluruh
+  pengajuan terdampak dan tombol **📋 Salin Pesan** yang menghasilkan teks
+  pemberitahuan siap WhatsApp/SMS untuk user (minta foto mulai asli).
+- **Ganti foto bukti langsung dari aplikasi:** viewer foto & panel kini punya
+  tombol 🔄 per slot → `POST /api/overtime/<modul>/<id>/replace-foto`
+  (base64 → file baru, ter-audit via log aktivitas). Tabel OB/Security juga
+  menampilkan badge ⚠️ Foto per baris.
+- Guard versi: 7 titik stamp di-bump ke v2.43.0.
+
+---
+
 ## v2.42.1 — 24 September 2026 (Anti foto-duplikat overtime + penanganan insiden foto identik)
 
 - **Foto MULAI = foto SELESAI kini ditolak.** Insiden Sep 2026: sebagian besar

@@ -15,6 +15,7 @@ from PIL import Image
 
 from modules.overtime_shared import (
     validate_overtime_data, fotos_b64_sama, annotate_foto_issue,
+    group_foto_issue_users,
 )
 
 
@@ -131,3 +132,28 @@ class TestAnnotateFotoIssue:
         assert rows[1]['foto_issue'] is False  # foto benar-benar beda
         assert rows[2]['foto_issue'] is True   # piksel identik (re-encode)
         assert rows[3]['foto_issue'] is False  # kosong
+
+
+class TestGroupFotoIssueUsers:
+    def _row(self, nama, posisi='OB', **kw):
+        r = {'nama': nama, 'posisi': posisi, 'foto_issue': True}
+        r.update(kw)
+        return r
+
+    def test_grouping_per_user_terurut(self):
+        rows = [self._row('Edwin', display_id='A'), self._row('Edwin', display_id='B'),
+                self._row('Febri', display_id='C'), self._row('Budi', display_id='D'),
+                self._row('Budi', display_id='E'), self._row('Budi', display_id='F')]
+        out = group_foto_issue_users(rows)
+        assert [u['nama'] for u in out] == ['Budi', 'Edwin', 'Febri']
+        assert [u['total'] for u in out] == [3, 2, 1]
+        assert out[0]['records'][0]['display_id'] == 'D'
+
+    def test_baris_non_issue_diabaikan(self):
+        rows = [self._row('Edwin'), {'nama': 'Bersih', 'posisi': 'OB', 'foto_issue': False}]
+        out = group_foto_issue_users(rows)
+        assert len(out) == 1 and out[0]['nama'] == 'Edwin'
+
+    def test_tanpa_nama_dikelompokkan(self):
+        out = group_foto_issue_users([{'nama': '', 'posisi': 'OB', 'foto_issue': True}])
+        assert out[0]['nama'] == '(tanpa nama)'

@@ -36,6 +36,7 @@ from modules.overtime_shared import (
     serialize_overtime_row, get_display_prefix, make_source_uid, POSITIONS,
     get_submit_deadline_hours, annotate_submit_late, compute_submit_late,
     annotate_foto_issue,  # v2.42.1: penanda foto mulai/selesai identik
+    group_foto_issue_users,  # v2.43.0: grouping korban per user
     DEFAULT_OT_SUBMIT_DEADLINE_HOURS  # v2.40.0
 )
 from modules.pdf_generator import OvertimeReportPDF
@@ -1082,6 +1083,8 @@ def register_overtime_routes(app):
             # v2.40.0: penanda terlambat-submit (melebihi batas jam)
             _dh = get_submit_deadline_hours(conn)
             annotate_submit_late(rows, _dh)
+            # v2.43.0: penanda foto mulai=selesai (insiden Sep 2026)
+            annotate_foto_issue(rows)
             cursor.close(); conn.close()
             return jsonify({'data': rows, 'total': total,
                             'submit_deadline_hours': _dh})
@@ -1600,6 +1603,86 @@ def register_overtime_routes(app):
                                ip=request.remote_addr)
             cursor.close(); conn.close()
             return jsonify({'status': 'success', 'msg': 'Data overtime dihapus'})
+        except Exception as e:
+            return jsonify({'status': 'error', 'msg': str(e)}), 500
+
+    # ================================================================
+    # v2.43.0 — Admin/GA HR: daftar baris foto MULAI=SELESAI (insiden
+    # Sep 2026) untuk tindak lanjut per user + penggantian foto bukti.
+    # ================================================================
+    @app.route('/api/overtime/foto-issues')
+    @role_required(['ga_hr', 'admin'])
+    def api_overtime_foto_issues():
+        """Daftar baris overtime OB/Security dengan foto mulai == foto selesai.
+
+        Dikelompokkan per user (nama + posisi) supaya GA HR bisa menindak
+        lanjuti per orang: berapa OT yang terdampak & periode mana saja.
+        """
+        try:
+            conn = get_db_connection()
+            if not conn:
+                return jsonify({'error': 'DB error'}), 500
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute(
+                "SELECT id, display_id, nama, posisi, tanggal, waktu_mulai, "
+                "waktu_selesai, foto_mulai, foto_selesai, submitted_at "
+                "FROM overtime_ob_security "
+                "WHERE foto_mulai LIKE '/uploads/%' AND foto_selesai LIKE '/uploads/%' "
+                "ORDER BY nama, tanggal DESC, id DESC")
+            rows = [_serialize(r) for r in cursor.fetchall()]
+            cursor.close(); conn.close()
+            # Klasifikasi isi file (MD5 + piksel) — sama seperti riwayat user.
+            annotate_foto_issue(rows)
+            korban = [r for r in rows if r.get('foto_issue')]
+            # Grouping per user (helper teruji)
+            user_list = group_foto_issue_users(korban)
+            return jsonify({'total_rows': len(rows), 'total_issue': len(korban),
+                            'users': user_list})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/overtime/<modul>/<int:row_id>/replace-foto', methods=['POST'])
+    @role_required(['ga_hr', 'admin'])
+    def api_overtime_replace_foto(modul, row_id):
+        """Ganti satu foto bukti (mulai/selesai) dengan unggahan baru.
+
+        Body JSON: {"slot": "mulai"|"selesai", "foto": "data:image/...;base64,..."}
+        Dipakai untuk pemulihan foto korban insiden foto-identik (v2.42.1/2.43.0).
+        """
+        try:
+            if modul not in _OT_TABLES:
+                return jsonify({'status': 'error', 'msg': 'Modul harus driver atau ob'}), 400
+            data = request.get_json(silent=True) or {}
+            slot = data.get('slot')
+            if slot not in ('mulai', 'selesai'):
+                return jsonify({'status': 'error', 'msg': 'Slot harus mulai atau selesai'}), 400
+            b64 = data.get('foto') or ''
+            if not (isinstance(b64, str) and b64.startswith('data:image')):
+                return jsonify({'status': 'error', 'msg': 'Foto wajib data-URL base64'}), 400
+
+            old = _ot_row(modul, row_id)
+            if not old:
+                return jsonify({'status': 'error', 'msg': 'Data tidak ditemukan'}), 404
+
+            col = f'foto_{slot}'
+            url = _save_overtime_foto(b64, old.get('display_id') or f'OT{row_id}', slot)
+            if not url:
+                return jsonify({'status': 'error', 'msg': 'Gagal menyimpan foto (format/ukuran tidak didukung)'}), 400
+
+            conn = get_db_connection()
+            if not conn:
+                return jsonify({'status': 'error', 'msg': 'DB error'}), 500
+            cursor = conn.cursor()
+            cursor.execute(f"UPDATE {_OT_TABLES[modul]} SET {col}=%s WHERE id=%s", (url, row_id))
+            conn.commit()
+            cursor.close(); conn.close()
+
+            user = _current_user()
+            log_activity_async(None, 'overtime_replace_foto', user['role'], user['full_name'],
+                               old_data={'id': row_id, 'modul': modul, col: old.get(col)},
+                               new_data={'id': row_id, 'modul': modul, col: url},
+                               ip=request.remote_addr)
+            return jsonify({'status': 'success', 'msg': f'Foto {slot} diperbarui', 'url': url})
         except Exception as e:
             return jsonify({'status': 'error', 'msg': str(e)}), 500
 
