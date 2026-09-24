@@ -2,113 +2,93 @@
  * BPF WorkHub — Bridge Google Apps Script untuk sheet RECEPTIONIST — v2 REALTIME
  * (data Pelamar Kerja & In-Out Karyawan, v2.42.0 — DUA SPREADSHEET TERPISAH).
  *
+ * STATUS: KONFIGURASI PRODUKSI SUDAH TERTANAM (2026-09-24, code_rev 6) —
+ *   tidak ada lagi "GANTI…" yang perlu diisi. Tempel → Save → New version → selesai.
+ *   Penanda versi naik ke 2026-09-24/rev 6 agar mudah diverifikasi bahwa versi
+ *   baru BENAR-BENAR mengalir ke Web App (kasus 2026-09-24: editor "Konfigurasi OK"
+ *   tapi /exec masih kode lama karena deployment menjalankan snapshot versi lama).
+ *
  * APA YANG BARU DI v2 (beda dari v1)?
  *   v1: hanya "ditarik" server (pull) saat sync berkala / login / tombol Refresh.
  *   v2: sheet MENDORONG setiap edit langsung ke aplikasi (push) lewat trigger
  *       onEdit → webhook POST /api/receptionist/webhook. Hasilnya data di
- *       aplikasi nyaris realtime (detik setelah edit), sejajar pengalaman
- *       overtime di GA HR — bahkan lebih cepat (tanpa menunggu refresh).
- *       Pull (v1 URL /exec?modul=...) TETAP AKTIF sebagai jaring pengaman bila
- *       push gagal (jaringan/kuota Apps Script) — keduanya dipakai bersama.
+ *       aplikasi nyaris realtime (detik setelah edit). Pull (v1 URL
+ *       /exec?modul=...) TETAP AKTIF sebagai jaring pengaman bila push gagal
+ *       (jaringan/kuota Apps Script) — keduanya dipakai bersama.
  *
- * STRUKTUR DATA (v2.1):
+ * STRUKTUR DATA:
  *   DUA spreadsheet TERPISAH, satu deploy Apps Script:
- *     - SHEET_ID_APPLICANTS → berisi tab data Pelamar Kerja
- *     - SHEET_ID_INOUT      → berisi tab data In-Out Karyawan
+ *     - SHEET_ID_APPLICANTS → tab "H2" (file POPH1)  — data Pelamar Kerja
+ *     - SHEET_ID_INOUT      → tab "In Out Karyawan BPF SBY" (file Rekap) — In-Out
  *   Trigger onEdit dipasang ke KEDUA spreadsheet oleh REC_v2_pasangTrigger_.
- *   Kedua SHEET_ID WAJIB BERBEDA — push onEdit membedakan modul (pelamar vs
- *   in-out) dari spreadsheet asal edit; bila sama, pemasangan trigger
- *   dibatalkan dengan pesan jelas (lihat REC_v2_validasiKonfig_).
  *
  * CARA KERJA PUSH:
- *   Trigger terpasang (installable) onEdit per spreadsheet → deteksi asal
- *   (spreadsheet id + nama tab) → kirim BARIS YANG DIEDIT saja (header + nilai
- *   baris) sebagai JSON ke WEBHOOK_URL dengan header X-BPF-Token (secret dari
- *   Web App Properties). Server melakukan upsert berdasar kunci stabil (md5
- *   nama|tanggal|jam utk pelamar, md5 isi baris utk in-out) — aman walau
- *   baris bergeser.
+ *   Trigger installable onEdit per spreadsheet → deteksi asal (spreadsheet id +
+ *   nama tab) → kirim BARIS YANG DIEDIT saja (header + nilai baris) sebagai JSON
+ *   ke WEBHOOK_URL dengan header X-BPF-Token. Server melakukan upsert berdasar
+ *   kunci stabil — aman walau baris bergeser.
+ *
+ * FUNGSI PENTING (jalankan dari editor):
+ *   REC_v2_cekKonfigurasi   — cek konfigurasi (harus: "✔ Konfigurasi OK")
+ *   REC_v2_pasangTrigger_   — pasang trigger onEdit ke KEDUA spreadsheet (SEKALI)
+ *   REC_v2_ujiWebhook       — uji URL+secret ke webhook tanpa mengubah data asli
+ *                             (server menjawab 200 + menjalankan sinkron penuh)
  *
  * PENANDA VERSI (anti "script lama menyamar"):
- *   <URL_/exec>?marker=1 → {"marker":"bpf-rec-sheet-2026-09-23-v2","code_rev":5,...}
- *   Marker juga memuat config_issues — daftar masalah konfigurasi (mis. kedua
- *   SHEET_ID sama) yang bisa dilihat tanpa membuka editor Apps Script.
+ *   <URL_/exec>?marker=1 → {"marker":"bpf-rec-sheet-2026-09-24-v2","code_rev":6,...}
+ *   WAJIB menunjukkan marker 2026-09-24 & code_rev 6. Kalau masih 2026-09-23/5,
+ *   berarti "New version" belum dilakukan (lihat langkah deploy no. 3).
  *
- * KONTRAK PULL (dibaca _fetch_sheet_rows di server):
- *   { "rows": [ { "Nama Lengkap": "...", "Jam": "6:53:19 AM", ... }, ... ] }
- *   ?modul=applicants → baca spreadsheet pelamar; ?modul=inout → in-out.
- * KONTRAK PUSH (dibaca POST /api/receptionist/webhook di server):
- *   { "modul": "inout" | "applicants", "rows": [ {<header: nilai satu baris>} ] }
- *
- * DEPLOY:
- *   1. Buka https://script.google.com → New project (nama: "BPF Receptionist Bridge v2").
- *   2. Isi konfigurasi di bawah:
- *      - SHEET_ID_APPLICANTS : ID spreadsheet pelamar (URL /d/<ID>/edit)
- *      - SHEET_ID_INOUT      : ID spreadsheet in-out karyawan
- *      - TAB_APPLICANTS / TAB_INOUT : nama tab sumber di masing-masing file
- *        (boleh dibiarkan; bila nama tab tidak cocok, tab PERTAMA file yang dipakai)
- *      - WEBHOOK_URL : https://<host-aplikasi>/api/receptionist/webhook
- *      - SECRET      : ambil dari BPF WorkHub → Pengaturan → Sumber Sheet
- *                      Receptionist → Webhook Realtime (admin) → salin secret.
- *   3. SELECT ALL di Code.gs → DELETE → tempel SEMUA isi file ini → Ctrl+S.
- *      Lalu jalankan REC_v2_cekKonfigurasi di editor — pastikan log "✔
- *      Konfigurasi OK" (cek ini juga mendeteksi kedua SHEET_ID yang sama).
- *   4. Deploy → New deployment → Web app (Execute as: Me, access: Anyone)
- *      → copy URL /exec (untuk PULL) → tempel di Pengaturan sumber sheet
- *      (satu URL untuk kedua modul; server membedakan via ?modul=...).
- *   5. Jalankan fungsi REC_v2_pasangTrigger_ SEKALI dari editor (atau reload
- *      sheet — onEdit simple juga dipasang otomatis via REC_v2_installHint).
- *      Cek log Eksekusi: "✔ Trigger onEdit terpasang: ..." (2 baris, pelamar & in-out).
- *   6. Uji PUSH: edit satu sel di tab In-Out → di BPF WorkHub halaman In-Out
- *      Karyawan baris baru muncul dalam beberapa detik (tanpa klik Refresh).
- *   Update kode → Deploy → Manage deployments → ✏️ → New version.
+ * DEPLOY / UPDATE KODE (wajib urut):
+ *   1. Buka project Apps Script "BPF Receptionist Bridge v2" (script.google.com).
+ *   2. SELECT ALL di Code.gs → DELETE → tempel SEMUA isi file ini → Ctrl+S.
+ *   3. ⚠️ Deploy → Manage deployments → ✏️ (pencil) → Version: **New version**
+ *      → Deploy.  TANPA LANGKAH INI URL /exec MASIH KODE LAMA — edit di editor
+ *      TIDAK otomatis mengalir ke Web App yang sudah ter-deploy.
+ *   4. Jalankan REC_v2_cekKonfigurasi → "✔ Konfigurasi OK".
+ *   5. Jalankan REC_v2_pasangTrigger_ SEKALI → log "✔ Trigger onEdit terpasang"
+ *      (2 baris: pelamar & in-out). Aman dijalankan ulang (anti-duplikat).
+ *   6. Verifikasi: buka <URL_/exec>?marker=1 → marker 2026-09-24, code_rev 6,
+ *      config_ok true. Lalu REC_v2_ujiWebhook → log "Push inout → 200 …".
+ *   7. Uji asli: edit satu sel di tab In-Out → halaman In-Out Karyawan di
+ *      aplikasi berubah dalam beberapa detik (tanpa klik Refresh).
  */
 
-// ====== KONFIGURASI (TERISI — 2026-09-24) ======
+// ====== KONFIGURASI (PRODUKSI — tertanam 2026-09-24) ======
 // ID spreadsheet PELAMAR KERJA — bagian /spreadsheets/d/<ID>/edit dari URL.
 var SHEET_ID_APPLICANTS = '1VIavwXGX1e9R6dbfkmLltEUo0QgpgDEalUPxD2SF8a0';
 // ID spreadsheet IN-OUT KARYAWAN (file terpisah).
 var SHEET_ID_INOUT = '1oBmm62eY06QDzErmt1jWw0VX4usScd0hOKqX0I0o2gM';
-// Nama tab sumber data di masing-masing spreadsheet — push hanya untuk tab ini.
-// Bila nama tidak cocok, tab PERTAMA file otomatis dipakai (fallback REC_v2_activeTab_).
-var TAB_APPLICANTS = 'H2';                   // tab data pelamar (nama asli di spreadsheet POPH1)
-var TAB_INOUT = 'In Out Karyawan BPF SBY';   // tab data in-out (nama asli di spreadsheet Rekap)
+// Nama tab sumber data ASLI di masing-masing spreadsheet (terverifikasi 2026-09-24).
+var TAB_APPLICANTS = 'H2';                   // tab data pelamar (file POPH1)
+var TAB_INOUT = 'In Out Karyawan BPF SBY';   // tab data in-out (file Rekap In Out Karyawan)
+// Webhook aplikasi (push realtime). TLS Let's Encrypt — valid untuk UrlFetchApp.
 var WEBHOOK_URL = 'https://nasbpfsby.duckdns.org:5000/api/receptionist/webhook';
 
 // ====== PENANDA VERSI ======
-var REC_MARKER = 'bpf-rec-sheet-2026-09-23-v2';
-var REC_CODE_REV = 5; // 5 = validasi konfigurasi (SHEET_ID dua file wajib beda)
+var REC_MARKER = 'bpf-rec-sheet-2026-09-24-v2';
+var REC_CODE_REV = 6; // 6 = konfigurasi produksi tertanam + penanda redeploy 24 Sep
 
-// Secret TIDAK ditulis di kode — simpan lewat File → Project properties:
-//   REC_v2_setSecret('isi-secret-dari-pengaturan')  sekali di editor.
-// Alternatif praktis: isi konstanta di bawah bila kebijakan tim mengizinkan.
-var SECRET_INLINE = '';
+// Secret webhook — sumber: BPF WorkHub → Pengaturan → ⚡ Realtime Sheet.
+// Tertanam di sini agar deploy tinggal tempel (kebijakan tim mengizinkan).
+// ⚠️ Bila dicurigai bocor: ROTASI secret di Pengaturan → 🔄 Rotasi, lalu ganti
+// nilai di bawah + ulangi langkah deploy (New version).
+var SECRET_INLINE = 'Z18rAhmBe49rO4SsxtsbMWhToKJW1W3dvUbtIX_fIFY';
 
 function REC_v2_secret_() {
   if (SECRET_INLINE) return SECRET_INLINE;
+  // Alternatif lebih aman (bila suatu saat SECRET_INLINE dikosongkan):
+  // jalankan sekali di editor: REC_v2_setSecret('isi-secret')
   return PropertiesService.getScriptProperties().getProperty('REC_WEBHOOK_SECRET') || '';
 }
 
-/** Jalankan SEKALI di editor untuk menyimpan secret: REC_v2_setSecret('...') */
+/** Jalankan SEKALI di editor untuk menyimpan secret ke Project Properties. */
 function REC_v2_setSecret(val) {
   PropertiesService.getScriptProperties().setProperty('REC_WEBHOOK_SECRET', String(val || ''));
+  console.log('Secret tersimpan di Project Properties (panjang: ' + String(val || '').length + ')');
 }
 
-/** Validasi + buka spreadsheet untuk modul tertentu ('applicants' | 'inout'). */
-function REC_v2_ss_(modul) {
-  var id = (modul === 'inout') ? SHEET_ID_INOUT : SHEET_ID_APPLICANTS;
-  if (!id || String(id).indexOf('GANTI') === 0) {
-    throw new Error('SHEET_ID untuk modul "' + modul + '" belum diisi di konfigurasi');
-  }
-  return SpreadsheetApp.openById(id);
-}
-
-/** Tab default untuk modul tertentu. */
-function REC_v2_tab_(modul) {
-  return (modul === 'inout') ? TAB_INOUT : TAB_APPLICANTS;
-}
-
-/** Validasi konfigurasi dasar. Return daftar masalah (kosong = OK).
- *  Dipanggil saat memasang trigger & dilaporkan via ?marker=1. */
+/** Validasi konfigurasi dasar. Return daftar masalah (kosong = OK). */
 function REC_v2_validasiKonfig_() {
   var masalah = [];
   var idA = String(SHEET_ID_APPLICANTS || '');
@@ -125,7 +105,7 @@ function REC_v2_validasiKonfig_() {
     masalah.push('WEBHOOK_URL belum diisi');
   }
   if (!REC_v2_secret_()) {
-    masalah.push('Secret belum disimpan — jalankan REC_v2_setSecret(\'isi-secret\') sekali');
+    masalah.push("Secret belum ada — isi SECRET_INLINE di kode ATAU jalankan REC_v2_setSecret('isi-secret')");
   }
   return masalah;
 }
@@ -133,12 +113,29 @@ function REC_v2_validasiKonfig_() {
 /** Jalankan di editor kapan saja untuk cek konfigurasi: REC_v2_cekKonfigurasi */
 function REC_v2_cekKonfigurasi() {
   var masalah = REC_v2_validasiKonfig_();
-  if (!masalah.length) { console.log('✔ Konfigurasi OK — siap deploy & pasang trigger'); return; }
+  if (!masalah.length) {
+    console.log('✔ Konfigurasi OK — marker ' + REC_MARKER + ' rev ' + REC_CODE_REV +
+                ' — siap deploy (INGAT: New version!) & pasang trigger');
+    return;
+  }
   console.error('❌ Konfigurasi belum valid:\n- ' + masalah.join('\n- '));
 }
 
-/** Sheet aktif utk modul: tab konfigurasi bila ada, else tab PERTAMA file.
- *  Mencegah push pull gagal diam-diam hanya karena nama tab beda. */
+/** Validasi + buka spreadsheet untuk modul tertentu ('applicants' | 'inout'). */
+function REC_v2_ss_(modul) {
+  var id = (modul === 'inout') ? SHEET_ID_INOUT : SHEET_ID_APPLICANTS;
+  if (!id || String(id).indexOf('GANTI') === 0) {
+    throw new Error('SHEET_ID untuk modul "' + modul + '" belum diisi di konfigurasi');
+  }
+  return SpreadsheetApp.openById(id);
+}
+
+/** Tab default untuk modul tertentu. */
+function REC_v2_tab_(modul) {
+  return (modul === 'inout') ? TAB_INOUT : TAB_APPLICANTS;
+}
+
+/** Sheet aktif utk modul: tab konfigurasi bila ada, else tab PERTAMA file. */
 function REC_v2_activeTab_(ss, modul) {
   var wanted = REC_v2_tab_(modul);
   var sh = wanted ? ss.getSheetByName(wanted) : null;
@@ -209,8 +206,8 @@ function onEdit(e) {
 
 /** Pasang installable trigger ke KEDUA spreadsheet (jalankan SEKALI dari editor). */
 function REC_v2_pasangTrigger_() {
-  // Validasi dulu: bila kedua SHEET_ID sama, push onEdit salah arah modul
-  // (edit pelamar terkirim sebagai in-out) — lebih baik gagal jelas di sini.
+  // Validasi dulu: bila kedua SHEET_ID sama, push onEdit salah arah modul —
+  // lebih baik gagal jelas di sini.
   var idA = String(SHEET_ID_APPLICANTS || ''), idB = String(SHEET_ID_INOUT || '');
   if (idA && idB && idA.indexOf('GANTI') !== 0 && idB.indexOf('GANTI') !== 0 && idA === idB) {
     console.error('❌ Pemasangan trigger DIBATALKAN: SHEET_ID_APPLICANTS dan ' +
@@ -244,7 +241,7 @@ function REC_v2_pasangTrigger_() {
   }
 }
 
-/** Installable trigger handler (cadangan utk simple trigger; jalan per sheet). */
+/** Installable trigger handler (utk standalone script — ini yang dipakai). */
 function REC_v2_onEditInstallable(e) {
   try { REC_v2_handleEdit_(e); } catch (err) { console.error('onEditInstallable: ' + err); }
 }
@@ -282,7 +279,8 @@ function REC_v2_handleEdit_(e) {
   if (rowIdx < 1) return;
   var headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getDisplayValues()[0];
   if (rowIdx === 1) {
-    // Header berubah — kirim tanda agar admin sinkron penuh via pull.
+    // Header berubah — kirim tanda; server menjawab 200 + menjalankan
+    // sinkron penuh kedua modul di background (v2.42.0).
     REC_v2_push_({ modul: modul, rows: [], header_changed: true, tab: tab });
     return;
   }
@@ -315,6 +313,17 @@ function REC_v2_push_(payload) {
     followRedirects: true,
   });
   console.log('Push ' + payload.modul + ' → ' + res.getResponseCode() + ' ' + res.getContentText().slice(0, 160));
+}
+
+/**
+ * Uji webhook TANPA mengubah data asli: kirim tanda header_changed (rows kosong).
+ * Server (v2.42.0) menjawab 200 "sinkron penuh dijadwalkan" — sekaligus memicu
+ * resync pull. Jalankan REC_v2_ujiWebhook dari editor; harapkan log:
+ *   Push inout → 200 {"msg":"Header sheet berubah — sinkron penuh dijadwalkan",...}
+ * 401 = secret salah/beda dengan Pengaturan; 404 = backend belum v2.42.0.
+ */
+function REC_v2_ujiWebhook() {
+  REC_v2_push_({ modul: 'inout', rows: [], header_changed: true, tab: 'UJI-CONNECTIVITY' });
 }
 
 function REC_json_(obj) {
