@@ -77,17 +77,58 @@ function getGpsText() {
   })
 }
 
-/** Handle foto selection: apply watermark + generate preview */
+/** v2.42.1: bandingkan isi foto (bukan nama file) — tolak foto yang sama
+ * di kedua slot. Sama byte = duplikat; sama piksel = foto sama yang di-
+ * watermark dua kali (JPEG re-encode mengubah byte, piksel tetap). */
+async function fotoSama(a, b) {
+  if (!a || !b) return false
+  if (a === b) return true
+  try {
+    const [ba, bb] = await Promise.all([blobToBase64(a), blobToBase64(b)])
+    if (ba === bb) return true
+    const [ia, ib] = await Promise.all([createImageBitmap(a), createImageBitmap(b)])
+    try {
+      if (ia.width !== ib.width || ia.height !== ib.height) return false
+      const N = 64
+      const cv = document.createElement('canvas')
+      cv.width = N; cv.height = N
+      const cx = cv.getContext('2d', { willReadFrequently: true })
+      cx.drawImage(ia, 0, 0, N, N)
+      const da = cx.getImageData(0, 0, N, N).data
+      cx.clearRect(0, 0, N, N)
+      cx.drawImage(ib, 0, 0, N, N)
+      const db = cx.getImageData(0, 0, N, N).data
+      let sum = 0
+      for (let i = 0; i < da.length; i += 4) {
+        sum += Math.abs(da[i] - db[i]) + Math.abs(da[i + 1] - db[i + 1]) + Math.abs(da[i + 2] - db[i + 2])
+      }
+      return (sum / (N * N * 3)) < 3
+    } finally { ia.close?.(); ib.close?.() }
+  } catch { return false }
+}
+
+/** Handle foto selection: apply watermark + duplicate-check + preview */
 async function handleFoto(event, type) {
   const file = event.target.files?.[0]
   if (!file) return
+  event.target.value = ''
 
   const gpsText = await getGpsText()
   const now = new Date().toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })
 
   // Apply watermark
-  const watermarked = await applyWatermark(file, gpsText, now)
+  const watermarked = await applyWatermark(file, gpsText, now, null,
+    type === 'mulai' ? 'FOTO MULAI OT' : 'FOTO SELESAI OT')
   const blob = watermarked || file
+
+  // v2.42.1: tolak bila identik dengan foto di slot lain
+  const lain = type === 'mulai' ? fotoSelesaiFile.value : fotoMulaiFile.value
+  if (await fotoSama(blob, lain)) {
+    error.value = type === 'mulai'
+      ? 'Foto sama dengan foto selesai — unggah foto berbeda untuk slot MULAI OT.'
+      : 'Foto sama dengan foto mulai — unggah foto berbeda untuk slot SELESAI OT.'
+    return
+  }
 
   // Store file for upload
   if (type === 'mulai') {
@@ -97,6 +138,7 @@ async function handleFoto(event, type) {
     fotoSelesaiFile.value = blob
     fotoSelesaiPreview.value = await fileToDataUrl(blob)
   }
+  error.value = ''
 }
 
 /** Convert blob to base64 */

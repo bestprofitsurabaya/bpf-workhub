@@ -35,6 +35,7 @@ from modules.overtime_shared import (
     validate_overtime_data, build_insert_sql, build_insert_params,
     serialize_overtime_row, get_display_prefix, make_source_uid, POSITIONS,
     get_submit_deadline_hours, annotate_submit_late, compute_submit_late,
+    annotate_foto_issue,  # v2.42.1: penanda foto mulai/selesai identik
     DEFAULT_OT_SUBMIT_DEADLINE_HOURS  # v2.40.0
 )
 from modules.pdf_generator import OvertimeReportPDF
@@ -52,8 +53,10 @@ _OT_TABLES = {'driver': 'overtime_driver', 'ob': 'overtime_ob_security'}
 _OT_COLUMNS = {
     'driver': ('nama', 'no_kendaraan', 'tanggal', 'waktu_mulai', 'waktu_selesai',
                'keterangan', 'broker', 'manager', 'email'),
+    # v2.42.1: foto_mulai & foto_selesai editable via PATCH — penanganan
+    # khusus base64→file ada di api_overtime_update (bukan string polos).
     'ob': ('nama', 'posisi', 'tanggal', 'waktu_mulai', 'waktu_selesai',
-           'keterangan', 'email'),
+           'keterangan', 'email', 'foto_mulai', 'foto_selesai'),
 }
 
 # Rate limit form publik: maks 10 submit / 10 menit per IP (anti spam).
@@ -771,6 +774,8 @@ def register_overtime_routes(app):
             # v2.40.0: penanda terlambat-submit di riwayat Overtime Saya
             _dh = get_submit_deadline_hours(conn)
             annotate_submit_late(rows, _dh)
+            # v2.42.1: penanda foto mulai/selesai identik (insiden Sep 2026)
+            annotate_foto_issue(rows)
             cursor.close(); conn.close()
             return jsonify({'data': rows, 'total': len(rows),
                             'submit_deadline_hours': _dh})
@@ -1528,6 +1533,11 @@ def register_overtime_routes(app):
                                         'msg': 'Posisi harus OB atau Security'}), 400
                 elif col in ('waktu_mulai', 'waktu_selesai'):
                     val = (parse_time_any(val) or val)[:20]
+                # v2.42.1: foto bukti dikirim sebagai data-URL base64 → simpan
+                # ke file via _save_overtime_foto (bukan string polos ke DB).
+                elif col in ('foto_mulai', 'foto_selesai'):
+                    val = _save_overtime_foto(val, old.get('display_id') or f"OT{row_id}",
+                                              'mulai' if col == 'foto_mulai' else 'selesai')
                 elif col == 'email':
                     val = val[:150]
                 elif col in ('keterangan',):
@@ -1539,6 +1549,15 @@ def register_overtime_routes(app):
                 sets.append(f'{col}=%s'); params.append(val)
             if not sets:
                 return jsonify({'status': 'error', 'msg': 'Tidak ada kolom yang diubah'}), 400
+
+            # v2.42.1: cegah kedua kolom foto menunjuk file yang sama
+            # (admin salah unggah foto yang sama di dua slot).
+            _new_fotos = dict(zip(sets, params))
+            _fm = _new_fotos.get('foto_mulai=%s', old.get('foto_mulai') or '')
+            _fs = _new_fotos.get('foto_selesai=%s', old.get('foto_selesai') or '')
+            if _fm and _fs and _fm == _fs:
+                return jsonify({'status': 'error',
+                                'msg': 'Foto mulai dan foto selesai tidak boleh file yang sama'}), 400
 
             conn = get_db_connection()
             if not conn:

@@ -70,16 +70,56 @@ async function locate() {
   }
 }
 
+// v2.42.1: bandingkan isi foto (bukan nama file) — tolak foto yang sama
+// di kedua slot. Sama byte = duplikat; sama piksel = foto sama yang di-
+// watermark dua kali (JPEG re-encode mengubah byte, piksel tetap).
+async function fotoSama(a, b) {
+  if (!a || !b) return false
+  if (a === b) return true
+  try {
+    const [ba, bb] = await Promise.all([blobToBase64(a), blobToBase64(b)])
+    if (ba === bb) return true
+    const [ia, ib] = await Promise.all([createImageBitmap(a), createImageBitmap(b)])
+    try {
+      if (ia.width !== ib.width || ia.height !== ib.height) return false
+      const N = 64
+      const cv = document.createElement('canvas')
+      cv.width = N; cv.height = N
+      const cx = cv.getContext('2d', { willReadFrequently: true })
+      cx.drawImage(ia, 0, 0, N, N)
+      const da = cx.getImageData(0, 0, N, N).data
+      cx.clearRect(0, 0, N, N)
+      cx.drawImage(ib, 0, 0, N, N)
+      const db = cx.getImageData(0, 0, N, N).data
+      let sum = 0
+      for (let i = 0; i < da.length; i += 4) {
+        sum += Math.abs(da[i] - db[i]) + Math.abs(da[i + 1] - db[i + 1]) + Math.abs(da[i + 2] - db[i + 2])
+      }
+      return (sum / (N * N * 3)) < 3
+    } finally { ia.close?.(); ib.close?.() }
+  } catch { return false }
+}
+
 async function handleFoto(event, type) {
   const file = event.target.files?.[0]
   if (!file) return
+  event.target.value = ''
   const gpsText = gps.value.lat && gps.value.lon
     ? `${Number(gps.value.lat).toFixed(5)}, ${Number(gps.value.lon).toFixed(5)}`
     : 'GPS tidak tersedia'
   const now = new Date().toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })
   try {
-    const watermarked = await applyWatermark(file, gpsText, now)
+    const watermarked = await applyWatermark(file, gpsText, now, null,
+      type === 'mulai' ? 'FOTO MULAI OT' : 'FOTO SELESAI OT')
     const blob = watermarked || file
+    // v2.42.1: tolak bila identik dengan foto di slot lain
+    const lain = type === 'mulai' ? fotoSelesaiFile.value : fotoMulaiFile.value
+    if (await fotoSama(blob, lain)) {
+      error.value = type === 'mulai'
+        ? 'Foto sama dengan foto selesai — unggah foto berbeda untuk slot MULAI OT.'
+        : 'Foto sama dengan foto mulai — unggah foto berbeda untuk slot SELESAI OT.'
+      return
+    }
     if (type === 'mulai') {
       fotoMulaiFile.value = blob
       fotoMulaiPreview.value = await fileToDataUrl(blob)
@@ -87,6 +127,7 @@ async function handleFoto(event, type) {
       fotoSelesaiFile.value = blob
       fotoSelesaiPreview.value = await fileToDataUrl(blob)
     }
+    error.value = ''
   } catch {
     if (type === 'mulai') { fotoMulaiFile.value = file; fotoMulaiPreview.value = await fileToDataUrl(file) }
     else { fotoSelesaiFile.value = file; fotoSelesaiPreview.value = await fileToDataUrl(file) }
@@ -288,7 +329,10 @@ async function loadDeadline() {
           </thead>
           <tbody>
             <tr v-for="r in history" :key="r.id" :style="lateRowStyle(r)">
-              <td style="font-size:11px;">{{ r.display_id }}</td>
+              <td style="font-size:11px;">{{ r.display_id }}
+                <span v-if="r.foto_issue" title="Foto mulai & selesai tercatat sama — laporkan ke admin untuk perbaikan"
+                      style="background:#f59e0b;color:#fff;font-size:10px;padding:1px 6px;border-radius:8px;margin-left:4px;">⚠️ Foto</span>
+              </td>
               <td>{{ r.tanggal || '—' }}
                 <span v-if="r.submit_late" style="background:#ef4444;color:#fff;font-size:10px;padding:1px 6px;border-radius:8px;margin-left:4px;"
                       :title="'Batas: ' + (r.submit_deadline || '?')">⏳ Lewat batas</span>

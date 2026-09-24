@@ -80,6 +80,137 @@ def annotate_submit_late(rows, deadline_hours, now=None):
     return rows
 
 # ============================================================
+# 1a. Deteksi foto duplikat (v2.42.1)
+# ============================================================
+# Insiden Sep 2026: user OB mengunggah foto MULAI & SELESAI berbeda, tetapi
+# sebagian besar baris form tersimpan dengan KEDUA slot berisi foto yang sama
+# (identik byte maupun piksel). Bukti: MD5 sama + perbandingan piksel 29/35
+# pasangan identik + stempel watermark kedua file = jam submit form.
+# Sistem sebelumnya tidak mencegahnya → validasi ini menolak duplikat.
+
+def _decode_foto_b64_bytes(b64_data):
+    """Decode data-URL foto ('data:image/...;base64,xxx') → bytes, atau None."""
+    if not isinstance(b64_data, str) or not b64_data.startswith('data:image'):
+        return None
+    try:
+        import base64
+        _, data = b64_data.split(',', 1)
+        return base64.b64decode(data)
+    except Exception:
+        return None
+
+
+def _foto_bytes_sama(a, b):
+    """True bila dua bytes foto dianggap sama.
+
+    1) Identik byte — pasti duplikat.
+    2) Identik piksel (decode JPEG/PNG via Pillow + ImageChops, bandingkan
+       RGB) — menangkap foto yang sama yang di-watermark dua kali (JPEG
+       re-encode mengubah byte, piksel tetap). Murni Pillow (tanpa numpy)
+       agar jalan di host maupun container. Bila Pillow tidak tersedia,
+       hanya cek byte (fail-safe — jangan gagalkan submit karena fitur
+       pelengkap).
+    """
+    if a is None or b is None:
+        return False
+    if a == b:
+        return True
+    try:
+        import io
+        from PIL import Image, ImageChops, ImageStat
+        ia = Image.open(io.BytesIO(a)).convert('RGB')
+        ib = Image.open(io.BytesIO(b)).convert('RGB')
+        if ia.size != ib.size:
+            return False
+        # Downscale dulu agar cepat (foto ponsel 12MP → 256px).
+        ia.thumbnail((256, 256))
+        ib.thumbnail((256, 256))
+        diff = ImageChops.difference(ia, ib)
+        stat = ImageStat.Stat(diff)
+        mean = sum(stat.mean) / len(stat.mean) if stat.mean else 0.0
+        # < 2.0 = noise JPEG saja; foto benar-benar beda biasanya > 20.
+        return mean < 2.0
+    except Exception:
+        return False
+
+
+def fotos_b64_sama(foto_mulai_b64, foto_selesai_b64):
+    """API publik: dua base64 foto dianggap duplikat?"""
+    return _foto_bytes_sama(
+        _decode_foto_b64_bytes(foto_mulai_b64),
+        _decode_foto_b64_bytes(foto_selesai_b64))
+
+
+def annotate_foto_issue(rows, foto_dir=None):
+    """Tambahkan 'foto_issue' ke tiap dict baris overtime.
+
+    foto_issue = True bila kedua kolom foto terisi dan menunjuk isi file
+    yang sama:
+      1) URL kolom identik (kedua slot satu file), atau
+      2) file fisik byte-identik (MD5) — pola insiden Sep 2026, atau
+      3) ukuran file nyaris sama (≤4KB) DAN piksel identik (Pillow) —
+         foto sama yang di-watermark dua kali.
+    Baris dengan foto benar-benar berbeda (ukuran beda jauh) hanya kena
+    os.stat — murah, aman untuk daftar ribuan baris.
+    """
+    import hashlib
+    import os
+    if foto_dir is None:
+        foto_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)),
+                                'uploads', 'overtime')
+    _cache = {}  # filename -> (md5|None, size|None)
+
+    def _stat(name):
+        if name in _cache:
+            return _cache[name]
+        p = os.path.join(foto_dir, name)
+        out = (None, None)
+        try:
+            h = hashlib.md5()
+            with open(p, 'rb') as f:
+                for chunk in iter(lambda: f.read(65536), b''):
+                    h.update(chunk)
+            out = (h.hexdigest(), os.path.getsize(p))
+        except Exception:
+            pass
+        _cache[name] = out
+        return out
+
+    def _piksel_sama(p1, p2):
+        try:
+            from PIL import Image, ImageChops, ImageStat
+            ia = Image.open(p1).convert('RGB')
+            ib = Image.open(p2).convert('RGB')
+            if ia.size != ib.size:
+                return False
+            ia.thumbnail((256, 256))
+            ib.thumbnail((256, 256))
+            stat = ImageStat.Stat(ImageChops.difference(ia, ib))
+            return (sum(stat.mean) / len(stat.mean)) < 2.0
+        except Exception:
+            return False
+
+    for r in rows if rows else []:
+        fm, fs = r.get('foto_mulai') or '', r.get('foto_selesai') or ''
+        issue = False
+        if fm and fs:
+            if fm == fs:
+                issue = True
+            else:
+                nm, ns_ = fm.rsplit('/', 1)[-1], fs.rsplit('/', 1)[-1]
+                dm, sm = _stat(nm)
+                ds, ss = _stat(ns_)
+                if dm and ds:
+                    if dm == ds:
+                        issue = True
+                    elif sm is not None and ss is not None and abs(sm - ss) <= 4096:
+                        issue = _piksel_sama(os.path.join(foto_dir, nm),
+                                             os.path.join(foto_dir, ns_))
+        r['foto_issue'] = issue
+    return rows
+
+
+# ============================================================
 # 1. Shared Validation
 # ============================================================
 def validate_overtime_data(data, modul='ob'):
@@ -155,6 +286,14 @@ def validate_overtime_data(data, modul='ob'):
     foto_selesai_raw = data.get('foto_selesai') or ''
     cleaned['foto_mulai_b64'] = foto_mulai_raw[:_MAX_FOTO_B64_LEN] if isinstance(foto_mulai_raw, str) else ''
     cleaned['foto_selesai_b64'] = foto_selesai_raw[:_MAX_FOTO_B64_LEN] if isinstance(foto_selesai_raw, str) else ''
+
+    # v2.42.1: foto MULAI dan SELESAI wajib dua foto berbeda — tolak bila
+    # payload yang sama dikirim di kedua slot (penyebab historis baris form
+    # berisi foto selesai di kedua kolom).
+    if cleaned['foto_mulai_b64'] and cleaned['foto_selesai_b64'] and \
+            fotos_b64_sama(cleaned['foto_mulai_b64'], cleaned['foto_selesai_b64']):
+        errors['foto_selesai'] = ('Foto mulai dan foto selesai sama. '
+                                  'Unggah dua foto berbeda: foto saat MULAI OT dan saat SELESAI OT.')
 
     # --- Module-specific fields ---
     if modul == 'ob':

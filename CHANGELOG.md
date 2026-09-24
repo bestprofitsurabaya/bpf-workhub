@@ -4,6 +4,28 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 
 ---
 
+## v2.42.1 — 24 September 2026 (Anti foto-duplikat overtime + penanganan insiden foto identik)
+
+- **Foto MULAI = foto SELESAI kini ditolak.** Insiden Sep 2026: sebagian besar
+  baris overtime form tersimpan dengan kedua slot foto berisi FOTO YANG SAMA
+  (identik byte & piksel; stempel watermark kedua-duanya = jam submit). Form
+  tidak pernah mencegahnya. Kini frontend (Overtime Saya + form publik)
+  membandingkan isi foto (byte & piksel 64px) sebelum menerima slot kedua, dan
+  backend (`validate_overtime_data`) menolak payload duplikat (decode via
+  Pillow, identik byte maupun piksel).
+- **Watermark diberi label slot** — `📌 FOTO MULAI OT` / `📌 FOTO SELESAI OT`
+  ditempel di bar watermark sehingga bukti foto tidak tertukar saat diperiksa
+  GA HR/Admin.
+- **Penanganan insiden (foto lama tak bisa dipulihkan otomatis** — foto mulai
+  asli tertimpa sejak upload; tidak ada salinan di server):
+  - Riwayat "Overtime Saya" menampilkan badge ⚠️ Foto untuk baris dengan kedua
+    kolom foto menunjuk file sama (`annotate_foto_issue`).
+  - GA HR/Admin kini bisa mengganti foto via edit data (`PATCH` menerima
+    data-URL base64 → disimpan sebagai file foto baru).
+- Guard versi: 7 titik stamp di-bump ke v2.42.1.
+
+---
+
 ## v2.42.0 — 23 September 2026 (Resepsionis penuh: kelola pelamar & in-out karyawan + realtime)
 
 - **In-Out Karyawan bukan lagi read-only:** resepsionis mencatat **Keluar/Masuk**

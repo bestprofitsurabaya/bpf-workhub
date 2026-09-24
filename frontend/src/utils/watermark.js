@@ -10,7 +10,7 @@ export function watermarkCompany() {
   return (identity.company_name || 'PT BESTPROFIT FUTURES').slice(0, 30)
 }
 
-export async function applyWatermark(file, gpsText, dateText = null, gpsCoords = null) {
+export async function applyWatermark(file, gpsText, dateText = null, gpsCoords = null, slotLabel = null) {
   if (!file || !file.type.startsWith('image/')) return null
   try {
     const now = dateText || new Date().toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })
@@ -33,8 +33,12 @@ export async function applyWatermark(file, gpsText, dateText = null, gpsCoords =
     const pad = Math.max(10, Math.floor(canvas.width / 80))
     const lineH = fontSize * 1.4
 
-    // Hitung bar height (4 baris: perusahaan, tanggal, alamat, koordinat)
-    const lines = [watermarkCompany(), `📅 ${now}`, `📍 ${gpsText}`]
+    // Hitung bar height (baris: perusahaan, [label slot], tanggal, alamat, koordinat)
+    // v2.42.1: slotLabel ('FOTO MULAI OT'/'FOTO SELESAI OT') ditempel di bar
+    // agar bukti foto tak tertukar saat diperiksa (insiden foto identik).
+    const lines = [watermarkCompany()]
+    if (slotLabel) lines.push(`📌 ${slotLabel}`)
+    lines.push(`📅 ${now}`, `📍 ${gpsText}`)
     if (gpsCoords) lines.push(`🌐 ${gpsCoords}`)
     const barH = lineH * lines.length + pad * 2
 
