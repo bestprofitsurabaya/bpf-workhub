@@ -99,11 +99,13 @@ describe('SettingsView', () => {
     expect(opts.filter((t) => t === 'AVANZA').length).toBe(1)
   })
 
-  it('v2.37.0: peta seksi tampil & berisi 6 seksi', async () => {
+  it('peta seksi tampil & berisi 8 seksi (7 + Realtime Sheet sejak v2.42.0)', async () => {
     const w = await mountView()
     const nav = w.find('.settings-nav')
     expect(nav.exists()).toBe(true)
-    expect(nav.findAll('.settings-nav-btn').length).toBe(6)
+    expect(nav.findAll('.settings-nav-btn').length).toBe(8)
+    // Seksi realtime receptionis (v2.42.0) ada di peta & panel
+    expect(w.text()).toContain('Realtime Sheet Receptionist')
   })
 
   it('v2.37.0: toggle edit/hapus air minum — status nonaktif lalu PUT saat diaktifkan', async () => {

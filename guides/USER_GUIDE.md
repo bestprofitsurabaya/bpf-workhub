@@ -1,4 +1,4 @@
-# 📖 Panduan Pengguna BPF WorkHub v2.41.2
+# 📖 Panduan Pengguna BPF WorkHub v2.42.0
 
 > **Siapa pun kamu — sopir, OB, admin, atau pimpinan — panduan ini ditulis untuk kamu.**
 > Tidak perlu paham teknis. Cukup ikuti langkah-langkah sesuai bagianmu.
@@ -415,7 +415,8 @@ Semua perubahan papan berjalan realtime — saat driver menyelesaikan tugas, sta
 - **🎯 Catat Kehadiran** — buka modal kehadiran, lalu tandai **Interview** dan/atau **Training Hari 1–4** sesuai tahap yang dihadiri. Status pelamar otomatis mengikuti tahap terjauh.
 - **🚪 Mengundurkan Diri** — jika pelamar berhenti (mis. setelah training hari 1), pilih *Mengundurkan Diri* dan **tuliskan alasannya (WAJIB karena pelamar sudah pernah hadir)**.
 - **🏁 Lulus / ✕ Tolak** — setelah 4 hari training tuntas, tandai **Lulus**; atau **Tolak** dengan alasan (opsional).
-- **🗑 Hapus** — hapus data pelamar beserta riwayat kehadirannya.
+- **🧑‍💼 Jadikan Karyawan** (sejak v2.42.0) — pelamar yang lulus langsung dijadikan karyawan: status menjadi 🎓 Lulus dan otomatis **terdaftar di menu In-Out Karyawan** (aktif, terlindungi dari sync sheet). Isi jabatannya, klik *Daftarkan*, selesai — tidak perlu input ulang di sheet.
+- **🗑 Hapus** — hapus data pelamar beserta riwayat kehadirannya (bila sudah jadi karyawan, catatan in-out-nya ikut terhapus).
 - **⚙️ Kelola User** — atur pilihan dropdown User untuk form pelamar (lihat §9.4).
 
 ### 9.3 Laporan PDF Resmi 📄
@@ -425,9 +426,13 @@ Semua perubahan papan berjalan realtime — saat driver menyelesaikan tugas, sta
 
 ### 9.5 Data Google Sheet & Input Manual (sejak v2.41.0) 🔄
 
-- **🔄 Sync Sheet** — tarik data terbaru dari Google Sheet pendaftaran (Google Form lama). Sync juga berjalan **otomatis tiap 30 menit** dan saat login/logout. Data yang sudah kamu kelola di sini (status, kehadiran, verifikasi) **tidak tersentuh** sync.
-- **＋ Input Pelamar** — catat pelamar baru langsung dari aplikasi (pengganti input manual di sheet). Tanggal & jam interview kosong = otomatis waktu submit; kolom Tanggal H2 opsional. User baru otomatis masuk pilihan dropdown (§9.4).
-- **🚪 In-Out Karyawan** (menu terpisah) — catatan keluar-masuk karyawan *read-only* dari Google Sheet, lengkap filter tanggal, pencarian, dan statistik. Tidak ada input dari aplikasi — sumber tetap sheet-nya.
+- **🔄 Sync Sheet** — tarik data terbaru dari Google Sheet pendaftaran (Google Form lama). Sync juga berjalan **otomatis tiap 30 menit**, saat login/logout, dan **realtime** — setiap edit di sheet langsung terdorong ke aplikasi lewat Apps Script (bridge v2, lihat §12.11). Data yang sudah kamu kelola di sini (status, kehadiran, verifikasi) **tidak tersentuh** sync.
+- **＋ Input Pelamar** — catat pelamar baru langsung dari aplikasi (pengganti input manual di sheet). Tanggal & jam interview kosong = otomatis waktu submit; kolom Tanggal H2 opsional. **Isi kolom Jabatan untuk langsung menjadikannya karyawan** — catatan in-out aktif dibuat seketika. User baru otomatis masuk pilihan dropdown (§9.4).
+- **🚪 In-Out Karyawan** (menu terpisah, sejak v2.42.0 bukan lagi read-only):
+  - **📤 Keluar / 📥 Masuk** — catat karyawan keluar-masuk kantor; waktu diambil otomatis dari *sekarang*. Catatan **Masuk** otomatis melengkapi baris **Keluar** yang masih terbuka; karyawan yang sudah tercatat keluar dan belum kembali ditolak agar tidak dobel.
+  - **Badge sumber** per baris: 📱 App (input resepsionis), 🆕 Karyawan (hasil registrasi pelamar), 📄 Sheet (dari Google Sheet). Baris 📄 Sheet tetap dikelola di sheet-nya; hanya baris App/Karyawan yang bisa **✏️ Edit** / **🗑 Hapus** — keduanya butuh **verifikasi PIN (step-up)** dan tercatat di audit log (riwayat per baris bisa dibuka lewat 🕘).
+  - **👥 Daftar Karyawan** di bagian bawah — agregat dari riwayat in-out; chip oranye artinya *masih di luar*, klik chip untuk mencatat cepat.
+  - **📄 Laporan Harian PDF** — laporan in-out satu tanggal, berkop resmi + TTD Receptionist.
 - Bila sync gagal berulang (mis. sheet dibuat privat), Admin mendapat notifikasi dan mengatur sumbernya lewat **Pengaturan → 🔗 Sumber Sheet** (lihat §12.11).
 
 ---
@@ -830,12 +835,14 @@ telepon berubah, Admin Pusat memperbaruinya langsung dari UI — tanpa SQL:
 > `frontend/scripts/verify_branch_edit_ui.mjs` (puppeteer, 9 cek — login,
 > buka modal, ubah alamat, cek DB, restore).
 
-### 12.11 Sumber Sheet Receptionist & Bridge Apps Script 🔗 (sejak v2.41.2)
+### 12.11 Sumber Sheet Receptionist & Bridge Apps Script 🔗 (sejak v2.41.2, realtime sejak v2.42.0)
 
 Data **Pelamar Kerja** dan **In-Out Karyawan** bersumber dari Google Sheet dan
-otomatis tersinkron ke aplikasi **tiap 30 menit** (plus saat Receptionist/Admin
-login & logout). Admin mengelola sumbernya di **Pengaturan → 🔗 Sumber Sheet
-Receptionist** — tanpa akses database.
+otomatis tersinkron ke aplikasi: **realtime** (setiap edit di sheet langsung
+didorong ke aplikasi oleh Apps Script — bridge v2), **tiap 30 menit** (plus
+saat Receptionist/Admin login & logout, dan saat halaman dibuka). Admin
+mengelola sumbernya di **Pengaturan → 🔗 Sumber Sheet Receptionist** dan
+**Pengaturan → ⚡ Realtime Sheet Receptionist** — tanpa akses database.
 
 #### Kapan Perlu Bridge Apps Script?
 
@@ -848,7 +855,30 @@ Receptionist** — tanpa akses database.
 > saat sheet privat. Solusinya: *bridge* — script kecil yang dideploy akun
 > Google mana pun yang punya akses sheet (termasuk view-only), lalu Web App
 > menyajikan datanya sebagai JSON. Yang publik hanya Web App-nya, sheet tetap
-> privat. Template siap pakai: **`scripts/gas_bridge_receptionist_v1.gs`**.
+> privat. Template siap pakai: **`scripts/gas_bridge_receptionist_v1.gs`**
+> (pull saja) atau **`scripts/gas_bridge_receptionist_v2.gs`** (pull **+
+> push realtime onEdit** — disarankan).
+
+#### Realtime Push (v2.42.0) ⚡
+
+1. Deploy bridge **v2** seperti langkah di bawah (pakai
+   `scripts/gas_bridge_receptionist_v2.gs`).
+2. Isi konfigurasi di bagian atas template: **dua ID spreadsheet terpisah** —
+   `SHEET_ID_APPLICANTS` (file pelamar) dan `SHEET_ID_INOUT` (file in-out
+   karyawan) — plus nama tab sumber `TAB_APPLICANTS` / `TAB_INOUT` dan
+   `WEBHOOK_URL`.
+3. Salin **secret webhook** dari **Pengaturan → ⚡ Realtime Sheet Receptionist**
+   (klik 👁️ Lihat / 📋 Salin).
+4. Di editor Apps Script, jalankan sekali fungsi `REC_v2_setSecret` dengan isi
+   secret tersebut (mis. `REC_v2_setSecret('isi-secret')` → Run), atau isi
+   `SECRET_INLINE` di template.
+5. Jalankan sekali `REC_v2_pasangTrigger_` → log menampilkan **2 baris**
+   "✔ Trigger onEdit terpasang" (pelamar & in-out).
+6. Selesai: edit baris di tab sheet → baris muncul/berubah di aplikasi
+   dalam hitungan detik. Bila push gagal (jaringan/kuota), sinkron pull
+   tetap menangkapnya maksimal 30 menit kemudian.
+7. Secret dianggap bocor? Klik **🔄 Rotasi** di Pengaturan, lalu perbarui
+   secret di Apps Script (langkah 4).
 
 #### Langkah Deploy Bridge (±10 menit)
 

@@ -1,8 +1,11 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { api } from '../../api'
 import StatCard from '../../components/StatCard.vue'
 import Modal from '../../components/Modal.vue'
+import { useRealtimeStore } from '../../stores/realtime'
+
+const realtime = useRealtimeStore()
 
 const list = ref([])
 const stats = ref(null)
@@ -141,6 +144,32 @@ async function doDelete(a) {
   finally { busy.value = false }
 }
 
+// ---- Jadikan Karyawan (v2.42.0) ----
+const regAppt = ref(null)
+const regForm = ref({ jabatan: '' })
+const savingReg = ref(false)
+const regMsg = ref('') // pesan di dalam modal — error utama tersembunyi di balik backdrop
+
+function openRegister(a) {
+  regAppt.value = a
+  regForm.value = { jabatan: a.posisi || '' }
+  regMsg.value = ''
+}
+async function saveRegister() {
+  const a = regAppt.value
+  if (!a) return
+  savingReg.value = true; regMsg.value = ''
+  try {
+    const r = await api(`/api/applicants/${a.id}/register-employee`, {
+      method: 'POST', body: regForm.value,
+    })
+    msg.value = '✅ ' + (r.msg || 'Terdaftar sebagai karyawan')
+    regAppt.value = null
+    load()
+  } catch (e) { regMsg.value = '❌ ' + e.message }
+  finally { savingReg.value = false }
+}
+
 // ---- SYNC Google Sheet pelamar (v2.41.0) ----
 const syncing = ref(false)
 async function syncSheet() {
@@ -156,11 +185,11 @@ async function syncSheet() {
 
 // ---- Input manual pelamar (form dalam aplikasi, v2.41.0) ----
 const addModal = ref(false)
-const addForm = ref({ nama_lengkap: '', pendidikan: '', no_hp: '', upline: '', user: '', posisi: '', interview_at: '', h2_date: '' })
+const addForm = ref({ nama_lengkap: '', pendidikan: '', no_hp: '', upline: '', user: '', posisi: '', interview_at: '', h2_date: '', jabatan: '' })
 const savingAdd = ref(false)
 
 function openAdd() {
-  addForm.value = { nama_lengkap: '', pendidikan: '', no_hp: '', upline: '', user: '', posisi: '', interview_at: '', h2_date: '' }
+  addForm.value = { nama_lengkap: '', pendidikan: '', no_hp: '', upline: '', user: '', posisi: '', interview_at: '', h2_date: '', jabatan: '' }
   addModal.value = true
 }
 async function saveAdd() {
@@ -243,7 +272,17 @@ const terminal = (a) => ['lulus', 'resigned', 'rejected'].includes(a.status)
 
 const totalAtt = computed(() => list.value.length)
 
-onMounted(() => { load(); loadMeta() })
+// v2.42.1: realtime — minta sync pull saat halaman dibuka + muat ulang otomatis
+// saat push webhook/sync diterima via Socket.IO.
+let _lastSeq = 0
+watch(() => realtime.receptionistSeq, (seq) => {
+  if (seq !== _lastSeq) { _lastSeq = seq; load(); loadMeta() }
+})
+
+onMounted(() => {
+  load(); loadMeta()
+  api('/api/receptionist/realtime-sync', { method: 'POST' }).catch(() => {})
+})
 </script>
 
 <template>
@@ -333,6 +372,7 @@ onMounted(() => { load(); loadMeta() })
                   <button class="btn btn-sm" :disabled="terminal(a)" title="Catat kehadiran (interview / training)" @click="openAttendance(a)">🎯</button>
                   <button class="btn btn-sm" :disabled="terminal(a)" title="Mengundurkan diri (alasan wajib)" @click="openStatus(a, 'resigned')">🚪</button>
                   <button class="btn btn-sm" :disabled="terminal(a)" title="Lulus training" @click="openStatus(a, 'lulus')">🏁</button>
+                  <button class="btn btn-sm btn-primary" :disabled="terminal(a)" title="Jadikan karyawan — langsung aktif di In-Out Karyawan" @click="openRegister(a)">🧑‍💼</button>
                   <button class="btn btn-sm btn-danger" :disabled="terminal(a)" title="Tolak" @click="openStatus(a, 'rejected')">✕</button>
                   <button class="btn btn-sm btn-danger" title="Hapus" @click="doDelete(a)">🗑</button>
                 </td>
@@ -392,10 +432,38 @@ onMounted(() => { load(); loadMeta() })
           </select></div>
         <div class="field"><label>Tanggal & Jam Interview</label><input class="input" type="datetime-local" v-model="addForm.interview_at" /></div>
         <div class="field"><label>Tanggal H2 (opsional)</label><input class="input" type="date" v-model="addForm.h2_date" /></div>
+        <div class="field" style="grid-column:1/-1;"><label>Jabatan (isi untuk langsung jadikan karyawan)</label>
+          <input class="input" v-model="addForm.jabatan" list="jabatan-options" placeholder="Kosongkan bila masih proses interview/training" />
+          <datalist id="jabatan-options">
+            <option>STAFF</option><option>ADMIN</option><option>MARKETING</option>
+            <option>DRIVER</option><option>OB</option><option>SECURITY</option>
+          </datalist>
+          <div class="muted" style="font-size:11px;margin-top:4px;">Bila diisi: status pelamar langsung <b>🎓 Lulus</b> dan terdaftar di menu In-Out Karyawan.</div>
+        </div>
       </div>
       <div class="row" style="justify-content:flex-end;gap:6px;margin-top:10px;">
         <button class="btn" @click="addModal = false">Batal</button>
         <button class="btn btn-primary" :disabled="savingAdd" @click="saveAdd">{{ savingAdd ? '⏳…' : '💾 Simpan' }}</button>
+      </div>
+    </Modal>
+
+    <!-- Modal Jadikan Karyawan (v2.42.0) -->
+    <Modal v-if="regAppt" :title="'🧑‍💼 Jadikan Karyawan — ' + regAppt.nama_lengkap" @close="regAppt = null">
+      <p class="muted" style="font-size:12px;margin-bottom:10px;">
+        {{ regAppt.display_id }} · status pelamar menjadi <b>🎓 Lulus</b> dan langsung terdaftar di menu
+        <b>In-Out Karyawan</b> (aktif, terlindungi dari sync sheet). Waktu in-out pertama dicatat resepsionis.
+      </p>
+      <div v-if="regMsg" class="alert alert-error" style="margin-bottom:10px;font-size:12px;">{{ regMsg }}</div>
+      <div class="field"><label>Jabatan/Posisi</label>
+        <input class="input" v-model="regForm.jabatan" list="jabatan-options-reg" placeholder="cth: STAFF" />
+        <datalist id="jabatan-options-reg">
+          <option>STAFF</option><option>ADMIN</option><option>MARKETING</option>
+          <option>DRIVER</option><option>OB</option><option>SECURITY</option>
+        </datalist>
+      </div>
+      <div class="row" style="justify-content:flex-end;gap:6px;margin-top:10px;">
+        <button class="btn" @click="regAppt = null">Batal</button>
+        <button class="btn btn-primary" :disabled="savingReg" @click="saveRegister">{{ savingReg ? '⏳…' : '🧑‍💼 Daftarkan' }}</button>
       </div>
     </Modal>
 

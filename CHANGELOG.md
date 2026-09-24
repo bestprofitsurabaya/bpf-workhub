@@ -4,6 +4,44 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 
 ---
 
+## v2.42.0 — 23 September 2026 (Resepsionis penuh: kelola pelamar & in-out karyawan + realtime)
+
+- **In-Out Karyawan bukan lagi read-only:** resepsionis mencatat **Keluar/Masuk**
+  langsung dari aplikasi (waktu otomatis "sekarang", catatan masuk otomatis
+  melengkapi baris keluar terbuka, duplikat keluar ditolak 409) berdampingan
+  dengan baris Google Sheet — badge sumber per baris (📱 App / 🆕 Karyawan /
+  📄 Sheet) + filter sumber & status (masih di luar / sudah kembali).
+- **Guard sync sheet:** full-replace hanya menyentuh baris `source='sheet'` —
+  catatan aplikasi & registrasi karyawan **dipertahankan**; sheet kosong/rusak
+  (valid <50%) membatalkan sync (paritas guard overtime v2.39.5). Edit satu
+  catatan = step-up PIN; setiap peristiwa tercatat di tabel audit
+  `employee_inout_events` (riwayat per baris bisa dibuka 🕘).
+- **Registrasi pelamar → karyawan:** tombol 🧑‍💼 di Pelamar Kerja — status
+  menjadi 🎓 Lulus + baris in-out aktif (terkunci) dibuat otomatis; form input
+  manual punya kolom jabatan untuk langsung jadikan karyawan; roster karyawan
+  tampil di halaman In-Out (klik chip = catat cepat).
+- **Realtime sheet (paritas overtime GA HR, bahkan lebih cepat):** Apps Script
+  bridge **v2** (`scripts/gas_bridge_receptionist_v2.gs`) memasang trigger
+  **onEdit** yang mendorong setiap edit sheet ke webhook
+  `POST /api/receptionist/webhook` (header `X-BPF-Token`, secret acak di
+  system_config, bisa dirotasi admin) — baris baru muncul di aplikasi dalam
+  detik. Pull tetap jalan sebagai jaring pengaman: auto-sync 30 menit, sync
+  saat login/logout, plus **realtime-sync** saat halaman dibuka (debounce 15
+  dtk) dan Socket.IO `receptionist_sync` membuat halaman Pelamar/In-Out memuat
+  ulang otomatis.
+- **Pengaturan baru (admin):** seksi ⚡ Realtime Sheet Receptionist — pilih
+  mode pencatatan in-out (`hybrid`/`sheet`), lihat & salin URL + secret
+  webhook, dan rotasi secret. Endpoint: GET/POST `/api/receptionist/inout-mode`,
+  GET/POST `/api/receptionist/webhook-config`, POST `/api/receptionist/webhook`,
+  POST `/api/receptionist/realtime-sync`.
+- **Laporan harian In-Out PDF** (kop resmi + TTD Receptionist) via tombol
+  📄 Laporan Harian; kolom baru `employee_inout` (source, locked, actor,
+  applicant_id) + tabel `employee_inout_events` & `employee_inout_stage`
+  (schema idempoten di startup). Penghapusan pelamar yang sudah jadi karyawan
+  ikut menghapus catatan in-out terkait.
+- Tests: +32 pytest (test_receptionist_inout) & +10 vitest
+  (EmployeeInOutView.test.js).
+
 ## v2.41.2 — 15 September 2026 (Pengaturan URL sheet di UI + notifikasi gagal sync)
 
 - **Pengaturan URL sheet (admin):** seksi baru "🔗 Sumber Sheet Receptionist" di

@@ -11,7 +11,7 @@ from modules.company_identity import get_company_identity, IDENTITY_DEFAULTS  # 
 # ============================================================
 COMPANY_NAME = 'PT BESTPROFIT FUTURES'
 COMPANY_SUBTITLE = 'Kantor Pusat | Jakarta'
-SYSTEM_VERSION = 'BPF WorkHub v2.41.2'
+SYSTEM_VERSION = 'BPF WorkHub v2.42.0'
 LOGO_FILENAMES = ['icon-512.png', 'icon-192.png']
 PHOTO_FIELDS = [
     ('foto_odo_sebelum', 'ODO Sebelum'),
@@ -897,6 +897,84 @@ class ApplicantReportPDF(BPFBasePDF):
                 idx, r.get('nama_lengkap', '-'), r.get('no_hp', '-'), r.get('posisi', '-'),
                 r.get('upline', '-'), r.get('user_field', '-'),
                 at.strftime('%d-%m-%Y %H:%M') if hasattr(at, 'strftime') else (at or '-'),
+            ], widths, aligns=aligns, fill=fill)
+            fill = not fill
+        self.ln(3)
+
+
+class InOutReportPDF(BPFBasePDF):
+    """Laporan harian In-Out Karyawan (v2.42.0) — kop resmi & TTD Receptionist.
+
+    Satu laporan per tanggal: daftar karyawan yang keluar-masuk kantor pada
+    hari itu (gabungan catatan aplikasi & sheet), total keluar/masuk, dan blok
+    tanda tangan Receptionist — siap cetak/arsip.
+    """
+
+    def __init__(self, title='LAPORAN IN-OUT KARYAWAN'):
+        super().__init__(orientation='L', unit='mm', format='A4')
+        self._title = title
+        self.set_auto_page_break(auto=True, margin=15)
+
+    def header(self):
+        super().header()
+        self.set_font(self._font(), 'B', 11)
+        self.set_text_color(*INK)
+        self.cell(0, 6, self.clean_text(self._title), align='C', new_x='LMARGIN', new_y='NEXT')
+        self.ln(2)
+
+    def generate(self, rows, report_date=None, generated_by=''):
+        self.add_page()
+        self.set_font(self._font(), 'B', 8)
+        self.set_text_color(*INK)
+        self.cell(0, 5, f'Tanggal: {report_date.strftime("%d-%m-%Y") if report_date else "-"}',
+                  new_x='LMARGIN', new_y='NEXT')
+        self.ln(2)
+
+        keluar = masuk = 0
+        for r in rows:
+            if r.get('pergi'):
+                keluar += 1
+            if r.get('datang'):
+                masuk += 1
+
+        self._draw_table(rows)
+
+        if self.get_y() + 40 > self.h - 25:
+            self.add_page()
+        self.ln(4)
+        self.set_font(self._font(), '', 8)
+        self.set_text_color(*INK_SOFT)
+        self.cell(0, 5, f'Karyawan keluar: {keluar} orang — kembali: {masuk} orang '
+                        f'— masih di luar: {keluar - masuk} orang',
+                  new_x='LMARGIN', new_y='NEXT')
+        self.ln(10)
+        self._signature_block(generated_by, 'Receptionist', role='RECEPTIONIST')
+        self.set_text_color(*INK)
+
+    @staticmethod
+    def _fmt_dt(v):
+        return v.strftime('%H:%M') if hasattr(v, 'strftime') else (str(v or '-')[:5] or '-')
+
+    def _draw_table(self, rows):
+        if not rows:
+            self.set_font(self._font(), 'I', 10)
+            self.cell(0, 8, 'Tidak ada catatan in-out pada tanggal ini.',
+                      align='C', new_x='LMARGIN', new_y='NEXT')
+            return
+        headers = ['NO', 'NAMA', 'JABATAN', 'KELUAR', 'KEMBALI', 'KETERANGAN']
+        widths = [10, 62, 52, 30, 30, 75]
+        aligns = ['C', 'L', 'L', 'C', 'C', 'L']
+        self._table_header(headers, widths)
+        fill = False
+        for idx, r in enumerate(rows, 1):
+            ket = r.get('keterangan', '-')
+            if r.get('pergi') and not r.get('datang'):
+                ket = (str(ket or '') + ' — masih di luar').strip(' —')
+            self._table_row([
+                idx, r.get('nama', '-') or '-', r.get('jabatan', '-') or '-',
+                self._fmt_dt(r.get('waktu_pergi')) if r.get('pergi') else '-',
+                self._fmt_dt(r.get('waktu_datang')) if r.get('datang') else '-',
+                ket or '-',
             ], widths, aligns=aligns, fill=fill)
             fill = not fill
         self.ln(3)

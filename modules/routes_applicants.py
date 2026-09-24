@@ -482,6 +482,9 @@ def register_applicant_routes(app):
             if not row:
                 cursor.close(); conn.close()
                 return jsonify({'status': 'error', 'msg': 'Pelamar tidak ditemukan'}), 404
+            # v2.42.0: pelamar yang sudah dijadikan karyawan membawa catatan
+            # in-out (applicant_id) — ikut dihapus agar tidak jadi data yatim.
+            cursor.execute("DELETE FROM employee_inout WHERE applicant_id=%s", (appt_id,))
             cursor.execute("DELETE FROM applicants WHERE id=%s", (appt_id,))
             conn.commit()
             user = _current_user()

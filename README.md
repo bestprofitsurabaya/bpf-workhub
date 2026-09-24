@@ -2,7 +2,7 @@
 
 **Sistem Manajemen Armada untuk PT. Bestprofit Futures — Kantor Pusat Jakarta**
 
-> 📅 Versi 2.39.5 · September 2026 — Kualitas konten scraper (pembersih boilerplate + H2 utuh + guard gramatika) · Overtime wall-clock sesuai sheet (bridge Apps Script v3 + marker versi) · Form Overtime Saya untuk OB & Security · Edit/hapus transaksi air minum (opsional per cabang) · Admin per-cabang (`admin_<kode>`) · Approval Berjenjang · Program 6 tahap ISO 27001 selesai · Kantor Pusat Jakarta (Equity Tower)
+> 📅 Versi 2.42.0 · September 2026 — **Resepsionis penuh: kelola pelamar & in-out karyawan dari aplikasi** (catat Keluar/Masuk, registrasi pelamar → karyawan, guard sync, laporan harian PDF) · **Realtime sheet resepsionis** (bridge Apps Script v2 — push onEdit → webhook) · Kualitas konten scraper · Overtime wall-clock sesuai sheet · Edit/hapus transaksi air minum (opsional per cabang) · Admin per-cabang (`admin_<kode>`) · Approval Berjenjang · Program 6 tahap ISO 27001 selesai · Kantor Pusat Jakarta (Equity Tower)
 
 ---
 

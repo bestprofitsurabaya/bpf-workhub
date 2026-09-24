@@ -327,6 +327,55 @@ async function testSheetUrl(modul) {
   } finally { sheetTestBusy.value = '' }
 }
 
+// ---- Mode In-Out + Webhook realtime (v2.42) ----
+const inoutMode = ref('hybrid')
+const inoutModeMsg = ref('')
+const webhook = ref({ secret: '', revealed: false, url_hint: '', header: 'X-BPF-Token' })
+const webhookMsg = ref('')
+const webhookBusy = ref(false)
+
+async function loadInOutMode() {
+  try {
+    const d = await api('/api/receptionist/inout-mode')
+    inoutMode.value = d.mode || 'hybrid'
+  } catch { /* noop */ }
+}
+
+async function saveInOutMode() {
+  inoutModeMsg.value = ''
+  try {
+    const r = await api('/api/receptionist/inout-mode', { method: 'POST', body: { mode: inoutMode.value } })
+    inoutModeMsg.value = '✅ ' + (r.msg || 'Mode disimpan')
+  } catch (e) { inoutModeMsg.value = '❌ ' + e.message }
+}
+
+async function loadWebhook() {
+  try {
+    const d = await api('/api/receptionist/webhook-config')
+    webhook.value = { ...webhook.value, secret: d.secret || '', url_hint: d.url_hint || '', header: d.header || 'X-BPF-Token' }
+  } catch { /* noop */ }
+}
+
+async function rotateWebhook() {
+  if (!confirm('Buat secret webhook baru? Token lama di Apps Script langsung tidak berlaku.')) return
+  webhookBusy.value = true; webhookMsg.value = ''
+  try {
+    const r = await api('/api/receptionist/webhook-config', { method: 'POST' })
+    webhook.value.secret = r.secret || ''
+    webhook.value.revealed = true
+    webhookMsg.value = '✅ ' + (r.msg || 'Secret baru dibuat')
+  } catch (e) { webhookMsg.value = '❌ ' + e.message }
+  finally { webhookBusy.value = false }
+}
+
+function copyWebhook() {
+  const text = `${webhook.value.url_hint}\nHeader: ${webhook.value.header}\nSecret: ${webhook.value.secret}`
+  navigator.clipboard?.writeText(text).then(
+    () => { webhookMsg.value = '✅ URL + secret disalin ke clipboard' },
+    () => { webhookMsg.value = '⚠️ Gagal menyalin — salin manual' },
+  )
+}
+
 async function saveWaterNames() {
   busy.value = true; waterMsg.value = ''
   try {
@@ -497,6 +546,7 @@ const SECTIONS = [
   { id: 'sec-master', label: '🚗 Data Master' },
   { id: 'sec-air', label: '🚰 Air Minum' },
   { id: 'sec-sheetsync', label: '🔗 Sumber Sheet' },
+  { id: 'sec-receptionist-realtime', label: '⚡ Realtime Sheet' },
   { id: 'sec-cabang', label: '🏢 Cabang & Nomor' },
   { id: 'sec-kepatuhan', label: '🗄️ Kepatuhan (ISO)' },
   { id: 'sec-branding', label: '🎨 Identitas' },
@@ -515,7 +565,7 @@ function scrollToSection(id) {
 }
 
 let _secObserver = null
-onMounted(() => { load(); loadWaterNames(); loadEditEnabled(); loadIdentityForm(); loadDemoStatus(); loadBranches(); loadDocSequences(); loadRetention(); loadDocs(); loadSheetUrls() })
+onMounted(() => { load(); loadWaterNames(); loadEditEnabled(); loadIdentityForm(); loadDemoStatus(); loadBranches(); loadDocSequences(); loadRetention(); loadDocs(); loadSheetUrls(); loadInOutMode(); loadWebhook() })
 onMounted(() => {
   // Highlight seksi aktif saat scroll (IntersectionObserver — ringan).
   _secObserver = new IntersectionObserver((entries) => {
@@ -633,6 +683,45 @@ onMounted(() => {
         <div class="row" style="justify-content:flex-end;gap:8px;margin-top:8px;">
           <span class="muted" style="font-size:12px;">{{ sheetMsg }}</span>
           <button class="btn btn-primary btn-sm" :disabled="sheetBusy" @click="saveSheetUrls">💾 Simpan URL</button>
+        </div>
+      </div>
+
+      <!-- Webhook realtime + mode in-out (v2.42) -->
+      <div id="sec-receptionist-realtime" class="card card-pad" style="margin-bottom:16px;">
+        <h3 style="margin:0;">⚡ Realtime Sheet Receptionist <span class="badge badge-blue" style="font-size:10px;vertical-align:middle;">v2.42</span></h3>
+        <p class="muted" style="font-size:11px;">
+          Data <b>Pelamar</b> &amp; <b>In-Out Karyawan</b> bisa ter-update <b>realtime</b>: Google Apps Script
+          (trigger <code>onEdit</code>) mendorong setiap edit langsung ke aplikasi lewat webhook di bawah —
+          seperti pengalaman overtime di GA HR, tanpa menunggu sync 30 menit. Template:
+          <code>scripts/gas_bridge_receptionist_v2.gs</code>.
+        </p>
+        <div class="form-grid" style="margin-top:12px;">
+          <div class="field">
+            <label>Mode pencatatan In-Out Karyawan</label>
+            <div class="row" style="gap:6px;">
+              <select class="select" v-model="inoutMode" style="flex:1;">
+                <option value="hybrid">Hybrid — resepsionis catat dari aplikasi + sheet (disarankan)</option>
+                <option value="sheet">Sheet saja — aplikasi read-only</option>
+              </select>
+              <button class="btn btn-sm btn-primary" @click="saveInOutMode">💾</button>
+            </div>
+            <div v-if="inoutModeMsg" class="muted" style="font-size:11px;margin-top:4px;">{{ inoutModeMsg }}</div>
+          </div>
+          <div class="field">
+            <label>Webhook URL (dipakai Apps Script)</label>
+            <input class="input" :value="webhook.url_hint" readonly />
+          </div>
+          <div class="field" style="grid-column:1/-1;">
+            <label>Secret {{ webhook.header }} ({{ webhook.revealed ? 'terlihat' : 'disembunyikan' }})</label>
+            <div class="row" style="gap:6px;">
+              <input class="input" :type="webhook.revealed ? 'text' : 'password'" :value="webhook.secret" readonly style="flex:1;" />
+              <button class="btn btn-sm" @click="webhook.revealed = !webhook.revealed">{{ webhook.revealed ? '🙈 Sembunyikan' : '👁️ Lihat' }}</button>
+              <button class="btn btn-sm" @click="copyWebhook">📋 Salin</button>
+              <button class="btn btn-sm btn-danger" :disabled="webhookBusy" @click="rotateWebhook">🔄 Rotasi</button>
+            </div>
+            <div class="muted" style="font-size:11px;margin-top:4px;">⚠️ Ganti secret (rotasi) bila dicurigai bocor — token lama langsung mati; perbarui di Apps Script (REC_v2_setSecret).</div>
+            <div v-if="webhookMsg" class="muted" style="font-size:11px;margin-top:4px;">{{ webhookMsg }}</div>
+          </div>
         </div>
       </div>
 

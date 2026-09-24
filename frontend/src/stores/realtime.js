@@ -16,6 +16,7 @@ export const useRealtimeStore = defineStore('realtime', {
     toasts: [], // { id, text, icon }
     items: [],  // bell history (max 30)
     unread: 0,
+    receptionistSeq: 0, // v2.42.0: bertambah tiap event receptionist_sync
   }),
   actions: {
     connect(role) {
@@ -55,6 +56,17 @@ export const useRealtimeStore = defineStore('realtime', {
           socket.on('overtime_new', (d) => {
             const label = d?.message || (d?.count ? `⏰ ${d.count} data overtime baru` : '⏰ Ada data overtime baru')
             this.push(label, 'overtime_new', d)
+          })
+        }
+
+        // v2.42.0: data receptionis (pelamar & in-out) berubah — push realtime
+        // dari sheet (webhook) maupun hasil sync pull. Halaman terkait me-watch
+        // receptionistSeq untuk memuat ulang data tanpa refresh manual.
+        if (['receptionist', 'admin'].includes(role)) {
+          socket.on('receptionist_sync', (d) => {
+            this.receptionistSeq++
+            const label = d?.summary ? `🔄 Data receptionis diperbarui — ${d.summary}` : '🔄 Data receptionis diperbarui'
+            this.push(label, 'receptionist_sync', d)
           })
         }
       } catch { this.connected = false }
