@@ -4,7 +4,7 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 
 ---
 
-## v2.43.1 — 24 September 2026 (Form PDF OT: foto berdampingan, label seragam, jamin 1 halaman)
+## v2.43.2 — 24 September 2026 (Form PDF OT: foto berdampingan, label seragam, jamin 1 halaman)
 
 - **Foto bukti berdampingan** di Formulir Permohonan Overtime: kiri
   **FOTO MULAI OT**, kanan **FOTO SELESAI OT** (sebelumnya ditumpuk
@@ -15,9 +15,23 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
   "FOTO SELFIE @OFFICE" / "FOTO DI TUJUAN" (penamaan Google Form lama)
   diganti FOTO MULAI OT / FOTO SELESAI OT — tidak ada lagi tiga istilah
   berbeda untuk bukti yang sama.
-- Guard versi: 7 titik stamp di-bump ke v2.43.1.
+- Guard versi: 7 titik stamp di-bump ke v2.43.2.
 
 ---
+
+## v2.43.1 — 24 September 2026 (Detik waktu in-out & pelamar sesuai sheet)
+
+Resepsionis melaporkan data In-Out Karyawan & Pelamar tidak sama dengan sumber
+Google Sheet. Forensik diff 1.114 baris: **1.103 baris beda detik** — sheet
+`9:56:16` tersimpan `09:56:00`. Akar: parser memakai `parse_time_any`
+(warisan overtime, output HH:MM) lalu `:00` ditempel — detik buang.
+
+- Parser baru `_parse_time_with_sec`: pertahankan detik ('6:53:19 AM' →
+  '06:53:19'), tetap terima format tanpa detik & 12/24 jam; dipakai
+  `_parse_full_dt` (in-out) & `_parse_dt_parts` (pelamar).
+- Sync berikutnya otomatis mengoreksi semua baris (kunci source_uid stabil
+  untuk pelamar; full-replace utk baris sheet in-out — tanpa duplikat).
+- 34 test receptionist lulus; verifikasi parser: 9 kasus AM/PM/24h/tanpa-detik.
 
 ## v2.43.0 — 24 September 2026 (Panel tindak lanjut foto duplikat per user + penggantian foto bukti)
 
