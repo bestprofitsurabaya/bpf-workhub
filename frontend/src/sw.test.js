@@ -17,7 +17,7 @@ import vm from 'node:vm'
 const swPath = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public', 'sw.js')
 const src = readFileSync(swPath, 'utf8')
 
-function loadSW() {
+function loadSW(fetchImpl) {
   const handlers = {}
   const cachesStub = {
     match: vi.fn(() => Promise.resolve(undefined)),
@@ -32,10 +32,15 @@ function loadSW() {
   vm.runInNewContext(src, {
     self,
     caches: cachesStub,
-    fetch: vi.fn(() => Promise.resolve({ ok: true, clone() { return this } })),
+    fetch: fetchImpl || vi.fn(() => Promise.resolve({
+      ok: true,
+      headers: { get: () => 'application/javascript' },
+      clone() { return this },
+    })),
     URL,
     console,
     Promise,
+    Response: class { static error() { return { ok: false, status: 504 } } },
   })
   return { handlers, cachesStub }
 }
@@ -82,5 +87,28 @@ describe('service worker (public/sw.js)', () => {
 
   it('nama CACHE memuat versi lengkap (memicu aktivasi SW baru di klien lama)', () => {
     expect(src).toMatch(/const CACHE = 'bpf-spa-\d{8}-v\d+\.\d+\.\d+'/)
+  })
+
+  it('v2.43.3: TIDAK memakai/menyimpan respons HTML utk asset ber-hash (anti-racun pasca-deploy)', async () => {
+    const { handlers, cachesStub } = loadSW(vi.fn(() => Promise.resolve({
+      ok: true,
+      headers: { get: () => 'text/html; charset=utf-8' },
+      clone() { return this },
+    })))
+    const ev = fetchEvent('https://bpf.test/app/assets/gone-AbCdEf123.js')
+    handlers.fetch(ev)
+    const res = await ev.respondWith.mock.calls[0][0]
+    expect(res.ok).toBe(false)                 // Response.error() — bukan HTML
+    expect(cachesStub.open).not.toHaveBeenCalled()  // cache tidak ter-racun
+  })
+
+  it('v2.43.3: respondWith selalu menerima Response, bukan undefined', async () => {
+    // fetch & cache gagal total (offline) — tetap wajib Response
+    const { handlers } = loadSW(vi.fn(() => Promise.reject(new Error('offline'))))
+    const ev = fetchEvent('https://bpf.test/app/assets/index-AbCdEf123.js')
+    handlers.fetch(ev)
+    const res = await ev.respondWith.mock.calls[0][0]
+    expect(res).toBeDefined()
+    expect(res.ok).toBe(false)
   })
 })

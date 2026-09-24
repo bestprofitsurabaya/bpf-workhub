@@ -4,7 +4,7 @@
  * menampilkan data lama setelah verifikasi/kehadiran sampai refresh manual.
  * v2.38.0: cache bump saja — stamp SPA v2.38.0 (migrasi worker gevent di backend).
  */
-const CACHE = 'bpf-spa-20260924-v2.43.2';
+const CACHE = 'bpf-spa-20260924-v2.43.3';
 const SHELL = ['/app/index.html'];
 
 self.addEventListener('install', (event) => {
@@ -24,6 +24,16 @@ self.addEventListener('activate', (event) => {
 
 // Network-first untuk navigasi (fallback index.html saat offline),
 // stale-while-revalidate untuk asset ber-hash.
+// v2.43.3 — perbaikan dua bug:
+//   1) respondWith TIDAK BOLEH menerima undefined ("Failed to convert
+//      value to 'Response'") — semua jalur kini selalu mengembalikan
+//      Response (fallback cache atau Response.error()).
+//   2) RACUN CACHE: setelah deploy, chunk lama dihapus di server → SPA
+//      fallback menjawab HTML 200 utk URL .js yang hilang → sebelumnya
+//      respons HTML ini DI-SIMPAN utk URL js → MIME error berulang.
+//      Kini respons text/html utk request asset DITOLAK (Response.error)
+//      & tidak pernah disimpan — module import gagal bersih lalu SPA
+//      auto-reload (router.onError di main.js) dan mendapat shell baru.
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   if (request.method !== 'GET') return;
@@ -37,24 +47,46 @@ self.addEventListener('fetch', (event) => {
   }
 
   if (request.mode === 'navigate') {
-    event.respondWith(
-      // redirect: 'follow' — ikuti redirect (mis. / → /app/login)
-      fetch(request, { redirect: 'follow' })
-        .then((res) => { cachePut(request, res.clone()); return res; })
-        .catch(() => caches.match('/app/index.html'))
-    );
+    event.respondWith((async () => {
+      try {
+        // redirect: 'follow' — ikuti redirect (mis. / → /app/login)
+        const res = await fetch(request, { redirect: 'follow' });
+        if (res && res.ok) cachePut(request, res.clone());
+        return res;
+      } catch {
+        const cached = (await caches.match(request)) ||
+                       (await caches.match('/app/index.html'));
+        return cached || Response.error(); // selalu Response, bukan undefined
+      }
+    })());
     return;
   }
 
-  // Asset Vite ber-hash: cache-first
-  event.respondWith(
-    caches.match(request).then((hit) => {
-      const network = fetch(request, { redirect: 'follow' })
-        .then((res) => { if (res.ok) cachePut(request, res.clone()); return res; })
-        .catch(() => hit);
-      return hit || network;
-    })
-  );
+  // Asset Vite ber-hash: cache-first + revalidate di belakang
+  event.respondWith((async () => {
+    const hit = await caches.match(request);
+    if (hit) {
+      event.waitUntil((async () => {
+        try {
+          const fresh = await fetch(request, { redirect: 'follow' });
+          if (fresh && fresh.ok) cachePut(request, fresh.clone());
+        } catch { /* offline — biarkan hit dipakai */ }
+      })());
+      return hit;
+    }
+    try {
+      const res = await fetch(request, { redirect: 'follow' });
+      const ct = (res.headers.get('Content-Type') || '').toLowerCase();
+      if (ct.includes('text/html')) {
+        // Chunk tak ada di server (post-deploy) — JANGAN pakai & JANGAN simpan.
+        return Response.error();
+      }
+      if (res.ok) cachePut(request, res.clone());
+      return res;
+    } catch {
+      return Response.error(); // selalu Response, bukan undefined
+    }
+  })());
 });
 
 function cachePut(request, response) {

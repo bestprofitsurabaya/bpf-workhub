@@ -4,6 +4,21 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 
 ---
 
+## v2.43.3 — 24 September 2026 (SW anti-racun cache + auto-recovery chunk-lama pasca-deploy)
+
+Setelah beberapa deploy berturut-turut, klien dengan shell lama menabrak
+chunk hash lama yang sudah dihapus: fallback SPA menjawab HTML 200 untuk
+URL `.js` (MIME error) dan **SW menyimpan respons HTML itu** → error
+`Failed to convert value to 'Response'` + MIME error berulang sampai
+cache dibersihkan manual.
+
+- **SW**: respondWith kini SELALU mengembalikan Response (tidak pernah
+  `undefined`); respons `text/html` untuk request asset DITOLAK dan
+  tidak pernah disimpan — cache tak bisa ter-racun lagi.
+- **Auto-recovery**: `router.onError` memicu reload sekali saat import
+  chunk gagal — user otomatis mendapat shell baru tanpa hapus cache.
+- Guard versi: 7 titik stamp di-bump ke v2.43.3.
+
 ## v2.43.2 — 24 September 2026 (Form PDF OT: foto berdampingan, label seragam, jamin 1 halaman)
 
 - **Foto bukti berdampingan** di Formulir Permohonan Overtime: kiri
