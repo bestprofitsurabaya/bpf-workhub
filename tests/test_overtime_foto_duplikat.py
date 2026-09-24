@@ -157,3 +157,58 @@ class TestGroupFotoIssueUsers:
     def test_tanpa_nama_dikelompokkan(self):
         out = group_foto_issue_users([{'nama': '', 'posisi': 'OB', 'foto_issue': True}])
         assert out[0]['nama'] == '(tanpa nama)'
+
+
+class TestOvertimeFormPDFLayout:
+    """v2.43.1 — Form PDF OT: label foto seragam & muat 1 halaman."""
+
+    def _generate(self, row, photos=None):
+        from modules.pdf_generator import OvertimeFormPDF
+        from tests.pdf_text import _pdf_text
+        pdf = OvertimeFormPDF()
+        pdf.generate(row, photos=photos, modul='ob')
+        buf = io.BytesIO()
+        pdf.output(buf)
+        return pdf, _pdf_text(buf.getvalue())
+
+    def test_label_foto_seragam_dengan_watermark(self):
+        row = {'display_id': 'OTX-002', 'email': 'ob@mail.com', 'posisi': 'OB',
+               'nama': 'Budi', 'tanggal': '2026-09-23', 'waktu_mulai': '08:00',
+               'waktu_selesai': '17:00', 'keterangan': 'OT',
+               'foto_mulai': '/uploads/overtime/xxx_mulai.jpg',
+               'foto_selesai': '/uploads/overtime/xxx_selesai.jpg'}
+        _, txt = self._generate(row)
+        up = txt.upper()
+        assert 'FOTO MULAI OT' in up and 'FOTO SELESAI OT' in up
+        assert 'SELFIE' not in up and 'DI TUJUAN' not in up
+
+    def test_form_1_halaman_dengan_dua_foto(self, tmp_path):
+        """Dua foto besar (portrait & landscape) tetap 1 halaman — foto
+        berdampingan dgn tinggi adaptif sisa ruang."""
+        from modules.pdf_generator import OvertimeFormPDF
+        base = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        f1 = os.path.join(base, 'uploads', '_test_foto_a.jpg')
+        f2 = os.path.join(base, 'uploads', '_test_foto_b.jpg')
+        Image.new('RGB', (1200, 1600), (180, 30, 30)).save(f1, format='JPEG')  # portrait
+        Image.new('RGB', (1600, 1200), (30, 30, 180)).save(f2, format='JPEG')  # landscape
+        try:
+            row = {'display_id': 'OTX-003', 'email': 'ob@mail.com', 'posisi': 'OB',
+                   'nama': 'Budi', 'tanggal': '2026-09-23', 'waktu_mulai': '08:00',
+                   'waktu_selesai': '17:00', 'keterangan': 'OT malam panjang'
+                   * 1}
+            pdf = OvertimeFormPDF()
+            pdf.generate(row, photos={'foto_mulai': '/uploads/_test_foto_a.jpg',
+                                      'foto_selesai': '/uploads/_test_foto_b.jpg'},
+                         modul='ob')
+            assert pdf.page == 1, f'Form meluber ke {pdf.page} halaman'
+        finally:
+            for f in (f1, f2):
+                if os.path.exists(f):
+                    os.remove(f)
+
+    def test_form_1_halaman_tanpa_foto(self):
+        row = {'display_id': 'OTX-004', 'email': 'ob@mail.com', 'posisi': 'Security',
+               'nama': 'Budi', 'tanggal': '2026-09-23', 'waktu_mulai': '22:00',
+               'waktu_selesai': '05:00', 'keterangan': 'OT lewat tengah malam (H+1)'}
+        pdf, _ = self._generate(row)
+        assert pdf.page == 1

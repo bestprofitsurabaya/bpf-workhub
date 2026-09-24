@@ -1698,7 +1698,7 @@ class OvertimeFormPDF(BPFBasePDF):
         self._signature_blocks(is_driver=is_driver)
         self.ln(6)
 
-        # Foto links
+        # Lampiran foto (v2.43.1: berdampingan, muat 1 halaman)
         self._photo_links(row, photos)
         self.ln(6)
 
@@ -1736,53 +1736,82 @@ class OvertimeFormPDF(BPFBasePDF):
         self.ln(2)
 
     # Max dimensi foto tersemat di Form PDF (mm)
-    _PHOTO_MAX_W = 170
-    _PHOTO_MAX_H = 60
+    _PHOTO_MAX_W = 82
+    _PHOTO_MAX_H = 110
 
     def _photo_links(self, row, photos=None):
-        """Lampiran foto: disematkan sebagai GAMBAR bila tersedia (file lokal
-        /uploads/... atau URL http publik), fallback tautan klik bila gagal.
-        Otomatis pindah halaman bila ruang tidak cukup."""
+        """Lampiran foto (v2.43.1) — DUA FOTO BERDAMPINGAN dalam satu baris:
+        kiri = FOTO MULAI OT, kanan = FOTO SELESAI OT (label diseragamkan
+        dengan watermark foto baru). Sebelumnya foto ditumpuk vertikal dgn
+        tinggi 60mm/foto sehingga form sering meluber ke halaman 2; kini
+        tinggi menyesuaikan sisa ruang halaman → form selalu 1 halaman
+        per OT per orang. Foto tidak tersedia → teks fallback per kolom.
+        """
         photos = photos or {}
-        foto_tujuan = photos.get('foto_selesai') or row.get('foto_selesai', '')
-        foto_selfie = photos.get('foto_mulai') or row.get('foto_mulai', '')
-        for label, ref in (('FOTO DI TUJUAN', foto_tujuan),
-                           ('FOTO SELFIE @OFFICE', foto_selfie)):
-            self._photo_block(label, ref)
-        self.ln(2)
+        foto_mulai = photos.get('foto_mulai') or row.get('foto_mulai', '')
+        foto_selesai = photos.get('foto_selesai') or row.get('foto_selesai', '')
+        refs = [('FOTO MULAI OT', foto_mulai),
+                ('FOTO SELESAI OT', foto_selesai)]
 
-    def _photo_block(self, label, ref):
-        ref = str(ref or '').strip()
-        if not ref:
-            self.set_font(self._font(), 'B', 9)
-            self.set_text_color(*INK)
-            self.cell(0, 5, f'{label}: Tidak tersedia', new_x='LMARGIN', new_y='NEXT')
-            self.ln(2)
-            return
-        img = self._load_photo_image(ref)
-        needed = 8 + (img[1] if img else 4) + 6
-        if self.get_y() + needed > self.h - 15:
-            self.add_page()
+        gap = 6
+        col_w = (self.w - self.l_margin - self.r_margin - gap) / 2
+        y_awal = self.get_y()
+        # Tinggi maksimum per foto: sisa ruang sampai batas bawah (footer
+        # 15mm) dikurangi label (5mm) + baris sumber (4mm) + jarak (2mm).
+        # Minimum 25mm agar foto tetap terbaca bila ruang sangat sempit.
+        max_h = max(25.0, (self.h - 15) - y_awal - 11)
+
+        imgs = []
+        for _, ref in refs:
+            img = self._load_photo_image(ref) if str(ref or '').strip() else None
+            if img:
+                buf, w_mm, h_mm = img
+                skala = min(1.0, self._PHOTO_MAX_W / w_mm, self._PHOTO_MAX_H / h_mm)
+                skala = min(skala, col_w / w_mm, max_h / h_mm)
+                imgs.append((buf, w_mm * skala, h_mm * skala))
+            else:
+                imgs.append(None)
+
+        # Label per kolom
         self.set_font(self._font(), 'B', 9)
         self.set_text_color(*INK)
-        self.cell(0, 5, label, new_x='LMARGIN', new_y='NEXT')
-        if img is None:
-            self.set_font(self._font(), '', 8)
-            self.set_text_color(0, 102, 204)
-            self.cell(0, 5, f'Klik untuk lihat foto: {ref}', link=ref, new_x='LMARGIN', new_y='NEXT')
-            self.set_text_color(*INK)
-            self.ln(3)
-            return
-        buf, w_mm, h_mm = img
-        x = self.l_margin + (self.w - self.l_margin - self.r_margin - w_mm) / 2
-        self.image(buf, x=x, y=self.get_y(), w=w_mm, h=h_mm)
-        self.set_y(self.get_y() + h_mm)
-        self.ln(1)
+        for i, (label, _) in enumerate(refs):
+            x = self.l_margin + i * (col_w + gap)
+            self.set_xy(x, y_awal)
+            self.cell(col_w, 5, label, align='C', new_x='RIGHT', new_y='TOP')
+
+        y_img = y_awal + 5
+        h_terpakai = 0
+        for i, (label, ref) in enumerate(refs):
+            x = self.l_margin + i * (col_w + gap)
+            self.set_xy(x, y_img)
+            img = imgs[i]
+            if img:
+                buf, w_mm, h_mm = img
+                self.image(buf, x=x + (col_w - w_mm) / 2, y=y_img, w=w_mm, h=h_mm)
+                h_terpakai = max(h_terpakai, h_mm)
+            else:
+                self.set_font(self._font(), '', 8)
+                self.set_text_color(*INK)
+                if str(ref or '').strip():
+                    self.set_text_color(0, 102, 204)
+                    self.multi_cell(col_w, 4, f'Foto tidak dapat dimuat:\n{ref}', align='C', link=ref)
+                else:
+                    self.cell(col_w, 5, 'Tidak tersedia', align='C')
+                self.set_text_color(*INK)
+
+        # Baris sumber per kolom + maju ke bawah foto tertinggi
+        self.set_xy(self.l_margin, y_img + h_terpakai + 1)
         self.set_font(self._font(), 'I', 6)
-        self.set_text_color(0, 102, 204)
-        self.cell(0, 4, f'Sumber foto: {ref}', align='C', link=ref, new_x='LMARGIN', new_y='NEXT')
+        for i, (label, ref) in enumerate(refs):
+            x = self.l_margin + i * (col_w + gap)
+            self.set_xy(x, y_img + h_terpakai + 1)
+            self.set_font(self._font(), 'I', 6)
+            self.set_text_color(0, 102, 204)
+            self.cell(col_w, 4, f'Sumber: {ref or "-"}'[:60], align='C', link=ref or None)
         self.set_text_color(*INK)
-        self.ln(3)
+        self.set_xy(self.l_margin, y_img + h_terpakai + 6)
+        self.ln(2)
 
     @staticmethod
     def _load_photo_image(ref):
