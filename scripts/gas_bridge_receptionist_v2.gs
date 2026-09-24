@@ -63,15 +63,16 @@
  *   Update kode → Deploy → Manage deployments → ✏️ → New version.
  */
 
-// ====== KONFIGURASI ======
+// ====== KONFIGURASI (TERISI — 2026-09-24) ======
 // ID spreadsheet PELAMAR KERJA — bagian /spreadsheets/d/<ID>/edit dari URL.
-var SHEET_ID_APPLICANTS = 'GANTI_DENGAN_ID_SPREADSHEET_PELAMAR';
+var SHEET_ID_APPLICANTS = '1VIavwXGX1e9R6dbfkmLltEUo0QgpgDEalUPxD2SF8a0';
 // ID spreadsheet IN-OUT KARYAWAN (file terpisah).
-var SHEET_ID_INOUT = 'GANTI_DENGAN_ID_SPREADSHEET_INOUT';
+var SHEET_ID_INOUT = '1oBmm62eY06QDzErmt1jWw0VX4usScd0hOKqX0I0o2gM';
 // Nama tab sumber data di masing-masing spreadsheet — push hanya untuk tab ini.
-var TAB_APPLICANTS = 'Form Responses'; // ganti sesuai nama tab pelamar
-var TAB_INOUT = 'In-Out';              // ganti sesuai nama tab in-out
-var WEBHOOK_URL = 'https://GANTI-HOST/api/receptionist/webhook';
+// Bila nama tidak cocok, tab PERTAMA file otomatis dipakai (fallback REC_v2_activeTab_).
+var TAB_APPLICANTS = 'H2';                   // tab data pelamar (nama asli di spreadsheet POPH1)
+var TAB_INOUT = 'In Out Karyawan BPF SBY';   // tab data in-out (nama asli di spreadsheet Rekap)
+var WEBHOOK_URL = 'https://nasbpfsby.duckdns.org:5000/api/receptionist/webhook';
 
 // ====== PENANDA VERSI ======
 var REC_MARKER = 'bpf-rec-sheet-2026-09-23-v2';
