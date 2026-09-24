@@ -212,3 +212,48 @@ class TestOvertimeFormPDFLayout:
                'waktu_selesai': '05:00', 'keterangan': 'OT lewat tengah malam (H+1)'}
         pdf, _ = self._generate(row)
         assert pdf.page == 1
+
+
+class TestDetailExcelKolomFoto:
+    """v2.43.2 — detail report Excel: kolom FOTO MULAI OT / FOTO SELESAI OT
+    (hyperlink bukti) — label seragam dengan watermark & viewer admin."""
+
+    def _rows(self):
+        return [{
+            'display_id': 'OTL-SBY-20260922-0001', 'nama': 'Edwin', 'posisi': 'OB',
+            'tanggal': '2026-09-21', 'waktu_mulai': '18:30', 'waktu_selesai': '20:30',
+            'keterangan': 'OT', 'gps_address': 'Jl. Contoh',
+            'foto_mulai': '/uploads/overtime/OTL-SBY-20260922-0001_mulai.jpg',
+            'foto_selesai': '/uploads/overtime/OTL-SBY-20260922-0001_selesai.jpg',
+        }]
+
+    def _workbook(self, modul='ob'):
+        from modules.pdf_generator import generate_overtime_detail_excel
+        buf = generate_overtime_detail_excel(
+            self._rows(), driver_name='Edwin', driver_role='OB',
+            date_label='2026-09-01 s/d 2026-09-30', modul=modul)
+        from openpyxl import load_workbook
+        return load_workbook(io.BytesIO(buf.getvalue())).active
+
+    def test_header_kolom_foto(self):
+        ws = self._workbook()
+        assert ws.cell(row=5, column=12).value == 'FOTO MULAI OT'
+        assert ws.cell(row=5, column=13).value == 'FOTO SELESAI OT'
+
+    def test_hyperlink_bukti_foto(self):
+        ws = self._workbook()
+        c12, c13 = ws.cell(row=6, column=12), ws.cell(row=6, column=13)
+        assert c12.value == 'Lihat bukti' and c12.hyperlink.target.endswith('_mulai.jpg')
+        assert c13.value == 'Lihat bukti' and c13.hyperlink.target.endswith('_selesai.jpg')
+
+    def test_tanpa_foto_tampil_strip(self):
+        rows = self._rows()
+        rows[0]['foto_mulai'] = ''
+        rows[0]['foto_selesai'] = ''
+        from modules.pdf_generator import generate_overtime_detail_excel
+        buf = generate_overtime_detail_excel(rows, driver_name='Edwin',
+                                             driver_role='OB', date_label='x', modul='ob')
+        from openpyxl import load_workbook
+        ws = load_workbook(io.BytesIO(buf.getvalue())).active
+        assert ws.cell(row=6, column=12).value == '-'
+        assert ws.cell(row=6, column=13).value == '-'

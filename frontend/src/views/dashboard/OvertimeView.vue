@@ -607,14 +607,14 @@ watch(tab, loadTab)
       </div>
       <template v-if="fotoUrl(fotoRow.foto_mulai) || fotoUrl(fotoRow.foto_selesai)">
         <div v-if="fotoUrl(fotoRow.foto_mulai)" class="field">
-          <label>📸 Foto Mulai</label>
+          <label>📸 Foto Mulai OT</label>
           <a :href="fotoUrl(fotoRow.foto_mulai)" target="_blank" rel="noopener">
             <img :src="fotoUrl(fotoRow.foto_mulai)" alt="Foto mulai overtime" loading="lazy"
                  style="width:100%;border-radius:8px;border:1px solid var(--border);" />
           </a>
         </div>
         <div v-if="fotoUrl(fotoRow.foto_selesai)" class="field">
-          <label>📸 Foto Selesai</label>
+          <label>📸 Foto Selesai OT</label>
           <a :href="fotoUrl(fotoRow.foto_selesai)" target="_blank" rel="noopener">
             <img :src="fotoUrl(fotoRow.foto_selesai)" alt="Foto selesai overtime" loading="lazy"
                  style="width:100%;border-radius:8px;border:1px solid var(--border);" />
@@ -624,8 +624,8 @@ watch(tab, loadTab)
       <p v-else class="empty">Tidak ada foto tersimpan untuk catatan ini.</p>
       <!-- v2.43.0 — ganti foto langsung dari viewer -->
       <div class="row" style="gap:8px;margin-top:12px;flex-wrap:wrap;">
-        <button v-if="fotoUrl(fotoRow.foto_mulai)" class="btn" @click="fiReplaceOpen(fotoRow, 'mulai')">🔄 Ganti Foto Mulai</button>
-        <button v-if="fotoUrl(fotoRow.foto_selesai)" class="btn" @click="fiReplaceOpen(fotoRow, 'selesai')">🔄 Ganti Foto Selesai</button>
+        <button v-if="fotoUrl(fotoRow.foto_mulai)" class="btn" @click="fiReplaceOpen(fotoRow, 'mulai')">🔄 Ganti Foto Mulai OT</button>
+        <button v-if="fotoUrl(fotoRow.foto_selesai)" class="btn" @click="fiReplaceOpen(fotoRow, 'selesai')">🔄 Ganti Foto Selesai OT</button>
       </div>
       <div class="row" style="justify-content:flex-end;margin-top:12px;">
         <button class="btn" @click="fotoRow = null">Tutup</button>
@@ -808,8 +808,8 @@ watch(tab, loadTab)
               <td>{{ fmtWaktu(r) }}</td>
               <td class="row-actions">
                 <button class="btn btn-xs" @click="openFoto(r)">📷</button>
-                <button v-if="r.foto_mulai" class="btn btn-xs" title="Ganti foto mulai" @click="fiReplaceOpen(r, 'mulai')">🔄 Mulai</button>
-                <button v-if="r.foto_selesai" class="btn btn-xs" title="Ganti foto selesai" @click="fiReplaceOpen(r, 'selesai')">🔄 Selesai</button>
+                <button v-if="r.foto_mulai" class="btn btn-xs" title="Ganti foto mulai OT" @click="fiReplaceOpen(r, 'mulai')">🔄 Mulai OT</button>
+                <button v-if="r.foto_selesai" class="btn btn-xs" title="Ganti foto selesai OT" @click="fiReplaceOpen(r, 'selesai')">🔄 Selesai OT</button>
               </td>
             </tr>
           </tbody>
@@ -826,7 +826,7 @@ watch(tab, loadTab)
     </Modal>
 
     <!-- Modal: ganti foto bukti -->
-    <Modal v-if="fiReplace" :title="'🔄 Ganti Foto ' + (fiReplace.slot === 'mulai' ? 'Mulai' : 'Selesai') + ' — ' + (fiReplace.row.display_id || fiReplace.row.nama || '')" @close="fiReplace = null">
+    <Modal v-if="fiReplace" :title="'🔄 Ganti Foto ' + (fiReplace.slot === 'mulai' ? 'Mulai OT' : 'Selesai OT') + ' — ' + (fiReplace.row.display_id || fiReplace.row.nama || '')" @close="fiReplace = null">
       <p class="muted" style="font-size:12px;">
         Pilih file foto pengganti (JPG/PNG, maks 5MB). Foto lama pada record ini akan ditimpa.
         Pastikan foto berasal dari user yang bersangkutan.

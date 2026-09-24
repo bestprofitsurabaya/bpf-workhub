@@ -1377,6 +1377,7 @@ def generate_overtime_detail_excel(rows, driver_name='', driver_role='DRIVER', d
     normal_font = Font(name='Calibri', size=10)
     header_fill = PatternFill(start_color='1F4E79', end_color='1F4E79', fill_type='solid')
     header_font_white = Font(name='Calibri', bold=True, size=10, color='FFFFFF')
+    link_font = Font(name='Calibri', size=10, color='0563C1', underline='single')
     thin_border = Border(
         left=Side(style='thin'), right=Side(style='thin'),
         top=Side(style='thin'), bottom=Side(style='thin')
@@ -1387,7 +1388,7 @@ def generate_overtime_detail_excel(rows, driver_name='', driver_role='DRIVER', d
     rupiah_format = '#,##0'
 
     # Title
-    ws.merge_cells('A1:K1')
+    ws.merge_cells('A1:M1')
     ws['A1'] = f'OVERTIME PERIODE {date_label}'
     ws['A1'].font = title_font
     ws['A1'].alignment = Alignment(horizontal='center')
@@ -1409,10 +1410,11 @@ def generate_overtime_detail_excel(rows, driver_name='', driver_role='DRIVER', d
     ws['H3'].font = normal_font
 
     # Headers
+    # v2.43.2: kolom L/M = bukti foto (hyperlink) — label seragam watermark
     if modul == 'ob':
-        headers = ['NO', 'TANGGAL TIMESTAMP', 'NO. FORM', 'NAMA', 'POSISI', 'TANGGAL OVERTIME', 'JAM MULAI', 'JAM SELESAI', 'KETERANGAN', 'LOKASI', 'BIAYA']
+        headers = ['NO', 'TANGGAL TIMESTAMP', 'NO. FORM', 'NAMA', 'POSISI', 'TANGGAL OVERTIME', 'JAM MULAI', 'JAM SELESAI', 'KETERANGAN', 'LOKASI', 'BIAYA', 'FOTO MULAI OT', 'FOTO SELESAI OT']
     else:
-        headers = ['NO', 'TANGGAL TIMESTAMP', 'NO. FORM', 'NAMA', 'PLAT KENDARAAN', 'TANGGAL OVERTIME', 'JAM MULAI', 'JAM SELESAI', 'KETERANGAN', 'LOKASI', 'BIAYA']
+        headers = ['NO', 'TANGGAL TIMESTAMP', 'NO. FORM', 'NAMA', 'PLAT KENDARAAN', 'TANGGAL OVERTIME', 'JAM MULAI', 'JAM SELESAI', 'KETERANGAN', 'LOKASI', 'BIAYA', 'FOTO MULAI OT', 'FOTO SELESAI OT']
     for col, h in enumerate(headers, 1):
         cell = ws.cell(row=5, column=col, value=h)
         cell.font = header_font_white
@@ -1478,8 +1480,18 @@ def generate_overtime_detail_excel(rows, driver_name='', driver_role='DRIVER', d
             else:
                 cell.alignment = center_align
 
-    # Column widths — landscape (A-K)
-    col_widths = {'A': 5, 'B': 22, 'C': 14, 'D': 22, 'E': 16, 'F': 16, 'G': 12, 'H': 12, 'I': 28, 'J': 28, 'K': 14}
+        # v2.43.2: kolom 12/13 — tautan bukti foto (label seragam watermark)
+        for col, ref in ((12, str(r.get('foto_mulai') or '').strip()),
+                         (13, str(r.get('foto_selesai') or '').strip())):
+            cell = ws.cell(row=row_num, column=col, value=('Lihat bukti' if ref else '-'))
+            cell.font = link_font if ref else normal_font
+            cell.border = thin_border
+            cell.alignment = center_align
+            if ref:
+                cell.hyperlink = ref
+
+    # Column widths — landscape (A-M)
+    col_widths = {'A': 5, 'B': 22, 'C': 14, 'D': 22, 'E': 16, 'F': 16, 'G': 12, 'H': 12, 'I': 28, 'J': 28, 'K': 14, 'L': 14, 'M': 16}
     for col_letter, w in col_widths.items():
         ws.column_dimensions[col_letter].width = w
 
@@ -1503,9 +1515,9 @@ def _generate_overtime_detail_csv(rows, driver_name='', driver_role='DRIVER', da
     writer.writerow([f'NAMA: {driver_name}', f'JABATAN: {driver_role}'])
     writer.writerow([])
     if modul == 'ob':
-        writer.writerow(['NO', 'TANGGAL TIMESTAMP', 'NO. FORM', 'NAMA', 'POSISI', 'TANGGAL OVERTIME', 'JAM MULAI', 'JAM SELESAI', 'KETERANGAN', 'LOKASI', 'BIAYA'])
+        writer.writerow(['NO', 'TANGGAL TIMESTAMP', 'NO. FORM', 'NAMA', 'POSISI', 'TANGGAL OVERTIME', 'JAM MULAI', 'JAM SELESAI', 'KETERANGAN', 'LOKASI', 'BIAYA', 'FOTO MULAI OT', 'FOTO SELESAI OT'])
     else:
-        writer.writerow(['NO', 'TANGGAL TIMESTAMP', 'NO. FORM', 'NAMA', 'PLAT KENDARAAN', 'TANGGAL OVERTIME', 'JAM MULAI', 'JAM SELESAI', 'KETERANGAN', 'LOKASI', 'BIAYA'])
+        writer.writerow(['NO', 'TANGGAL TIMESTAMP', 'NO. FORM', 'NAMA', 'PLAT KENDARAAN', 'TANGGAL OVERTIME', 'JAM MULAI', 'JAM SELESAI', 'KETERANGAN', 'LOKASI', 'BIAYA', 'FOTO MULAI OT', 'FOTO SELESAI OT'])
     for idx, r in enumerate(rows, 1):
         timestamp = ''
         if r.get('submitted_at'):
@@ -1527,6 +1539,7 @@ def _generate_overtime_detail_csv(rows, driver_name='', driver_role='DRIVER', da
             col5, str(r.get('tanggal', '-')),
             r.get('waktu_mulai', '-'), r.get('waktu_selesai', '-'),
             r.get('keterangan', '-'), lokasi, '',  # Biaya kosong
+            str(r.get('foto_mulai') or ''), str(r.get('foto_selesai') or ''),
         ])
     buf = io.BytesIO()
     buf.write(output.getvalue().encode('utf-8-sig'))
