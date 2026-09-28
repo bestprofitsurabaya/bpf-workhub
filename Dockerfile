@@ -46,9 +46,11 @@ COPY fonts/ /app/fonts/
 # Data directory untuk news_scraper (wp_sites.json, logs, dll)
 RUN mkdir -p /app/data/news_scraper
 
-# Auto-scrape cron: scrape + upload tiap jam 6,10,14,18 WIB
-RUN chmod +x /app/scripts/auto_scrape.sh && \
-    echo '0 6,10,14,18 * * * /bin/sh /app/scripts/auto_scrape.sh >> /app/data/news_scraper/auto_scrape.log 2>&1' >> /etc/cron.d/overtime-cleanup && \
+# Auto-scrape cron: scrape + upload tiap jam 6,10,14,18 WIB.
+# v2.45.1: wrapper mengekspor PATH dgn /usr/local/bin — python3 image slim
+# ada di sana, di luar PATH default cron (auto_scrape.log: 'python3: not found').
+RUN chmod +x /app/scripts/auto_scrape.sh /app/scripts/auto_scrape.py && \
+    echo '0 6,10,14,18 * * * /bin/bash /app/scripts/auto_scrape.sh >> /app/data/news_scraper/auto_scrape.log 2>&1' >> /etc/cron.d/overtime-cleanup && \
     crontab /etc/cron.d/overtime-cleanup && \
     touch /app/data/news_scraper/auto_scrape.log
 
