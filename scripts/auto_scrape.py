@@ -7,10 +7,19 @@ Log: /app/data/news_scraper/auto_scrape.log.
 v2.45.1: pre-filter duplikat kini memakai _fetch_all_posts (paginasi PINUH,
 sinkron dengan perbaikan routes.py) — dulu hanya 1.000 post terbaru sehingga
 artikel lama di-upload ulang sebagai duplikat. Ditambah dedup intra-batch.
+
+v2.45.2: FILTER USIA ARTIKEL — hanya artikel maksimal AUTO_SCRAPE_MAX_AGE_DAYS
+hari (default 1) yang di-upload, agar auto-scrape yang lama mati tidak
+mengejar backlog dan menumpuk artikel backdate di site (insiden 28 Sep:
+278 artikel lama ter-upload sekaligus). Mode --dry-run menampilkan apa yang
+AKAN di-upload tanpa menulis apa pun ke WordPress.
 """
+import argparse
 import json
+import os
 import sys
 import time
+from datetime import datetime, timedelta
 
 sys.path.insert(0, '/app')
 
@@ -35,7 +44,49 @@ def load_json(p, d):
         return d
 
 
+def filter_recent(articles, max_age_days, now=None):
+    """Buang artikel lebih tua dari max_age_days hari (anti-backdate backlog).
+
+    Usia dihitung dari publish_date artikel (YYYY-MM-DD). Artikel tanpa
+    tanggal yang bisa dibaca DIPERTAHANKAN (tidak mungkin dibuktikan lama).
+    Return (kept, stats) dgn stats = {old, nodate, newest_skipped}.
+    """
+    now = now or datetime.now()
+    cutoff = (now - timedelta(days=max_age_days)).date()
+    kept, stats = [], {'old': 0, 'nodate': 0, 'newest_skipped': ''}
+    for a in articles:
+        raw = (a.get('publish_date') or '').strip()
+        try:
+            d = datetime.strptime(raw[:10], '%Y-%m-%d').date()
+        except ValueError:
+            stats['nodate'] += 1
+            kept.append(a)
+            continue
+        if d >= cutoff:
+            kept.append(a)
+        else:
+            stats['old'] += 1
+            stats['newest_skipped'] = max(stats['newest_skipped'], raw)
+    return kept, stats
+
+
 def main():
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument('--max-age-days', type=float, default=None,
+                    help='Usia maks artikel (hari); override AUTO_SCRAPE_MAX_AGE_DAYS')
+    ap.add_argument('--dry-run', action='store_true',
+                    help='Jangan menulis apa pun ke WordPress — laporan saja')
+    args = ap.parse_args()
+
+    max_age_days = args.max_age_days
+    if max_age_days is None:
+        try:
+            max_age_days = float(os.environ.get('AUTO_SCRAPE_MAX_AGE_DAYS', '1'))
+        except ValueError:
+            max_age_days = 1.0
+    dry_run = args.dry_run
+    if dry_run:
+        _sl.log('INFO', 'AUTO', 'DRY-RUN: tidak ada tulisan ke WordPress')
     # 1. Scrape
     _sl.log('INFO', 'AUTO', 'Auto-scrape started')
     articles = scrape_newsmaker(pages=1)
@@ -62,6 +113,13 @@ def main():
     if len(deduped) != len(ready):
         _sl.log('INFO', 'AUTO', f'Dedup intra-batch: {len(ready)} -> {len(deduped)}')
     ready = deduped
+
+    # 2c. Filter usia: buang backlog lama (anti tumpukan backdate).
+    ready, age_stats = filter_recent(ready, max_age_days)
+    _sl.log('INFO', 'AUTO',
+            f"Filter usia (maks {max_age_days} hari): {age_stats['old']} artikel lama di-skip "
+            f"(terlama {age_stats['newest_skipped'] or 'n/a'}), "
+            f"{age_stats['nodate']} tanpa tanggal, sisa {len(ready)}")
 
     if not ready:
         _sl.log('WARNING', 'AUTO', 'No articles with content — aborting')
@@ -118,6 +176,13 @@ def main():
         # Pre-filter: only process articles NOT on WP
         new_arts = [a for a in ready if normalize_title(a.get('title', '')) not in existing]
         print(f'  {len(new_arts)} new articles (skipped {len(ready) - len(new_arts)} already on WP)', flush=True)
+
+        if dry_run:
+            print(f'  [DRY-RUN] {site_name}: {len(new_arts)} akan di-upload, 0 ditulis', flush=True)
+            _sl.log('INFO', 'AUTO',
+                    f'{site_name} (dry-run): {len(new_arts)} akan di-upload, '
+                    f'{len(ready) - len(new_arts)} sudah ada')
+            continue
 
         site_new = site_upd = site_err = 0
         for art in new_arts:
@@ -184,8 +249,12 @@ def main():
         _sl.log('INFO', 'AUTO', f'{site_name}: {site_new} new, {site_upd} update, {site_err} errors')
         print(f'  {site_name}: {site_new} new, {site_upd} update, {site_err} errors', flush=True)
 
-    _sl.log('INFO', 'AUTO', f'Auto-scrape done: {total_new} new, {total_upd} update, {total_err} errors')
-    print(f'DONE: {total_new} new, {total_upd} update, {total_err} errors', flush=True)
+    done_msg = f'Auto-scrape done: {total_new} new, {total_upd} update, {total_err} errors'
+    if dry_run:
+        done_msg += ' (DRY-RUN — tidak ada yang ditulis)'
+    _sl.log('INFO', 'AUTO', done_msg)
+    print(f'DONE: {total_new} new, {total_upd} update, {total_err} errors' +
+          (' (DRY-RUN)' if dry_run else ''), flush=True)
 
 
 if __name__ == '__main__':
