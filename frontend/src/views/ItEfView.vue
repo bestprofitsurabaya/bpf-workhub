@@ -64,6 +64,10 @@ const progressInterval = ref(null)
 const dupSite = ref('')
 const duplicates = ref([])
 const dupBusy = ref(false)
+// Bulk cleanup duplikat (keep terbaru per grup)
+const cleanupBusy = ref(false)
+const cleanupDone = ref(0)   // total terhapus pada sesi loop ini
+const cleanupStartTs = ref(0) // guard anti-loop: reset saat checkDuplicates
 
 // Backlinks
 const showBacklinks = ref(false)
@@ -294,16 +298,62 @@ async function uploadToWP() {
 async function checkDuplicates() {
   if (!dupSite.value) return
   dupBusy.value = true; duplicates.value = []
+  // reset status sesi cleanup saat site diganti / pengecekan baru dimulai
+  if (cleanupStartTs.value && Date.now() - cleanupStartTs.value > 10 * 60 * 1000) {
+    cleanupDone.value = 0; cleanupStartTs.value = 0
+  }
   try { duplicates.value = (await api('/api/scraper/duplicates', { method: 'POST', body: { site_name: dupSite.value } })).duplicates || [] }
   catch { /* noop */ }
   finally { dupBusy.value = false }
 }
+// post_ids terurut TERBARU-dulu (elemen pertama = keep). Dulu bug: seluruh
+// anggota grup dikirim → artikel bisa hilang total. Kini keep_ids dilindungi
+// server + klien hanya mengirim sisanya.
 async function deleteDuplicate(postIds) {
-  if (!confirm(`Hapus ${postIds.length} duplikat?`)) return
+  if (!postIds?.length) return
+  const keepId = postIds[0]
+  const toDelete = postIds.slice(1)
+  if (!toDelete.length) { msg.value = 'ℹ️ Hanya ada 1 post di grup ini — tidak ada yang perlu dihapus'; return }
+  if (!confirm(`Hapus ${toDelete.length} duplikat dan simpan 1 terbaru (post #${keepId})?`)) return
   dupBusy.value = true
-  try { await api('/api/scraper/duplicates/delete', { method: 'POST', body: { site_name: dupSite.value, post_ids: postIds } }); await checkDuplicates() }
-  catch { /* noop */ }
+  try {
+    const r = await api('/api/scraper/duplicates/delete', {
+      method: 'POST',
+      body: { site_name: dupSite.value, post_ids: toDelete, keep_ids: [keepId] },
+    })
+    msg.value = `🗑 ${r.deleted} duplikat dihapus${r.failed ? `, ${r.failed} gagal` : ''} — tersimpan post #${keepId}`
+    await checkDuplicates()
+    loadLog()
+  }
+  catch (e) { msg.value = '❌ ' + e.message }
   finally { dupBusy.value = false }
+}
+// Bulk cleanup: hapus SEMUA duplikat di site (keep terbaru per grup).
+// Server memproses maks 150 hapus per request, jadi di-loop sampai remaining=0.
+async function cleanupAllDuplicates() {
+  if (!dupSite.value || cleanupBusy.value) return
+  if (!confirm(`⚠️ Hapus SEMUA artikel duplikat di "${dupSite.value}"?\n\nHanya duplikat yang dihapus — dari tiap grup duplikat, artikel TERBARU dipertahankan. Tindakan ini PERMANEN.`)) return
+  cleanupBusy.value = true
+  if (!cleanupStartTs.value) { cleanupDone.value = 0; cleanupStartTs.value = Date.now() }
+  try {
+    let rounds = 0
+    while (rounds < 40) {
+      rounds++
+      if (Date.now() - cleanupStartTs.value > 10 * 60 * 1000) { msg.value = '⏹ Loop cleanup dihentikan (>10 menit). Cek ulang dan lanjutkan jika perlu.'; break }
+      const r = await api('/api/scraper/duplicates/cleanup', {
+        method: 'POST',
+        body: { site_name: dupSite.value },
+      })
+      cleanupDone.value += r.deleted || 0
+      msg.value = `🧹 Cleanup berjalan: ${cleanupDone.value} duplikat terhapus...`
+      if (!r.remaining || !r.deleted) break
+    }
+    msg.value = `✅ Cleanup selesai: ${cleanupDone.value} duplikat dihapus dari "${dupSite.value}"`
+    await checkDuplicates()
+    loadLog()
+  }
+  catch (e) { msg.value = '❌ ' + e.message }
+  finally { cleanupBusy.value = false; cleanupStartTs.value = 0 }
 }
 
 // --- Delete All ---
@@ -673,13 +723,22 @@ onMounted(() => { loadSites(); loadDashboard(); document.documentElement.classLi
               {{ dupBusy ? '⏳ ...' : '🗑 Hapus Semua' }}
             </button>
           </div>
+          <div class="scrape-controls" style="margin-top:8px">
+            <span class="empty" style="flex:1;padding:4px 0">💡 Duplikat dikenali dari judul (abaikan kapital/tanda baca). Yang disimpan: versi TERBARU tiap grup.</span>
+            <button class="btn btn-sm btn-danger" :disabled="cleanupBusy || dupBusy || !dupSite" @click="cleanupAllDuplicates">
+              {{ cleanupBusy ? `🧹 Menghapus... (${cleanupDone})` : '🧹 Hapus Duplikat (Simpan Terbaru)' }}
+            </button>
+          </div>
+          <div v-if="cleanupDone > 0" class="empty" style="color:#16a34a;padding:6px 0 0">
+            ✅ Sesi ini: {{ cleanupDone }} duplikat sudah dihapus — klik Check untuk memastikan bersih.
+          </div>
           <div v-if="duplicates.length" class="dup-list">
             <div v-for="(d, i) in duplicates" :key="i" class="dup-item">
               <div class="dup-info">
                 <span class="dup-title">{{ d.title }}</span>
                 <span class="badge badge-red">{{ d.count }}x</span>
               </div>
-              <button class="btn btn-sm btn-danger" @click="deleteDuplicate(d.post_ids)">🗑 Hapus {{ d.count }}</button>
+              <button v-if="d.count > 1" class="btn btn-sm btn-danger" :disabled="dupBusy || cleanupBusy" @click="deleteDuplicate(d.post_ids)">🗑 Hapus {{ d.count - 1 }} duplikat</button>
             </div>
           </div>
           <div v-else-if="dupSite && !dupBusy" class="empty">Tidak ada duplikat ✅</div>

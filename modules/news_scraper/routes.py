@@ -5,7 +5,6 @@ Flask route handlers for the news scraper module.
 
 import os, json, time, io, csv, re, threading, html
 from datetime import datetime
-from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from flask import Blueprint, request, jsonify, session, Response
 
@@ -114,6 +113,22 @@ def _sanitize_csv(val):
     if s and s[0] in ('=', '+', '-', '@', '\t', '\r'):
         s = "'" + s
     return s
+
+
+def _build_excerpt(plain_text: str, limit: int = 290) -> str:
+    """Bangun excerpt polos dari konten artikel (untuk meta description Rank Math).
+
+    Rank Math memakai excerpt post sebagai meta description; bila kosong,
+    ia fallback ke konten dan isi <script> non-teks bisa bocor ke snippet.
+    Excerpt dipotong di batas kata pada ±290 karakter (aman utk snippet Google).
+    """
+    text = re.sub(r'<[^>]+>', ' ', plain_text or '')
+    text = html.unescape(text)
+    text = re.sub(r'\s+', ' ', text).strip()
+    if len(text) <= limit:
+        return text
+    cut = text[:limit].rsplit(' ', 1)[0]
+    return (cut if cut else text[:limit]) + '…'
 
 
 # City-name aliases so branch codes (e.g. "SBY") can be matched against site
@@ -480,28 +495,42 @@ def _upload_articles_to_site(site_name, articles, settings, task_prefix='upload'
     authority_sites = bl_config.get('authority_sites', DEFAULT_AUTHORITY_SITES)
     keyword_mapping = bl_config.get('keyword_mapping', DEFAULT_KEYWORD_MAPPING)
 
-    # ── Fetch ALL existing posts from WordPress (up to 1000) ──
+    # ── Fetch existing posts dari WordPress untuk pre-filter duplikat ──
+    # v2.44: paginasi PINUH (dulu hanya 1000 post terbaru — di site besar seperti
+    # BPF Surabaya ~9400 post, artikel lama tidak terdeteksi sehingga upload
+    # membuat duplikat baru di setiap batch). Bila paginasi tidak lengkap
+    # (cap _MAX_POST_PAGES tercapai / error transport), fallback search
+    # per-artikel di bawah yang menutup celahnya.
     existing_titles = set()
     existing_norm_map = {}  # normalized_title -> post_id
+    existing_fetch_complete = False
     try:
-        for page in range(1, 11):
-            r = client.get_posts(nonce_or_err, params={"per_page": 100, "page": page, "orderby": "date", "order": "desc"})
-            if r.status_code != 200 or not r.json():
-                break
-            for post in r.json():
-                t = post.get('title', {}).get('rendered', '')
-                existing_titles.add(t)
-                existing_norm_map[normalize_title(t)] = post.get('id')
-            if len(r.json()) < 100:
-                break
-            time.sleep(0.1)
-    except Exception:
-        pass
+        all_existing, existing_fetch_complete = _fetch_all_posts(client, nonce_or_err)
+        for post in all_existing:
+            t = post.get('title', {}).get('rendered', '')
+            existing_titles.add(t)
+            existing_norm_map[normalize_title(t)] = post.get('id')
+    except Exception as e:
+        # Jangan diam-diam: gagal fetch = pre-filter lemah = risiko duplikat.
+        _sl.log('ERROR', 'UPLOAD',
+                f'Gagal mengambil existing posts untuk pre-filter: {str(e)[:200]}')
+
+    if not existing_fetch_complete:
+        _sl.log('WARNING', 'UPLOAD',
+                'Paginasi existing posts TIDAK lengkap (cap/error) — '
+                'fallback search per-artikel aktif untuk mencegah duplikat')
 
     # ── Pre-filter: only process articles NOT yet on WordPress ──
+    # Tiga lapis: (1) norm_map hasil paginasi penuh, (2) dedup intra-batch
+    # (judul sama 2x dalam satu batch scrape), (3) fallback search WP saat
+    # paginasi existing tidak lengkap (site > ~5000 post).
     new_articles = []
+    seen_norm_in_batch = set()
     skipped_existing = 0
+    skipped_dup_batch = 0
     skipped_no_content = 0
+    _MAX_WP_SEARCHES = 60   # batas fallback search per upload (biaya HTTP)
+    wp_searches_used = 0
     for article in articles:
         title = article.get('title', '')
         content = article.get('content', '')
@@ -512,11 +541,33 @@ def _upload_articles_to_site(site_name, articles, settings, task_prefix='upload'
         if norm in existing_norm_map:
             skipped_existing += 1
             continue
+        if norm in seen_norm_in_batch:
+            skipped_dup_batch += 1
+            continue
+        if not existing_fetch_complete and wp_searches_used < _MAX_WP_SEARCHES:
+            try:
+                r = client.search_posts(title, nonce_or_err, timeout=15)
+                wp_searches_used += 1
+                if r.status_code == 200:
+                    for post in r.json():
+                        if _normalized_post_title(post) == norm:
+                            existing_norm_map[norm] = post.get('id')
+                            skipped_existing += 1
+                            break
+                    else:
+                        seen_norm_in_batch.add(norm)
+                        new_articles.append(article)
+                    continue
+            except Exception:
+                pass
+        seen_norm_in_batch.add(norm)
         new_articles.append(article)
 
     _sl.log('INFO', 'UPLOAD',
             f'Pre-filter: {len(articles)} scraped → {len(new_articles)} new, '
-            f'{skipped_existing} already on WP, {skipped_no_content} no content')
+            f'{skipped_existing} already on WP, {skipped_dup_batch} duplikat intra-batch, '
+            f'{skipped_no_content} no content (paginasi existing: '
+            f'{"lengkap" if existing_fetch_complete else "TIDAK lengkap"})')
     _set_progress(task_id, {'stage': 'filter', 'progress': 15,
                             'message': f'{len(new_articles)} artikel baru dari {len(articles)} — {skipped_existing} sudah ada di WP',
                             'total': len(new_articles), 'current': 0})
@@ -576,9 +627,12 @@ def _upload_articles_to_site(site_name, articles, settings, task_prefix='upload'
                 _sl.tag_create(tag_name, created=False, error=str(e)[:100])
                 print(f'[scraper-tag] Failed to create tag "{tag_name}": {e}')
 
-        schemas = build_advanced_schema(title, content, publish_date, publish_time, article.get('image_url', ''))
-        schema_tags = ''.join(f'<script type="application/ld+json">{json.dumps(s, ensure_ascii=False)}</script>' for s in schemas)
-        html_content = schema_tags + html_content
+        # Catatan (25 Sep 2026): injeksi <script type="application/ld+json"> ke konten
+        # DIHAPUS. Plugin SEO di WordPress (Rank Math) sudah menghasilkan schema-nya
+        # sendiri di <head>; blok ld+json di awal konten membuat isi JSON bocor ke
+        # meta description (Rank Math fallback ke konten) + schema duplikat di halaman.
+        # build_advanced_schema() tetap tersedia bila nanti schema ingin di-inject
+        # lewat <head> (mis. via plugin/filter), bukan ke dalam konten.
 
         featured_img_html = ''
         featured_media_id = 0
@@ -607,11 +661,11 @@ def _upload_articles_to_site(site_name, articles, settings, task_prefix='upload'
                 print(f'[scraper-img] Upload FAILED for "{title[:50]}" — image_url={image_url[:80]}')
 
         # Safety: WordPress may reject posts with extremely large content.
-        # Truncate HTML body (keep schema + CTA) if over ~120KB.
+        # Truncate HTML body (keep CTA + source backlink) if over ~120KB.
         _MAX_CONTENT_BYTES = 120 * 1024
         if len(html_content.encode('utf-8')) > _MAX_CONTENT_BYTES:
             _sl.log('WARNING', 'UPLOAD', f'Content too large ({len(html_content.encode("utf-8"))} bytes) for "{title[:50]}" — truncating')
-            # Keep the schema scripts at the start, truncate the article body
+            # Potong badan artikel sebelum CTA widget bila marker-nya ada
             schema_end = html_content.rfind('<!-- BPF CTA Widget -->')
             if schema_end > 0:
                 html_content = html_content[:schema_end]
@@ -620,6 +674,9 @@ def _upload_articles_to_site(site_name, articles, settings, task_prefix='upload'
         post_data = {
             'title': title,
             'content': html_content,
+            # Excerpt polos — Rank Math memakainya sebagai meta description.
+            # Tanpa excerpt, Rank Math fallback ke konten dan bisa menyerap isi tag.
+            'excerpt': _build_excerpt(content),
             'status': 'publish',
             'date': f"{publish_date}T{publish_time or '08:00'}:00",
             'tags': tag_ids,
@@ -694,6 +751,9 @@ def _upload_articles_to_site(site_name, articles, settings, task_prefix='upload'
                     new_count += 1
                     article_detail['status'] = 'new'
                     article_detail['post_id'] = r.json().get('id')
+                    # Registrasi post baru ke norm_map — melindungi artikel
+                    # berjudul sama berikutnya dalam batch yang sama.
+                    existing_norm_map[normalize_title(title)] = article_detail['post_id']
                     article_detail['seo_score'] = seo_score
                     _sl.upload_article(post_id=r.json().get('id'), title=title[:50], status='new', seo_score=seo_score)
                 else:
@@ -876,6 +936,64 @@ def _normalized_post_title(post):
     return normalize_title(html.unescape(re.sub(r'<[^>]+>', '', raw)))
 
 
+def _build_duplicate_groups(posts):
+    """Kelompokkan post dengan judul ternormalisasi sama.
+
+    Return list {key, title, keep_id, keep_date, delete_ids, delete_dates}.
+    Di dalam grup post terurut TERBARU-dulu (elemen pertama = yang dipertahankan
+    secara default), dan grup terurut dari yang paling banyak duplikatnya.
+    """
+    by_norm = {}
+    for post in posts:
+        key = _normalized_post_title(post)
+        if not key:
+            continue
+        by_norm.setdefault(key, []).append(post)
+    groups = []
+    for key, plist in by_norm.items():
+        if len(plist) < 2:
+            continue
+        plist.sort(key=lambda p: p.get('date', ''), reverse=True)
+        groups.append({
+            'key': key,
+            'title': (plist[0].get('title') or {}).get('rendered', ''),
+            'keep_id': plist[0]['id'],
+            'keep_date': plist[0].get('date', ''),
+            'delete_ids': [p['id'] for p in plist[1:]],
+            'delete_dates': [p.get('date', '') for p in plist[1:]],
+        })
+    groups.sort(key=lambda g: len(g['delete_ids']), reverse=True)
+    return groups
+
+
+_DELETE_RETRY_BASE_SLEEP = 5   # detik; backoff 429/5xx (di-test dipatch ke 0)
+_DELETE_WORKERS = 5            # thread hapus paralel (sama dgn delete-all)
+_CLEANUP_LIMIT_PER_REQUEST = 150  # maks hapus per request cleanup (hindari timeout worker)
+
+
+def _delete_post_force(client, base_url, nonce, pid, max_attempts=4):
+    """Hapus permanen satu post (force=true) dengan retry utk 429/5xx.
+
+    404/410 dianggap sukses (sudah terhapus — aman untuk run resume).
+    Shared-host sering throttle bulk delete, jadi hormati Retry-After.
+    """
+    for attempt in range(max_attempts):
+        try:
+            r = client.request('DELETE', f"{base_url}/{pid}", nonce,
+                               params={'force': True}, timeout=60)
+            if r.status_code in (200, 404, 410):
+                return True
+            if r.status_code == 429 or r.status_code >= 500:
+                wait = float((getattr(r, 'headers', {}) or {}).get('Retry-After')
+                             or _DELETE_RETRY_BASE_SLEEP * attempt)
+                time.sleep(min(wait, 30))
+                continue
+            return False
+        except Exception:
+            time.sleep(min(2 * attempt + 1, 10))
+    return False
+
+
 @news_scraper_bp.route('/api/scraper/duplicates', methods=['POST'])
 @role_required(SCRAPER_ROLES)
 def check_duplicates():
@@ -900,29 +1018,15 @@ def check_duplicates():
 
         # Group by normalized title so near-identical titles (HTML entities,
         # punctuation, case, stray whitespace) are detected as duplicates.
-        norm_count = Counter()
-        posts_by_norm = {}
-        display_title = {}
-        for post in posts:
-            raw = post.get('title', {}).get('rendered', '')
-            key = _normalized_post_title(post)
-            if not key:
-                continue
-            norm_count[key] += 1
-            posts_by_norm.setdefault(key, []).append(post)
-            if key not in display_title or len(raw) < len(display_title[key]):
-                display_title[key] = raw
-
+        # post_ids terurut TERBARU-dulu: elemen pertama = yang dipertahankan.
         duplicates = []
-        for key, count in norm_count.items():
-            if count > 1:
-                plist = posts_by_norm[key]
-                duplicates.append({
-                    'title': display_title[key],
-                    'count': count,
-                    'post_ids': [p['id'] for p in plist],
-                    'dates': [p.get('date', '') for p in plist],
-                })
+        for g in _build_duplicate_groups(posts):
+            duplicates.append({
+                'title': g['title'],
+                'count': len(g['delete_ids']) + 1,
+                'post_ids': [g['keep_id']] + g['delete_ids'],
+                'dates': [g['keep_date']] + g['delete_dates'],
+            })
 
         return jsonify({'ok': True, 'duplicates': duplicates, 'total_posts': len(posts)})
     except Exception as e:
@@ -932,10 +1036,17 @@ def check_duplicates():
 @news_scraper_bp.route('/api/scraper/duplicates/delete', methods=['POST'])
 @role_required(SCRAPER_ROLES)
 def delete_duplicates():
-    """Delete duplicate articles (keep latest only)."""
+    """Hapus duplikat dari grup yang diberikan.
+
+    Semantik keep-TERBARU: post pertama tiap grup (post_ids[0], terbaru menurut
+    check_duplicates) SELALU dipertahankan dan TIDAK BOLEH ikut terhapus bila
+    klien mengirimnya — ini menutup bug lama di mana tombol "Hapus N" mengirim
+    seluruh anggota grup sehingga artikel bisa hilang total.
+    """
     d = request.get_json(force=True)
     site_name = (d.get('site_name') or '').strip()
     post_ids_to_delete = d.get('post_ids', [])
+    keep_ids = set(d.get('keep_ids') or [])
 
     if not site_name or not post_ids_to_delete:
         return jsonify({'error': 'site_name dan post_ids wajib'}), 400
@@ -950,18 +1061,113 @@ def delete_duplicates():
     if not login_ok:
         return jsonify({'ok': False, 'error': f'Login gagal: {nonce_or_err}', 'deleted': 0}), 401
 
+    protected = []
     deleted = 0
+    failed = 0
+    base = site['wp_url']
     for pid in post_ids_to_delete:
-        try:
-            r = client.request('DELETE', f"{site['wp_url']}/{pid}", nonce_or_err,
-                               params={'force': True}, timeout=15)
-            if r.status_code == 200:
-                deleted += 1
-        except Exception:
-            pass
+        if pid in keep_ids:
+            protected.append(pid)
+            continue
+        if _delete_post_force(client, base, nonce_or_err, pid):
+            deleted += 1
+        else:
+            failed += 1
 
-    _log_scraper(f"Deleted {deleted} duplicate posts", session.get('user_name', 'unknown'))
-    return jsonify({'ok': True, 'deleted': deleted})
+    _log_scraper({
+        'level': 'WARNING' if failed else 'INFO',
+        'category': 'DELETE_ALL',
+        'msg': f"Hapus duplikat: {deleted} post dihapus dari '{site_name}' "
+               f"({failed} gagal, {len(protected)} dilindungi)",
+        'extra': {
+            'user': session.get('user_name', 'unknown'),
+            'site': site_name,
+            'deleted': deleted,
+            'failed': failed,
+            'protected': len(protected),
+        },
+    }, session.get('user_name', 'unknown'))
+    return jsonify({'ok': True, 'deleted': deleted, 'failed': failed,
+                    'protected': protected})
+
+
+@news_scraper_bp.route('/api/scraper/duplicates/cleanup', methods=['POST'])
+@role_required(SCRAPER_ROLES)
+def cleanup_duplicates():
+    """BULK: hapus SEMUA duplikat di satu site, simpan yang terbaru per grup.
+
+    Ini aksi "hapus masal yang aman" (beda dgn delete-all yang mengosongkan
+    site): hanya anggota grup duplikat selain post terbaru yang dihapus.
+    `limit` membatasi jumlah hapus per request (default 150) supaya worker
+    Flask tidak timeout — UI otomatis mengulang sampai bersih.
+    """
+    try:
+        d = request.get_json(force=True) or {}
+        site_name = (d.get('site_name') or '').strip()
+        if not site_name:
+            return jsonify({'error': 'Pilih WordPress site'}), 400
+        try:
+            limit = int(d.get('limit') or _CLEANUP_LIMIT_PER_REQUEST)
+        except (TypeError, ValueError):
+            limit = _CLEANUP_LIMIT_PER_REQUEST
+        limit = max(1, min(limit, 500))
+        keep_oldest = bool(d.get('keep_oldest', False))
+
+        sites = _load_json(WP_SITES_FILE, {})
+        if site_name not in sites:
+            return jsonify({'error': f'Site "{site_name}" tidak ditemukan'}), 404
+
+        site = sites[site_name]
+        client = _make_wp_client(site)
+        login_ok, nonce_or_err = client.login()
+        if not login_ok:
+            return jsonify({'ok': False, 'error': f'Login gagal: {nonce_or_err}', 'deleted': 0}), 401
+
+        posts, complete = _fetch_all_posts(client, nonce_or_err)
+        groups = _build_duplicate_groups(posts)
+        if keep_oldest:
+            for g in groups:
+                g['keep_id'], g['keep_date'] = g['delete_ids'][-1], g['delete_dates'][-1]
+                g['delete_ids'], g['delete_dates'] = g['delete_ids'][:-1], g['delete_dates'][:-1]
+                g['delete_ids'] = [i for i in g['delete_ids'] if i != g['keep_id']]
+
+        delete_ids = [pid for g in groups for pid in g['delete_ids']][:limit]
+        remaining = max(0, (sum(len(g['delete_ids']) for g in groups)) - len(delete_ids))
+
+        def _one(pid):
+            return 1 if _delete_post_force(client, site['wp_url'], nonce_or_err, pid) else 0
+
+        deleted = 0
+        with ThreadPoolExecutor(max_workers=_DELETE_WORKERS) as pool:
+            for ok in pool.map(_one, delete_ids):
+                deleted += ok
+
+        failed = len(delete_ids) - deleted
+        _log_scraper({
+            'level': 'WARNING' if failed else 'INFO',
+            'category': 'DELETE_ALL',
+            'msg': f"Cleanup duplikat '{site_name}': {deleted} dihapus "
+                   f"({len(groups)} grup duplikat, {remaining} tersisa)",
+            'extra': {
+                'user': session.get('user_name', 'unknown'),
+                'site': site_name,
+                'deleted': deleted,
+                'failed': failed,
+                'remaining': remaining,
+                'duplicate_groups': len(groups),
+                'pagination_complete': complete,
+                'keep': 'oldest' if keep_oldest else 'newest',
+            },
+        }, session.get('user_name', 'unknown'))
+        return jsonify({
+            'ok': True, 'deleted': deleted, 'failed': failed,
+            'duplicate_groups': len(groups),
+            'remaining': remaining,
+            'total_posts': len(posts),
+            'pagination_complete': complete,
+        })
+    except Exception as e:
+        return jsonify({'ok': False, 'error': f'Cleanup duplikat gagal: {str(e)}', 'deleted': 0}), 500
 
 
 # ----- DELETE ALL POSTS -----

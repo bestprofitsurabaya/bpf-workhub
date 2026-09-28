@@ -180,3 +180,70 @@ describe('ItEfView — activity log modal (siapa menghapus apa)', () => {
     expect(w.text()).not.toContain('Upload finished')
   })
 })
+
+describe('ItEfView — cleanup duplikat (bulk keep-terbaru) + proteksi keep_ids', () => {
+  beforeEach(() => {
+    vi.stubGlobal('confirm', vi.fn(() => true))
+  })
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.clearAllMocks()
+  })
+
+  const cleanupCalls = () => apiMock.mock.calls.filter(([p]) => p.startsWith('/api/scraper/duplicates/cleanup'))
+  const deleteCalls = () => apiMock.mock.calls.filter(([p]) => p.startsWith('/api/scraper/duplicates/delete'))
+
+  it('tombol cleanup → loop sampai remaining=0, pesan total terhapus', async () => {
+    let round = 0
+    const w = await mountSeoTab({
+      '/api/scraper/duplicates/cleanup': () => {
+        round++
+        return round < 3 ? { ok: true, deleted: 2, remaining: 5 } : { ok: true, deleted: 1, remaining: 0 }
+      },
+    })
+    const btn = w.findAll('button').find(b => b.text().includes('Simpan Terbaru'))
+    await btn.trigger('click')
+    await flushPromises()
+
+    expect(cleanupCalls().length).toBe(3)
+    for (const [, opts] of cleanupCalls()) expect(opts.body.site_name).toBe('TestSite')
+    expect(w.text()).toContain('Cleanup selesai: 5 duplikat dihapus')
+  })
+
+  it('server error → pesan error, loop berhenti', async () => {
+    const w = await mountSeoTab({
+      '/api/scraper/duplicates/cleanup': () => Promise.reject(new Error('boom')),
+    })
+    const btn = w.findAll('button').find(b => b.text().includes('Simpan Terbaru'))
+    await btn.trigger('click')
+    await flushPromises()
+
+    expect(cleanupCalls().length).toBe(1)
+    expect(w.text()).toContain('boom')
+  })
+
+  it('hapus per-grup hanya mengirim duplikat (keep_ids terlindungi)', async () => {
+    const w = await mountSeoTab({
+      // DUPLICATES[0]: count 3 → post_ids [1,2,3]; keep #1, kirim [2,3]
+      '/api/scraper/duplicates/delete': { ok: true, deleted: 2, failed: 0, protected: [1] },
+    })
+    const btns = w.findAll('button').filter(b => b.text().includes('Hapus 2 duplikat'))
+    expect(btns.length).toBeGreaterThan(0)
+    await btns[0].trigger('click')
+    await flushPromises()
+
+    const calls = deleteCalls()
+    expect(calls).toHaveLength(1)
+    expect(calls[0][1].body).toEqual({ site_name: 'TestSite', post_ids: [2, 3], keep_ids: [1] })
+  })
+
+  it('grup single-post tidak mengirim request hapus', async () => {
+    const w = await mountSeoTab({
+      '/api/scraper/duplicates': { ok: true, duplicates: [{ title: 'Sendirian', count: 1, post_ids: [7], dates: [] }], total_posts: 1 },
+    })
+    // grup count=1 tidak merender tombol hapus per-grup (pola "Hapus N duplikat")
+    const btns = w.findAll('button').filter(b => /Hapus \d+ duplikat/.test(b.text()))
+    expect(btns.length).toBe(0)
+    expect(deleteCalls()).toHaveLength(0)
+  })
+})
