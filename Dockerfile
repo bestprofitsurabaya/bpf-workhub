@@ -49,10 +49,17 @@ RUN mkdir -p /app/data/news_scraper
 # Auto-scrape cron: scrape + upload tiap jam 6,10,14,18 WIB.
 # v2.45.1: wrapper mengekspor PATH dgn /usr/local/bin — python3 image slim
 # ada di sana, di luar PATH default cron (auto_scrape.log: 'python3: not found').
+#
+# v2.45.2: cron auto-scrape DIMATIKAN atas keputusan user (28 Sep 2026).
+# Alasan: batch catch-up meng-upload 278 artikel sekaligus dgn tanggal
+# backdate dari artikel sumbernya — hasil di site terlihat jelek dan
+# sudah di-rollback. Script dibiarkan tersedia utk pemakaian manual:
+#   docker exec bbm_web /bin/bash /app/scripts/auto_scrape.sh
+# Untuk mengaktifkan lagi: hapus komentar pada blok RUN di bawah lalu rebuild.
 RUN chmod +x /app/scripts/auto_scrape.sh /app/scripts/auto_scrape.py && \
-    echo '0 6,10,14,18 * * * /bin/bash /app/scripts/auto_scrape.sh >> /app/data/news_scraper/auto_scrape.log 2>&1' >> /etc/cron.d/overtime-cleanup && \
-    crontab /etc/cron.d/overtime-cleanup && \
     touch /app/data/news_scraper/auto_scrape.log
+# RUN echo '0 6,10,14,18 * * * /bin/bash /app/scripts/auto_scrape.sh >> /app/data/news_scraper/auto_scrape.log 2>&1' >> /etc/cron.d/overtime-cleanup && \
+#     crontab /etc/cron.d/overtime-cleanup
 
 # SPA bundle hasil build Vue (harus paling akhir agar tidak tertimpa COPY static/)
 COPY --from=frontend-build /build/dist/ /app/static/app/
