@@ -400,6 +400,67 @@ class TestNcShare:
         d = r.get_json()
         assert d['urls'] == ['https://nc/dl']
 
+    def test_delete_job_purges_share_folder(self, client, monkeypatch):
+        """DELETE job → folder share publik ikut dihapus (retensi cermin)."""
+        _login(client, 'it_sby')
+        job = {'id': 'tc000001', 'user': 'it_sby', 'status': 'done',
+               'items': [], 'created_at': 0, 'finished_at': 1,
+               '_base': '/tmp/nonexistent-tc',
+               '_nc': {'auto': True, 'results': ['https://nc/dl'], 'failed': False}}
+        monkeypatch.setattr(engine, 'get_job', lambda jid: engine._public(job))
+        monkeypatch.setattr(engine, '_jobs', {'tc000001': job})
+        calls = []
+        import modules.transcoder.ncshare as ncshare
+        def fake_delete(job_id):
+            calls.append(job_id)
+            return True, 'deleted'
+        monkeypatch.setattr(ncshare, 'delete_folder', fake_delete)
+        r = client.delete('/api/transcoder/jobs/tc000001',
+                          headers={'X-CSRF-Token': 'test-csrf'})
+        assert r.status_code == 200
+        assert calls == ['tc000001']
+
+    def test_purge_failure_does_not_block_local_cleanup(self, monkeypatch):
+        """Share tidak bisa dihapus (read-only) → lokal tetap dibersihkan."""
+        import modules.transcoder.ncshare as ncshare
+        monkeypatch.setattr(ncshare, 'delete_folder',
+                            lambda jid: (False, 'forbidden'))
+        job = {'id': 'tcX', '_base': '/tmp/nonexistent-tc',
+               '_nc': {'auto': True, 'results': ['u'], 'failed': False}}
+        engine._cleanup_job_files(job)
+        assert job['_nc']['purged'] is False
+        assert job['_nc']['purge_detail'] == 'forbidden'
+
+    def test_mirror_purge_on_expiry(self, tmp_path, monkeypatch):
+        """Retensi 48 jam → cleanup_expired_files ikut purge share folder."""
+        base = tmp_path / 'tc'
+        workdir = base / 'tcY'          # folder per-job di dalam base
+        workdir.mkdir(parents=True)
+        (workdir / 'f.txt').write_text('x')
+        job = {'id': 'tcY', 'status': 'done',
+               'finished_at': time.time() - 49 * 3600,  # lebih tua dari retensi
+               '_base': str(base),
+               '_nc': {'auto': True, 'results': ['u'], 'failed': False}}
+        monkeypatch.setattr(engine, '_jobs', {'tcY': job})
+        monkeypatch.setattr(engine, 'FILE_RETENTION_HOURS', 48)
+        import modules.transcoder.ncshare as ncshare
+        monkeypatch.setattr(ncshare, 'delete_folder',
+                            lambda jid: (True, 'deleted'))
+        engine.cleanup_expired_files()
+        assert not (workdir / 'f.txt').exists()  # lokal dibersihkan
+        assert job['_nc']['purged'] is True
+
+    def test_no_results_no_purge_call(self, monkeypatch):
+        """Job tanpa unggahan → jangan panggil delete_folder sama sekali."""
+        calls = []
+        import modules.transcoder.ncshare as ncshare
+        monkeypatch.setattr(ncshare, 'delete_folder',
+                            lambda jid: calls.append(jid))
+        job = {'id': 'tcZ', '_base': '/tmp/nonexistent-tc',
+               '_nc': {'auto': True, 'results': [], 'failed': False}}
+        engine._cleanup_job_files(job)
+        assert calls == []
+
     def test_upload_failure_does_not_fail_job(self, tmp_path, monkeypatch):
         """Unggah Nextcloud gagal → job tetap done, ditandai nc.failed."""
         fake = FakeTranscode()

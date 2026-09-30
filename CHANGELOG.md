@@ -4,6 +4,20 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 
 ---
 
+## v2.46.3 — 30 September 2026 (Transcoder: auto-delete salinan share publik — retensi cermin)
+
+- **Retensi cermin** — saat hasil lokal dihapus (auto 48 jam / hapus manual
+  oleh user), folder job di share publik Nextcloud ikut di-DELETE via WebDAV
+  publik → tautan publik otomatis mati, tidak ada sampah menumpuk di share.
+- Best-effort: share read-only / jaringan gagal → lokal tetap dibersihkan;
+  status tercatat `nc.purged` + `purge_detail` (UI menampilkan keterangan
+  "salinan share sudah dibersihkan").
+- 404 = sudah tidak ada → dianggap sukses (idempoten).
+- **Fix bug v2.46.0**: presedensi operator di return route `cancel`/`delete`
+  membuat job sukses selalu balik HTTP 409 — kini 200 bila sukses.
+- Test: +4 pytest (purge saat hapus, gagal-purge tak blokir lokal, purge saat
+  kedaluwarsa, tanpa unggahan = tanpa panggilan) → 36 pytest total.
+
 ## v2.46.2 — 30 September 2026 (Transcoder: tautan publik via Nextcloud share)
 
 **Masalah:** tautan unduhan hasil transcode terikat login WorkHub — tidak

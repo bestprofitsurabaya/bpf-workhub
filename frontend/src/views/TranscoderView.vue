@@ -327,7 +327,10 @@ onBeforeUnmount(() => {
             </div>
             <div v-if="j.nc?.urls?.length && i === j.items.length - 1" class="nclinks">
               <div class="nclabel">🌐 Tautan publik (bisa dibagikan keluar):</div>
-              <a v-for="(u, k) in j.nc.urls" :key="k" :href="u" target="_blank" rel="noopener" class="nclink">{{ u }}</a>
+              <template v-if="j.nc?.purged !== true">
+                <a v-for="(u, k) in j.nc.urls" :key="k" :href="u" target="_blank" rel="noopener" class="nclink">{{ u }}</a>
+              </template>
+              <span v-else class="muted small">🧹 Salinan share publik sudah dibersihkan (retensi) — tautan lama tidak lagi berlaku.</span>
               <span v-if="j.nc?.failed" class="err small">⚠️ sebagian unggahan gagal — gunakan unduhan lokal</span>
             </div>
           </div>

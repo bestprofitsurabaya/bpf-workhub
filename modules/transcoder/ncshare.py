@@ -28,6 +28,7 @@ CONFIG_FILE = os.path.join(_NC_DIR, 'nc_share.json')
 
 _TOKEN_RE = re.compile(r'/index\.php/s/([A-Za-z0-9_-]{6,64})')
 _UPLOAD_TIMEOUT = (10, 600)      # connect, read — berkas video bisa ratusan MB
+_DELETE_TIMEOUT = (10, 60)
 
 
 def load_config():
@@ -104,3 +105,29 @@ def upload_file(job_id, filename, filepath):
     if r.status_code not in (200, 201, 204):
         raise RuntimeError(f'Unggah Nextcloud gagal: HTTP {r.status_code}')
     return public_url(cfg['origin'], cfg['token'], job_id, filename)
+
+
+def delete_folder(job_id):
+    """Hapus folder <job_id> di share publik (retensi cermin — auto-delete).
+
+    Return (ok, detail):
+    - (True, 'deleted')    → 2xx/404 (hilang dianggap bersih)
+    - (False, 'no-config') → share belum diset
+    - (False, 'forbidden') → share read-only / izin DELETE tidak ada
+    - (False, 'http <n>')  → error lain
+    Gagal jaringan → (False, 'network').
+    """
+    cfg = load_config()
+    if not cfg:
+        return False, 'no-config'
+    dav_dir = f"{cfg['origin']}/public.php/webdav/{quote(job_id)}"
+    try:
+        r = requests.delete(dav_dir, auth=(cfg['token'], cfg['password']),
+                            timeout=_DELETE_TIMEOUT)
+    except requests.RequestException:
+        return False, 'network'
+    if r.status_code in (200, 201, 204, 404):
+        return True, 'deleted' if r.status_code != 404 else 'missing'
+    if r.status_code in (401, 403, 405):
+        return False, 'forbidden'
+    return False, f'http {r.status_code}'

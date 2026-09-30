@@ -109,7 +109,9 @@ def _public(job):
     nc = job.get('_nc') or {}
     out['nc'] = {'auto': nc.get('auto', False),
                  'urls': nc.get('results', []),
-                 'failed': nc.get('failed', False)}
+                 'failed': nc.get('failed', False),
+                 'purged': nc.get('purged'),
+                 'purge_detail': nc.get('purge_detail', '')}
     return out
 
 
@@ -154,7 +156,7 @@ def cancel_job(job_id, user):
 
 
 def delete_job(job_id, user):
-    """Hapus job + file hasilnya (hanya job selesai)."""
+    """Hapus job + file hasilnya lokal & salinan share publik (hanya job selesai)."""
     with _lock:
         job = _jobs.get(job_id)
         if not job:
@@ -171,18 +173,34 @@ def delete_job(job_id, user):
 def _cleanup_job_files(job):
     """Hapus direktori kerja job (hasil + sementara). Panggil dgn lock pegang
     atau dari request context — tidak butuh app context.
-    Salinan di share Nextcloud TIDAK ikut terhapus (tetap bisa diunduh)."""
+
+    Retensi cermin (v2.46.3): folder job di share publik Nextcloud ikut
+    dihapus bila unggahan pernah dilakukan — tautan publik otomatis mati
+    seiring kedaluwarsa hasil lokal. Best-effort: gagal jaringan/izin tidak
+    menggagalkan pembersihan lokal; status tercatat di job['_nc']."""
     base = job.get('_base') or ''
     if not base:
         return
     workdir = os.path.join(base, job['id'])
     if os.path.isdir(workdir):
         shutil.rmtree(workdir, ignore_errors=True)
+    nc = job.get('_nc') or {}
+    if nc.get('results'):
+        try:
+            from . import ncshare
+            ok, detail = ncshare.delete_folder(job['id'])
+            nc['purged'] = ok
+            nc['purge_detail'] = detail
+        except Exception as e:
+            nc['purged'] = False
+            nc['purge_detail'] = str(e)[:120]
+        print(f"[transcoder] purge share {job['id']}: "
+              f"{nc.get('purge_detail', '?')}")
 
 
 def cleanup_expired_files():
-    """Hapus hasil job selesai lebih tua dari FILE_RETENTION_HOURS.
-    Dipanggil periodik dari thread latar (tanpa app context)."""
+    """Hapus hasil job selesai lebih tua dari FILE_RETENTION_HOURS (lokal +
+    salinan share publik). Dipanggil periodik dari thread latar."""
     with _lock:
         jobs = list(_jobs.values())
     cutoff = time.time() - FILE_RETENTION_HOURS * 3600

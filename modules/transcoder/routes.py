@@ -139,16 +139,18 @@ def job_detail(job_id):
 @role_required(list(TRANSCODER_ROLES))
 def cancel(job_id):
     ok, msg = engine.cancel_job(job_id, _user())
-    return (jsonify({'status': 'ok', 'msg': msg}) if ok
-            else jsonify({'status': 'error', 'msg': msg}), 409)
+    if ok:
+        return jsonify({'status': 'ok', 'msg': msg})
+    return jsonify({'status': 'error', 'msg': msg}), 409
 
 
 @transcoder_bp.route('/api/transcoder/jobs/<job_id>', methods=['DELETE'])
 @role_required(list(TRANSCODER_ROLES))
 def delete(job_id):
     ok, msg = engine.delete_job(job_id, _user())
-    return (jsonify({'status': 'ok', 'msg': msg}) if ok
-            else jsonify({'status': 'error', 'msg': msg}), 409)
+    if ok:
+        return jsonify({'status': 'ok', 'msg': msg})
+    return jsonify({'status': 'error', 'msg': msg}), 409
 
 
 # ---------------------------------------------------------------------------
