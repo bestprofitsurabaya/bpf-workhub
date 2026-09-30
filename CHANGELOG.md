@@ -4,6 +4,39 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 
 ---
 
+## v2.46.4 — 30 September 2026 (Scraper: artikel Gutenberg-ready + fokus keyword Rank Math)
+
+**Masalah:** artikel hasil scraper terbit sebagai HTML polos tanpa komentar
+blok `<!-- wp:... -->` → WordPress menganggap seluruh artikel SATU blok
+Classic → tata letak terlihat rusak di editor, dan normal kembali hanya
+setelah redaksi menekan "Convert to blocks" manual satu per satu.
+
+- **`wp_block()`** — helper baru di `seo_optimizer` yang membungkus segmen
+  HTML dalam komentar blok inti yang sesuai: `<p>` → `wp:paragraph`,
+  `<h1>`–`<h6>` → `wp:heading` (+ atribut level), `<figure>` ber-`<img>` →
+  `wp:image`, `ul/ol` → `wp:list`, `blockquote` → `wp:quote`, sisanya
+  (div styling, `<script>` progress bar, CTA) → `wp:html`.
+- **`build_article_html()`** kini memancarkan rangkaian blok per segmen:
+  header meta, daftar isi, tiap paragraf/H2, disclaimer, dan blok script
+  — semua blok valid dan berpasangan, tidak perlu "Convert to blocks"
+  lagi. Efek samping: `<script>` tak lagi mengotori meta description
+  Rank Math di editor (hanya di blok Custom HTML).
+- **Featured image, tautan sumber, dan CTA** di `routes.py` ikut dibungkus
+  blok — penyisipan sumber tak lagi memenggal blok lewat penggantian
+  marker di tengah blok lain.
+- **Truncation konten >120 KB** kini memotong pada batas blok (baris
+  kosong) — dulu bisa meninggalkan blok tanpa penutup (error validasi).
+- **Rank Math SEO** — post kini mengirim `meta.rank_math_focus_keyword`
+  (diturunkan otomatis dari judul, maks 4 kata bermakna) via REST API
+  yang sama. Toggle "🎯 Keyword Rank Math" di panel upload (default ON,
+  tersimpan di settings). Bila plugin tidak aktif (WP membalas
+  `rest_invalid_param`) upload otomatis diulang tanpa meta — artikel
+  tetap terbit.
+- Test: +23 pytest (blok Gutenberg, pasangan komentar, derivasi keyword,
+  meta & fallback e2e) → 69 pytest scraper lulus; 12 vitest ItEfView lulus.
+
+---
+
 ## v2.46.3 — 30 September 2026 (Transcoder: auto-delete salinan share publik — retensi cermin)
 
 - **Retensi cermin** — saat hasil lokal dihapus (auto 48 jam / hapus manual

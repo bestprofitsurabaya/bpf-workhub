@@ -17,7 +17,7 @@ from .wp_client import get_wp_session, WpClient
 from .scraper_engine import scrape_newsmaker, scrape_detik_finance, fetch_article_content, RateLimiter, progress_tracker
 from .seo_optimizer import (apply_backlinks, build_article_html, seo_analyze, build_advanced_schema,
     ping_sitemap, track_performance, get_analytics, get_optimal_publish_time, should_publish_today,
-    JsonCache, normalize_title, rewrite_content)
+    JsonCache, normalize_title, rewrite_content, wp_block)
 from .scraper_logger import get_logger
 
 _sl = get_logger()  # structured scraper logger
@@ -129,6 +129,24 @@ def _build_excerpt(plain_text: str, limit: int = 290) -> str:
         return text
     cut = text[:limit].rsplit(' ', 1)[0]
     return (cut if cut else text[:limit]) + '…'
+
+
+# Stopword judul untuk derivasi fokus keyword Rank Math.
+_TITLE_STOPWORDS = {'dan', 'di', 'ke', 'dari', 'yang', 'untuk', 'dengan',
+                    'ini', 'itu', 'atau', 'dalam', 'pada', 'the'}
+
+
+def _focus_keyword_from_title(title: str, max_words: int = 4) -> str:
+    """Turunkan fokus keyword Rank Math dari judul artikel.
+
+    Ambil hingga ``max_words`` kata pertama yang bermakna (buang stopword
+    dan kata pendek) — cukup spesifik sebagai fokus keyword tanpa input
+    manual per artikel.
+    """
+    words = [w.strip('.,:;!?()"\u201c\u201d\u2018\u2019') for w in (title or '').split()]
+    picked = [w for w in words
+              if w and len(w) > 3 and w.lower() not in _TITLE_STOPWORDS]
+    return ' '.join(picked[:max_words])
 
 
 # City-name aliases so branch codes (e.g. "SBY") can be matched against site
@@ -490,6 +508,8 @@ def _upload_articles_to_site(site_name, articles, settings, task_prefix='upload'
     max_backlinks = settings.get('max_backlinks', 3)
     enable_seo = settings.get('seo_optimize', True)
     static_tags = settings.get('static_tags', 'newsmaker.id, Detik Finance, Market, Financial News')
+    # v2.46.4: set meta rank_math_focus_keyword (plugin Rank Math SEO).
+    rank_math_keywords = settings.get('rank_math_keywords', True)
 
     bl_config = _load_json(BACKLINKS_FILE, {})
     authority_sites = bl_config.get('authority_sites', DEFAULT_AUTHORITY_SITES)
@@ -605,11 +625,21 @@ def _upload_articles_to_site(site_name, articles, settings, task_prefix='upload'
         source_map = {'newsmaker': 'Newsmaker.id', 'detik_finance': 'Detik Finance', 'detik_tag': 'Detik Finance', 'detik': 'Detik Finance'}
         source_name = source_map.get(raw_source, raw_source.title())
         if source_url and 'Content not found' not in (article.get('content', '') or ''):
-            source_backlink = f'<p style="margin-top:20px;padding:12px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;font-size:13px;color:#0369a1;">📰 Sumber asli: <a href="{source_url}" target="_blank" rel="nofollow noopener" style="color:#0284c7;font-weight:600;">{source_name}</a></p>'
-            if '<!-- BPF CTA Widget -->' in html_content:
-                html_content = html_content.replace('<!-- BPF CTA Widget -->', source_backlink + '<!-- BPF CTA Widget -->')
+            # v2.46.4: sisip sebagai blok tersendiri (wp:html) — bukan
+            # mengganti marker di tengah blok lain agar blok tetap valid.
+            source_backlink = wp_block(
+                f'<p style="margin-top:20px;padding:12px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;font-size:13px;color:#0369a1;">📰 Sumber asli: <a href="{source_url}" target="_blank" rel="nofollow noopener" style="color:#0284c7;font-weight:600;">{source_name}</a></p>'
+            )
+            cta_marker = '<!-- BPF CTA Widget -->'
+            cta_pos = html_content.find(cta_marker)
+            if cta_pos != -1:
+                # Sisip SEBELUM blok wp:html yang membungkus CTA (bila ada).
+                block_open = html_content.rfind('<!-- wp:html -->', 0, cta_pos)
+                insert_at = block_open if block_open != -1 else cta_pos
+                html_content = (html_content[:insert_at] + source_backlink
+                                + '\n\n' + html_content[insert_at:])
             else:
-                html_content += source_backlink
+                html_content = html_content.rstrip() + '\n\n' + source_backlink
 
         tag_input = [t.strip().capitalize() for t in static_tags.split(',') if t.strip()]
         title_words = [w.capitalize() for w in title.lower().split()
@@ -651,9 +681,11 @@ def _upload_articles_to_site(site_name, articles, settings, task_prefix='upload'
                         f'<figure class="wp-block-image size-large">'
                         f'<img src="{wp_img_url}" alt="{title}" '
                         f'width="{w}" height="{h}" class="wp-post-image"/>'
-                        f'</figure>\n'
+                        f'</figure>'
                     )
-                    html_content = featured_img_html + html_content
+                    # v2.46.4: bungkus dalam blok wp:image agar tetap blok
+                    # Gutenberg di editor (bukan bagian blok classic).
+                    html_content = wp_block(featured_img_html) + '\n\n' + html_content
                 _sl.image_upload(image_url[:80], media_id=featured_media_id, success=True)
                 print(f'[scraper-img] Upload OK: media_id={featured_media_id}, wp_url={wp_img_url[:80] if wp_img_url else "(none)"}, title={title[:50]}')
             else:
@@ -661,15 +693,31 @@ def _upload_articles_to_site(site_name, articles, settings, task_prefix='upload'
                 print(f'[scraper-img] Upload FAILED for "{title[:50]}" — image_url={image_url[:80]}')
 
         # Safety: WordPress may reject posts with extremely large content.
-        # Truncate HTML body (keep CTA + source backlink) if over ~120KB.
+        # Truncate if over ~120KB — v2.46.4: potong pada BATAS BLOK (pemisah
+        # baris kosong) agar komentar pembuka/penutup wp:* selalu berpasangan;
+        # memotong di tengah blok meninggalkan blok tanpa penutup (error
+        # validasi blok di editor).
         _MAX_CONTENT_BYTES = 120 * 1024
         if len(html_content.encode('utf-8')) > _MAX_CONTENT_BYTES:
             _sl.log('WARNING', 'UPLOAD', f'Content too large ({len(html_content.encode("utf-8"))} bytes) for "{title[:50]}" — truncating')
-            # Potong badan artikel sebelum CTA widget bila marker-nya ada
-            schema_end = html_content.rfind('<!-- BPF CTA Widget -->')
-            if schema_end > 0:
-                html_content = html_content[:schema_end]
-            html_content = html_content[:_MAX_CONTENT_BYTES].rsplit('\n', 1)[0] + '\n</article>'
+            kept, size = [], 0
+            for chunk in html_content.split('\n\n'):
+                b = len((chunk + '\n\n').encode('utf-8'))
+                if kept and size + b > _MAX_CONTENT_BYTES:
+                    break
+                kept.append(chunk)
+                size += b
+            html_content = '\n\n'.join(kept)
+
+        # v2.46.4: fokus keyword Rank Math via REST meta. Field
+        # rank_math_focus_keyword diregistrasi plugin Rank Math; bila plugin
+        # nonaktif/versi lama membalas rest_invalid_param → diulang tanpa
+        # meta agar artikel tetap terbit (lihat create_post di bawah).
+        rm_meta = {}
+        if rank_math_keywords:
+            focus_kw = _focus_keyword_from_title(title)
+            if focus_kw:
+                rm_meta['rank_math_focus_keyword'] = focus_kw
 
         post_data = {
             'title': title,
@@ -682,6 +730,8 @@ def _upload_articles_to_site(site_name, articles, settings, task_prefix='upload'
             'tags': tag_ids,
             'featured_media': featured_media_id,
         }
+        if rm_meta:
+            post_data['meta'] = rm_meta
         print(f'[scraper-post] Creating post: featured_media={featured_media_id}, title={title[:50]}')
 
         # Pre-filtered: all articles here are new, but double-check via norm_map
@@ -747,6 +797,12 @@ def _upload_articles_to_site(site_name, articles, settings, task_prefix='upload'
         else:
             try:
                 r = client.create_post(post_data, nonce_or_err)
+                if r.status_code == 400 and post_data.get('meta') \
+                        and 'rest_invalid_param' in (getattr(r, 'text', '') or ''):
+                    # Field meta tidak dikenali WP (Rank Math nonaktif/versi
+                    # lama) → ulangi tanpa meta agar artikel tetap terbit.
+                    post_data_wo = {k: v for k, v in post_data.items() if k != 'meta'}
+                    r = client.create_post(post_data_wo, nonce_or_err)
                 if r.status_code == 201:
                     new_count += 1
                     article_detail['status'] = 'new'
@@ -1668,6 +1724,7 @@ def get_scraper_settings():
         'backlinks': settings.get('backlinks', True),
         'max_backlinks': settings.get('max_backlinks', 3),
         'static_tags': settings.get('static_tags', 'newsmaker.id, Detik Finance, Market, Financial News'),
+        'rank_math_keywords': settings.get('rank_math_keywords', True),
     })
 
 
@@ -1688,6 +1745,8 @@ def save_scraper_settings():
         settings['max_backlinks'] = max(1, min(int(d['max_backlinks']), 10))
     if 'static_tags' in d:
         settings['static_tags'] = str(d['static_tags'])[:500]
+    if 'rank_math_keywords' in d:
+        settings['rank_math_keywords'] = bool(d['rank_math_keywords'])
 
     _save_json(SETTINGS_FILE, settings)
     _log_scraper(f'Settings updated: daily_limit={settings.get("daily_limit", 10)}', session.get('user_name', 'unknown'))

@@ -7,7 +7,8 @@ analytics / caching logic for the BPFWorkHub news scraper pipeline.
 Sections:
     1. Constants          - authority sites, keyword mapping, anchor variations
     2. Backlinks          - apply_backlinks(), get_anchor_text()
-    3. Article HTML       - build_article_html(), build_bpf_cta_widget()
+    3. Article HTML       - wp_block(), build_article_html(),
+                            build_bpf_cta_widget()
     4. Schema             - build_advanced_schema()  (JSON-LD)
     5. Sitemap & Timing   - ping_sitemap(), get_optimal_publish_time(),
                             should_publish_today()
@@ -59,6 +60,7 @@ __all__ = [
     'get_anchor_text',
     'build_article_html',
     'build_bpf_cta_widget',
+    'wp_block',
     'seo_analyze',
     'build_advanced_schema',
     'ping_sitemap',
@@ -493,6 +495,65 @@ def _inject_linkable_page_links(content: str) -> str:
 # 3. ARTICLE HTML
 # ===================================================================
 
+#: Pemetaan tag pembuka → nama blok inti WordPress (dipakai wp_block()).
+_BLOCK_TAG_NAMES = {
+    'ul': 'list',
+    'ol': 'list',
+    'blockquote': 'quote',
+}
+
+
+def wp_block(inner_html: str, attrs: Optional[Dict[str, Any]] = None) -> str:
+    """Bungkus satu segmen HTML dalam komentar blok Gutenberg yang sesuai.
+
+    WordPress menentukan apakah konten post adalah "blok" atau "classic"
+    murni dari kehadiran komentar ``<!-- wp:... -->``. Konten tanpa komentar
+    dianggap SATU blok Classic — editor menampilkannya mentah (tata letak
+    "rusak") sampai redaksi menekan "Convert to blocks" manual.
+
+    Pemetaan (blok inti WordPress):
+        * ``<p>``                → ``core/paragraph``
+        * ``<h1>..<h6>``         → ``core/heading`` (+ atribut ``level``)
+        * ``<figure>`` ber-<img> → ``core/image``
+        * ``<ul>`` / ``<ol>``    → ``core/list``
+        * ``<blockquote>``       → ``core/quote``
+        * lainnya (div, script…) → ``core/html`` (blok Custom HTML — HTML
+          bebas dirender apa adanya di front-end, termasuk <script>).
+
+    Returns:
+        String blok lengkap (komentar pembuka, HTML, komentar penutup),
+        atau '' bila ``inner_html`` kosong.
+    """
+    html_src = (inner_html or '').strip()
+    if not html_src:
+        return ''
+
+    name = 'html'
+    block_attrs = dict(attrs) if attrs else {}
+    m = re.match(r'<(p|h[1-6]|figure|ul|ol|blockquote)\b', html_src, re.I)
+    if m:
+        tag = m.group(1).lower()
+        if tag == 'p':
+            name = 'paragraph'
+        elif tag.startswith('h'):
+            name = 'heading'
+            block_attrs.setdefault('level', int(tag[1]))
+        elif tag == 'figure':
+            if '<img' in html_src.lower():
+                name = 'image'
+        else:
+            name = _BLOCK_TAG_NAMES.get(tag, 'html')
+
+    if block_attrs:
+        open_tag = (
+            f'<!-- wp:{name} '
+            f'{json.dumps(block_attrs, ensure_ascii=False, separators=(",", ":"))} -->'
+        )
+    else:
+        open_tag = f'<!-- wp:{name} -->'
+    return f'{open_tag}\n{html_src}\n<!-- /wp:{name} -->'
+
+
 def _subheading_candidate(para: str) -> str:
     """Kandidat subheading H2 dari sebuah paragraf (v2.39.5).
 
@@ -578,8 +639,13 @@ def build_article_html(title: str, content: str, article: Dict[str, Any],
     if not paragraphs:
         paragraphs = [content] if content else []
 
-    # Build article body with proper paragraph tags
-    body_paragraphs = ''
+    # v2.46.4: badan artikel dibangun sebagai daftar segmen (bukan satu
+    # string) agar tiap segmen bisa dibungkus komentar blok Gutenberg
+    # masing-masing — lihat wp_block().
+    para_style = 'font-size:16px;line-height:1.85;color:#374151;'
+    body_segments: List[str] = []
+    toc_items: List[Tuple[str, str]] = []
+
     for i, para in enumerate(paragraphs):
         # Subheading tiap 3 paragraf — HANYA kalimat utuh pendek (v2.39.5).
         # Bug lama: H2 = 6 kata pertama paragraf → heading terpotong,
@@ -588,8 +654,10 @@ def build_article_html(title: str, content: str, article: Dict[str, Any],
         if i > 0 and i % 3 == 0 and len(para) > 50:
             subheading = _subheading_candidate(para)
             if subheading:
-                body_paragraphs += f'<h2>{_esc(subheading)}</h2>'
-        body_paragraphs += f'<p>{_esc(para)}</p>'
+                toc_id = re.sub(r'[^a-z0-9]+', '-', subheading.lower()).strip('-')
+                toc_items.append((toc_id, subheading))
+                body_segments.append(f'<h2 id="{toc_id}">{_esc(subheading)}</h2>')
+        body_segments.append(f'<p style="{para_style}">{_esc(para)}</p>')
 
     # Category badge
     category = article.get('category', '')
@@ -623,20 +691,7 @@ def build_article_html(title: str, content: str, article: Dict[str, Any],
     word_count = len(content.split())
     reading_time = max(1, round(word_count / 200))  # 200 wpm avg
 
-    # Generate Table of Contents from H2 tags in body
-    import re as _re
-    toc_items = []
-    for m in _re.finditer(r'<h2[^>]*>(.*?)</h2>', body_paragraphs):
-        heading_text = _re.sub(r'<[^>]+>', '', m.group(1)).strip()
-        if heading_text and len(heading_text) > 3:
-            toc_id = _re.sub(r'[^a-z0-9]+', '-', heading_text.lower()).strip('-')
-            toc_items.append((toc_id, heading_text))
-            body_paragraphs = body_paragraphs.replace(
-                m.group(0),
-                m.group(0).replace('<h2>', f'<h2 id="{toc_id}">').replace('<h2 ', f'<h2 id="{toc_id}" '),
-                1
-            )
-
+    # Daftar isi dari H2 yang terkumpul saat membangun segmen badan.
     toc_html = ''
     if len(toc_items) > 2:
         toc_li = '\n'.join(
@@ -661,23 +716,55 @@ def build_article_html(title: str, content: str, article: Dict[str, Any],
         '<a href="' + share_x + '" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:4px;padding:5px 12px;background:#1da1f2;color:#fff;border-radius:6px;font-size:12px;text-decoration:none;">🐦 X</a>'
         '<button onclick="navigator.clipboard.writeText(window.location.href);this.innerHTML=&#39;Copied!&#39;;setTimeout(function(){this.innerHTML=&#39;🔗 Copy&#39;}.bind(this),1500)" style="display:inline-flex;align-items:center;gap:4px;padding:5px 12px;background:#6b7280;color:#fff;border-radius:6px;font-size:12px;border:none;cursor:pointer;">🔗 Copy</button>'
     )
-    html = '<div style="font-family:Inter,sans-serif;">'
-    html += '<span id="bpf-progress" style="position:fixed;top:0;left:0;height:3px;background:linear-gradient(90deg,#1e3a5f,#c8a951);z-index:9999;width:0%;transition:width .1s;display:block;"></span>'
-    html += '<p style="margin-bottom:16px;font-size:13px;color:#94a3b8;"><a href="/" style="color:#1e3a5f;text-decoration:none;">🏠 Beranda</a> <span style="margin:0 6px;">›</span> <span style="color:#1e3a5f;">Berita</span> <span style="margin:0 6px;">›</span> <span>' + title_short + '</span></p>'
-    html += '<p style="margin-bottom:12px;">' + category_badge + '</p>'
-    html += '<h1 style="font-size:28px;font-weight:700;line-height:1.3;margin:0 0 12px;color:#111827;">' + _esc(title) + '</h1>'
-    html += '<div style="display:flex;align-items:center;gap:16px;padding:12px 0;border-top:1px solid #e5e7eb;border-bottom:1px solid #e5e7eb;margin-bottom:24px;font-size:13px;color:#6b7280;flex-wrap:wrap;">'
-    html += '<span>📅 ' + _esc(publish_date) + ' &nbsp; 🕐 ' + _esc(publish_time) + ' &nbsp; ⏱️ ' + str(reading_time) + ' menit baca &nbsp; 📰 Sumber: ' + source_link + '</span>'
-    html += '<span style="display:flex;gap:6px;margin-left:auto;">' + share_btns + '</span>'
-    html += '</div>'
-    html += toc_html
-    html += '<div style="font-size:16px;line-height:1.85;color:#374151;">' + body_paragraphs + '</div>'
-    html += '<div style="margin-top:24px;padding:16px;background:#f9fafb;border-left:4px solid #d1d5db;font-size:13px;color:#6b7280;font-style:italic;"><strong>Disclaimer:</strong> Artikel ini dikutip dari sumber berita untuk tujuan informasi. Segala keputusan investasi harus berdasarkan pertimbangan matang dan berkonsultasi dengan penasihat keuangan yang kompeten.</div>'
-    html += '</div>'
-    html += '<button id="bpf-backtotop" onclick="window.scrollTo({top:0,behavior:&quot;smooth&quot;})" style="position:fixed;bottom:24px;right:24px;width:44px;height:44px;border-radius:50%;background:#1e3a5f;color:#fff;border:none;font-size:20px;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.2);display:none;z-index:9998;">↑</button>'
-    html += '<script>var bar=document.getElementById("bpf-progress"),btn=document.getElementById("bpf-backtotop");if(bar){window.addEventListener("scroll",function(){var h=document.documentElement.scrollHeight-window.innerHeight;p=(window.scrollY/h)*100;bar.style.width=p+"%";if(btn)btn.style.display=window.scrollY>400?"block":"none";});}document.querySelectorAll(".bpf-toc a").forEach(function(a){a.addEventListener("click",function(e){var t=document.getElementById(this.getAttribute("href").slice(1));if(t){e.preventDefault();t.scrollIntoView({behavior:"smooth",block:"start"});}});});</script>'
-    html += '</div>'
-    return html.strip()
+    # ── v2.46.4: perakitan sebagai BLOK GUTENBERG ─────────────────────
+    # Artikel lama berupa HTML polos tanpa komentar <!-- wp:... --> → WP
+    # menganggapnya SATU blok Classic → tata letak "rusak" di editor sampai
+    # redaksi menekan "Convert to blocks" manual. Kini tiap segmen dibungkus
+    # blok inti yang sesuai (wp:paragraph, wp:heading, wp:html, ...).
+    blocks: List[str] = []
+
+    # Header meta (breadcrumb + tanggal/sumber/tombol share) — HTML bebas.
+    # <script> progress-bar dipindah ke blok html penutup bersama back-to-top.
+    header_inner = (
+        '<div style="font-family:Inter,sans-serif;">'
+        '<p style="margin-bottom:16px;font-size:13px;color:#94a3b8;"><a href="/" style="color:#1e3a5f;text-decoration:none;">🏠 Beranda</a> <span style="margin:0 6px;">›</span> <span style="color:#1e3a5f;">Berita</span> <span style="margin:0 6px;">›</span> <span>' + title_short + '</span></p>'
+        '<p style="margin-bottom:12px;">' + category_badge + '</p>'
+        '<h1 style="font-size:28px;font-weight:700;line-height:1.3;margin:0 0 12px;color:#111827;">' + _esc(title) + '</h1>'
+        '<div style="display:flex;align-items:center;gap:16px;padding:12px 0;border-top:1px solid #e5e7eb;border-bottom:1px solid #e5e7eb;margin-bottom:24px;font-size:13px;color:#6b7280;flex-wrap:wrap;">'
+        '<span>📅 ' + _esc(publish_date) + ' &nbsp; 🕐 ' + _esc(publish_time) + ' &nbsp; ⏱️ ' + str(reading_time) + ' menit baca &nbsp; 📰 Sumber: ' + source_link + '</span>'
+        '<span style="display:flex;gap:6px;margin-left:auto;">' + share_btns + '</span>'
+        '</div>'
+        '</div>'
+    )
+    blocks.append(wp_block(header_inner))
+
+    if toc_html:
+        blocks.append(wp_block(toc_html))
+
+    # Badan artikel: tiap <p> / <h2> jadi bloknya sendiri. Konten dibungkus
+    # div wrapper-style lama? TIDAK lagi — gaya paragraf dipindah ke masing-
+    # masing <p> agar blok tetap valid (wp:paragraph = satu <p> polos).
+    for seg in body_segments:
+        blocks.append(wp_block(seg))
+
+    disclaimer_inner = (
+        '<div style="margin-top:24px;padding:16px;background:#f9fafb;border-left:4px solid #d1d5db;'
+        'font-size:13px;color:#6b7280;font-style:italic;"><strong>Disclaimer:</strong> '
+        'Artikel ini dikutip dari sumber berita untuk tujuan informasi. Segala keputusan '
+        'investasi harus berdasarkan pertimbangan matang dan berkonsultasi dengan penasihat '
+        'keuangan yang kompeten.</div>'
+    )
+    blocks.append(wp_block(disclaimer_inner))
+
+    # Progress bar + tombol back-to-top + event listener — HTML bebas.
+    scripts_inner = (
+        '<span id="bpf-progress" style="position:fixed;top:0;left:0;height:3px;background:linear-gradient(90deg,#1e3a5f,#c8a951);z-index:9999;width:0%;transition:width .1s;display:block;"></span>'
+        '<button id="bpf-backtotop" onclick="window.scrollTo({top:0,behavior:&quot;smooth&quot;})" style="position:fixed;bottom:24px;right:24px;width:44px;height:44px;border-radius:50%;background:#1e3a5f;color:#fff;border:none;font-size:20px;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.2);display:none;z-index:9998;">↑</button>'
+        '<script>var bar=document.getElementById("bpf-progress"),btn=document.getElementById("bpf-backtotop");if(bar){window.addEventListener("scroll",function(){var h=document.documentElement.scrollHeight-window.innerHeight;p=(window.scrollY/h)*100;bar.style.width=p+"%";if(btn)btn.style.display=window.scrollY>400?"block":"none";});}document.querySelectorAll(".bpf-toc a").forEach(function(a){a.addEventListener("click",function(e){var t=document.getElementById(this.getAttribute("href").slice(1));if(t){e.preventDefault();t.scrollIntoView({behavior:"smooth",block:"start"});}});});</script>'
+    )
+    blocks.append(wp_block(scripts_inner))
+
+    return '\n\n'.join(b for b in blocks if b)
 
 
 def build_bpf_cta_widget() -> str:

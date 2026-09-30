@@ -54,6 +54,7 @@ const showUploadLog = ref(false)
 const settings = ref({
   backlinks: true, max_backlinks: 3, seo_optimize: true,
   static_tags: 'newsmaker.id, Market, Geopolitics, Financial News',
+  rank_math_keywords: true,
 })
 
 // Progress
@@ -670,6 +671,9 @@ onMounted(() => { loadSites(); loadDashboard(); document.documentElement.classLi
           <div class="settings-panel">
             <label class="toggle-label"><input type="checkbox" v-model="settings.seo_optimize" /> 🔍 Auto-SEO</label>
             <label class="toggle-label"><input type="checkbox" v-model="settings.backlinks" /> 🔗 Backlinks</label>
+            <label class="toggle-label" title="Set fokus keyword Rank Math (meta rank_math_focus_keyword) dari judul artikel">
+              <input type="checkbox" v-model="settings.rank_math_keywords" /> 🎯 Keyword Rank Math
+            </label>
             <div class="inline-field">
               Max: <input class="input input-sm" type="number" v-model.number="settings.max_backlinks" min="1" max="10" />
             </div>

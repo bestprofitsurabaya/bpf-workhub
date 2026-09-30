@@ -452,6 +452,116 @@ class TestScrapeUploadPipeline:
         assert post_data["status"] == "publish"
         assert len(post_data.get("tags", [])) >= 1  # tags were resolved to IDs
 
+    @patch("modules.news_scraper.routes.WpClient")
+    @patch("modules.news_scraper.routes._load_json")
+    @patch("modules.news_scraper.routes._save_json")
+    @patch("modules.news_scraper.routes._log_scraper")
+    @patch("modules.news_scraper.routes._save_upload_history")
+    @patch("modules.news_scraper.routes.ping_sitemap", return_value=[])
+    @patch("modules.news_scraper.routes.track_performance")
+    @patch("modules.news_scraper.routes.rewrite_content", side_effect=lambda c, t: c)
+    @patch("modules.news_scraper.routes.build_article_html", side_effect=lambda t, c, a, d, p: f"<p>{c}</p>")
+    @patch("modules.news_scraper.routes.seo_analyze", return_value={"seo_score": 80, "details": {}, "suggestions": []})
+    @patch("modules.news_scraper.routes.apply_backlinks", side_effect=lambda c, t, a, k, m: (c, []))
+    def test_rank_math_keyword_meta_and_fallback(
+        self, mock_bl, mock_seo, mock_html, mock_rewrite,
+        mock_ping, mock_track, mock_history, mock_log, mock_save, mock_load,
+        mock_wp_client, sample_articles
+    ):
+        """v2.46.4: meta rank_math_focus_keyword dikirim; 400 rest_invalid_param
+        (Rank Math nonaktif) → diulang tanpa meta, artikel tetap terbit."""
+        from modules.news_scraper.routes import _upload_articles_to_site
+
+        sites = {
+            "TestSite": {
+                "wp_url": "https://example.com/wp-json/wp/v2/posts",
+                "username": "admin",
+                "app_password": "pass",
+            }
+        }
+        mock_load.return_value = sites
+
+        client = mock_wp_client.return_value
+        client.login.return_value = (True, "ok")
+        empty_resp = MagicMock(status_code=200, json=MagicMock(return_value=[]))
+        client.get_posts.return_value = empty_resp
+        client.search_posts.return_value = MagicMock(status_code=200, json=MagicMock(return_value=[]))
+        client.get_or_create_tag.return_value = 10
+        client.upload_image.return_value = None
+
+        # Panggilan dengan meta → 400 rest_invalid_param (plugin tidak ada);
+        # panggilan ulang tanpa meta → 201 sukses (model perilaku WP nyata).
+        def _create_side_effect(data, *args, **kwargs):
+            if data.get('meta'):
+                return MagicMock(status_code=400, text='{"code":"rest_invalid_param"}')
+            return MagicMock(status_code=201, json=MagicMock(return_value={"id": 301}))
+        client.create_post.side_effect = _create_side_effect
+
+        _app = flask.Flask(__name__)
+        _app.secret_key = 'test'
+        with _app.test_request_context():
+            result = _upload_articles_to_site("TestSite", sample_articles, {
+                "backlinks": False, "seo_optimize": False, "static_tags": "test",
+                "rank_math_keywords": True,
+            })
+
+        assert result["ok"] is True
+        assert result["new_posts"] == 2
+        assert client.create_post.call_count == 4  # 2 artikel × (400 → retry)
+
+        # Panggilan pertama membawa meta focus keyword
+        first_payload = client.create_post.call_args_list[0][0][0]
+        assert first_payload["meta"]["rank_math_focus_keyword"]
+        # Panggilan retry TANPA meta
+        retry_payload = client.create_post.call_args_list[1][0][0]
+        assert "meta" not in retry_payload
+
+    @patch("modules.news_scraper.routes.WpClient")
+    @patch("modules.news_scraper.routes._load_json")
+    @patch("modules.news_scraper.routes._save_json")
+    @patch("modules.news_scraper.routes._log_scraper")
+    @patch("modules.news_scraper.routes._save_upload_history")
+    @patch("modules.news_scraper.routes.ping_sitemap", return_value=[])
+    @patch("modules.news_scraper.routes.track_performance")
+    @patch("modules.news_scraper.routes.rewrite_content", side_effect=lambda c, t: c)
+    @patch("modules.news_scraper.routes.build_article_html", side_effect=lambda t, c, a, d, p: f"<p>{c}</p>")
+    @patch("modules.news_scraper.routes.seo_analyze", return_value={"seo_score": 80, "details": {}, "suggestions": []})
+    @patch("modules.news_scraper.routes.apply_backlinks", side_effect=lambda c, t, a, k, m: (c, []))
+    def test_rank_math_disabled_tidak_mengirim_meta(
+        self, mock_bl, mock_seo, mock_html, mock_rewrite,
+        mock_ping, mock_track, mock_history, mock_log, mock_save, mock_load,
+        mock_wp_client, sample_articles
+    ):
+        """Toggle rank_math_keywords=false → payload tanpa key meta."""
+        from modules.news_scraper.routes import _upload_articles_to_site
+
+        mock_load.return_value = sites = {
+            "TestSite": {
+                "wp_url": "https://example.com/wp-json/wp/v2/posts",
+                "username": "admin",
+                "app_password": "pass",
+            }
+        }
+        client = mock_wp_client.return_value
+        client.login.return_value = (True, "ok")
+        client.get_posts.return_value = MagicMock(status_code=200, json=MagicMock(return_value=[]))
+        client.search_posts.return_value = MagicMock(status_code=200, json=MagicMock(return_value=[]))
+        client.create_post.return_value = MagicMock(status_code=201, json=MagicMock(return_value={"id": 1}))
+        client.get_or_create_tag.return_value = 10
+        client.upload_image.return_value = None
+
+        _app = flask.Flask(__name__)
+        _app.secret_key = 'test'
+        with _app.test_request_context():
+            result = _upload_articles_to_site("TestSite", sample_articles, {
+                "backlinks": False, "seo_optimize": False, "static_tags": "test",
+                "rank_math_keywords": False,
+            })
+
+        assert result["ok"] is True
+        for call in client.create_post.call_args_list:
+            assert "meta" not in call[0][0]
+
 
 # ---------------------------------------------------------------------------
 # Scraper Settings & Config Tests
