@@ -55,6 +55,8 @@ const settings = ref({
   backlinks: true, max_backlinks: 3, seo_optimize: true,
   static_tags: 'newsmaker.id, Market, Geopolitics, Financial News',
   rank_math_keywords: true,
+  rank_math_description_tpl: '',
+  rank_math_title_tpl: '',
 })
 
 // Progress
@@ -678,6 +680,8 @@ onMounted(() => { loadSites(); loadDashboard(); document.documentElement.classLi
               Max: <input class="input input-sm" type="number" v-model.number="settings.max_backlinks" min="1" max="10" />
             </div>
             <input class="input" v-model="settings.static_tags" placeholder="Tags (comma separated)" style="flex:1;min-width:200px;" />
+            <input class="input" v-model="settings.rank_math_description_tpl" placeholder="Meta description Rank Math — {judul}, {kategori}, {sumber} (kosong = default)" style="flex:1;min-width:200px;" />
+            <input class="input" v-model="settings.rank_math_title_tpl" placeholder="SEO title Rank Math — {judul}, {kategori} (kosong = judul post)" style="flex:1;min-width:200px;" />
           </div>
 
           <button class="btn btn-primary btn-lg" :disabled="uploadBusy || !selectedSite || !selectedCount" @click="uploadToWP" style="width:100%;margin-top:12px;">

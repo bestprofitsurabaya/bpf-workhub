@@ -149,6 +149,33 @@ def _focus_keyword_from_title(title: str, max_words: int = 4) -> str:
     return ' '.join(picked[:max_words])
 
 
+def _rm_trim(text: str, limit: int) -> str:
+    """Potong teks di batas kata sampai <= limit karakter (snippet aman)."""
+    text = (text or '').strip()
+    if len(text) <= limit:
+        return text
+    cut = text[:limit].rsplit(' ', 1)[0]
+    return cut or text[:limit]
+
+
+def _render_rm_template(tpl: str, title: str, category: str,
+                        source_name: str, date: str) -> str:
+    """Render template meta Rank Math.
+
+    Placeholder yang didukung: ``{judul}``, ``{kategori}``, ``{sumber}``,
+    ``{tanggal}``. Spasi ganda akibat placeholder kosong dirapikan.
+    """
+    out = str(tpl or '')
+    for key, val in (
+        ('{judul}', title),
+        ('{kategori}', category),
+        ('{sumber}', source_name),
+        ('{tanggal}', date),
+    ):
+        out = out.replace(key, val or '')
+    return re.sub(r'\s+', ' ', out).strip()
+
+
 # City-name aliases so branch codes (e.g. "SBY") can be matched against site
 # names that only contain the full city name (e.g. "BPF Surabaya").
 _BRANCH_CITY_ALIASES = {
@@ -509,7 +536,12 @@ def _upload_articles_to_site(site_name, articles, settings, task_prefix='upload'
     enable_seo = settings.get('seo_optimize', True)
     static_tags = settings.get('static_tags', 'newsmaker.id, Detik Finance, Market, Financial News')
     # v2.46.4: set meta rank_math_focus_keyword (plugin Rank Math SEO).
+    # v2.46.5: + template meta description & SEO title per artikel.
     rank_math_keywords = settings.get('rank_math_keywords', True)
+    rm_tpl = {
+        'description': str(settings.get('rank_math_description_tpl', '') or ''),
+        'title': str(settings.get('rank_math_title_tpl', '') or ''),
+    }
 
     bl_config = _load_json(BACKLINKS_FILE, {})
     authority_sites = bl_config.get('authority_sites', DEFAULT_AUTHORITY_SITES)
@@ -718,6 +750,16 @@ def _upload_articles_to_site(site_name, articles, settings, task_prefix='upload'
             focus_kw = _focus_keyword_from_title(title)
             if focus_kw:
                 rm_meta['rank_math_focus_keyword'] = focus_kw
+        if rm_tpl['description']:
+            rm_meta['rank_math_description'] = _rm_trim(
+                _render_rm_template(rm_tpl['description'], title,
+                                    article.get('category', ''), source_name,
+                                    publish_date), 160)
+        if rm_tpl['title']:
+            rm_meta['rank_math_title'] = _rm_trim(
+                _render_rm_template(rm_tpl['title'], title,
+                                    article.get('category', ''), source_name,
+                                    publish_date), 60)
 
         post_data = {
             'title': title,
@@ -757,6 +799,8 @@ def _upload_articles_to_site(site_name, articles, settings, task_prefix='upload'
                 update_data = {'content': html_content, 'tags': tag_ids}
                 if featured_media_id:
                     update_data['featured_media'] = featured_media_id
+                if rm_meta:
+                    update_data['meta'] = rm_meta
                 print(f'[scraper-update] Updating post {matched_post_id}: featured_media={featured_media_id}, title={title[:50]}')
                 r2 = client.update_post(matched_post_id, update_data, nonce_or_err)
                 if r2.status_code == 200:
@@ -784,6 +828,8 @@ def _upload_articles_to_site(site_name, articles, settings, task_prefix='upload'
                             update_data = {'content': html_content, 'tags': tag_ids}
                             if featured_media_id:
                                 update_data['featured_media'] = featured_media_id
+                            if rm_meta:
+                                update_data['meta'] = rm_meta
                             print(f'[scraper-update] Updating post {post["id"]}: featured_media={featured_media_id}, title={title[:50]}')
                             r2 = client.update_post(post['id'], update_data, nonce_or_err)
                             if r2.status_code == 200:
@@ -1725,6 +1771,8 @@ def get_scraper_settings():
         'max_backlinks': settings.get('max_backlinks', 3),
         'static_tags': settings.get('static_tags', 'newsmaker.id, Detik Finance, Market, Financial News'),
         'rank_math_keywords': settings.get('rank_math_keywords', True),
+        'rank_math_description_tpl': settings.get('rank_math_description_tpl', ''),
+        'rank_math_title_tpl': settings.get('rank_math_title_tpl', ''),
     })
 
 
@@ -1747,6 +1795,10 @@ def save_scraper_settings():
         settings['static_tags'] = str(d['static_tags'])[:500]
     if 'rank_math_keywords' in d:
         settings['rank_math_keywords'] = bool(d['rank_math_keywords'])
+    if 'rank_math_description_tpl' in d:
+        settings['rank_math_description_tpl'] = str(d['rank_math_description_tpl'])[:300]
+    if 'rank_math_title_tpl' in d:
+        settings['rank_math_title_tpl'] = str(d['rank_math_title_tpl'])[:200]
 
     _save_json(SETTINGS_FILE, settings)
     _log_scraper(f'Settings updated: daily_limit={settings.get("daily_limit", 10)}', session.get('user_name', 'unknown'))

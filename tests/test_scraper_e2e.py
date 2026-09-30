@@ -562,6 +562,58 @@ class TestScrapeUploadPipeline:
         for call in client.create_post.call_args_list:
             assert "meta" not in call[0][0]
 
+    @patch("modules.news_scraper.routes.WpClient")
+    @patch("modules.news_scraper.routes._load_json")
+    @patch("modules.news_scraper.routes._save_json")
+    @patch("modules.news_scraper.routes._log_scraper")
+    @patch("modules.news_scraper.routes._save_upload_history")
+    @patch("modules.news_scraper.routes.ping_sitemap", return_value=[])
+    @patch("modules.news_scraper.routes.track_performance")
+    @patch("modules.news_scraper.routes.rewrite_content", side_effect=lambda c, t: c)
+    @patch("modules.news_scraper.routes.build_article_html", side_effect=lambda t, c, a, d, p: f"<p>{c}</p>")
+    @patch("modules.news_scraper.routes.seo_analyze", return_value={"seo_score": 80, "details": {}, "suggestions": []})
+    @patch("modules.news_scraper.routes.apply_backlinks", side_effect=lambda c, t, a, k, m: (c, []))
+    def test_rank_math_template_description_dan_title(
+        self, mock_bl, mock_seo, mock_html, mock_rewrite,
+        mock_ping, mock_track, mock_history, mock_log, mock_save, mock_load,
+        mock_wp_client, sample_articles
+    ):
+        """v2.46.5: template meta description & SEO title dirender per artikel."""
+        from modules.news_scraper.routes import _upload_articles_to_site
+
+        mock_load.return_value = {
+            "TestSite": {
+                "wp_url": "https://example.com/wp-json/wp/v2/posts",
+                "username": "admin",
+                "app_password": "pass",
+            }
+        }
+        client = mock_wp_client.return_value
+        client.login.return_value = (True, "ok")
+        client.get_posts.return_value = MagicMock(status_code=200, json=MagicMock(return_value=[]))
+        client.search_posts.return_value = MagicMock(status_code=200, json=MagicMock(return_value=[]))
+        client.create_post.return_value = MagicMock(status_code=201, json=MagicMock(return_value={"id": 1}))
+        client.get_or_create_tag.return_value = 10
+        client.upload_image.return_value = None
+
+        _app = flask.Flask(__name__)
+        _app.secret_key = 'test'
+        with _app.test_request_context():
+            result = _upload_articles_to_site("TestSite", sample_articles, {
+                "backlinks": False, "seo_optimize": False, "static_tags": "test",
+                "rank_math_keywords": False,
+                "rank_math_description_tpl": "Update {judul} — analisis pasar dari {sumber}.",
+                "rank_math_title_tpl": "{judul} | {kategori}",
+            })
+
+        assert result["ok"] is True
+        for call in client.create_post.call_args_list:
+            meta = call[0][0].get("meta", {})
+            assert meta.get("rank_math_description", "").startswith("Update ")
+            assert len(meta["rank_math_description"]) <= 160
+            assert " | " in meta.get("rank_math_title", "")
+            assert len(meta["rank_math_title"]) <= 60
+            assert "rank_math_focus_keyword" not in meta  # toggle off
 
 # ---------------------------------------------------------------------------
 # Scraper Settings & Config Tests

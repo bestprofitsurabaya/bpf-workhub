@@ -4,6 +4,26 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 
 ---
 
+## v2.46.5 — 30 September 2026 (Scraper: template meta description & SEO title + skrip WP-CLI konversi artikel lama)
+
+- **Template meta Rank Math** — dua field baru di panel upload: template
+  *meta description* (`rank_math_description`, dipotong 160 karakter) dan
+  *SEO title* (`rank_math_title`, dipotong 60 karakter). Placeholder:
+  `{judul}`, `{kategori}`, `{sumber}`, `{tanggal}`. Kosong = Rank Math
+  memakai default (judul post / excerpt).
+- Meta description & title juga ikut terkirim saat **update** artikel
+  duplikat (dulu hanya focus keyword yang diteruskan).
+- **Skrip WP-CLI** `tools/wp-cli/convert-classic-to-blocks.php` — konversi
+  massal artikel lama classic → blok (mekanisme identik tombol "Convert
+  to blocks", via filter `rest_pre_insert_post` → `do_blocks()`), dengan
+  dry-run default, gerbang verifikasi konten (HTML asli harus utuh),
+  opsi `--post_type/--limit/--offset/--search/--ids/--force`. Scraper
+  sejak v2.46.4 memancarkan blok langsung — skrip ini hanya untuk stok
+  artikel lama.
+- Test: +1 pytest (template meta) → 70 lulus; 12 vitest lulus.
+
+---
+
 ## v2.46.4 — 30 September 2026 (Scraper: artikel Gutenberg-ready + fokus keyword Rank Math)
 
 **Masalah:** artikel hasil scraper terbit sebagai HTML polos tanpa komentar
