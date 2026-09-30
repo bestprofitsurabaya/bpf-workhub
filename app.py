@@ -293,6 +293,7 @@ from modules.routes_accessreview import register_access_review_routes
 from modules.routes_retention import register_retention_routes
 from modules.routes_documents import register_document_routes
 from modules.approvals import register_approval_routes
+from modules.transcoder import register_transcoder_routes
 
 register_driver_routes(app, socketio)
 register_auth_routes(app)
@@ -320,6 +321,7 @@ register_access_review_routes(app)
 register_retention_routes(app)
 register_document_routes(app)
 register_approval_routes(app)
+register_transcoder_routes(app)
 
 # ================================================================
 # AUTO-CLEANUP: Hapus foto overtime > 6 bulan (180 hari)

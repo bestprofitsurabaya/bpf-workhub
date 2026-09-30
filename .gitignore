@@ -21,6 +21,9 @@ uploads/*
 
 # Runtime data News Scraper (state aplikasi, bukan kode)
 data/news_scraper/
+# Runtime transcoder — hasil konversi media (v2.46.0); .gitkeep dipertahankan
+data/transcoder/*
+!data/transcoder/.gitkeep
 
 # Backup
 backup/

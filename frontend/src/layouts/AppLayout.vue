@@ -42,6 +42,7 @@ const MENU = [
   { label: 'Aset & Pemeliharaan', path: '/assets', icon: '🔧', roles: ['ga', 'admin'] },
   { label: 'Overtime', path: '/ga-hr', icon: '⏰', roles: ['ga_hr', 'admin'] },
   { label: 'News Scraper', path: '/it', icon: '📰', roles: ['it_sby', 'it_hu', 'it_jkt2', 'it_bdg', 'it_smg', 'it_mlg', 'it_mdn', 'it_bjm', 'it_plm', 'it_lpg', 'admin'] },
+  { label: 'Transcoder', path: '/transcoder', icon: '🎬', roles: ['it_sby', 'it_hu', 'it_jkt2', 'it_bdg', 'it_smg', 'it_mlg', 'it_mdn', 'it_bjm', 'it_plm', 'it_lpg', 'admin'] },
 
 ]
 

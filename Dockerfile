@@ -24,6 +24,7 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-reco
     default-mysql-client \
     cron \
     poppler-utils \
+    ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 # Setup cron: cleanup foto overtime > 6 bulan

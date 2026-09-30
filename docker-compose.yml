@@ -56,6 +56,8 @@ services:
       # SPA kini murni dari Dockerfile (stage frontend-build), selalu sinkron
       # dengan source frontend/ saat image di-build.
       - ./data/news_scraper:/app/data/news_scraper
+      # v2.46.0: hasil transcoder (persisten, di luar image)
+      - ./data/transcoder:/app/data/transcoder
       - ./fonts:/app/fonts
     environment:
       - FLASK_DEBUG=0
@@ -96,8 +98,9 @@ services:
       start_period: 60s
     restart: unless-stopped
     # Server bersama (3.8GB total + Nextcloud & project lain) — batasi agar
-    # satu container tidak menghabiskan RAM host.
-    mem_limit: 1g
+    # satu container tidak menghabiskan RAM host. v2.46.0: dinaikkan dari 1g —
+    # ffmpeg transcode butuh headroom (antrean MAX_CONCURRENT=1 di engine).
+    mem_limit: 1536m
     mem_reservation: 256m
     logging:
       driver: json-file

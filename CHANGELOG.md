@@ -4,6 +4,30 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 
 ---
 
+## v2.46.0 — 30 September 2026 (🎬 Transcoder — YouTube ke multi-format audio/video)
+
+Fitur baru untuk role IT cabang (`it_sby` … `it_lpg`) + admin: konversi link
+YouTube ke berbagai format output, dari dalam WorkHub.
+
+- **Multi-link sekaligus** — tempel 1–10 link per baris/koma; satu link
+  gagal tidak menghentikan yang lain.
+- **Format output**: audio MP3 192k / M4A 128k / WAV; video MP4 720p /
+  MP4 1080p / WebM VP9 / MKV salin-ulang. Boleh pilih beberapa format
+  sekaligus per job.
+- **Progres live per job & per link** — fase antrean → unduh (yt-dlp) →
+  konversi (ffmpeg `-progress`), polling 2 dtk saat aktif.
+- **Manajemen hasil**: unduh per berkas / unduh semua / salin tautan
+  unduh; hapus job (berkas ikut terhapus); batalkan job berjalan.
+  Hasil disimpan di `data/transcoder/` (volume persisten) dan
+  **otomatis terhapus setelah 48 jam**.
+- **Keamanan**: role-guard IT/admin, validasi URL YouTube ketat,
+  ekstensi output di-whitelist, unduhan hanya berkas milik job sendiri
+  (admin bebas), path traversal disanitasi, CSRF bawaan before_request.
+- **Infra**: image menambah `ffmpeg` (apt) + `yt-dlp` (pip, dipanggil
+  sebagai CLI via subprocess); `mem_limit` web 1g → 1,5g; antrean
+  transcode `MAX_CONCURRENT=1` (server 3.8GB).
+- Test: 24 pytest (engine/API/keamanan) + 8 vitest (UI); SPA build hijau.
+
 ## v2.45.0 — 24 September 2026 (ACC hanya divisi terkait — admin keluar total dari alur ACC)
 
 **Prinsip:** ACC tidak boleh "menyangkut pautkan" ke pihak luar — hanya
