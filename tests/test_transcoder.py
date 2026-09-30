@@ -333,3 +333,102 @@ class TestApi:
             'id': jid, 'user': 'it_sby', 'items': []})
         r = client.get('/api/transcoder/download/tc000001/virus.exe')
         assert r.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# Nextcloud public share (v2.46.2)
+# ---------------------------------------------------------------------------
+
+class TestNcShare:
+    def test_parse_url(self):
+        from modules.transcoder import ncshare
+        o, t = ncshare.parse_share_url(
+            'https://nasbpfsby.duckdns.org/index.php/s/H6ja3kDFts3aCke')
+        assert o == 'https://nasbpfsby.duckdns.org'
+        assert t == 'H6ja3kDFts3aCke'
+        assert ncshare.parse_share_url('https://example.com/x') is None
+        assert ncshare.parse_share_url('') is None
+
+    def test_public_url_shape(self):
+        from modules.transcoder import ncshare
+        u = ncshare.public_url('https://nc.example.com', 'TOK123',
+                               'tc000001', 'video uji.mp3')
+        assert u.startswith('https://nc.example.com/index.php/s/TOK123/download?path=')
+        assert 'tc000001' in u and 'video%20uji.mp3' in u
+
+    def test_config_roundtrip(self, tmp_path, monkeypatch):
+        from modules.transcoder import ncshare
+        monkeypatch.setattr(ncshare, 'CONFIG_FILE', str(tmp_path / 'nc.json'))
+        saved = ncshare.save_config(
+            'https://nasbpfsby.duckdns.org/index.php/s/H6ja3kDFts3aCke', 'rahasia')
+        assert saved['token'] == 'H6ja3kDFts3aCke'
+        cfg = ncshare.load_config()
+        assert cfg['origin'] == 'https://nasbpfsby.duckdns.org'
+        assert cfg['password'] == 'rahasia'
+
+    def test_config_rejects_bad_url(self, tmp_path, monkeypatch):
+        from modules.transcoder import ncshare
+        monkeypatch.setattr(ncshare, 'CONFIG_FILE', str(tmp_path / 'nc.json'))
+        with pytest.raises(ValueError):
+            ncshare.save_config('https://bukan-nextcloud.com/abc')
+
+    def test_config_api_admin_only(self, client):
+        _login(client, 'it_sby')
+        r = _post(client, '/api/transcoder/ncshare', {'url': 'https://x/index.php/s/abc123'})
+        assert r.status_code == 403
+
+    def test_config_api_roundtrip(self, client, monkeypatch):
+        _login(client, 'admin', 'admin')
+        from modules.transcoder import ncshare
+        monkeypatch.setattr(ncshare, 'CONFIG_FILE', '/tmp/test_nc_share.json')
+        r = _post(client, '/api/transcoder/ncshare',
+                  {'url': 'https://nasbpfsby.duckdns.org/index.php/s/H6ja3kDFts3aCke',
+                   'password': 'pw'})
+        assert r.status_code == 200
+        r = client.get('/api/transcoder/ncshare')
+        d = r.get_json()
+        assert d['configured'] is True
+        assert d['password_set'] is True
+        assert 'rahasia' not in r.text and 'pw' != d.get('password')
+
+    def test_public_links_endpoint(self, client, monkeypatch):
+        _login(client, 'it_sby')
+        monkeypatch.setattr(engine, 'get_job', lambda jid: {
+            'id': jid, 'user': 'it_sby',
+            'nc': {'auto': True, 'urls': ['https://nc/dl'], 'failed': False}})
+        r = client.get('/api/transcoder/jobs/tc000001/public-links')
+        d = r.get_json()
+        assert d['urls'] == ['https://nc/dl']
+
+    def test_upload_failure_does_not_fail_job(self, tmp_path, monkeypatch):
+        """Unggah Nextcloud gagal → job tetap done, ditandai nc.failed."""
+        fake = FakeTranscode()
+        base = str(tmp_path / 'tc')
+        os.makedirs(base, exist_ok=True)
+
+        import modules.transcoder.ytdlp as ytdlp
+        import modules.transcoder.engine as eng
+        monkeypatch.setattr(ytdlp, 'probe_title', fake.probe_title)
+        monkeypatch.setattr(ytdlp, 'download_media', fake.download_media)
+        monkeypatch.setattr(eng, '_run_ffmpeg',
+                            lambda a, d, p, w: (open(os.path.join(w, a[-1]), 'wb').write(b'x'), p(100)))
+        monkeypatch.setattr(eng, 'AUTO_UPLOAD_TO_NC', True)
+
+        def boom(job_id, filename, filepath):
+            raise RuntimeError('simulasi nextcloud mati')
+        import modules.transcoder.ncshare as ncshare
+        monkeypatch.setattr(ncshare, 'load_config',
+                            lambda: {'origin': 'https://x', 'token': 't', 'password': ''})
+        monkeypatch.setattr(ncshare, 'upload_file', boom)
+
+        job = eng.create_job(['https://youtu.be/nc1'], ['mp3'], 'it_sby', base)
+        deadline = time.time() + 5
+        while time.time() < deadline:
+            j = eng.get_job(job['id'])
+            if j['status'] in ('done', 'error'):
+                break
+            time.sleep(0.05)
+        j = eng.get_job(job['id'])
+        assert j['status'] == 'done'
+        assert j['nc']['failed'] is True
+        assert j['nc']['urls'] == []

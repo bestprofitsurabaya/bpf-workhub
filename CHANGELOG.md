@@ -4,6 +4,30 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 
 ---
 
+## v2.46.2 — 30 September 2026 (Transcoder: tautan publik via Nextcloud share)
+
+**Masalah:** tautan unduhan hasil transcode terikat login WorkHub — tidak
+bisa dibagikan ke luar (contoh kasus: tautan publik tidak bisa diakses
+penerima).
+
+- **Unggah otomatis ke share publik Nextcloud** — hasil job diunggah via
+  WebDAV publik (`/public.php/webdav/<job>/<file>`) ke share yang sudah ada
+  (mis. `nasbpfsby.duckdns.org/index.php/s/…`), tiap berkas mendapat tautan
+  unduh publik `…/download?path=<job>/<file>` yang bisa dibuka siapa pun.
+- **Config tanpa rebuild** — admin set URL share (+ password share opsional)
+  lewat UI Transcoder → `POST /api/transcoder/ncshare`; tersimpan di
+  `data/transcoder/nc_share.json` (volume persisten). Password tidak
+  pernah dikirim balik ke UI.
+- **UI**: panel config share (admin), tautan publik tampil di kartu job +
+  tombol salin cepat; badge keterangan aktif di form submit.
+- **Best-effort**: unggah gagal (share mati/penuh) tidak menggagalkan job —
+  ditandai `nc.failed`, unduhan lokal tetap jalan.
+- **Retensi**: penghapusan job/48 jam hanya membersihkan server lokal;
+  salinan di share publik tetap bisa diunduh (berkas panas dikelola via
+  retention Nextcloud sendiri).
+- Test: +8 pytest (parse URL, config roundtrip, API admin-only, links,
+  gagal-unggah tidak menggagalkan job) → 32 pytest total.
+
 ## v2.46.1 — 30 September 2026 (Transcoder: polling sadar-visibility)
 
 - **Pause polling saat tab hidden** (`visibilitychange`) — request tidak lagi

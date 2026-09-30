@@ -45,6 +45,10 @@ MAX_JOBS = 200              # batas entri registry (paling lama dibuang)
 FILE_RETENTION_HOURS = 48   # hasil job selesai dihapus lewat usia ini
 MAX_URLS_PER_REQUEST = 10   # batas multi-link per submit
 
+# Unggah otomatis ke share publik Nextcloud (v2.46.2) — hasil bisa dibagikan
+# lewat tautan publik. Boleh dimatikan lewat config share (auto_upload=false).
+AUTO_UPLOAD_TO_NC = True
+
 _URL_RE = re.compile(
     r'^(https?://)?(www\.|m\.|music\.)?'
     r'(youtube\.com/[\w\-/?=&.%]+|youtu\.be/[\w\-?=&.%]+)$',
@@ -95,12 +99,18 @@ def _new_job(urls, formats, user, base):
         'error': '',
         'items': [],               # per-link: {url,title,status,progress,stage_note,error,outputs}
         '_base': base,             # folder data/transcoder (internal)
+        '_nc': {'auto': AUTO_UPLOAD_TO_NC, 'results': [], 'failed': False},
     }
 
 
 def _public(job):
-    """Salinan job tanpa kunci internal."""
-    return {k: v for k, v in job.items() if not k.startswith('_')}
+    """Salinan job tanpa kunci internal — kecuali status share publik."""
+    out = {k: v for k, v in job.items() if not k.startswith('_')}
+    nc = job.get('_nc') or {}
+    out['nc'] = {'auto': nc.get('auto', False),
+                 'urls': nc.get('results', []),
+                 'failed': nc.get('failed', False)}
+    return out
 
 
 def create_job(urls, formats, user, base):
@@ -160,7 +170,8 @@ def delete_job(job_id, user):
 
 def _cleanup_job_files(job):
     """Hapus direktori kerja job (hasil + sementara). Panggil dgn lock pegang
-    atau dari request context — tidak butuh app context."""
+    atau dari request context — tidak butuh app context.
+    Salinan di share Nextcloud TIDAK ikut terhapus (tetap bisa diunduh)."""
     base = job.get('_base') or ''
     if not base:
         return
@@ -286,7 +297,27 @@ def _process_one(job, idx, url, workdir):
                 'file': os.path.basename(out),
                 'size': os.path.getsize(out),
             })
+        if (job.get('_nc') or {}).get('auto'):
+            _nc_upload(job, out)
     _update_item(job, idx, status='done', progress=100, stage_note='')
+
+
+# ---------------------------------------------------------------------------
+# Unggah ke share publik Nextcloud (best-effort — gagal tidak menggagalkan job)
+# ---------------------------------------------------------------------------
+
+def _nc_upload(job, filepath):
+    """Unggah satu hasil ke share publik; catat URL di job['_nc']."""
+    try:
+        from . import ncshare
+        url = ncshare.upload_file(job['id'], os.path.basename(filepath), filepath)
+        with _lock:
+            job['_nc']['results'].append(url)
+    except Exception as e:
+        with _lock:
+            job['_nc']['failed'] = True
+            job['_nc']['error'] = str(e)[:200]
+        print(f'[transcoder] unggah Nextcloud gagal: {e}')
 
 
 # ---------------------------------------------------------------------------

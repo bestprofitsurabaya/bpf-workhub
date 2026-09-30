@@ -13,6 +13,11 @@ const jobs = ref([])
 let pollTimer = null            // handle setTimeout siklus polling
 let pollAbort = null            // AbortController request in-flight
 let pollDelay = 10000
+const ncConfigured = ref(false)
+const showNcForm = ref(false)
+const ncForm = ref({ url: '', password: '' })
+const ncBusy = ref(false)
+const isCopied = ref('')
 const filter = ref('all')            // all | running | done | failed
 const copied = ref('')
 
@@ -79,10 +84,31 @@ async function loadJobs(signal) {
   try {
     const d = await api('/api/transcoder/jobs', { signal })
     jobs.value = d.jobs || []
+    ncConfigured.value = !!d.nc_share
   } catch (e) {
     if (e?.name === 'AbortError') return  // pembatalan sadar — bukan error
     err.value = e.message
   }
+}
+
+async function saveNcShare() {
+  err.value = ''; ok.value = ''
+  ncBusy.value = true
+  try {
+    const d = await api('/api/transcoder/ncshare', { method: 'POST', body: ncForm.value })
+    ok.value = d.msg || 'Share publik tersimpan'
+    showNcForm.value = false
+    ncConfigured.value = true
+  } catch (e) { err.value = e.message }
+  finally { ncBusy.value = false }
+}
+
+function copyNc(j) {
+  const urls = (j.nc?.urls || [])
+  if (!urls.length) return
+  navigator.clipboard?.writeText(urls.join('\n'))
+  isCopied.value = j.id
+  setTimeout(() => { isCopied.value = '' }, 1500)
 }
 
 async function submit() {
@@ -190,6 +216,9 @@ onBeforeUnmount(() => {
         <p class="sub">Konversi link YouTube ke berbagai format audio & video — beberapa link sekaligus.</p>
       </div>
       <div v-if="runningCount" class="run-pill">⚙️ {{ runningCount }} job berjalan</div>
+      <button class="btn btn-ghost btn-xs" @click="showNcForm = !showNcForm">
+        {{ ncConfigured ? '🌐 Share publik: aktif' : '🌐 Share publik: belum diset' }}
+      </button>
     </header>
 
     <div v-if="err" class="banner b-err">⚠️ {{ err }} <button class="x" @click="err=''">✕</button></div>
@@ -227,7 +256,20 @@ onBeforeUnmount(() => {
         <button class="btn btn-primary" :disabled="!canSubmit" @click="submit">
           {{ busy ? 'Membuat job…' : `🚀 Mulai Konversi${urlCount ? ` (${urlCount} link)` : ''}` }}
         </button>
-        <span class="muted">Hasil tersimpan di server 48 jam — unduh sebelum terhapus otomatis.</span>
+        <span class="muted">Hasil tersimpan di server 48 jam — unduh sebelum terhapus otomatis.<template v-if="ncConfigured"> Salinan otomatis diunggah ke <strong>share publik Nextcloud</strong> (tautan bisa dibagikan).</template></span>
+      </div>
+
+      <div v-if="showNcForm" class="ncform">
+        <label class="lbl">🔗 URL share publik Nextcloud <span class="muted">(mis. https://nasbpfsby.duckdns.org/index.php/s/H6ja3kDFts3aCke)</span></label>
+        <input v-model="ncForm.url" class="inp" placeholder="https://…/index.php/s/…" />
+        <label class="lbl" style="margin-top:10px">🔒 Password share <span class="muted">(opsional, bila share diproteksi)</span></label>
+        <input v-model="ncForm.password" type="password" class="inp" autocomplete="new-password" />
+        <div class="hint-row" style="margin-top:12px">
+          <button class="btn btn-primary btn-xs" :disabled="ncBusy || !ncForm.url" @click="saveNcShare">
+            {{ ncBusy ? 'Menyimpan…' : 'Simpan' }}</button>
+          <button class="btn btn-ghost btn-xs" @click="showNcForm = false">Tutup</button>
+        </div>
+        <p class="muted small" style="margin-top:8px">Hasil job berikutnya otomatis diunggah ke share ini dan mendapat tautan unduh publik. Admin only.</p>
       </div>
     </section>
 
@@ -282,6 +324,11 @@ onBeforeUnmount(() => {
                 {{ o.kind === 'audio' ? '🎧' : '🎞️' }} {{ o.label }} <small>{{ fmtSize(o.size) }}</small> ⬇️
               </a>
               <span v-if="it.status !== 'error' && !it.outputs.length" class="muted small">menyiapkan…</span>
+            </div>
+            <div v-if="j.nc?.urls?.length && i === j.items.length - 1" class="nclinks">
+              <div class="nclabel">🌐 Tautan publik (bisa dibagikan keluar):</div>
+              <a v-for="(u, k) in j.nc.urls" :key="k" :href="u" target="_blank" rel="noopener" class="nclink">{{ u }}</a>
+              <span v-if="j.nc?.failed" class="err small">⚠️ sebagian unggahan gagal — gunakan unduhan lokal</span>
             </div>
           </div>
         </div>
@@ -370,4 +417,12 @@ h2 { margin: 0 0 12px; font-size: 15px; }
 .out { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; text-decoration: none; border: 1px solid var(--border, #cbd5e1); border-radius: 8px; padding: 5px 11px; color: var(--text, #0f172a); transition: all .15s; }
 .out small { font-weight: 400; opacity: .6; }
 .out:hover { border-color: var(--primary, #2563eb); color: var(--primary, #2563eb); transform: translateY(-1px); }
+
+.ncform { margin-top: 14px; border: 1px dashed var(--border, #cbd5e1); border-radius: 10px; padding: 14px; background: var(--bg, #f8fafc); }
+.inp { width: 100%; box-sizing: border-box; border: 1px solid var(--border, #cbd5e1); border-radius: 8px; padding: 8px 12px; font-size: 13px; background: var(--surface, #fff); color: var(--text, #0f172a); }
+.inp:focus { outline: 2px solid var(--primary, #2563eb); border-color: transparent; }
+.nclinks { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border, #e2e8f0); }
+.nclabel { font-size: 12px; font-weight: 700; color: var(--text-2, #475569); margin-bottom: 4px; }
+.nclink { display: block; font-size: 11.5px; color: var(--primary, #2563eb); text-decoration: none; word-break: break-all; padding: 2px 0; }
+.nclink:hover { text-decoration: underline; }
 </style>

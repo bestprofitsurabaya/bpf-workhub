@@ -19,6 +19,7 @@ from modules.helpers import role_required
 from . import transcoder_bp, TRANSCODER_ROLES
 from . import engine
 from .engine import FORMATS  # noqa: F401
+from . import ncshare
 
 
 def _user():
@@ -78,7 +79,47 @@ def list_jobs():
     jobs = engine.list_jobs(limit=100)
     if session.get('user_role') != 'admin':
         jobs = [j for j in jobs if j.get('user') == _user()]
-    return jsonify({'status': 'ok', 'jobs': jobs})
+    return jsonify({'status': 'ok', 'jobs': jobs,
+                    'nc_share': ncshare.is_configured()})
+
+
+# ---------------------------------------------------------------------------
+# Konfigurasi share publik Nextcloud (admin) + tautan publik per job
+# ---------------------------------------------------------------------------
+
+@transcoder_bp.route('/api/transcoder/ncshare', methods=['GET', 'POST'])
+@role_required(['admin'])
+def ncshare_config():
+    if request.method == 'GET':
+        cfg = ncshare.load_config()
+        if not cfg:
+            return jsonify({'status': 'ok', 'configured': False})
+        # jangan bocorkan password — hanya penanda sudah diset
+        return jsonify({'status': 'ok', 'configured': True,
+                        'origin': cfg['origin'], 'token': cfg['token'],
+                        'password_set': bool(cfg['password'])})
+    data = request.get_json(silent=True) or {}
+    try:
+        saved = ncshare.save_config(data.get('url', ''), data.get('password', ''))
+    except ValueError as e:
+        return jsonify({'status': 'error', 'msg': str(e)}), 400
+    return jsonify({'status': 'ok', 'msg': 'Share publik tersimpan', **saved})
+
+
+@transcoder_bp.route('/api/transcoder/jobs/<job_id>/public-links',
+                     methods=['GET'])
+@role_required(list(TRANSCODER_ROLES))
+def public_links(job_id):
+    """Tautan unduh publik hasil job (dari catatan unggahan otomatis)."""
+    job = engine.get_job(job_id)
+    if not job or not _can_view(job):
+        return jsonify({'status': 'error', 'msg': 'Job tidak ditemukan'}), 404
+    nc = job.get('nc') or {}
+    return jsonify({'status': 'ok', 'job_id': job_id,
+                    'configured': ncshare.is_configured(),
+                    'uploaded': nc.get('auto', False),
+                    'failed': nc.get('failed', False),
+                    'urls': nc.get('urls', [])})
 
 
 @transcoder_bp.route('/api/transcoder/jobs/<job_id>', methods=['GET'])
