@@ -6,8 +6,9 @@
  * (mis. tab lama yang masih memegang token sesi sebelum re-login di tab lain),
  * wrapper mengambil token baru dari /api/auth/me lalu retry SEKALI.
  */
-export async function api(path, { method = 'GET', body, params, raw = false } = {}, _retried = false) {
+export async function api(path, { method = 'GET', body, params, raw = false, signal } = {}, _retried = false) {
   const opts = { method, headers: raw ? {} : { Accept: 'application/json' } }
+  if (signal) opts.signal = signal
   if (body !== undefined) {
     opts.headers['Content-Type'] = 'application/json'
     opts.body = JSON.stringify(body)
@@ -27,6 +28,9 @@ export async function api(path, { method = 'GET', body, params, raw = false } = 
   try {
     r = await fetch(path, opts)
   } catch (e) {
+    // Abort diteruskan apa adanya — caller (polling lifecycle) yang memutuskan;
+    // jangan dibungkus error jaringan agar bisa dibedakan.
+    if (e?.name === 'AbortError' || signal?.aborted) throw e
     throw new Error('Koneksi ke server gagal. Periksa jaringan Anda.')
   }
 
@@ -63,7 +67,7 @@ export async function api(path, { method = 'GET', body, params, raw = false } = 
         const meData = await meResp.json()
         if (meData?.csrf_token) {
           localStorage.setItem('bpf_csrf', meData.csrf_token)
-          return api(path, { method, body, params, raw }, true)
+          return api(path, { method, body, params, raw, signal }, true)
         }
       } catch { /* fall through ke throw normal */ }
     }

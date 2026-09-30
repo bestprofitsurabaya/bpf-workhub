@@ -10,7 +10,9 @@ const busy = ref(false)
 const err = ref('')
 const ok = ref('')
 const jobs = ref([])
-const pollTimer = ref(null)
+let pollTimer = null            // handle setTimeout siklus polling
+let pollAbort = null            // AbortController request in-flight
+let pollDelay = 10000
 const filter = ref('all')            // all | running | done | failed
 const copied = ref('')
 
@@ -73,11 +75,12 @@ function toggleFormat(k) {
   else formats.value.push(k)
 }
 
-async function loadJobs() {
+async function loadJobs(signal) {
   try {
-    const d = await api('/api/transcoder/jobs')
+    const d = await api('/api/transcoder/jobs', { signal })
     jobs.value = d.jobs || []
   } catch (e) {
+    if (e?.name === 'AbortError') return  // pembatalan sadar — bukan error
     err.value = e.message
   }
 }
@@ -141,20 +144,42 @@ function copyLink(j) {
   setTimeout(() => { copied.value = '' }, 1500)
 }
 
-// polling: cepat saat ada job jalan, lambat saat idle
-function schedulePoll() {
-  clearTimeout(pollTimer.value)
-  pollTimer.value = setTimeout(async () => {
-    await loadJobs()
-    schedulePoll()
-  }, runningCount.value ? 2000 : 10000)
+// polling: cepat saat ada job jalan, lambat saat idle;
+// JEDA otomatis saat tab hidden (visibilitychange) — request tidak lagi
+// "terbang" saat tab ditutup/dipindah sehingga console bersih dari
+// FetchEvent/abort noise, sekaligus hemat resource server & baterai.
+function schedulePoll(delay = pollDelay) {
+  clearTimeout(pollTimer)
+  if (document.hidden) return
+  pollTimer = setTimeout(pollOnce, delay)
+}
+
+async function pollOnce() {
+  pollAbort?.abort()
+  pollAbort = new AbortController()
+  await loadJobs(pollAbort.signal)
+  pollDelay = runningCount.value ? 2000 : 10000
+  schedulePoll(pollDelay)
+}
+
+function onVisibility() {
+  if (document.hidden) {
+    clearTimeout(pollTimer)
+    pollAbort?.abort()
+  } else {
+    pollOnce()  // tab kembali aktif — segarkan langsung
+  }
 }
 
 onMounted(async () => {
-  await loadJobs()
-  schedulePoll()
+  document.addEventListener('visibilitychange', onVisibility)
+  await pollOnce()
 })
-onBeforeUnmount(() => clearTimeout(pollTimer.value))
+onBeforeUnmount(() => {
+  document.removeEventListener('visibilitychange', onVisibility)
+  clearTimeout(pollTimer)
+  pollAbort?.abort()
+})
 </script>
 
 <template>

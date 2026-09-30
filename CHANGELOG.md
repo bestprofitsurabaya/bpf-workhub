@@ -4,6 +4,15 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 
 ---
 
+## v2.46.1 — 30 September 2026 (Transcoder: polling sadar-visibility)
+
+- **Pause polling saat tab hidden** (`visibilitychange`) — request tidak lagi
+  "terbang" saat tab ditutup/dipindah; console browser bersih dari noise
+  `FetchEvent … network error` bawaan Service Worker, hemat resource server.
+- **AbortController** untuk request polling in-flight — di-abort saat unmount
+  & saat tab kembali aktif diambil segar; `api()` kini menerima `signal` dan
+  meneruskan `AbortError` apa adanya (tidak dibungkus error jaringan).
+
 ## v2.46.0 — 30 September 2026 (🎬 Transcoder — YouTube ke multi-format audio/video)
 
 Fitur baru untuk role IT cabang (`it_sby` … `it_lpg`) + admin: konversi link
