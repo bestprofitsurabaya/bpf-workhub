@@ -203,6 +203,21 @@ def register_cash_routes(app):
             # Use session identity for audit trail.
             fin_name = session.get('full_name', '') or session.get('user_name', 'Finance Officer')
 
+            # v2.45.0: ACC Finance adalah langkah berjenjang terakhir —
+            # tolak bila jurnal ACC masih pending / ditolak atasan (409).
+            _gconn = get_db_connection()
+            if not _gconn:
+                return jsonify({'status': 'error', 'msg': 'DB error'}), 500
+            try:
+                allowed, resp = gate_approval(_gconn, 'cash', cash_id)
+            finally:
+                try:
+                    _gconn.close()
+                except Exception:
+                    pass
+            if not allowed:
+                return resp
+
             conn = get_db_connection()
             cursor = conn.cursor(dictionary=True)
             cursor.execute("SELECT * FROM fuel_cash_requests WHERE id = %s AND status = 'GA_APPROVED'", (cash_id,))

@@ -4,6 +4,30 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 
 ---
 
+## v2.45.0 — 24 September 2026 (ACC hanya divisi terkait — admin keluar total dari alur ACC)
+
+**Prinsip:** ACC tidak boleh "menyangkut pautkan" ke pihak luar — hanya
+divisi terkait yang menangani pengajuan. **Admin manapun (Pusat maupun
+Cabang) tidak berwenang memberi ACC.**
+
+- **Overtime (Driver & OB/Security): GA HR TUNGGAL** — ACC GA HR kini
+  final (sebelumnya GA HR → Admin/Admin Pusat). Divisi GA adalah pihak
+  terkait satu-satunya.
+- **Kasbon & Klaim BBM: Chief Driver → GA → Finance** — ACC Finance
+  (langkah ketiga) ditambahkan; endpoint `approve-finance` kini di-gate
+  409 `SUPERVISOR_APPROVAL_REQUIRED` (paritas approve-ga).
+- **Admin manapun dilarang memutus** — `decision_allowed` gagal-closed
+  utk sesi admin (termasuk ber-flag `admin_all_branches`); endpoint
+  decision menolak 403; daftar approvals tak menampilkan baris utk admin;
+  menu ✅ ACC Atasan disembunyikan (sidebar + router).
+- Jurnal pending lama (chain 2/3 langkah dgn langkah admin) tetap aman:
+  langkah non-admin tetap diputus pemegangnya; langkah admin lama kini
+  hanya bisa dilewati sejak v2.45.0 oleh… tidak ada — pengajuan lama yang
+  menggantung di langkah admin perlu di-ACC ulang oleh GA HR/divisi
+  (dipandu pesan gate) atau dihapus admin via menu data.
+- Test baru: rantai baru, admin dilarang total, overtime tunggal,
+  daftar kosong utk admin, gate 3-langkah.
+
 ## v2.44.0 — 24 September 2026 (Revisi otoritas ACC: ACC-2 overtime = Admin Pusat, bukan Admin Cabang)
 
 **Koreksi sesuai struktur perusahaan:** Admin Cabang (`admin_sby`, dst)

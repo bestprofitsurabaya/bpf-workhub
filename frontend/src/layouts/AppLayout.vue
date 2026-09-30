@@ -29,7 +29,7 @@ const MENU = [
   { label: 'Analytics', path: '/analytics', icon: '📈', roles: ['ga', 'finance', 'admin'] },
   { label: 'Marketing Hub', path: '/marketing', icon: '📣', roles: ['marketing'] },
   { label: 'Chief Driver', path: '/chief-driver', icon: '🚛', roles: ['chief_driver', 'ga', 'admin'] },
-  { label: 'ACC Atasan', path: '/approvals', icon: '✅', roles: ['chief_driver', 'ga', 'finance', 'ga_hr', 'admin'], hoOnly: true },
+  { label: 'ACC Atasan', path: '/approvals', icon: '✅', roles: ['chief_driver', 'ga', 'finance', 'ga_hr'] },
   { label: 'Manajemen User', path: '/users', icon: '👥', roles: ['admin'] },
   { label: 'Access Review', path: '/access-review', icon: '🛂', roles: ['admin'] },
   { label: 'Pengaturan', path: '/settings', icon: '⚙️', roles: ['admin'] },
@@ -48,9 +48,8 @@ const MENU = [
 const items = computed(() => MENU.filter((m) => m.roles.includes(auth.role))
   // v2.37.0: Admin cabang (admin_<kode>) tidak melihat menu lintas cabang
   .filter((m) => !['/access-review', '/logs'].includes(m.path) || auth.isHoAdmin)
-  // v2.44.0: menu hoOnly (ACC Atasan) = wewenang Admin Pusat —
-  // disembunyikan dari Admin Cabang (admin/ga/finance cabang).
-  .filter((m) => !m.hoOnly || auth.isHoAdmin))
+  // v2.45.0: ACC urusan divisi terkait — admin tidak terlibat ACC apa pun
+  .filter((m) => m.path !== '/approvals' || auth.role !== 'admin'))
 const pageTitle = computed(() => route.meta?.title || (items.value.find((i) => route.path.startsWith(i.path))?.label || 'Dashboard'))
 const initials = computed(() => (auth.user?.full_name || auth.user?.user_name || '?').slice(0, 2).toUpperCase())
 

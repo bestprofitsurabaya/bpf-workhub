@@ -168,16 +168,22 @@ _APP = Flask(__name__)
 # ================================================================
 class TestBuildChain:
     def test_default_driver_chief_lalu_ga(self, store):
+        """v2.45.0: BBM = Chief Driver → GA → Finance (3 langkah)."""
         chain = build_chain(_conn(store), 'bbm', 'Budi Driver', 'driver')
-        assert [s['role'] for s in chain] == ['chief_driver', 'ga']
+        assert [s['role'] for s in chain] == ['chief_driver', 'ga', 'finance']
         assert all(s['approver'] for s in chain)
 
-    def test_default_ob_ga_hr_lalu_admin(self, store, monkeypatch):
-        """v2.44.0: ACC-2 overtime = 'ho_admin' (Admin Pusat), bukan role admin."""
-        monkeypatch.setattr(am, '_lookup_ho_admin', lambda conn: 'admin')
+    def test_overtime_ga_hr_tunggal(self, store):
+        """v2.45.0: overtime = ACC tunggal GA HR — admin tidak terlibat."""
         chain = build_chain(_conn(store), 'overtime_ob', 'Ob Satu', 'ob')
-        assert [s['role'] for s in chain] == ['ga_hr', 'ho_admin']
-        assert chain[1]['approver'] == 'admin'
+        assert [s['role'] for s in chain] == ['ga_hr']
+
+    def test_cash_tiga_langkah_chief_ga_finance(self, store):
+        """v2.45.0: kasbon/BBM = Chief Driver → GA → Finance."""
+        chain = build_chain(_conn(store), 'cash', 'Budi Driver', 'driver')
+        assert [s['role'] for s in chain] == ['chief_driver', 'ga', 'finance']
+        chain = build_chain(_conn(store), 'bbm', 'Budi Driver', 'driver')
+        assert [s['role'] for s in chain] == ['chief_driver', 'ga', 'finance']
 
     def test_override_manager_username(self, store):
         store['users']['Budi Driver']['manager_username'] = 'chief'
@@ -243,6 +249,7 @@ class TestDecide:
         assert 'Menunggu persetujuan' in msg
 
     def test_acc_berjenjang_sampai_final(self, store):
+        """v2.45.0: cash 3 langkah — chief → ga → finance → final."""
         conn = _pending(store)
         ok, _ = decide(conn, 'cash', 5, 'approved', 'chief1', 'chief_driver')
         assert ok
@@ -250,8 +257,40 @@ class TestDecide:
         assert status == 'pending' and row['step'] == 2
         ok, _ = decide(conn, 'cash', 5, 'approved', 'ga_andi', 'ga')
         assert ok
+        status, row = approval_status(conn, 'cash', 5)
+        assert status == 'pending' and row['step'] == 3
+        ok, _ = decide(conn, 'cash', 5, 'approved', 'fin1', 'finance')
+        assert ok
         status, _ = approval_status(conn, 'cash', 5)
         assert status == 'approved'
+
+    def test_admin_dilarang_memutus_apapun(self, store, monkeypatch):
+        """v2.45.0: admin pusat/cabang tidak berwenang ACC — bahkan di
+        langkah finance/ga/chief (fail-closed, terlepas is_ho_admin)."""
+        for actor, role in (('admin_sby', 'admin'), ('admin', 'admin')):
+            conn = _pending(store)
+            ok, _ = decide(conn, 'cash', 5, 'approved', actor, role)
+            assert not ok
+        # Di langkah ketiga (finance) pun admin tetap ditolak
+        conn = _pending(store)
+        decide(conn, 'cash', 5, 'approved', 'c1', 'chief_driver')
+        decide(conn, 'cash', 5, 'approved', 'g1', 'ga')
+        ok, _ = decide(conn, 'cash', 5, 'approved', 'admin_master', 'admin')
+        assert not ok
+
+    def test_overtime_acc_tunggal_ga_hr(self, store):
+        """v2.45.0: ACC GA HR = final; ga/finance/admin tidak memutus."""
+        conn = _pending(store, doc_type='overtime_driver',
+                        requested_by='Budi', requester_role='driver')
+        ok, _ = decide(conn, 'overtime_driver', 5, 'approved', 'hr', 'ga_hr')
+        assert ok
+        assert approval_status(conn, 'overtime_driver', 5)[0] == 'approved'
+        for actor, role in (('g1', 'ga'), ('f1', 'finance'),
+                            ('admin_sby', 'admin'), ('admin_master', 'admin')):
+            conn2 = _pending(store, doc_type='overtime_ob', doc_ref=7,
+                             requested_by='Ob Satu', requester_role='ob')
+            ok, _ = decide(conn2, 'overtime_ob', 7, 'approved', actor, role)
+            assert not ok
 
     def test_langkah_ber_role_cocok_utk_pemegang_role_sama(self, store):
         """Chief Driver cadangan (username beda) tetap bisa memutus."""
@@ -313,30 +352,13 @@ class TestDecide:
         ok, msg = decide(conn, 'cash', 5, 'approved', 'ga1', 'ga')
         assert not ok and 'sudah diproses' in msg
 
-    def test_overtime_chain_ga_hr_lalu_ho_admin(self, store, monkeypatch):
-        """v2.44.0: ACC-2 overtime = Admin Pusat (role 'admin' saja tak cukup)."""
-        conn = _pending(store, doc_type='overtime_driver',
-                        requested_by='Budi', requester_role='driver')
-        ok, _ = decide(conn, 'overtime_driver', 5, 'approved', 'hr', 'ga_hr')
-        assert ok
-        # Admin Cabang (role admin, bukan Admin Pusat) → DITOLAK
-        monkeypatch.setattr(am, 'is_ho_admin', lambda: False)
-        ok, msg = decide(conn, 'overtime_driver', 5, 'approved', 'admin_sby', 'admin')
-        assert not ok
-        # Admin Pusat → ACC final
-        monkeypatch.setattr(am, 'is_ho_admin', lambda: True)
-        ok, _ = decide(conn, 'overtime_driver', 5, 'approved', 'root', 'admin')
-        assert ok
-        assert approval_status(conn, 'overtime_driver', 5)[0] == 'approved'
-
     def test_ho_admin_via_flag_admin_all_branches(self, store, monkeypatch):
-        """Admin cabang dgn flag admin_all_branches berperilaku Admin Pusat."""
+        """v2.45.0: flag admin_all_branches TIDAK memberi wewenang ACC —
+        admin manapun (pusat/cabang) dilarang memutus langkah apa pun."""
         conn = _pending(store, doc_type='overtime_driver',
                         requested_by='Budi', requester_role='driver')
-        decide(conn, 'overtime_driver', 5, 'approved', 'hr', 'ga_hr')
-        monkeypatch.setattr(am, 'is_ho_admin', lambda: True)
-        ok, _ = decide(conn, 'overtime_driver', 5, 'approved', 'admin_sby', 'admin')
-        assert ok
+        ok, _ = decide(conn, 'overtime_driver', 5, 'approved', 'admin_master', 'admin')
+        assert not ok  # dilarang — ACC urusan divisi terkait saja
 
     def test_decision_allowed_tanpa_langkah_aktif(self, store):
         conn = _pending(store)
@@ -369,6 +391,7 @@ class TestGate:
         conn = _pending(store)
         decide(conn, 'cash', 5, 'approved', 'c1', 'chief_driver')
         decide(conn, 'cash', 5, 'approved', 'g1', 'ga')
+        decide(conn, 'cash', 5, 'approved', 'f1', 'finance')
         ok, resp = gate_allows(_conn(store), 'cash', 5)
         assert ok and resp is None
 
@@ -447,20 +470,31 @@ class TestEndpoints:
         assert len(data) == 1  # hanya cash yang masih pending
         assert data[0]['pending_at']
 
-    def test_daftar_admin_semua_langkah(self, store, monkeypatch):
+    def test_daftar_finance_langkah_ketiga(self, store, monkeypatch):
+        """v2.45.0: Finance melihat pengajuan yang sudah sampai langkahnya."""
         conn = _pending(store)
         decide(conn, 'cash', 5, 'approved', 'c1', 'chief_driver')  # ke langkah 2
         a, _ = _api_app(store, monkeypatch)
         c = a.test_client()
+        _login(c, 'finance', 'fin1')
+        data = c.get('/api/approvals').get_json()['data']
+        # finance hanya melihat baris ber-langkah finance; cash masih di ga
+        assert all(r['doc_type'] != 'cash' for r in data)
+
+    def test_daftar_admin_kosong(self, store, monkeypatch):
+        """v2.45.0: admin tidak berwenang ACC → daftar kosong utk sesi admin."""
+        _pending(store)
+        a, _ = _api_app(store, monkeypatch)
+        c = a.test_client()
         _login(c, 'admin', 'root')
         data = c.get('/api/approvals').get_json()['data']
-        assert len(data) == 1 and data[0]['step'] == 2
+        assert data == []
 
     def test_daftar_chain_json_sudah_dict(self, store, monkeypatch):
         _pending(store)
         a, _ = _api_app(store, monkeypatch)
         c = a.test_client()
-        _login(c, 'admin', 'root')
+        _login(c, 'chief_driver', 'chief1')
         data = c.get('/api/approvals').get_json()['data']
         assert isinstance(data[0]['chain'], list)
 
@@ -526,6 +560,7 @@ class TestEndpointProduksi:
         conn = _pending(store)
         decide(conn, 'cash', 5, 'approved', 'c1', 'chief_driver')
         decide(conn, 'cash', 5, 'approved', 'g1', 'ga')
+        decide(conn, 'cash', 5, 'approved', 'f1', 'finance')  # v2.45.0: ACC final
         a = Flask(__name__)
         a.secret_key = 'k'
         monkeypatch.setattr(rc, 'stepup_required', lambda f: f)
