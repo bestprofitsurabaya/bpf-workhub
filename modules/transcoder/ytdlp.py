@@ -10,6 +10,7 @@ tanpa menyentuh API Python.
 """
 
 import os
+import re
 import subprocess
 
 from flask import current_app
@@ -40,6 +41,21 @@ def _inside(workdir, path):
     return os.path.realpath(path).startswith(os.path.realpath(workdir) + os.sep)
 
 
+def _parse_stdout_path(line: str):
+    """Ambil path berkas dari baris progres yt-dlp, bila ada."""
+    m = re.match(r'^.*\[(?:download|Merger)\]\s*(?:Destination|Merger|Merging formats into)\s*:?"?(.+?)"?\s*$', line)
+    if m:
+        path = m.group(1).strip()
+        path = re.sub(r'\s+has already been downloaded$', '', path)
+        if path.endswith(".part"):
+            path = path[:-len(".part")]
+        return path
+    m = re.match(r'^.*\[download\]\s*(.+?)\s+has already been downloaded', line)
+    if m:
+        return m.group(1).strip()
+    return None
+
+
 def download_media(url, kind, max_height, workdir, on_progress) -> str:
     """Unduh sumber ke workdir; return path file hasil.
 
@@ -60,22 +76,32 @@ def download_media(url, kind, max_height, workdir, on_progress) -> str:
 
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                             text=True)
+    reported = None
     for line in proc.stdout:
-        line = line.strip()
+        line = line.rstrip()
         # --newline: baris [download]  23.4% of ...
-        if line.startswith('[download]') and '%' in line:
+        if line.startswith('[download]') and '%' in line and reported is None:
             try:
                 pct = float(line.split('%')[0].split()[-1])
                 on_progress(int(pct))
             except (ValueError, IndexError):
                 pass
+        # Ambil path persis dari yt-dlp — jangan menebak dari mtime.
+        p = _parse_stdout_path(line)
+        if p and _inside(workdir, p) and not p.endswith(('.part', '.ytdl')):
+            reported = p  # unduhan ini yang paling akhir melapor
     proc.wait()
     if proc.returncode != 0:
         raise YtDlpError(f'yt-dlp gagal: {proc.stderr.read()[-300:]}')
 
-    # cari file src_* terbaru di workdir
+    if reported:
+        return reported
+
+    # Fallback (mis. baris path tidak tersedia): file src_* terbaru yang
+    # BUKAN part/merge sementara — tetap bisa salah bila workdir dipakai
+    # bareng, tapi jauh lebih aman daripada dulu.
     cands = [os.path.join(workdir, f) for f in os.listdir(workdir)
-             if f.startswith('src_')]
+             if f.startswith('src_') and not f.endswith(('.part', '.ytdl', '.tmp'))]
     if not cands:
         raise YtDlpError('yt-dlp tidak menghasilkan berkas')
     newest = max(cands, key=os.path.getmtime)
