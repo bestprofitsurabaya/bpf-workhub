@@ -260,7 +260,7 @@ Dokumentasi BPF WorkHub tersusun seperti rak buku — pilih lorong sesuai kebutu
 |---------|--------|
 | [📋 Changelog](CHANGELOG.md) | Riwayat perubahan per versi — ditulis untuk manusia |
 | [📈 Progress Tracker](docs/internal/PROGRESS.md) | Status roadmap, catatan sesi, rekomendasi berikutnya |
-| [🤖 Komunikasi Ox Alpha](docs/internal/OXALPHA_COMMUNICATION.md) | Catatan integrasi LLM (OpenRouter) untuk asisten IT |
+| [🤖 Komunikasi Ox Alpha](docs/internal/arsip_2025Q4/OXALPHA_COMMUNICATION.md) | Catatan integrasi LLM (OpenRouter) untuk asisten IT |
 
 ---
 

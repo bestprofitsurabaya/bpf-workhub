@@ -59,6 +59,8 @@ services:
       # v2.46.0: hasil transcoder (persisten, di luar image)
       - ./data/transcoder:/app/data/transcoder
       - ./fonts:/app/fonts
+      # static SPA (host mount) — bbm_web:5000 serve /static/* + /app/*
+      - ./static:/app/static
     environment:
       - FLASK_DEBUG=0
       - TZ=Asia/Jakarta
@@ -102,6 +104,14 @@ services:
     # ffmpeg transcode butuh headroom (antrean MAX_CONCURRENT=1 di engine).
     mem_limit: 1536m
     mem_reservation: 256m
+    # v2.46.6: fallback DNS publik — resolver utama NAS (172.60.199.1, DNS
+    # internal) sesekali gagal resolve domain luar (mis. www.newsmaker.id,
+    # 2026-09-30 07:01 UTC) sehingga run auto-scrape abort. Docker meneruskan
+    # SEMUA server ini ke container; gagal satu, resolver client coba berikutnya.
+    dns:
+      - 172.60.199.1     # DNS internal (resolusi host/servis lokal tetap jalan)
+      - 1.1.1.1          # Cloudflare (fallback publik)
+      - 8.8.8.8          # Google (fallback publik)
     logging:
       driver: json-file
       options:

@@ -1415,6 +1415,12 @@ def register_receptionist_routes(app):
             roster = [{'nama': r['nama'], 'jabatan': r['jabatan'] or ''}
                       for r in cursor.fetchall()]
             last_sync = _get_last_sync(conn, 'inout_last_sync')
+            # Baca mode SELAGI koneksi masih hidup. Sebelumnya dipanggil setelah
+            # conn.close() sehingga query melempar error, _inout_mode()
+            # menangkap lewat except dan mengembalikan default 'hybrid' —
+            # gejala diam: saat admin set mode 'sheet', UI tetap menampilkan
+            # tombol catat padahal backend menolak dengan 403.
+            mode = _inout_mode(conn)
             cursor.close()
             conn.close()
             return jsonify({
@@ -1428,7 +1434,7 @@ def register_receptionist_routes(app):
                     'app_today': int(stats.get('app_today') or 0),
                 },
                 'roster': roster,
-                'mode': _inout_mode(conn),
+                'mode': mode,
                 'last_sync': last_sync,
             })
         except Exception as e:

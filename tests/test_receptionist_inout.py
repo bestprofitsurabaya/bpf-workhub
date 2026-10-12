@@ -219,6 +219,109 @@ def _with_conn(monkeypatch, conn):
 
 
 # ============================================================
+# REGRESI v2.46.6 — mode harus dibaca selagi koneksi hidup
+# ============================================================
+
+class _ModeFakeCur:
+    """Cursor fake untuk uji regresi mode (lihat _ModeFakeConn)."""
+
+    def __init__(self, conn):
+        self.conn = conn
+        self.sql = ''
+
+    def execute(self, sql, params=None):
+        # Tiru mysql-connector: query lewat koneksi yang sudah close melempar.
+        # Tanpa ini bug "baca mode setelah close" tidak termanifestasi karena
+        # fake terlalu longgar — test jadi false negative.
+        if self.conn.closed:
+            self.conn.mode_read_after_close = True
+            raise RuntimeError('Connection closed')
+        self.sql = sql
+
+    def fetchone(self):
+        # Query config (mode / last_sync) -> dict; agregat stats juga dict.
+        if 'FROM employee_inout' in self.sql:
+            return {'total': 0, 'out_now': 0, 'pergi_today': 0,
+                    'datang_today': 0, 'app_today': 0}
+        return {'config_value': self.conn.mode}
+
+    def fetchall(self):
+        # Daftar baris in-out & roster -> kosong (cukup untuk uji mode).
+        return []
+
+    def close(self):
+        pass
+
+
+class _ModeFakeConn:
+    """Koneksi fake yang mencatat apakah mode dibaca setelah close."""
+
+    def __init__(self, mode):
+        self.mode = mode
+        self.closed = False
+        self.mode_read_after_close = False
+
+    def cursor(self, dictionary=False):
+        return _ModeFakeCur(self)
+
+    def commit(self):
+        pass
+
+    def close(self):
+        self.closed = True
+
+
+class TestInOutModeFromRealConn:
+    """Regresi: mode pernah dibaca setelah conn.close().
+
+    Test TIDAK monkeypatch _inout_mode supaya jalur aslinya teruji.
+    Yang diuji: handler harus membaca mode SEBELUM menutup koneksi — kalau
+    tidak, nilai yang sampai ke SPA jadi default 'hybrid' apa pun isi config.
+    """
+
+    def _client(self, monkeypatch, mode):
+        import modules.routes_receptionist as rr
+        monkeypatch.setattr(rr, 'log_activity_async', lambda *a, **k: None)
+        conn = _ModeFakeConn(mode)
+        monkeypatch.setattr(rr, 'get_db_connection', lambda: conn)
+
+        from flask import Flask
+        app = Flask(__name__)
+        app.secret_key = 'test-secret'
+        rr.register_receptionist_routes(app)
+        client = app.test_client()
+        with client.session_transaction() as s:
+            s['user_role'] = 'receptionist'
+            s['user_name'] = 'receptionist_sby'
+            s['full_name'] = 'Resepsionis SBY'
+            s['csrf_token'] = 'x'
+        return client, conn
+
+    def test_mode_sheet_terkirim_jika_dikonfigurasi(self, monkeypatch):
+        """Mode 'sheet' wajib sampai ke SPA — UI jadi read-only, bukan hybrid."""
+        client, conn = self._client(monkeypatch, 'sheet')
+        r = client.get('/api/receptionist/inout')
+        assert r.status_code == 200
+        assert r.get_json()['mode'] == 'sheet', (
+            "mode 'sheet' berubah jadi default 'hybrid' — UI akan menampilkan "
+            "tombol catat padahal backend menolak dengan 403")
+
+    def test_mode_hybrid_terkirim_jika_dikonfigurasi(self, monkeypatch):
+        client, conn = self._client(monkeypatch, 'hybrid')
+        r = client.get('/api/receptionist/inout')
+        assert r.status_code == 200
+        assert r.get_json()['mode'] == 'hybrid'
+
+    def test_mode_TIDAK_dibaca_setelah_conn_close(self, monkeypatch):
+        """Penjaga langsung: mode harus dibaca sebelum koneksi ditutup."""
+        client, conn = self._client(monkeypatch, 'sheet')
+        client.get('/api/receptionist/inout')
+        assert not conn.mode_read_after_close, (
+            'mode masih dibaca setelah conn.close() — _inout_mode() akan '
+            'menangkap error dan mengembalikan default, menutupi error config')
+
+
+# ============================================================
 # _inout_mode
 # ============================================================
 class TestInOutMode:
