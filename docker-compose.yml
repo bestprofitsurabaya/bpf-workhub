@@ -59,8 +59,6 @@ services:
       # v2.46.0: hasil transcoder (persisten, di luar image)
       - ./data/transcoder:/app/data/transcoder
       - ./fonts:/app/fonts
-      # static SPA (host mount) — bbm_web:5000 serve /static/* + /app/*
-      - ./static:/app/static
     environment:
       - FLASK_DEBUG=0
       - TZ=Asia/Jakarta
