@@ -119,7 +119,10 @@ class BPFBasePDF(FPDF):
         else:
             self._use_unicode = False
 
-    def _font(self, style=''):
+    def _font(self):
+        # Hanya mengembalikan NAMA family; gaya ('', 'B', 'I') diteruskan
+        # terpisah ke set_font(). Param 'style' lama tidak pernah dipakai
+        # (semua pemanggil memakai self._font() tanpa argumen).
         return 'DejaVu' if getattr(self, '_use_unicode', False) else 'helvetica'
 
     # ---- Letterhead ----
@@ -605,7 +608,7 @@ class WaterReceiptPDF(BPFBasePDF):
             ('Tanggal Pengiriman', (p.get('purchase_date') or '').strftime('%d-%m-%Y') if getattr(p.get('purchase_date'), 'strftime', None) else p.get('purchase_date') or '-'),
             ('Diajukan oleh (OB)', self.clean_text(str(p.get('ob_name', '-')).upper())),
         ]
-        col1_x, col2_x = self.l_margin, self.w / 2 + 5
+        col1_x = self.l_margin  # hanya 1 kolom di Tanda Terima (tak ada col2_x)
         y_start = self.get_y()
         for i, (label, val) in enumerate(rows):
             y = y_start + (i * 4.7)  # 15 Okt: 5.1→4.7 — hemat 1.2 mm utk foto
@@ -1411,7 +1414,7 @@ def generate_overtime_detail_excel(rows, driver_name='', driver_role='DRIVER', d
     Biaya column is empty for GA HR to fill in."""
     try:
         import openpyxl
-        from openpyxl.styles import Font, Alignment, Border, Side, PatternFill, numbers
+        from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
     except ImportError:
         # Fallback: simple CSV
         return _generate_overtime_detail_csv(rows, driver_name, driver_role, date_label)
