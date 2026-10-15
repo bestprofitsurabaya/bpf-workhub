@@ -13,7 +13,7 @@ import os
 import re
 import subprocess
 
-from flask import current_app
+from . import _proc
 
 
 class YtDlpError(RuntimeError):
@@ -74,25 +74,34 @@ def download_media(url, kind, max_height, workdir, on_progress) -> str:
             cmd += ['-f', 'bestvideo+bestaudio/best']
         cmd += ['--merge-output-format', 'mp4']
 
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                            text=True)
+    # v2.46.7: spawn + kuras stderr paralel + watchdog timeout (lihat _proc.py).
+    # Dulu stderr hanya dibaca setelah stdout habis → berisiko deadlock pipe
+    # dan tanpa batas waktu → job bisa menggantung selamanya.
+    proc = _proc.spawn(cmd)
+    errs = _proc.drain_stderr(proc)
+    tstate = _proc.setup_timeout(proc)
     reported = None
-    for line in proc.stdout:
-        line = line.rstrip()
-        # --newline: baris [download]  23.4% of ...
-        if line.startswith('[download]') and '%' in line and reported is None:
-            try:
-                pct = float(line.split('%')[0].split()[-1])
-                on_progress(int(pct))
-            except (ValueError, IndexError):
-                pass
-        # Ambil path persis dari yt-dlp — jangan menebak dari mtime.
-        p = _parse_stdout_path(line)
-        if p and _inside(workdir, p) and not p.endswith(('.part', '.ytdl')):
-            reported = p  # unduhan ini yang paling akhir melapor
-    proc.wait()
+    try:
+        for line in proc.stdout:
+            line = line.rstrip()
+            # --newline: baris [download]  23.4% of ...
+            if line.startswith('[download]') and '%' in line and reported is None:
+                try:
+                    pct = float(line.split('%')[0].split()[-1])
+                    on_progress(int(pct))
+                except (ValueError, IndexError):
+                    pass
+            # Ambil path persis dari yt-dlp — jangan menebak dari mtime.
+            p = _parse_stdout_path(line)
+            if p and _inside(workdir, p) and not p.endswith(('.part', '.ytdl')):
+                reported = p  # unduhan ini yang paling akhir melapor
+        proc.wait()
+    finally:
+        _proc.cancel_timeout(tstate)
+    if tstate['timed_out']:
+        raise YtDlpError(f'yt-dlp melewati batas waktu {tstate["timeout"]}s')
     if proc.returncode != 0:
-        raise YtDlpError(f'yt-dlp gagal: {proc.stderr.read()[-300:]}')
+        raise YtDlpError(f'yt-dlp gagal: {errs.tail()}')
 
     if reported:
         return reported

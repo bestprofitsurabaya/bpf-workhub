@@ -23,6 +23,8 @@ import threading
 import subprocess
 import time
 
+from . import _proc  # v2.46.7: spawn anti-deadlock + watchdog timeout
+
 # ---------------------------------------------------------------------------
 # Konstanta
 # ---------------------------------------------------------------------------
@@ -346,22 +348,29 @@ def _run_ffmpeg(input_args, duration, on_progress, workdir):
     """Jalankan ffmpeg dengan -progress pipe:1; on_progress(0-100)."""
     cmd = ['ffmpeg', '-y', '-hide_banner', '-loglevel', 'error',
            '-progress', 'pipe:1'] + input_args
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                            text=True, cwd=workdir)
-    for line in proc.stdout:
-        if line.startswith('out_time_us=') or line.startswith('out_time_ms='):
-            try:
-                val = int(line.split('=', 1)[1])
-                # ffmpeg: out_time_us=mikrodetik (baru), out_time_ms=µs (legacy)
-                if duration > 0:
-                    secs = val / 1_000_000
-                    on_progress(min(99, int(secs / duration * 100)))
-            except ValueError:
-                pass
-    proc.wait()
+    # v2.46.7: kuras stderr paralel + watchdog timeout (lihat _proc.py) supaya
+    # ffmpeg yang macet tidak membekukan antrean transcoder (MAX_CONCURRENT=1).
+    proc = _proc.spawn(cmd, workdir=workdir)
+    errs = _proc.drain_stderr(proc)
+    tstate = _proc.setup_timeout(proc)
+    try:
+        for line in proc.stdout:
+            if line.startswith('out_time_us=') or line.startswith('out_time_ms='):
+                try:
+                    val = int(line.split('=', 1)[1])
+                    # ffmpeg: out_time_us=mikrodetik (baru), out_time_ms=µs (legacy)
+                    if duration > 0:
+                        secs = val / 1_000_000
+                        on_progress(min(99, int(secs / duration * 100)))
+                except ValueError:
+                    pass
+        proc.wait()
+    finally:
+        _proc.cancel_timeout(tstate)
+    if tstate['timed_out']:
+        raise RuntimeError(f'ffmpeg melewati batas waktu {tstate["timeout"]}s')
     if proc.returncode != 0:
-        err = proc.stderr.read()[-400:]
-        raise RuntimeError(f'ffmpeg gagal: {err}')
+        raise RuntimeError(f'ffmpeg gagal: {errs.tail(400)}')
 
 
 def _probe_duration(path):
