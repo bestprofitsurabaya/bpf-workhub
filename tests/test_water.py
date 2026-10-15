@@ -244,6 +244,51 @@ class TestWaterReceiptPDF:
         """Pisahkan teks PDF per halaman (footer 'Page x/y' sebagai pemisah)."""
         return re.split(r'Page \d+/\d+', _pdf_text(pdf_bytes))
 
+    def test_foto_diperbesar_mengisi_sisa_ruang(self, tmp_path):
+        """15 Okt 2026: foto bukti mengisi seluruh sisa ruang halaman.
+
+        Tinggi foto mengikuti ruang nyata (batas bawah konten − blok TTD), bukan
+        cadangan tetap yang terlalu besar; bingkai mengikuti aspek gambar potret
+        3:4 (tanpa ruang kosong kiri-kanan) dan barisnya di-center. Dokumen tetap
+        SATU halaman karena blok TTD digeser ke bawah, bukan pindah halaman.
+        """
+        from PIL import Image
+        from modules.pdf_generator import WaterReceiptPDF
+        from tests.pdf_text import pdf_image_boxes, pdf_page_count
+        before_path = tmp_path / 'wtr_big_before.jpg'
+        after_path = tmp_path / 'wtr_big_after.jpg'
+        # Foto potret 3:4 seperti foto HP OB sungguhan (EXIF-transposed 3060×4080).
+        Image.new('RGB', (600, 800), (200, 60, 60)).save(before_path, 'JPEG')
+        Image.new('RGB', (600, 800), (60, 120, 200)).save(after_path, 'JPEG')
+        p = _sample_purchase('verified')
+        p['foto_before'] = before_path.name
+        p['foto_after'] = after_path.name
+        pdf = WaterReceiptPDF()
+        pdf.add_page()
+        pdf.generate(p, _sample_items(), ga_name='ANDI', finance_name='RINA',
+                     upload_folder=str(tmp_path))
+        raw = pdf.output(dest='S')
+        pdf_bytes = raw.encode('latin-1') if isinstance(raw, str) else bytes(raw)
+
+        assert pdf_page_count(pdf_bytes) == 1, \
+            'foto yang diperbesar tidak boleh menambah halaman'
+
+        # Abaikan logo kop (11 mm) — hanya foto bukti (> 20 mm).
+        photos = [b for b in pdf_image_boxes(pdf_bytes) if b[2] > 20]
+        assert len(photos) == 2, f'dua foto bukti harus tergambar: {photos}'
+        for (x, y, w, h) in photos:
+            # Tinggi foto lama ±84 mm; ambang 92 mm menjaga foto TETAP diperbesar.
+            assert h >= 92, f'foto tidak mengisi ruang (h={h:.1f} mm)'
+            # Bingkai menempel gambar potret 3:4 → tak ada ruang kosong kiri-kanan.
+            assert abs(w / h - 0.75) < 0.02, \
+                f'bingkai tidak mengikuti aspek foto: {w:.1f}×{h:.1f} mm'
+            assert w > 68, f'foto tidak diperlebar (w={w:.1f} mm)'
+        # Baris foto di-center pada halaman A4 (lebar 210 mm).
+        left = min(b[0] for b in photos)
+        right = 210.0 - max(b[0] + b[2] for b in photos)
+        assert abs(left - right) < 1.5, \
+            f'baris foto tidak center: kiri {left:.1f} mm, kanan {right:.1f} mm'
+
     def test_konten_panjang_judul_seksi_tidak_orphan(self, tmp_path):
         """Dokumen panjang (banyak item + foto): judul seksi harus satu halaman
         dengan konten pertamanya — tidak boleh tertinggal (orphan) di dasar

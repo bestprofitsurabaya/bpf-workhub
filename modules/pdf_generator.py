@@ -25,6 +25,19 @@ JPEG_QUALITY = 85
 GRID_CELL_HEIGHT = 52
 GRID_GAP = 3
 
+# ---- Tanda Terima Air Minum (v2.46.6): geometri blok halaman (mm) ----
+# Tinggi blok TTD TERUKUR = 46,6 mm (15 Okt 2026): judul seksi 7,6 + ln4 +
+# baris 'Menyerahkan/Menerima' 5 + ln22 + garis + nama 5 + ln5 + jabatan 4
+# + ln6. Dipakai DUA tempat agar konsisten — dulu _draw_photos mencadangkan
+# 58 mm sementara guard _draw_signatures memakai 60,6 mm, sehingga foto
+# menyisakan ±13 mm ruang terbuang di bawah blok TTD.
+WATER_SIG_BLOCK_H = 46.6
+# 'Chrome' lampiran foto di luar sel gambar: judul seksi (7,6) + label foto &
+# jarak bawah (6,5).
+WATER_PHOTO_CHROME = 14.1
+# Batas bawah konten: sisakan ruang untuk footer (garis footer di y = h-16).
+WATER_CONTENT_BOTTOM = 25
+
 # ============================================================
 # PALETTE DOKUMEN RESMI (compact — minimal warna: hitam/abu/putih)
 # Sesuai standar surat/dokumen resmi: teks hitam, garis tegas, tanpa blok warna.
@@ -312,14 +325,16 @@ class BPFBasePDF(FPDF):
 
     def _place_image(self, filepath, x, y, cell_w, cell_h):
         try:
-            from PIL import Image
+            from PIL import Image, ImageOps
             with Image.open(filepath) as img:
+                img = ImageOps.exif_transpose(img)
                 img_w, img_h = img.size
             ratio = min(cell_w / img_w, cell_h / img_h)
             new_w, new_h = img_w * ratio, img_h * ratio
             img_x = x + (cell_w - new_w) / 2
             img_y = y + (cell_h - new_h) / 2
             with Image.open(filepath) as img:
+                img = ImageOps.exif_transpose(img)
                 if img_w > MAX_IMAGE_WIDTH:
                     r = MAX_IMAGE_WIDTH / img_w
                     img = img.resize((MAX_IMAGE_WIDTH, int(img_h * r)), Image.LANCZOS)
@@ -593,9 +608,9 @@ class WaterReceiptPDF(BPFBasePDF):
         col1_x, col2_x = self.l_margin, self.w / 2 + 5
         y_start = self.get_y()
         for i, (label, val) in enumerate(rows):
-            y = y_start + (i * 5.1)
+            y = y_start + (i * 4.7)  # 15 Okt: 5.1→4.7 — hemat 1.2 mm utk foto
             self.info_row(label, val, col1_x, y)
-        self.set_y(y_start + len(rows) * 5.1 + 1.5)
+        self.set_y(y_start + len(rows) * 4.7 + 1.2)
 
     # ---- Tabel item ----
     def _draw_items_table(self, items):
@@ -611,7 +626,7 @@ class WaterReceiptPDF(BPFBasePDF):
                 [idx, it.get('drink_type', '-'), it.get('brand', '-'), it.get('satuan', 'pcs'), it.get('quantity', 1)],
                 widths, aligns=['C', 'C', 'L', 'C', 'C'], row_h=5.6, fill=fill)
             fill = not fill
-        self.ln(3)
+        self.ln(2.2)  # 15 Okt: 3→2.2 — hemat 0.8 mm utk foto
 
     # ---- Hasil verifikasi ----
     def _draw_verification(self, p):
@@ -643,7 +658,7 @@ class WaterReceiptPDF(BPFBasePDF):
             self.set_font(self._font(), 'I', 8)
             self.set_text_color(*GRAY_MUTED)
             self.cell(0, 5, 'Menunggu verifikasi Finance...', new_x="LMARGIN", new_y="NEXT")
-        self.ln(3)
+        self.ln(2.2)  # 15 Okt: 3→2.2 — hemat 0.8 mm utk foto
 
     # ---- Tanda tangan ----
     def _draw_signatures(self, p, ga_name, finance_name):
@@ -652,7 +667,12 @@ class WaterReceiptPDF(BPFBasePDF):
         # terpotong/terpecah di antara dua halaman. Cek dilakukan SEBELUM judul
         # seksi digambar supaya judul 'TANDA TANGAN' tidak terpisah (orphan) di
         # dasar halaman sebelumnya (+12 mm = tinggi judul seksi + jarak ln 4).
-        if self.get_y() + 45 + 12 > self.h - 25:
+        # 15 Okt 2026: tinggi blok TTD terukur 46,6 mm — angka ini SAMA dengan
+        # WATER_SIG_BLOCK_H yang dicadangkan _draw_photos, sehingga foto berakhir
+        # persis di awal blok TTD dan blok TTD berakhir di batas bawah konten
+        # (tidak ada celah terbuang, tetap 1 halaman). Toleransi +3 mm (h-25 →
+        # h-22) mencegah tepi-pas memicu pindah halaman palsu ke halaman ke-2.
+        if self.get_y() + WATER_SIG_BLOCK_H > self.h - WATER_CONTENT_BOTTOM + 3:
             self.add_page()
         self.section_title('TANDA TANGAN')
         self.ln(4)
@@ -663,7 +683,7 @@ class WaterReceiptPDF(BPFBasePDF):
         self.cell(col_w, 5, 'Menyerahkan,', align='C')
         self.set_xy(self.l_margin + col_w, self.get_y())
         self.cell(col_w, 5, 'Menerima,', align='C')
-        self.ln(26)
+        self.ln(22)  # 15 Okt: 26→22 — hemat 4 mm utk foto (ruang ttd cukup)
         self.set_draw_color(*GRAY_LABEL)
         self.set_line_width(0.3)
         self.set_xy(self.l_margin + 6, self.get_y())
@@ -685,7 +705,7 @@ class WaterReceiptPDF(BPFBasePDF):
         self.set_xy(self.l_margin + col_w + 6, self.get_y())
         self.cell(col_w - 12, 4, 'GA Officer', align='C')
         self.set_text_color(*INK)
-        self.ln(8)
+        self.ln(6)  # 15 Okt: 8→6 — hemat 2 mm utk foto
 
     # ---- Lampiran foto (bukti unggahan OB) ----
     def _draw_photos(self, p, upload_folder='uploads'):
@@ -697,19 +717,26 @@ class WaterReceiptPDF(BPFBasePDF):
         if not photos:
             return
 
-        # v2.29.7: foto bukti diperbesar — tinggi sel foto mengikuti ruang kosong
-        # yang tersedia di halaman (ruang blok TTD dicadangkan ±60 mm) sehingga
-        # foto lebih tinggi & lebih lebar, dan tanda tangan terdorong ke bawah.
-        # Judul seksi digambar SETELAH cek ruang agar tidak orphan di dasar halaman.
-        bottom = self.h - 25
-        photo_chrome = 16    # judul seksi (8) + label foto & jarak bawah (8)
-        sig_reserve = 60     # tinggi blok TTD (cek serupa di _draw_signatures: 57)
+        # v2.29.7 → 15 Okt 2026: foto bukti diperbesar semaksimal ruang halaman.
+        # Tinggi sel dihitung dari SISA RUANG NYATA: batas bawah konten
+        # (WATER_CONTENT_BOTTOM) − tinggi blok TTD yang dicadangkan
+        # (WATER_SIG_BLOCK_H) − 'chrome' judul/label (WATER_PHOTO_CHROME). Jadi
+        # foto menutup SELURUH celah antara seksi verifikasi dan blok TTD (dulu
+        # tersisa ±13 mm kosong karena cadangan TTD 58 mm > tinggi nyata 46,6 mm).
+        # Bingkai tiap foto mengikuti ASPEK RASIO gambar → tidak ada lagi ruang
+        # kosong di dalam bingkai (dulu bingkai 93 mm utk foto potret 63 mm), dan
+        # baris foto di-center. Judul seksi digambar SETELAH cek ruang agar tidak
+        # orphan di dasar halaman.
+        # Tetap 1 halaman oleh konstruksi: photo-end = bottom − WATER_SIG_BLOCK_H
+        # dan kursor TTD berakhir tepat di bottom (≤ h-22 < batas auto-break 290).
+        bottom = self.h - WATER_CONTENT_BOTTOM
 
         def _fit_height():
-            return min(max((bottom - self.get_y()) - photo_chrome - sig_reserve, 60), 130)
+            avail = (bottom - self.get_y()) - WATER_PHOTO_CHROME - WATER_SIG_BLOCK_H
+            return min(max(avail, 60), 180)
 
         cell_h = _fit_height()
-        if self.get_y() + photo_chrome + cell_h > bottom:
+        if self.get_y() + WATER_PHOTO_CHROME + cell_h > bottom:
             self.add_page()
             cell_h = _fit_height()
 
@@ -718,23 +745,52 @@ class WaterReceiptPDF(BPFBasePDF):
         page_w = self.w - self.l_margin - self.r_margin
         n = len(photos)
         gap = 4
-        cell_w = (page_w - gap * (n - 1)) / n
+
+        def _img_aspect(path):
+            '''Aspek rasio gambar (EXIF-aware); fallback potret 3:4 bila gagal.'''
+            try:
+                from PIL import Image, ImageOps
+                with Image.open(os.path.join(upload_folder, path)) as im:
+                    im = ImageOps.exif_transpose(im)
+                    iw, ih = im.size
+                return max(iw / ih, 0.1)
+            except Exception:
+                return 0.75
+
+        aspects = [_img_aspect(ph.get('path', '')) for ph in photos]
+
+        def _row_width(h):
+            return sum(h * a for a in aspects) + gap * (n - 1)
+
+        # Bila baris foto setinggi cell_h melebihi lebar cetak (mis. foto
+        # lanskap atau banyak foto), turunkan tinggi agar tetap muat — lebar
+        # menjadi pembatas, bukan tinggi.
+        if _row_width(cell_h) > page_w:
+            total_aspect = sum(aspects) or 1
+            cell_h = max((page_w - gap * (n - 1)) / total_aspect, 40)
+
+        # Lebar bingkai per foto = tinggi × aspek (bingkai menempel gambar).
+        widths = [cell_h * a for a in aspects]
+        row_w = sum(widths) + gap * (n - 1)
+        x0 = margin + max((page_w - row_w) / 2, 0)
         y = self.get_y()
+        x = x0
         for i, ph in enumerate(photos):
-            x = margin + i * (cell_w + gap)
+            cw = widths[i]
             self.set_draw_color(*BORDER)
             self.set_line_width(0.3)
-            self.rect(x, y, cell_w, cell_h)
+            self.rect(x, y, cw, cell_h)
             if ph.get('path'):
                 filepath = os.path.join(upload_folder, ph['path'])
                 if os.path.exists(filepath):
-                    self._place_image(filepath, x, y, cell_w, cell_h)
+                    self._place_image(filepath, x, y, cw, cell_h)
             self.set_xy(x, y + cell_h + 1)
             self.set_font(self._font(), 'B', 6.5)
             self.set_text_color(*GRAY_LABEL)
-            self.cell(cell_w, 4, ph.get('label', ''), align='C')
+            self.cell(cw, 4, ph.get('label', ''), align='C')
             self.set_text_color(*INK)
-        self.set_y(y + cell_h + 8)
+            x += cw + gap
+        self.set_y(y + cell_h + 6.5)
 
 
 class BBMReportPDF(BPFBasePDF):
@@ -1856,8 +1912,8 @@ class OvertimeFormPDF(BPFBasePDF):
                 return None
             if not data or len(data) > 8 * 1024 * 1024:
                 return None
-            from PIL import Image
-            img = Image.open(io.BytesIO(data))
+            from PIL import Image, ImageOps
+            img = ImageOps.exif_transpose(Image.open(io.BytesIO(data)))
             w_px, h_px = img.size
             if w_px <= 0 or h_px <= 0:
                 return None

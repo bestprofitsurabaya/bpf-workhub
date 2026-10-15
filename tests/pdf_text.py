@@ -210,3 +210,36 @@ def pdf_text(pdf_bytes):
 
 # Alias kompatibel dengan nama lama yang dipakai file test.
 _pdf_text = pdf_text
+
+
+# ============================================================
+# Geometri halaman (untuk test tata letak, mis. Tanda Terima Air Minum)
+# ============================================================
+# Satuan default PDF = point (1 pt = 1/72 inci). fpdf2 dipanggil dgn unit='mm'
+# → matriks gambar memakai point; bagi dgn PT_PER_MM untuk memperoleh mm.
+PT_PER_MM = 72.0 / 25.4
+
+
+def pdf_page_count(pdf_bytes):
+    """Jumlah halaman PDF (hitung objek /Type /Page, bukan /Pages)."""
+    return len(re.findall(rb'/Type\s*/Page\b', pdf_bytes))
+
+
+def pdf_image_boxes(pdf_bytes):
+    """Kotak gambar XObject yang digambar: [(x, y, w, h)] dalam mm.
+
+    (x, y) = sudut kiri-BAWAH gambar (origin PDF di kiri-bawah halaman).
+    Dipakai test tata letak untuk membuktikan foto benar-benar diperbesar dan
+    bingkainya mengikuti aspek gambar.
+    """
+    boxes = []
+    for body in _split_objects(pdf_bytes).values():
+        stream = _stream_of(body)
+        if b' Do' not in stream:
+            continue
+        txt = stream.decode('latin-1', 'replace')
+        for m in re.finditer(
+                r'q\s+([\d.]+) 0 0 ([\d.]+) ([\d.]+) ([\d.]+) cm\s*/\w+ Do', txt):
+            w, h, x, y = (float(g) / PT_PER_MM for g in m.groups())
+            boxes.append((x, y, w, h))
+    return boxes
