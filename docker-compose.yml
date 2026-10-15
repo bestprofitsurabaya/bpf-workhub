@@ -50,14 +50,18 @@ services:
       # (container network), bukan port host. Akses dev via SSH tunnel.
       - "127.0.0.1:5001:5000"
     volumes:
-      - ./uploads:/app/uploads
+      # v2.47: data UPLOAD PENGGUNA dipindah ke disk besar /srv (1.7 TB) agar
+      # tidak menggerus disk root (92 GB). Path ABSOLUT host — folder sumber
+      # dibuat otomatis oleh Docker bila belum ada.
+      - /srv/bpf-workhub/uploads:/app/uploads
       # v2.29: bind ./static DIHAPUS — dulu menimpa SPA hasil build image,
       # padahal static/app tidak di-commit (gitignore) → fresh deploy SPA rusak.
       # SPA kini murni dari Dockerfile (stage frontend-build), selalu sinkron
       # dengan source frontend/ saat image di-build.
+      # Catatan: news_scraper TETAP di repo (5,9 MB, berisi file yang di-commit).
       - ./data/news_scraper:/app/data/news_scraper
-      # v2.46.0: hasil transcoder (persisten, di luar image)
-      - ./data/transcoder:/app/data/transcoder
+      # v2.46.0: hasil transcoder (persisten, di luar image) — v2.47 pindah /srv
+      - /srv/bpf-workhub/data/transcoder:/app/data/transcoder
       - ./fonts:/app/fonts
     environment:
       - FLASK_DEBUG=0
