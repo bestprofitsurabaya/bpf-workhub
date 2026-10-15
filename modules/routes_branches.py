@@ -12,7 +12,7 @@ from modules.config import get_master_connection, get_db_connection
 from modules.helpers import role_required, log_activity_async
 from modules import branch_manager as bm
 from modules.security import rate_limit
-from modules.admin_scope import is_ho_admin, admin_branches, scope_denied_response
+from modules.admin_scope import is_ho_admin, scope_denied_response
 
 _DUMMY_TX_SQL = """INSERT IGNORE INTO transactions
     (driver_name, nopol, vehicle_type, bbm_type, nominal, liter, price_per_liter,

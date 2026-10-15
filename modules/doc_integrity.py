@@ -20,7 +20,6 @@ dihasilkan — integritas hanya tercatat bila registri bisa ditulis.
 """
 
 import hashlib
-import os
 from datetime import datetime
 
 # Tabel registri dibuat di DB master (dokumen lintas cabang dicatat dengan

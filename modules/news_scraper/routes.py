@@ -6,18 +6,19 @@ Flask route handlers for the news scraper module.
 import os, json, time, io, csv, re, threading, html
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
-from flask import Blueprint, request, jsonify, session, Response
+from flask import request, jsonify, session, Response
 
 from modules.helpers import role_required
 
 from . import (news_scraper_bp, DATA_DIR, WP_SITES_FILE, BACKLINKS_FILE,
     HYPERLINKS_FILE, SCRAPER_LOG_FILE, UPLOAD_HISTORY_FILE, SETTINGS_FILE,
     SCRAPER_ROLES, DEFAULT_AUTHORITY_SITES, DEFAULT_KEYWORD_MAPPING)
-from .wp_client import get_wp_session, WpClient
+from .wp_client import WpClient
 from .scraper_engine import scrape_newsmaker, scrape_detik_finance, fetch_article_content, RateLimiter, progress_tracker
-from .seo_optimizer import (apply_backlinks, build_article_html, seo_analyze, build_advanced_schema,
+from .seo_optimizer import (apply_backlinks, build_article_html, seo_analyze,
     ping_sitemap, track_performance, get_analytics, get_optimal_publish_time, should_publish_today,
-    JsonCache, normalize_title, rewrite_content, wp_block)
+    normalize_title, rewrite_content, wp_block,
+    build_advanced_schema)  # noqa: F401 — di-patch tes e2e via modul ini
 from .scraper_logger import get_logger
 
 _sl = get_logger()  # structured scraper logger
@@ -967,7 +968,6 @@ def upload_articles_multi():
                                                         'total': len(site_names), 'current': i})
             res = _upload_articles_to_site(site_name, articles, settings, task_prefix=f"upload_{re.sub(r'[^a-zA-Z0-9]', '_', site_name)}")
             ok = res.pop('ok', False)
-            status = res.pop('status', 200)
             results[site_name] = {'ok': ok, **res}
             if ok:
                 total_new += res.get('new_posts', 0)

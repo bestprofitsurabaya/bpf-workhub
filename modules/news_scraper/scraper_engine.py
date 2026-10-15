@@ -573,7 +573,6 @@ def scrape_detik_finance(pages: int = 1) -> list:
     Returns:
         List of article dicts in the standard pipeline shape.
     """
-    headers = {'User-Agent': DEFAULT_UA}
     articles = []
     seen = set()
     _sl.scrape_start('detik')

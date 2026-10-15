@@ -1,7 +1,7 @@
 """API Routes - Transactions, Cross-Check, Analytics, Stats"""
 from flask import request, jsonify, session
 from modules.config import get_db_connection
-from modules.helpers import log_activity_async, safe_float, role_required
+from modules.helpers import log_activity_async, role_required
 from modules.engine import generate_human_insight
 from modules.admin_scope import is_ho_admin
 from datetime import datetime, timedelta
@@ -289,7 +289,7 @@ def register_transaction_api(app):
             data = cursor.fetchall(); cursor.close(); conn.close()
             if not data: return jsonify({"status": "info", "msg": f"Belum ada data untuk {nopol}."})
             km_values = [d['km_per_liter'] for d in data if d['km_per_liter'] and d['km_per_liter']>0]
-            if not km_values: return jsonify({"status": "info", "msg": f"Data KM/L belum lengkap."})
+            if not km_values: return jsonify({"status": "info", "msg": "Data KM/L belum lengkap."})
             avg_kpl = sum(km_values)/len(km_values)
             performa = "SANGAT BAIK" if avg_kpl>=12 else ("BAIK" if avg_kpl>=10 else ("CUKUP" if avg_kpl>=8 else "BOROS"))
             msg = generate_human_insight(performa, avg_kpl, 12.0, 0, len(km_values))

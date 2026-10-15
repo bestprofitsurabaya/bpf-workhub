@@ -9,7 +9,7 @@ Tujuan: kurangi duplikasi antara modul Driver & OB/Security.
 from datetime import datetime, date, timedelta
 from modules.overtime_helpers import (
     clean, parse_date_mdy, parse_time_12h, parse_time_any,
-    parse_date_any, parse_submitted_at_any, normalize_name
+    parse_date_any, parse_submitted_at_any
 )
 
 POSITIONS = ('OB', 'Security')

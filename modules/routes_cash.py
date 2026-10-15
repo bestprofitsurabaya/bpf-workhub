@@ -160,7 +160,6 @@ def register_cash_routes(app):
                     pass
             if not allowed:
                 return resp
-            data = request.get_json() or {}
             # Use session identity for audit trail — not client-supplied name.
             ga_name = session.get('full_name', '') or session.get('user_name', 'GA Officer')
 
@@ -199,7 +198,6 @@ def register_cash_routes(app):
     def api_cash_approve_finance(cash_id):
         """Finance approves the cash disbursement"""
         try:
-            data = request.get_json() or {}
             # Use session identity for audit trail.
             fin_name = session.get('full_name', '') or session.get('user_name', 'Finance Officer')
 
@@ -702,6 +700,6 @@ def register_cash_routes(app):
             log_activity_async(0, 'cash_reset_lpj', 'admin', 'Admin', new_data={'cash_id': cash_id, 'old_tx_id': tx_id, 'reason': reason})
             push_driver_notification(req['driver_name'], 'cash', 'reset',
                                      f'LPJ kasbon {req["display_id"]} di-reset — silakan submit ulang', req['display_id'])
-            return jsonify({'status': 'success', 'msg': f'LPJ di-reset. Driver bisa submit ulang.'})
+            return jsonify({'status': 'success', 'msg': 'LPJ di-reset. Driver bisa submit ulang.'})
         except Exception as e:
             return jsonify({'status': 'error', 'msg': str(e)}), 500

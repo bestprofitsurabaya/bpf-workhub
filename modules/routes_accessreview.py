@@ -27,7 +27,7 @@ import io as _io
 import os
 from datetime import datetime, timedelta
 
-from flask import jsonify, make_response, request, session
+from flask import jsonify, make_response, session
 
 from modules.config import get_master_connection
 from modules.helpers import role_required, log_activity_async, client_ip

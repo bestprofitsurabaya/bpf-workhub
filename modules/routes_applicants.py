@@ -159,7 +159,6 @@ def register_applicant_routes(app):
                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,'interview')""",
                 (display_id, nama, pendidikan, no_hp, upline, user_field,
                  posisi, now))
-            appt_id = cursor.lastrowid
             conn.commit()
             log_activity_async(None, 'applicant_submit', 'public', nama,
                                new_data={'display_id': display_id}, ip=ip)

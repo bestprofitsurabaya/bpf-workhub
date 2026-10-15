@@ -15,7 +15,7 @@ Alur:
 import os
 from datetime import datetime
 
-from modules.config import DB_CONFIG, get_db_connection, get_master_connection
+from modules.config import DB_CONFIG, get_master_connection
 
 DEFAULT_BRANCH_CODE = os.environ.get('BRANCH_MAIN_CODE', 'SBY')
 DEFAULT_BRANCH_NAME = os.environ.get('BRANCH_MAIN_NAME', 'Cabang Surabaya')

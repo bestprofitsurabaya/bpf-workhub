@@ -16,7 +16,7 @@ from modules.helpers import (role_required, log_activity_async,
                              generate_appointment_display_id,
                              validate_appointment_input, detect_area,
                              get_or_create_team, register_marketing_member,
-                             get_team_members, session_driver_name,
+                             get_team_members,
                              resolve_driver_scope)
 from modules.realtime import emit_event
 from modules.geocode import geocode_address

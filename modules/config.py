@@ -10,7 +10,6 @@ Routing:
   (bila ada), selain itu DB master/default (pra-login & cabang utama).
 """
 import os
-import mysql.connector
 from mysql.connector import Error, pooling
 from mysql.connector.connection import MySQLConnection
 
@@ -136,7 +135,7 @@ def get_db_connection(branch_code=None, master=False):
     for attempt in range(max_retries):
         try:
             return MySQLConnection(**fallback_config)
-        except Error as e:
+        except Error:
             if attempt == max_retries - 1:
                 raise
             time.sleep(1)

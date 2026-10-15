@@ -9,8 +9,6 @@ Verifikasi membuktikan: dokumen utuh (tidak diubah sejak diterbitkan),
 kapan diterbitkan, dan siapa penandatangannya (A.8.2 / ISO 15489 keaslian).
 """
 
-import io
-
 from flask import jsonify, request, session
 
 from modules import doc_integrity as di

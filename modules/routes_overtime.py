@@ -26,14 +26,14 @@ from modules.config import get_db_connection
 from modules.helpers import (role_required, log_activity_async,
                              generate_display_id, production_pool_executor)
 from modules.overtime_helpers import (clean, map_headers, parse_date_mdy,
-                                      parse_time_12h, parse_submitted_at,
+                                      parse_time_12h,
                                       parse_date_any, parse_time_any,
                                       parse_submitted_at_any,
-                                      normalize_name, guess_position,
+                                      guess_position,
                                       normalize_driver_row)
 from modules.overtime_shared import (
     validate_overtime_data, build_insert_sql, build_insert_params,
-    serialize_overtime_row, get_display_prefix, make_source_uid, POSITIONS,
+    get_display_prefix, make_source_uid, POSITIONS,
     get_submit_deadline_hours, annotate_submit_late, compute_submit_late,
     annotate_foto_issue,  # v2.42.1: penanda foto mulai/selesai identik
     group_foto_issue_users,  # v2.43.0: grouping korban per user
@@ -41,8 +41,6 @@ from modules.overtime_shared import (
 )
 from modules.pdf_generator import OvertimeReportPDF
 from modules.approvals import hook_create_approval, gate_approval  # v2.36.0
-
-POSITIONS = ('OB', 'Security')
 
 # v2.39: role yang boleh mengisi overtime dari dalam aplikasi (halaman "Overtime
 # Saya") & melihat riwayatnya sendiri — OB dan Security (identitas dari sesi).
@@ -489,7 +487,6 @@ def _upsert_ob_rows(conn, rows):
             # baris, bukan nama+posisi+tanggal). Idempoten saat refresh ulang
             # & tahan reorder sheet; jam-mulai disertakan agar dua sesi orang
             # yang sama di hari yang sama tidak saling menimpa.
-            import hashlib
             digest = hashlib.md5(
                 '|'.join([row['nama'], row.get('tanggal', ''),
                           row.get('waktu_mulai', '')]).encode('utf-8')
@@ -1156,7 +1153,6 @@ def register_overtime_routes(app):
             pdf = OvertimeReportPDF()
             # v2.37.7: kop mengikuti cabang sesi (tabel branches).
             try:
-                from modules.company_identity import get_branch_identity
                 pdf.set_identity(branch_code=session_user('branch_code', ''))
             except Exception:
                 pass
@@ -1240,7 +1236,6 @@ def register_overtime_routes(app):
                 pdf = OvertimeDetailReportPDF()
                 # v2.37.7: kop mengikuti cabang sesi (tabel branches).
                 try:
-                    from modules.company_identity import get_branch_identity
                     pdf.set_identity(branch_code=session_user('branch_code', ''))
                 except Exception:
                     pass
@@ -1300,7 +1295,6 @@ def register_overtime_routes(app):
             # v2.37.7: kop Form OT mengikuti cabang sesi (tabel branches) —
             # bukan selalu alamat Kantor Pusat.
             try:
-                from modules.company_identity import get_branch_identity
                 pdf.set_identity(branch_code=session_user('branch_code', ''))
             except Exception:
                 pass  # gagal ambil identitas cabang → kop identitas global

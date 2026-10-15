@@ -67,7 +67,7 @@ def register_admin_routes(app):
     @app.route('/admin/trips/export-pdf/<int:trip_id>')
     @role_required(['ga', 'finance', 'admin'])
     def export_trip_pdf(trip_id):
-        from modules.pdf_generator import BPFBasePDF, INK, BORDER, HEADER_FILL, ZEBRA_FILL
+        from modules.pdf_generator import BPFBasePDF, INK, ZEBRA_FILL
         try:
             conn = get_db_connection()
             cursor = conn.cursor(dictionary=True)
