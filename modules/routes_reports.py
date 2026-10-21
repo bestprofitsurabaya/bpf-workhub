@@ -142,11 +142,22 @@ def register_report_routes(app):
                 cmd_env['MYSQL_PWD'] = db_pass
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=60, env=cmd_env)
             if result.returncode != 0:
-                return make_response("Backup unavailable", 500)
+                print(f'[reports] mysqldump gagal (exit {result.returncode}): '
+                      f'{(result.stderr or "").strip()[-400:]}')
+                return make_response("Backup unavailable", 503)
             response = make_response(result.stdout)
             response.headers['Content-Type'] = 'application/sql'
             response.headers['Content-Disposition'] = f'attachment; filename={filename}'
             return response
+        except FileNotFoundError:
+            # Bukan kesalahan aplikasi: mysqldump tidak ada di environment
+            # (container produksi memasang default-mysql-client; host mungkin tidak).
+            print('[reports] backup gagal: mysqldump tidak tersedia di server')
+            return ('Fitur backup DB membutuhkan `mysqldump` yang tidak tersedia '
+                    'di server ini.'), 503
+        except subprocess.TimeoutExpired:
+            print('[reports] backup gagal: mysqldump melebihi batas 60 detik')
+            return 'Backup memakan waktu terlalu lama — coba lagi.', 503
         except Exception as e:
             print(f'[reports] backup error: {e}')
             return 'Terjadi kesalahan server', 500

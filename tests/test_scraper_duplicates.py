@@ -207,14 +207,21 @@ class TestCheckDuplicates:
         assert data["duplicates"] == []
         assert data["total_posts"] == 2
 
-    def test_login_failure_401(self, client):
+    def test_login_failure_status_bukan_401(self, client):
+        # v2.47.2: kegagalan login WP harus 502 (bukan 401) — lihat
+        # modules/news_scraper/routes.py::WP_FAIL_STATUS. 401 diartikan SPA
+        # sebagai sesi habis → user langsung dilempar ke /login (insiden:
+        # selesai scrape → lanjut upload → tiba-tiba kembali ke login).
+        from modules.news_scraper.routes import WP_FAIL_STATUS
         sites = {"TestSite": {"wp_url": "https://example.com", "username": "u", "app_password": "p"}}
         bad = FakeWpClient()
         bad.login = lambda: (False, "auth denied")
         with _patch_sites(sites), \
              patch("modules.news_scraper.routes._make_wp_client", return_value=bad):
             r = client.post("/api/scraper/duplicates", json={"site_name": "TestSite"})
-        assert r.status_code == 401
+        assert r.status_code == WP_FAIL_STATUS
+        assert r.status_code != 401
+        assert r.get_json()["ok"] is False
         assert r.get_json()["duplicates"] == []
 
 

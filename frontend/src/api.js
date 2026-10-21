@@ -5,7 +5,31 @@
  * Stale CSRF recovery: bila server menolak POST/PUT/DELETE dengan error CSRF
  * (mis. tab lama yang masih memegang token sesi sebelum re-login di tab lain),
  * wrapper mengambil token baru dari /api/auth/me lalu retry SEKALI.
+ *
+ * 401 ≠ selalu sesi mati: sebagian endpoint mengembalikan 401 untuk kegagalan
+ * UPSTREAM (mis. kredensial WordPress ditolak saat upload scraper). Sebelum
+ * memicu logout (event `bpf:unauthorized`), sesi diverifikasi dulu ke
+ * `/api/auth/me` — kalau sesi masih hidup, 401 cukup jadi error biasa.
  */
+
+let sessionProbe = null   // dedupe: banyak 401 paralel = 1 probe
+
+export function isSessionAlive() {
+  if (!sessionProbe) {
+    sessionProbe = fetch('/api/auth/me', { headers: { Accept: 'application/json' } })
+      .then((r) => r.ok)
+      .catch(() => false)
+      .finally(() => { setTimeout(() => { sessionProbe = null }, 2000) })
+  }
+  return sessionProbe
+}
+
+export async function notifyUnauthorized() {
+  if (await isSessionAlive()) return false   // sesi masih ada → jangan logout
+  window.dispatchEvent(new CustomEvent('bpf:unauthorized'))
+  return true
+}
+
 export async function api(path, { method = 'GET', body, params, raw = false, signal } = {}, _retried = false) {
   const opts = { method, headers: raw ? {} : { Accept: 'application/json' } }
   if (signal) opts.signal = signal
@@ -35,7 +59,7 @@ export async function api(path, { method = 'GET', body, params, raw = false, sig
   }
 
   if (r.status === 401) {
-    window.dispatchEvent(new CustomEvent('bpf:unauthorized'))
+    await notifyUnauthorized()   // hanya logout bila sesi benar-benar habis
   }
 
   if (raw) {

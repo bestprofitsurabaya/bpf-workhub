@@ -10,6 +10,8 @@ Routing:
   (bila ada), selain itu DB master/default (pra-login & cabang utama).
 """
 import os
+import threading
+import time
 from mysql.connector import Error, pooling
 from mysql.connector.connection import MySQLConnection
 
@@ -48,6 +50,8 @@ DB_CONFIG = {
 
 db_pool = None
 _branch_pools = {}
+_pool_lock = threading.Lock()
+_pool_last_attempt = 0.0
 
 
 def _base_config(db_name=None):
@@ -81,13 +85,46 @@ def _pool_for(db_name):
 
 
 def init_pool():
-    global db_pool
+    global db_pool, _pool_last_attempt
     try:
         db_pool = pooling.MySQLConnectionPool(**DB_CONFIG)
         print("✔ MySQLConnectionPool initialized")
     except Error as e:
         print(f"❌ Pool init failed: {e}")
         db_pool = None
+    finally:
+        _pool_last_attempt = time.time()
+
+
+def _ensure_pool():
+    """Lazy (re)init pool master (v2.47.1).
+
+    Dulu pool hanya dibuat sekali saat `import app`. Bila DB belum siap/DNS
+    gagal saat itu (kejadian nyata: "❌ Pool init failed ... Temporary failure
+    in name resolution"), pool TIDAK PERNAH dibuat lagi → seluruh request
+    memakai koneksi non-pool baru (mahal & berisiko menembus max_connections)
+    sampai worker di-restart. Sekarang pool dicoba ulang saat ada request,
+    dengan jeda minimal DB_POOL_REINIT_SECONDS agar DB yang mati tidak
+    dihujani percobaan koneksi tiap request.
+    """
+    global db_pool, _pool_last_attempt
+    if db_pool is not None:
+        return db_pool
+    cooldown = int(os.environ.get('DB_POOL_REINIT_SECONDS', '30'))
+    with _pool_lock:
+        if db_pool is not None:
+            return db_pool
+        if time.time() - _pool_last_attempt < cooldown:
+            return None
+        try:
+            db_pool = pooling.MySQLConnectionPool(**DB_CONFIG)
+            print("✔ MySQLConnectionPool re-initialized (lazy)")
+        except Error as e:
+            print(f"❌ Pool re-init failed: {e}")
+            db_pool = None
+        finally:
+            _pool_last_attempt = time.time()
+    return db_pool
 
 
 def resolve_db_name(branch_code=None):
@@ -110,10 +147,61 @@ def resolve_db_name(branch_code=None):
     return DB_CONFIG['database']
 
 
+# ---------------------------------------------------------------------------
+# Request-scoped connection tracking (v2.47.1)
+# ---------------------------------------------------------------------------
+# Latar: banyak route mengambil koneksi lalu `return jsonify(error), 500` di
+# blok `except` TANPA close(). mysql.connector tidak mengembalikan koneksi ke
+# pool sebelum close() → tiap error path membocorkan satu koneksi sampai pool
+# habis (gejala produksi: "⚠ Pool exhausted" berulang, lalu request sehat pun
+# gagal 500). Daripada menyisir ratusan route satu per satu, setiap koneksi
+# yang diambil DI DALAM request context dicatat dan dikembalikan otomatis di
+# teardown_request (close() kedua pada koneksi yang sudah ditutup di-skip).
+def _track_connection(conn):
+    if conn is None:
+        return
+    try:
+        from flask import has_request_context, g
+        if not has_request_context():
+            return
+        conns = getattr(g, '_db_conns', None)
+        if conns is None:
+            conns = []
+            g._db_conns = conns
+        conns.append(conn)
+    except Exception:
+        pass
+
+
+def _is_pooled_open(conn):
+    """True bila koneksi masih memegang koneksi fisik (belum di-close)."""
+    # PooledMySQLConnection: close() mengosongkan ._cnx. Koneksi non-pool
+    # (fallback) tidak punya atribut ._cnx → selalu aman di-close ulang.
+    if hasattr(conn, '_cnx'):
+        return getattr(conn, '_cnx') is not None
+    return True
+
+
+def release_request_connections():
+    """Kembalikan ke pool semua koneksi request yang belum ditutup route."""
+    try:
+        from flask import has_request_context, g
+        if not has_request_context():
+            return
+        conns = g.pop('_db_conns', None) or []
+    except Exception:
+        return
+    for conn in conns:
+        try:
+            if _is_pooled_open(conn):
+                conn.close()
+        except Exception as e:
+            print(f'⚠ Gagal mengembalikan koneksi ke pool: {e}')
+
+
 def get_db_connection(branch_code=None, master=False):
-    import time
     db_name = DB_CONFIG['database'] if master else resolve_db_name(branch_code)
-    pool = db_pool if db_name == DB_CONFIG['database'] else _pool_for(db_name)
+    pool = _ensure_pool() if db_name == DB_CONFIG['database'] else _pool_for(db_name)
     if pool:
         # Retry singkat sebelum menyerah: pool mysql.connector memakai
         # block=False (langsung PoolError saat semua koneksi dipakai sesaat).
@@ -122,7 +210,9 @@ def get_db_connection(branch_code=None, master=False):
         retries = int(os.environ.get('DB_POOL_RETRIES', '3'))
         for attempt in range(retries + 1):
             try:
-                return pool.get_connection()
+                conn = pool.get_connection()
+                _track_connection(conn)
+                return conn
             except Error as pool_err:
                 if attempt == retries:
                     print(f"⚠ Pool exhausted ({db_name}): {pool_err}")
@@ -134,7 +224,9 @@ def get_db_connection(branch_code=None, master=False):
     fallback_config = _base_config(db_name)
     for attempt in range(max_retries):
         try:
-            return MySQLConnection(**fallback_config)
+            conn = MySQLConnection(**fallback_config)
+            _track_connection(conn)
+            return conn
         except Error:
             if attempt == max_retries - 1:
                 raise

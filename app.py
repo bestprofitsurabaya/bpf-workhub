@@ -294,6 +294,7 @@ from modules.routes_retention import register_retention_routes
 from modules.routes_documents import register_document_routes
 from modules.approvals import register_approval_routes
 from modules.transcoder import register_transcoder_routes
+from modules.pdfkit import register_pdfkit_routes
 
 register_driver_routes(app, socketio)
 register_auth_routes(app)
@@ -322,6 +323,7 @@ register_retention_routes(app)
 register_document_routes(app)
 register_approval_routes(app)
 register_transcoder_routes(app)
+register_pdfkit_routes(app)
 
 # ================================================================
 # AUTO-CLEANUP: Hapus foto overtime > 6 bulan (180 hari)
@@ -356,8 +358,10 @@ except Exception as _tc_err:
 # v2.5: endpoint driver (submit-trip, cash request/submit-lpj/delete, driver-complete)
 # kini WAJIB sesi login PIN — SPA driver mengirim X-CSRF-Token (api()/fetch), jadi
 # tidak perlu lagi dikecualikan dari proteksi CSRF (defense-in-depth).
+# v2.47.1: /api/assignments/confirm ikut dilepas dari daftar pengecualian —
+# endpointnya kini wajib sesi driver (lihat modules/routes_api_assignments.py).
 CSRF_EXEMPT_PREFIXES = (
-    '/socket.io', '/api/assignments/confirm', '/api/get-feedback',
+    '/socket.io', '/api/get-feedback',
     '/api/vehicle-allowed-bbm', '/uploads/',
 )
 
@@ -388,6 +392,14 @@ def csrf_protect():
         ref = request.referrer or ''
         return redirect(ref if ref.startswith('/') else url_for('admin_dashboard'))
     return None
+
+# v2.47.1: jaring pengaman koneksi DB — route yang lupa close() di jalur error
+# tidak lagi membocorkan koneksi pool (lihat modules/config.py).
+@app.teardown_request
+def release_db_connections(exc):
+    from modules.config import release_request_connections
+    release_request_connections()
+
 
 # Middleware
 @app.after_request

@@ -9,12 +9,18 @@ USE bpf_asset_system;
 CREATE TABLE IF NOT EXISTS vehicles (
     id INT AUTO_INCREMENT PRIMARY KEY,
     vehicle_type VARCHAR(50) NOT NULL UNIQUE,
+    -- v2.47.1: nopol & bbm_default dipakai endpoint /api/vehicles/*
+    -- (SEBELUMNYA hanya ada di DB produksi hasil ALTER manual — fresh
+    -- install dari init.sql langsung 500 'Unknown column nopol').
+    nopol VARCHAR(20) DEFAULT NULL,
     brand VARCHAR(50) DEFAULT 'Toyota',
     fuel_capacity DECIMAL(10,2) DEFAULT 45,
+    bbm_default VARCHAR(50) DEFAULT 'PERTALITE',
     description TEXT,
     is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY idx_nopol (nopol)
 );
 
 -- BBM Types
@@ -95,6 +101,11 @@ CREATE TABLE IF NOT EXISTS transactions (
     price_per_liter DECIMAL(10,2) NOT NULL,
     odo_km INT NOT NULL,
     spbu_type ENUM('rekanan', 'non_rekanan') NOT NULL,
+    -- v2.47.1: kolom yang dulu hanya ditambahkan manual di DB produksi.
+    -- Tanpa ini fresh install 500 di /api/queue ('Unknown column display_id').
+    display_id VARCHAR(30) DEFAULT NULL,
+    transaction_type ENUM('CLAIM','CASH_LPJ') DEFAULT 'CLAIM',
+    cash_request_id INT DEFAULT NULL,
     foto_odo_sebelum VARCHAR(255),
     foto_nota_odo_sesudah VARCHAR(255),
     foto_struk VARCHAR(255),
@@ -108,6 +119,11 @@ CREATE TABLE IF NOT EXISTS transactions (
     gps_latitude DECIMAL(10,8),
     gps_longitude DECIMAL(11,8),
     gps_address TEXT,
+    gps_kelurahan VARCHAR(100) DEFAULT '',
+    gps_kecamatan VARCHAR(100) DEFAULT '',
+    gps_kota VARCHAR(100) DEFAULT '',
+    gps_provinsi VARCHAR(100) DEFAULT '',
+    gps_kode_pos VARCHAR(10) DEFAULT '',
     jumlah_appointment INT DEFAULT 0,
     is_reported BOOLEAN DEFAULT FALSE,
     is_dummy TINYINT(1) DEFAULT 0,
@@ -230,6 +246,11 @@ CREATE TABLE IF NOT EXISTS vehicle_assignments (
     assigned_date DATE NOT NULL,
     unassigned_date DATE DEFAULT NULL,
     is_current TINYINT(1) DEFAULT 1,
+    driver_notes TEXT DEFAULT NULL,
+    cancel_reason TEXT DEFAULT NULL,
+    cancelled_by VARCHAR(100) DEFAULT NULL,
+    confirmed_by_driver TINYINT(1) DEFAULT 0,
+    confirmed_at DATETIME DEFAULT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_driver (driver_name),
     INDEX idx_nopol (nopol)
@@ -438,7 +459,7 @@ CREATE TABLE IF NOT EXISTS marketing_members (
 -- APPLICANTS (Pelamar Kerja)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS applicants (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    id INT AUTO_INCREMENT,
     display_id VARCHAR(30) NOT NULL,
     nama_lengkap VARCHAR(150) NOT NULL,
     pendidikan VARCHAR(100) DEFAULT '',
@@ -463,7 +484,7 @@ CREATE TABLE IF NOT EXISTS applicants (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS applicant_attendance (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    id INT AUTO_INCREMENT,
     applicant_id INT NOT NULL,
     stage ENUM('interview','training_1','training_2','training_3','training_4') NOT NULL,
     attended_at DATETIME NOT NULL,

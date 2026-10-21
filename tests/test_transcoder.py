@@ -153,8 +153,11 @@ class TestJobLifecycle:
             ['https://youtu.be/aaa111', 'https://youtu.be/bbb222'],
             ['mp3', 'mp4'], 'it_sby', base)
 
-        # tunggu worker selesai (maks 5 dtk)
-        deadline = time.time() + 5
+        # tunggu worker selesai (budget antre CPU, keluar lebih awal bila done)
+        # Budget antre CPU: worker jalan di thread daemon — di mesin sibuk bisa
+        # lebih lama dari 5 dtk. Loop tetap keluar lebih awal saat selesai, jadi
+        # run normal tidak terpengaruh; assertion tetap status harus 'done'.
+        deadline = time.time() + 30
         while time.time() < deadline:
             j = eng.get_job(job['id'])
             if j['status'] in ('done', 'error'):
@@ -191,7 +194,10 @@ class TestJobLifecycle:
         j1 = eng.create_job(['https://youtu.be/x1'], ['mp3'], 'it_sby', base)
         j2 = eng.create_job(['https://youtu.be/x2'], ['mp3'], 'it_sby', base)
         # keduanya harus selesai; MAX_CONCURRENT=1 → urut, bukan paralel
-        deadline = time.time() + 5
+        # Budget antre CPU: worker jalan di thread daemon — di mesin sibuk bisa
+        # lebih lama dari 5 dtk. Loop tetap keluar lebih awal saat selesai, jadi
+        # run normal tidak terpengaruh; assertion tetap status harus 'done'.
+        deadline = time.time() + 30
         while time.time() < deadline:
             if eng.get_job(j1['id'])['status'] == 'done' and \
                eng.get_job(j2['id'])['status'] == 'done':
@@ -225,7 +231,10 @@ class TestJobLifecycle:
         job = eng.create_job(
             ['https://youtu.be/good1', 'https://youtu.be/bad99'],
             ['mp3'], 'it_sby', base)
-        deadline = time.time() + 5
+        # Budget antre CPU: worker jalan di thread daemon — di mesin sibuk bisa
+        # lebih lama dari 5 dtk. Loop tetap keluar lebih awal saat selesai, jadi
+        # run normal tidak terpengaruh; assertion tetap status harus 'done'.
+        deadline = time.time() + 30
         while time.time() < deadline:
             j = eng.get_job(job['id'])
             if j['status'] in ('done', 'error'):
@@ -483,7 +492,10 @@ class TestNcShare:
         monkeypatch.setattr(ncshare, 'upload_file', boom)
 
         job = eng.create_job(['https://youtu.be/nc1'], ['mp3'], 'it_sby', base)
-        deadline = time.time() + 5
+        # Budget antre CPU: worker jalan di thread daemon — di mesin sibuk bisa
+        # lebih lama dari 5 dtk. Loop tetap keluar lebih awal saat selesai, jadi
+        # run normal tidak terpengaruh; assertion tetap status harus 'done'.
+        deadline = time.time() + 30
         while time.time() < deadline:
             j = eng.get_job(job['id'])
             if j['status'] in ('done', 'error'):

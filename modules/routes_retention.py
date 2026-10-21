@@ -343,7 +343,6 @@ def register_retention_routes(app):
         if not is_ho_admin():
             return scope_denied_response()
         data = request.get_json(silent=True) or {}
-        data = request.get_json(silent=True) or {}
         cls = next((c for c in RETENTION_CLASSES if c['key'] == 'audit_logs'), None)
         if not cls:
             return jsonify({'status': 'error', 'msg': 'Kelas audit_logs tidak terdefinisi'}), 500
@@ -360,30 +359,38 @@ def register_retention_routes(app):
         if not master:
             return jsonify({'status': 'error', 'msg': 'DB tidak tersedia'}), 500
         results, total = [], 0
-        for db_name, is_master in _all_dbs():
-            try:
-                c = _open_db(db_name, is_master)
-                if not c:
-                    results.append({'db': db_name, 'status': 'skip', 'rows': 0,
-                                    'msg': 'koneksi tidak tersedia'})
-                    continue
+        try:
+            for db_name, is_master in _all_dbs():
                 try:
-                    ensure_retention_tables(c)
-                    rows, cutoff_str = archive_audit_db(c, cutoff)
-                    total += rows
-                    # Register tindakan (master) — sekali per DB yang diarsip.
-                    _record_action(master, 'audit_logs', 'archive', db_name,
-                                   cutoff_str, rows, actor,
-                                   note=f'arsip > {days} hari')
-                    results.append({'db': db_name, 'status': 'ok', 'rows': rows})
-                finally:
+                    c = _open_db(db_name, is_master)
+                    if not c:
+                        results.append({'db': db_name, 'status': 'skip', 'rows': 0,
+                                        'msg': 'koneksi tidak tersedia'})
+                        continue
                     try:
-                        c.close()
-                    except Exception:
-                        pass
-            except Exception as e:
-                print(f'[retention] archive {db_name} error: {e}')
-                results.append({'db': db_name, 'status': 'error', 'rows': 0, 'msg': str(e)})
+                        ensure_retention_tables(c)
+                        rows, cutoff_str = archive_audit_db(c, cutoff)
+                        total += rows
+                        # Register tindakan (master) — sekali per DB yang diarsip.
+                        _record_action(master, 'audit_logs', 'archive', db_name,
+                                       cutoff_str, rows, actor,
+                                       note=f'arsip > {days} hari')
+                        results.append({'db': db_name, 'status': 'ok', 'rows': rows})
+                    finally:
+                        try:
+                            c.close()
+                        except Exception:
+                            pass
+                except Exception as e:
+                    print(f'[retention] archive {db_name} error: {e}')
+                    results.append({'db': db_name, 'status': 'error', 'rows': 0, 'msg': str(e)})
+        finally:
+            # Koneksi master WAJIB dikembalikan ke pool — dulu bocor satu
+            # koneksi per pemanggilan arsip audit (pool exhausted).
+            try:
+                master.close()
+            except Exception:
+                pass
 
         log_activity_async(0, 'retention_audit_archive', 'admin', actor,
                            new_data={'days': days, 'rows': total,

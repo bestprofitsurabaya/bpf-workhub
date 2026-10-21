@@ -454,6 +454,17 @@ def register_master_api(app):
 
     @app.route('/api/verify-pin', methods=['POST'])
     def verify_pin():
+        """Verifikasi PIN user (endpoint legacy v1.0).
+
+        v2.47.1 (hardening): HANYA untuk sesi yang sudah login. Dulu endpoint
+        ini terbuka untuk publik → celah brute-force PIN 6 digit + enumerasi
+        user (mengembalikan role & nama). Login resmi aplikasi tetap
+        `/api/auth/login`; kasus internal (memverifikasi PIN orang lain)
+        kini wajib login dulu.
+        """
+        if not session.get('user_role'):
+            return jsonify({'status': 'error',
+                            'msg': 'Login wajib untuk verifikasi PIN'}), 401
         try:
             ip = client_ip()
             allowed, retry_after = pin_rate_check(ip)

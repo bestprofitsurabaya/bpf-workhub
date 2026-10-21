@@ -105,24 +105,32 @@ _log_lock = threading.Lock()
 # ---------------------------------------------------------------------------
 
 def _log_scraper(message: str, user: str = "system") -> None:
-    """Append a timestamped entry to the scraper JSON log (keep last 500)."""
+    """Append a timestamped entry to the scraper JSON log (keep last 500).
+
+    Best-effort: kegagalan tulis (izin/disk penuh/volume read-only) TIDAK boleh
+    menggagalkan pemanggil — dulu PermissionError di sini membuat `import app`
+    gagal total (blueprint scraper didaftarkan saat startup).
+    """
     entry = {
         "timestamp": datetime.now().isoformat(),
         "user": user,
         "message": message,
     }
-    with _log_lock:
-        try:
-            with open(SCRAPER_LOG_FILE, 'r', encoding='utf-8') as f:
-                logs = json.load(f)
-        except (FileNotFoundError, json.JSONDecodeError):
-            logs = []
+    try:
+        with _log_lock:
+            try:
+                with open(SCRAPER_LOG_FILE, 'r', encoding='utf-8') as f:
+                    logs = json.load(f)
+            except (FileNotFoundError, json.JSONDecodeError):
+                logs = []
 
-        logs.append(entry)
-        logs = logs[-MAX_LOG_ENTRIES:]
+            logs.append(entry)
+            logs = logs[-MAX_LOG_ENTRIES:]
 
-        with open(SCRAPER_LOG_FILE, 'w', encoding='utf-8') as f:
-            json.dump(logs, f, indent=2, ensure_ascii=False)
+            with open(SCRAPER_LOG_FILE, 'w', encoding='utf-8') as f:
+                json.dump(logs, f, indent=2, ensure_ascii=False)
+    except OSError as e:
+        print(f'[news-scraper] log tidak dapat ditulis ({SCRAPER_LOG_FILE}): {e}')
 
 
 # ---------------------------------------------------------------------------

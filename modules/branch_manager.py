@@ -295,6 +295,7 @@ def ensure_branch_database(code, conn=None):
     if db_name == DB_CONFIG['database']:
         return True, 'Cabang utama memakai DB master — tidak perlu database baru'
 
+    own_master = conn is None
     master = conn or get_master_connection()
     if not master:
         return False, 'DB master tidak tersedia'
@@ -305,6 +306,14 @@ def ensure_branch_database(code, conn=None):
         tables = [list(r.values())[0] for r in mc.fetchall()]
     finally:
         mc.close()
+        # v2.47.1: koneksi master milik fungsi ini WAJIB dikembalikan ke pool.
+        # Dulu bocor 1 koneksi per cabang tiap startup (8 cabang = 8 koneksi
+        # pool master hilang permanen → "Pool exhausted" makin cepat).
+        if own_master:
+            try:
+                master.close()
+            except Exception:
+                pass
 
     # Salin struktur semua tabel (LIKE menjaga kolom/index/FK)
     from modules.config import _pool_for

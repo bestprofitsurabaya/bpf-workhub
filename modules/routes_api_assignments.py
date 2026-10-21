@@ -1,7 +1,7 @@
 """API Routes - Vehicle Assignments"""
 from flask import request, jsonify
 from modules.config import get_db_connection
-from modules.helpers import log_activity_async, role_required
+from modules.helpers import log_activity_async, role_required, resolve_driver_scope
 from modules.notifications import push_driver_notification
 
 def register_assignment_api(app):
@@ -148,10 +148,22 @@ def register_assignment_api(app):
 
     @app.route('/api/assignments/confirm', methods=['POST'])
     def api_confirm_assignment():
+        """Konfirmasi kendaraan oleh driver yang LOGIN.
+
+        v2.47.1 (hardening): endpoint ini dulu TANPA autentikasi — siapa pun
+        bisa menandai assignment terkonfirmasi atas nama driver mana pun
+        hanya dengan menebak `driver_name`+`nopol` (dan termasuk daftar
+        pengecualian CSRF). Kini identitas diambil dari sesi
+        (`resolve_driver_scope`) — body tidak lagi dipercaya sebagai identitas.
+        """
         try:
-            data = request.get_json()
-            driver_name = data.get('driver_name', '').strip().upper(); nopol = data.get('nopol', '').strip().upper()
-            if not driver_name or not nopol: return jsonify({'status': 'error', 'msg': 'Data tidak lengkap'}), 400
+            data = request.get_json(silent=True) or {}
+            driver_name = resolve_driver_scope(str(data.get('driver_name') or ''))
+            if driver_name is None:
+                return jsonify({'status': 'error', 'msg': 'Login driver wajib'}), 401
+            nopol = str(data.get('nopol') or '').strip().upper()
+            if not driver_name or not nopol:
+                return jsonify({'status': 'error', 'msg': 'Data tidak lengkap'}), 400
             conn = get_db_connection(); cursor = conn.cursor()
             cursor.execute("UPDATE vehicle_assignments SET confirmed_by_driver = 1, confirmed_at = NOW() WHERE driver_name = %s AND nopol = %s AND is_current = 1 AND confirmed_by_driver = 0 ORDER BY id DESC LIMIT 1", (driver_name, nopol))
             affected = cursor.rowcount; conn.commit(); cursor.close(); conn.close()

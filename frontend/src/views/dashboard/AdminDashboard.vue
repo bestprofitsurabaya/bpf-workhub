@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
-import { api } from '../../api'
+import { api, notifyUnauthorized } from '../../api'
 import { useAuthStore } from '../../stores/auth'
 import StatCard from '../../components/StatCard.vue'
 import Modal from '../../components/Modal.vue'
@@ -262,7 +262,7 @@ async function doVerify(tx) {
         body: fd,
       })
       const d = await r.json().catch(() => null)
-      if (r.status === 401) window.dispatchEvent(new CustomEvent('bpf:unauthorized'))
+      if (r.status === 401) await notifyUnauthorized()
       if (!r.ok) {
         const err = new Error((d && (d.msg || d.error)) || `HTTP ${r.status}`)
         err.status = r.status

@@ -359,7 +359,12 @@ class TestUploadFlow:
         result = _upload_articles_to_site("TestSite", [{"title": "test"}], {})
 
         assert result["ok"] is False
-        assert result["status"] == 401
+        # v2.47.2: status upstream gagal = 502 (WP_FAIL_STATUS), BUKAN 401.
+        # 401 dipakai aplikasi untuk "sesi login habis"; SPA membuang sesi
+        # begitu melihatnya (insiden logout saat halaman upload scraper).
+        from modules.news_scraper.routes import WP_FAIL_STATUS
+        assert result["status"] == WP_FAIL_STATUS
+        assert result["status"] != 401
         assert "gagal" in result["error"].lower()
 
 

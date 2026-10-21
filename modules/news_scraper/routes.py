@@ -23,6 +23,15 @@ from .scraper_logger import get_logger
 
 _sl = get_logger()  # structured scraper logger
 
+# HTTP status untuk kegagalan autentikasi ke WordPress (upstream).
+# 401/403 pada aplikasi ini berarti "SESI LOGIN kedaluwarsa" — SPA
+# (frontend/src/api.js) memperlakukan SEMUA respons 401 sebagai sesi hilang,
+# lalu membersihkan sesi & melempar user ke /login. Insiden nyata: selesai
+# scrape → lanjut ke halaman upload → tiba-tiba kembali ke login karena
+# kredensial WordPress ditolak, bukan karena sesi mati.
+# Kegagalan upstream = 502 Bad Gateway: pesan error tetap sama, sesi tetap utuh.
+WP_FAIL_STATUS = 502
+
 
 # ===================================================================
 # HELPERS
@@ -527,7 +536,8 @@ def _upload_articles_to_site(site_name, articles, settings, task_prefix='upload'
     _sl.wp_login(site_name, success=login_ok, user=site.get('username'),
                   error=None if login_ok else str(nonce_or_err)[:200])
     if not login_ok:
-        return {'ok': False, 'status': 401, 'error': f'WordPress login gagal: {nonce_or_err}',
+        return {'ok': False, 'status': WP_FAIL_STATUS,
+                'error': f'WordPress login gagal: {nonce_or_err}',
                 'new_posts': 0, 'updated_posts': 0, 'errors': [], 'task_id': task_id}
     _set_progress(task_id, {'stage': 'login', 'progress': 10, 'message': 'Login berhasil! Memeriksa existing posts...',
                             'total': len(articles), 'current': 0})
@@ -956,6 +966,7 @@ def upload_articles_multi():
             return jsonify({'error': 'Tidak ada artikel untuk diupload'}), 400
 
         results = {}
+        ok_sites = 0
         total_new = total_updated = 0
         all_errors = []
 
@@ -970,6 +981,7 @@ def upload_articles_multi():
             ok = res.pop('ok', False)
             results[site_name] = {'ok': ok, **res}
             if ok:
+                ok_sites += 1
                 total_new += res.get('new_posts', 0)
                 total_updated += res.get('updated_posts', 0)
                 all_errors.extend([f"[{site_name}] {e}" for e in res.get('errors', [])])
@@ -980,7 +992,11 @@ def upload_articles_multi():
                      session.get('user_name', 'unknown'))
 
         return jsonify({
-            'ok': True,
+            # v2.47.2: `ok` harus mencerminkan hasil nyata — sebelumnya selalu
+            # True (HTTP 200 + "selesai") meski SEMUA site gagal login WP,
+            # sehingga UI melaporkan sukses padahal tidak ada satu pun terupload.
+            'ok': ok_sites > 0,
+            'sites_ok': ok_sites,
             'results': results,
             'sites_total': len(site_names),
             'new_posts': total_new,
@@ -1114,7 +1130,8 @@ def check_duplicates():
         client = _make_wp_client(site)
         login_ok, nonce_or_err = client.login()
         if not login_ok:
-            return jsonify({'ok': False, 'error': f'Login gagal: {nonce_or_err}', 'duplicates': [], 'total_posts': 0}), 401
+            # WP_FAIL_STATUS (bukan 401) — lihat catatan di bagian atas modul.
+            return jsonify({'ok': False, 'error': f'Login gagal: {nonce_or_err}', 'duplicates': [], 'total_posts': 0}), WP_FAIL_STATUS
 
         posts, complete = _fetch_all_posts(client, nonce_or_err)
 
@@ -1161,7 +1178,7 @@ def delete_duplicates():
     client = _make_wp_client(site)
     login_ok, nonce_or_err = client.login()
     if not login_ok:
-        return jsonify({'ok': False, 'error': f'Login gagal: {nonce_or_err}', 'deleted': 0}), 401
+        return jsonify({'ok': False, 'error': f'Login gagal: {nonce_or_err}', 'deleted': 0}), WP_FAIL_STATUS
 
     protected = []
     deleted = 0
@@ -1223,7 +1240,7 @@ def cleanup_duplicates():
         client = _make_wp_client(site)
         login_ok, nonce_or_err = client.login()
         if not login_ok:
-            return jsonify({'ok': False, 'error': f'Login gagal: {nonce_or_err}', 'deleted': 0}), 401
+            return jsonify({'ok': False, 'error': f'Login gagal: {nonce_or_err}', 'deleted': 0}), WP_FAIL_STATUS
 
         posts, complete = _fetch_all_posts(client, nonce_or_err)
         groups = _build_duplicate_groups(posts)
@@ -1311,7 +1328,7 @@ def delete_all_posts():
         client = _make_wp_client(site)
         login_ok, nonce_or_err = client.login()
         if not login_ok:
-            return jsonify({'ok': False, 'error': f'Login gagal: {nonce_or_err}', 'deleted': 0}), 401
+            return jsonify({'ok': False, 'error': f'Login gagal: {nonce_or_err}', 'deleted': 0}), WP_FAIL_STATUS
 
         posts, complete = _fetch_all_posts(client, nonce_or_err)
         if not posts:
