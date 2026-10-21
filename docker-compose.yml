@@ -63,6 +63,8 @@ services:
       # v2.46.0: hasil transcoder (persisten, di luar image) — v2.47 pindah /srv
       - /srv/bpf-workhub/data/transcoder:/app/data/transcoder
       - ./fonts:/app/fonts
+      # v2.48.0: PWA mobile — bind mount supaya edit file tidak perlu rebuild image
+      - ./mobile:/app/mobile:ro
     environment:
       - FLASK_DEBUG=0
       - TZ=Asia/Jakarta

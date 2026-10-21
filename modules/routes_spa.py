@@ -15,6 +15,8 @@ from modules.stepup import stepup_required
 from modules.approvals import gate_approval  # v2.36.0
 
 SPA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'static', 'app')
+# v2.48.0: PWA mobile (Driver/OB/Security) — folder terpisah agar tidak ikut bundle SPA
+MOBILE_DIR = os.environ.get('BPF_MOBILE_DIR') or os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'mobile')
 
 # Asset ber-hash (Vite) bisa di-cache lama; index.html wajib no-cache.
 _SPA_IMMUTABLE_HINTS = ('/assets/', '.js', '.css', '.svg', '.png', '.woff2', '.ico')
@@ -32,6 +34,30 @@ def _client_ip():
 
 
 def register_spa_routes(app):
+
+    # ================================================================
+    # PWA Mobile — /m/ : shell statik (login PIN + role driver/ob/security)
+    # ================================================================
+    @app.route('/m/')
+    @app.route('/m/<path:path>')
+    def mobile_app(path=''):
+        if not os.path.isdir(MOBILE_DIR):
+            return 'Mobile app belum terpasang (folder mobile/ kosong).', 503
+        if path:
+            full = os.path.join(MOBILE_DIR, path)
+            if not os.path.isfile(full):
+                return 'Not found', 404
+            resp = send_from_directory(MOBILE_DIR, path)
+            if path == 'sw.js' or path == 'manifest.webmanifest':
+                resp.headers['Cache-Control'] = 'no-cache'
+            else:
+                resp.headers['Cache-Control'] = 'public, max-age=86400'
+            return resp
+        resp = send_from_directory(MOBILE_DIR, 'index.html')
+        resp.headers['Cache-Control'] = 'no-store'
+        return resp
+
+
 
     # ================================================================
     # AUTH (JSON) — sesi sama dengan login klasik
