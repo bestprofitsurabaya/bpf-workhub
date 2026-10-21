@@ -20,6 +20,7 @@ from modules.helpers import (role_required, log_activity_async,
                              generate_display_id, applicant_stage_label,
                              applicant_status_label)
 from modules.pdf_generator import ApplicantReportPDF
+from modules.stepup import stepup_required
 
 VALID_STAGES = ('interview', 'training_1', 'training_2', 'training_3', 'training_4')
 TRAINING_STAGES = ('training_1', 'training_2', 'training_3', 'training_4')
@@ -500,6 +501,7 @@ def register_applicant_routes(app):
     # ================================================================
     @app.route('/api/applicants/<int:appt_id>/verify', methods=['POST'])
     @role_required(['receptionist', 'admin'])
+    @stepup_required  # paritas in-out — verifikasi adalah pengesahan
     def api_applicants_verify(appt_id):
         try:
             conn = get_db_connection()
@@ -593,6 +595,7 @@ def register_applicant_routes(app):
     # ================================================================
     @app.route('/api/applicants/<int:appt_id>/status', methods=['POST'])
     @role_required(['receptionist', 'admin'])
+    @stepup_required  # paritas in-out — lulus/undur diri menutup data
     def api_applicants_status(appt_id):
         try:
             data = request.get_json(silent=True) or {}

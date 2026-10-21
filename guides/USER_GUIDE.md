@@ -1,4 +1,4 @@
-# 📖 Panduan Pengguna BPF WorkHub v2.46.5
+# 📖 Panduan Pengguna BPF WorkHub v2.47.0
 
 > **Siapa pun kamu — sopir, OB, admin, atau pimpinan — panduan ini ditulis untuk kamu.**
 > Tidak perlu paham teknis. Cukup ikuti langkah-langkah sesuai bagianmu.
@@ -1044,6 +1044,42 @@ Jika situs berita rate-limit (HTTP 429) atau error server (5xx), sistem otomatis
 
 Jika upload ke WordPress gagal, pesan error sekarang menampilkan **response body** dari WordPress (bukan cuma "HTTP 400") — memudahkan debugging.
 
+### 14.10 PDF Kit — Mengecilkan Berkas PDF 🗜️ (sejak v2.47.0)
+
+> **Halaman 📄 PDF Kit** (`/app/pdfkit`) dipakai IT untuk mengecilkan berkas PDF
+> (laporan scan, lampiran email, arsip) tanpa mengubah berkas aslinya.
+
+1. Tarik berkas PDF ke kotak unggah (atau klik untuk memilih). Maksimal **10 berkas**,
+   **100 MB/berkas**, total **250 MB** sekali submit. Hanya berkas `.pdf` yang diterima.
+2. Pilih **Mode Kompresi**:
+
+| Mode | Kapan dipakai |
+|------|---------------|
+| **Lossless (aman)** | Perlu lebih kecil tanpa mengubah kualitas sama sekali (teks, tautan, gambar asli utuh). Hasil 5–30% lebih kecil — PDF yang sudah rapat bisa tidak menyusut. |
+| **Ringan — 150 dpi** | Hasil scan/foto 300 dpi yang mau dirapikan (tetap bagus untuk dibaca). |
+| **Sedang — 120 dpi** | Seimbang: enak dibaca di layar & cetak biasa. |
+| **Kuat — 100 dpi** | Kecil, untuk lampiran email/WhatsApp. Teks tetap tajam karena teks bukan gambar. |
+| **Maksimal — 72 dpi + JPEG** | Paling kecil — cocok untuk scan yang hanya perlu terbaca. |
+| **Target ukuran (otomatis)** | Isi target (mis. 0,5 MB). Sistem mencoba lossless → ringan → kuat → maksimal dan **berhenti begitu target tercapai**, jadi kualitas terbaik tetap dipakai. |
+
+3. Klik **🗜️ Kompres**. Progres muncul per berkas; tab **Histori & Hasil** bisa difilter.
+4. Unduh hasilnya (`..._kompres.pdf`, tombol **⬇️ Unduh semua** untuk sekaligus).
+   Hasil tersimpan **48 jam** di server, lalu terhapus otomatis.
+
+**Yang TIDAK akan dikompres (otomatis, bukan pilihan operator):**
+
+| Keadaan berkas | Tanda di layar |
+|----------------|----------------|
+| Dokumen terbitan aplikasi (kuitansi air minum, laporan overtime, laporan in-out) — terdaftar di registri integritas | 🛡️ **Dilindungi** |
+| PDF bertanda tangan digital | 🛡️ **Dilindungi** |
+| PDF terkunci password | ➖ **Dilewati** |
+| Sudah optimal (tidak menyusut ≥2%) | ➖ **Dilewati** |
+
+> 💡 Dokumen resmi sengaja **tidak boleh** dikompres: sidik jari digitalnya (SHA-256) dipakai
+> untuk memverifikasi keaslian di **Pengaturan → Verifikasi Dokumen**. Mengompresnya membuat
+> verifikasi bilang "dokumen sudah diubah". Berkas asli juga **tidak pernah ditimpa** —
+> hasil selalu berkas baru, jadi tidak ada risiko kehilangan data.
+
 ---
 
 ## 15. Mengatasi Masalah (Troubleshooting)
@@ -1059,6 +1095,8 @@ Jika upload ke WordPress gagal, pesan error sekarang menampilkan **response body
 | **Lupa PIN / akun terkunci** | Hubungi Admin — hanya Admin yang bisa mereset PIN. |
 | **Aplikasi terasa lambat** | Periksa koneksi internet. Data akan tetap tersimpan di HP (offline). |
 | **Muncul pesan "CSRF token tidak valid"** | Muat ulang halaman dan coba lagi (sesi browser sedang kedaluwarsa). |
+| **PDF Kit: berkas ditandai "Dilindungi"** | Itu disengaja — dokumen resmi terbitan aplikasi / bertanda tangan digital tidak boleh dikompres agar keasliannya tetap bisa diverifikasi. Bila memang perlu versi kecil, buat salinan tanpa tanda tangan terlebih dahulu (di luar dokumen resmi). |
+| **PDF Kit: berkas ditandai "Dilewati — sudah optimal"** | Ukuran tidak menyusut berarti (< 2%). Coba mode yang lebih kuat (Kuat / Maksimal) atau mode **Target ukuran**. |
 
 > Kalau masalah tetap berlanjut, hubungi Admin / tim IT dengan menyebutkan: **siapa kamu, kapan kejadiannya, dan pesan error yang muncul.**
 
@@ -1086,6 +1124,9 @@ Jika upload ke WordPress gagal, pesan error sekarang menampilkan **response body
 | **Pelamar Kerja** | Orang yang mendaftar kerja via form publik — datanya dikelola Receptionist. |
 | **UPLINE / Traineer** | Orang yang merekrut pelamar — bisa memantau kehadiran rekrutannya. |
 | **Kehadiran (I · H1–H4)** | Tanda hadir pelamar: Interview, lalu Training Hari 1 sampai 4. |
+| **Lossless** | Cara mengecilkan berkas tanpa mengubah isi/kualitasnya (hanya struktur/penyimpanan yang dirapikan). |
+| **PDF Kit** | Alat di halaman IT untuk mengecilkan berkas PDF (mode aman sampai maksimal). |
+| **Registri Integritas** | Daftar dokumen resmi beserta sidik jarinya — dipakai membuktikan dokumen asli & belum diubah. |
 
 ---
 
@@ -1093,4 +1134,4 @@ Jika upload ke WordPress gagal, pesan error sekarang menampilkan **response body
 
 Ada pertanyaan atau kendala? Hubungi **Admin** atau **tim IT** — mereka bisa melihat riwayat sistem (Audit Log) untuk membantu menyelesaikan masalahmu dengan cepat.
 
-*BPF WorkHub v2.37.0 · Panduan Pengguna · Diperbarui 7 September 2026*
+*BPF WorkHub v2.47.0 · Panduan Pengguna · Diperbarui 16 Oktober 2026*

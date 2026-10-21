@@ -25,7 +25,13 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-reco
     cron \
     poppler-utils \
     ffmpeg \
+    ghostscript \
+    qpdf \
     && rm -rf /var/lib/apt/lists/*
+# v2.47.0: ghostscript + qpdf = mesin kompres PDF (modul PDF Kit, role IT).
+# Ghostscript = lossy bertingkat (pdfwrite); qpdf = lossless struktural.
+# poppler-utils (pdfinfo/pdfsig/pdftotext) dipakai untuk memeriksa sifat PDF
+# & mendeteksi dokumen bertanda tangan sebelum dikompres.
 
 # Setup cron: cleanup foto overtime > 6 bulan
 COPY scripts/overtime-cleanup.sh /app/scripts/overtime-cleanup.sh

@@ -27,6 +27,82 @@ MAX_IMAGE_SIZE: int = 10 * 1024 * 1024  # 10 MB hard limit
 DOWNLOAD_CHUNK_SIZE: int = 64 * 1024
 DEFAULT_TIMEOUT: float = 30.0
 
+# Penghemat kuota hosting: gambar dikompres di sisi scraper sebelum diunggah,
+# sehingga varian yang dibuat WordPress juga ikut mengecil.
+IMAGE_MAX_WIDTH: int = 1200  # lebar maksimal berkas yang dikirim
+IMAGE_JPEG_QUALITY: int = 82
+IMAGE_WEBP_QUALITY: int = 80
+IMAGE_MIN_SAVING_RATIO: float = 0.10  # pakai hasil optimasi bila >= 10% lebih kecil
+
+try:  # Pillow opsional; tanpa itu upload berjalan seperti biasa.
+    from io import BytesIO
+
+    from PIL import Image
+except ImportError:  # pragma: no cover
+    BytesIO = None  # type: ignore[assignment]
+    Image = None  # type: ignore[assignment]
+
+
+def optimize_image_payload(payload: bytes, content_type: str) -> tuple[bytes, str, str] | None:
+    """Kompres ulang ``payload`` gambar agar hemat kuota.
+
+    Mengembalikan ``(payload_baru, content_type_baru, ekstensi_baru)`` atau
+    ``None`` bila hasilnya tidak lebih baik (payload asli tetap dipakai).
+    """
+    if Image is None or not payload:
+        return None
+
+    try:
+        src = Image.open(BytesIO(payload))
+        src.load()
+    except Exception:  # noqa: BLE001 - berkas bukan gambar valid
+        return None
+
+    try:
+        if getattr(src, "is_animated", False):
+            return None
+
+        width = src.width or 0
+        has_alpha = src.mode in ("RGBA", "LA", "PA") or "transparency" in src.info
+
+        if width > IMAGE_MAX_WIDTH:
+            ratio = IMAGE_MAX_WIDTH / float(width)
+            src = src.resize(
+                (IMAGE_MAX_WIDTH, max(1, int(round(src.height * ratio)))),
+                Image.LANCZOS,
+            )
+
+        out = BytesIO()
+        if has_alpha:
+            # Alpha tidak muat di JPEG; WebP menjaga transparansi dan tetap kecil.
+            src.save(out, format="WEBP", quality=IMAGE_WEBP_QUALITY, method=6)
+            new_type, ext = "image/webp", ".webp"
+        else:
+            if src.mode not in ("RGB", "L"):
+                src = src.convert("RGB")
+            src.save(out, format="JPEG", quality=IMAGE_JPEG_QUALITY,
+                     optimize=True, progressive=True)
+            new_type, ext = "image/jpeg", ".jpg"
+
+        new_payload = out.getvalue()
+    except Exception:  # noqa: BLE001 - gagal encode, pakai berkas asli
+        logger.warning("Image optimization failed, uploading original", exc_info=True)
+        return None
+    finally:
+        try:
+            src.close()
+        except Exception:  # noqa: BLE001
+            pass
+
+    if len(new_payload) >= len(payload) * (1.0 - IMAGE_MIN_SAVING_RATIO):
+        return None
+
+    logger.info(
+        "Optimized image %d -> %d bytes (%s)",
+        len(payload), len(new_payload), ext,
+    )
+    return new_payload, new_type, ext
+
 
 def get_wp_session() -> requests.Session:
     """Return a ``requests.Session`` configured with retries and back-off."""
@@ -194,6 +270,9 @@ class WpClient:
 
         Enforces an SSRF check and a 10 MB size limit (both via the
         ``Content-Length`` header and while streaming the body).
+        The image is recompressed (see :func:`optimize_image_payload`) so that
+        it - and every variant WordPress derives from it - takes less space in
+        the hosting quota.
         Returns the created attachment dict, or ``None`` on failure.
         """
         if not self._is_safe_url(url):
@@ -226,6 +305,13 @@ class WpClient:
 
         payload = b"".join(chunks)
         filename = os.path.basename(urlparse(url).path) or "image.jpg"
+
+        # Hemat kuota hosting: kompres sebelum diunggah (lihat optimize_image_payload).
+        optimized = optimize_image_payload(payload, content_type)
+        if optimized:
+            payload, content_type, ext = optimized
+            filename = f"{os.path.splitext(filename)[0]}{ext}"
+
         files = {"file": (filename, payload, content_type)}
 
         resp = self.request(

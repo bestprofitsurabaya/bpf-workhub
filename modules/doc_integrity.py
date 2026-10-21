@@ -121,12 +121,17 @@ def register_pdf(doc_type, doc_no, pdf_bytes, signer_name='', signer_role='',
         return None
 
 
-def lookup_pdf(pdf_bytes):
-    """Cari dokumen di registri berdasarkan hash byte PDF.
+def lookup_sha256(sha256_hex):
+    """Cari baris registri dari hash SHA-256 (hex) — TANPA memuat isi PDF.
 
-    Return dict (row registri) atau None bila tidak terdaftar.
+    v2.47.0: dipakai pemanggil yang sudah memegang hash (mis. `modules/pdfkit`
+    yang menghitung hash sambil mengunggah berkas besar, sehingga tidak perlu
+    membaca ulang byte ke memori).
+
+    Return dict baris registri atau None bila tidak terdaftar.
     """
-    if not pdf_bytes:
+    sha = str(sha256_hex or '').strip().lower()
+    if not sha:
         return None
     try:
         from modules.config import get_master_connection
@@ -139,9 +144,8 @@ def lookup_pdf(pdf_bytes):
                 "SELECT id, doc_type, doc_no, branch_code, sha256, bytes_size, "
                 "filename, signer_name, signer_role, meta, created_at "
                 "FROM document_registry WHERE sha256=%s",
-                (_sha256(pdf_bytes),))
-            row = cur.fetchone()
-            return row
+                (sha,))
+            return cur.fetchone()
         finally:
             try:
                 cur.close()
@@ -154,6 +158,16 @@ def lookup_pdf(pdf_bytes):
     except Exception as e:
         print(f'[doc-integrity] lookup error: {e}')
         return None
+
+
+def lookup_pdf(pdf_bytes):
+    """Cari dokumen di registri berdasarkan hash byte PDF.
+
+    Return dict (row registri) atau None bila tidak terdaftar.
+    """
+    if not pdf_bytes:
+        return None
+    return lookup_sha256(_sha256(pdf_bytes))
 
 
 def _row_to_dict(r):

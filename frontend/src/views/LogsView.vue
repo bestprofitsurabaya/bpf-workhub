@@ -69,9 +69,52 @@ function prevPage() { page.value = Math.max(1, page.value - 1) }
 function nextPage() { page.value = Math.min(pageCount.value, page.value + 1) }
 function applyFilters() { page.value = 1 }
 
+// ---- Laporan pemakaian PDF Kit (v2.47.0) — agregat dari activity_logs ----
+const pk = ref(null)          // {per_user, totals, recent, meta}
+const pkLoading = ref(true)
+const pkErr = ref('')
+const pkFrom = ref('')
+const pkTo = ref('')
+const pkOpen = ref(true)
+
+async function loadPkReport() {
+  pkLoading.value = true; pkErr.value = ''
+  try {
+    const d = await api('/api/pdfkit/report', {
+      params: {
+        ...(pkFrom.value ? { date_from: pkFrom.value } : {}),
+        ...(pkTo.value ? { date_to: pkTo.value } : {}),
+        ...(fBranch.value !== 'current' ? { branch: fBranch.value } : {}),
+      },
+    })
+    pk.value = (d && d.data) || null
+  } catch (e) { pkErr.value = e.message; pk.value = null }
+  finally { pkLoading.value = false }
+}
+
+const fmtBytes = (b) => {
+  const n = Number(b) || 0
+  if (!n) return '–'
+  if (n < 1024) return n + ' B'
+  if (n < 1024 * 1024) return (n / 1024).toFixed(0) + ' KB'
+  if (n < 1024 * 1024 * 1024) return (n / 1024 / 1024).toFixed(2) + ' MB'
+  return (n / 1024 / 1024 / 1024).toFixed(2) + ' GB'
+}
+
+async function applyPkRange() {
+  page.value = 1
+  await loadPkReport()
+}
+
+async function resetPkRange() {
+  pkFrom.value = ''; pkTo.value = ''
+  await loadPkReport()
+}
+
 onMounted(async () => {
   loadBranches()
   loadLogs()
+  loadPkReport()
 })
 </script>
 
@@ -86,6 +129,61 @@ onMounted(async () => {
       <span class="badge badge-gray">Total: {{ filtered.length }} / {{ logs.length }}</span>
     </div>
 
+    <!-- 📄 Laporan pemakaian PDF Kit (v2.47.0) — sumber: activity_logs -->
+    <div class="card card-pad" style="margin-bottom:16px;">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <div class="grow">
+          <h3 style="margin:0;">📄 Pemakaian PDF Kit</h3>
+          <p class="muted" style="font-size:11px;margin:0;">
+            Berapa berkas PDF dikompres tim IT dan berapa byte yang dihemat (dari riwayat aksi sistem — tetap ada walau hasil job sudah kedaluwarsa)
+          </p>
+        </div>
+        <div class="field" style="margin:0;">
+          <label>Dari</label>
+          <input class="input" type="date" v-model="pkFrom" />
+        </div>
+        <div class="field" style="margin:0;">
+          <label>Sampai</label>
+          <input class="input" type="date" v-model="pkTo" />
+        </div>
+        <button class="btn btn-sm" @click="applyPkRange">🔎 Terapkan</button>
+        <button class="btn btn-sm" @click="resetPkRange">↺ Semua</button>
+        <button class="btn btn-sm" @click="pkOpen = !pkOpen">{{ pkOpen ? '▾ Tutup' : '▸ Buka' }}</button>
+      </div>
+
+      <div v-if="pkOpen">
+        <div v-if="pkLoading" class="muted" style="padding:12px;">⏳ Memuat laporan…</div>
+        <div v-else-if="pkErr" class="alert alert-error" style="margin-top:10px;">{{ pkErr }}</div>
+        <template v-else>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
+            <span class="badge badge-blue">🗜️ {{ pk?.totals?.jobs || 0 }} job</span>
+            <span class="badge badge-gray">📄 {{ pk?.totals?.files || 0 }} berkas</span>
+            <span class="badge badge-gray">✅ {{ pk?.totals?.done || 0 }} berhasil dikompres</span>
+            <span class="badge badge-gray">➖ {{ pk?.totals?.skipped || 0 }} dilewati/dilindungi</span>
+            <span class="badge badge-blue">📉 Hemat {{ fmtBytes(pk?.totals?.saved_bytes) }} ({{ pk?.totals?.ratio_pct || 0 }}%)</span>
+          </div>
+          <div class="table-wrap" style="margin-top:12px;">
+            <table class="tbl tbl-pk">
+              <thead><tr><th>User</th><th>Peran</th><th>Job</th><th>Berkas</th><th>Sebelum</th><th>Sesudah</th><th>Hemat</th><th>Terakhir</th></tr></thead>
+              <tbody>
+                <tr v-for="u in pk?.per_user || []" :key="u.user">
+                  <td><b>{{ u.user }}</b></td>
+                  <td><span class="badge badge-gray">{{ u.role || '—' }}</span></td>
+                  <td>{{ u.jobs }}</td>
+                  <td>{{ u.files }}</td>
+                  <td class="muted">{{ fmtBytes(u.size_before) }}</td>
+                  <td class="muted">{{ fmtBytes(u.size_after) }}</td>
+                  <td><b style="color:#15803d;">{{ fmtBytes(u.saved_bytes) }}</b> <span class="muted">({{ u.ratio_pct }}%)</span></td>
+                  <td class="muted">{{ u.last_at || '—' }}</td>
+                </tr>
+                <tr v-if="!(pk?.per_user || []).length"><td colspan="8" style="padding:0;"><EmptyState message="Belum ada pemakaian PDF Kit pada filter ini." icon="📄" /></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </template>
+      </div>
+    </div>
+
     <div v-if="loading"><LoadingState rows="4" label="Memuat audit log…" /></div>
     <div v-else-if="err"><ErrorState :message="err" @retry="loadLogs" /></div>
     <template v-else>
@@ -93,7 +191,7 @@ onMounted(async () => {
         <div class="row">
           <div class="field" style="margin:0;flex:1;">
             <label>Filter Cabang</label>
-            <select class="select" v-model="fBranch" @change="applyFilters; loadLogs()">
+            <select class="select" v-model="fBranch" @change="applyFilters; loadLogs(); loadPkReport()">
               <option value="current">Cabang aktif</option>
               <option v-for="b in branches" :key="b.code" :value="b.code">{{ b.name }} ({{ b.code }})</option>
             </select>
@@ -115,7 +213,7 @@ onMounted(async () => {
 
       <div class="card">
         <div class="table-wrap">
-          <table class="tbl">
+          <table class="tbl tbl-logs">
             <thead><tr><th>Waktu</th><th>User</th><th>Tipe</th><th>Aksi</th><th>Ref</th><th>Cabang</th><th>IP</th><th></th></tr></thead>
             <tbody>
               <tr v-for="l in paged" :key="l.id">

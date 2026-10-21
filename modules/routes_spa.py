@@ -84,6 +84,14 @@ def register_spa_routes(app):
             cursor = conn.cursor(dictionary=True)
             cursor.execute("SELECT * FROM users WHERE username=%s AND pin=%s AND is_active=TRUE", (username, pin))
             user = cursor.fetchone()
+            if user:
+                # v2.47: catat login terakhir untuk audit (kolom lama kosong —
+                # tidak pernah diisi kode). Gagal audit tidak memblokir login.
+                try:
+                    cursor.execute("UPDATE users SET last_login=NOW() WHERE id=%s", (user['id'],))
+                    conn.commit()
+                except Exception as _e:
+                    print(f'[auth] last_login gagal: {username}: {_e}')
             cursor.close(); conn.close()
         except Exception as e:
             return jsonify({'status': 'error', 'msg': str(e)}), 500

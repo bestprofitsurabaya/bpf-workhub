@@ -309,6 +309,170 @@ class TestUploadImage:
 
 
 # ---------------------------------------------------------------------------
+# Image optimization (hosting quota)
+# ---------------------------------------------------------------------------
+
+class TestImageOptimization:
+    """optimize_image_payload() must shrink big images and leave small ones alone."""
+
+    @staticmethod
+    def _jpeg(width: int, height: int, quality: int = 95) -> bytes:
+        from io import BytesIO
+        from PIL import Image
+
+        buf = BytesIO()
+        Image.new("RGB", (width, height), (123, 45, 200)).save(
+            buf, format="JPEG", quality=quality
+        )
+        return buf.getvalue()
+
+    def test_large_jpeg_is_resized_and_recompressed(self):
+        from modules.news_scraper.wp_client import IMAGE_MAX_WIDTH, optimize_image_payload
+
+        original = self._jpeg(2400, 1600)
+        result = optimize_image_payload(original, "image/jpeg")
+
+        assert result is not None
+        payload, content_type, ext = result
+        assert content_type == "image/jpeg"
+        assert ext == ".jpg"
+        assert len(payload) < len(original)
+
+        from io import BytesIO
+        from PIL import Image
+
+        with Image.open(BytesIO(payload)) as out:
+            assert out.width <= IMAGE_MAX_WIDTH
+
+    def test_alpha_png_becomes_webp(self):
+        from io import BytesIO
+
+        from PIL import Image
+
+        from modules.news_scraper.wp_client import optimize_image_payload
+
+        buf = BytesIO()
+        Image.new("RGBA", (1200, 800), (10, 20, 30, 128)).save(buf, format="PNG")
+        result = optimize_image_payload(buf.getvalue(), "image/png")
+
+        assert result is not None
+        _, content_type, ext = result
+        assert content_type == "image/webp"
+        assert ext == ".webp"
+
+    def test_already_optimized_image_keeps_original(self):
+        """Second pass gains < IMAGE_MIN_SAVING_RATIO, so the original is kept."""
+        from modules.news_scraper.wp_client import optimize_image_payload
+
+        first = optimize_image_payload(self._jpeg(2400, 1600), "image/jpeg")
+        assert first is not None
+        assert optimize_image_payload(first[0], "image/jpeg") is None
+
+    def test_non_image_payload_keeps_original(self):
+        from modules.news_scraper.wp_client import optimize_image_payload
+
+        assert optimize_image_payload(b"not an image", "image/jpeg") is None
+
+    def test_upload_image_sends_optimized_payload(self):
+        """The file name/type forwarded to WP must follow the optimized image."""
+        client = _make_wp_client()
+        original = self._jpeg(2400, 1600)
+        client.session.get.return_value.__enter__ = MagicMock(return_value=MagicMock(
+            status_code=200,
+            headers={"Content-Type": "image/jpeg", "Content-Length": str(len(original))},
+            raise_for_status=MagicMock(),
+            iter_content=MagicMock(return_value=[original]),
+        ))
+        client.session.get.return_value.__exit__ = MagicMock(return_value=False)
+        client.session.request.return_value = _mock_ok_response({"id": 7}, status=201)
+
+        client.upload_image("https://example.com/big-photo.jpg", "nonce")
+
+        files = client.session.request.call_args.kwargs["files"]
+        filename, payload, content_type = files["file"]
+        assert filename == "big-photo.jpg"
+        assert content_type == "image/jpeg"
+        assert len(payload) < len(original)
+
+
+# ---------------------------------------------------------------------------
+# Auto-scrape: gambar & atribusi sumber berita
+# ---------------------------------------------------------------------------
+
+class TestAutoScrapeSourceMedia:
+    """Setiap artikel otomatis wajib membawa gambar + tautan sumbernya."""
+
+    @staticmethod
+    def _client(media=None):
+        from unittest.mock import MagicMock
+
+        client = MagicMock()
+        client.wp_url = "https://example.com"
+        client.upload_image.return_value = media
+        return client
+
+    def test_no_image_url_skips_upload(self):
+        from scripts.auto_scrape import attach_source_image
+
+        client = self._client()
+        mid, figure = attach_source_image(client, "nonce", {"image_url": ""}, "Judul")
+
+        assert (mid, figure) == (0, "")
+        client.upload_image.assert_not_called()
+
+    def test_uploaded_image_becomes_featured_and_figure(self):
+        from scripts.auto_scrape import attach_source_image
+
+        media = {
+            "id": 321,
+            "source_url": "https://example.com/wp-content/uploads/foto.jpg",
+            "media_details": {"width": 1200, "height": 675},
+        }
+        client = self._client(media)
+        art = {"image_url": "https://sumber.example/news/foto.jpg"}
+
+        mid, figure = attach_source_image(client, "nonce", art, 'Emas "Naik" & Minyak')
+
+        assert mid == 321
+        assert "wp-block-image" in figure
+        assert "foto.jpg" in figure
+        assert "width=\"1200\" height=\"675\"" in figure
+        # Tanda kutip pada judul harus di-escape agar HTML tetap valid.
+        assert 'alt="Emas &quot;Naik&quot; &amp; Minyak"' in figure
+
+        # Alt text dikirim ke WordPress (SEO gambar + aksesibilitas).
+        alt_call = client.request.call_args
+        assert alt_call.kwargs["json"] == {"alt_text": 'Emas "Naik" & Minyak'}
+        assert "321" in alt_call.args[1]
+
+    def test_failed_upload_keeps_article_flow(self):
+        from scripts.auto_scrape import attach_source_image
+
+        client = self._client(None)
+        mid, figure = attach_source_image(
+            client, "nonce", {"image_url": "https://sumber.example/x.jpg"}, "Judul"
+        )
+
+        assert (mid, figure) == (0, "")
+
+    def test_source_backlink_links_to_original(self):
+        from scripts.auto_scrape import source_backlink
+
+        html = source_backlink(
+            {"link": "https://newsmaker.id/id/news/commodity/emas-turun", "source": "newsmaker"}
+        )
+
+        assert "https://newsmaker.id/id/news/commodity/emas-turun" in html
+        assert 'rel="nofollow noopener"' in html
+        assert "Sumber asli" in html
+
+    def test_source_backlink_without_link_is_empty(self):
+        from scripts.auto_scrape import source_backlink
+
+        assert source_backlink({}) == ""
+
+
+# ---------------------------------------------------------------------------
 # Helper functions tests (from routes.py)
 # ---------------------------------------------------------------------------
 

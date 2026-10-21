@@ -12,10 +12,29 @@ const LOGS = [
   { id: 3, action: 'approve_ga', user_type: 'ga', user_name: 'GA2', created_at: now.toISOString(), transaction_id: 3, ip_address: '3.3.3.3' },
 ]
 
+const PK_REPORT = {
+  status: 'ok',
+  data: {
+    per_user: [{
+      user: 'it_sby', role: 'it_sby', jobs: 2, files: 3, done: 2, skipped: 1, failed: 0,
+      size_before: 3000000, size_after: 1400000, saved_bytes: 1600000, ratio_pct: 53.3,
+      last_at: '2026-10-16 09:01:00',
+    }],
+    totals: { jobs: 2, files: 3, done: 2, skipped: 1, failed: 0, users: 1,
+              size_before: 3000000, size_after: 1400000, saved_bytes: 1600000, ratio_pct: 53.3 },
+    recent: [],
+    meta: { branch: 'current', date_from: '', date_to: '', rows: 4 },
+  },
+}
+
+/** Laporan PDF Kit punya endpoint sendiri — mock harus membedakannya. */
+const mockApi = (logs = LOGS, report = PK_REPORT) => (path) =>
+  Promise.resolve(path === '/api/pdfkit/report' ? report : logs)
+
 describe('LogsView', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    apiMock.mockResolvedValue(LOGS)
+    apiMock.mockImplementation(mockApi())
   })
 
   it('merender seluruh log + badge hari ini & total', async () => {
@@ -33,7 +52,8 @@ describe('LogsView', () => {
     await flushPromises()
     const select = w.findAll('select')[1] // [0]=Cabang, [1]=Aksi, [2]=Peran
     await select.setValue('approve_ga')
-    expect(w.findAll('tbody tr').length).toBe(2)
+    // tabel audit log ditandai .tbl-logs — tabel laporan PDF Kit punya barisnya sendiri
+    expect(w.findAll('.tbl-logs tbody tr').length).toBe(2)
     expect(w.text()).toContain('Total: 2 / 3')
   })
 
@@ -42,7 +62,7 @@ describe('LogsView', () => {
     await flushPromises()
     const selects = w.findAll('select')
     await selects[2].setValue('finance')
-    expect(w.findAll('tbody tr').length).toBe(1)
+    expect(w.findAll('.tbl-logs tbody tr').length).toBe(1)
     expect(w.text()).toContain('FIN1')
   })
 
@@ -51,6 +71,49 @@ describe('LogsView', () => {
     const w = mount(LogsView)
     await flushPromises()
     expect(w.text()).toContain('Tidak ada data dengan filter ini.')
+  })
+})
+describe('LogsView — laporan pemakaian PDF Kit (v2.47.0)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    apiMock.mockImplementation(mockApi())
+  })
+
+  it('menampilkan total & rincian per user', async () => {
+    const w = mount(LogsView)
+    await flushPromises()
+    expect(w.text()).toContain('Pemakaian PDF Kit')
+    expect(w.text()).toContain('🗜️ 2 job')
+    expect(w.text()).toContain('📄 3 berkas')
+    expect(w.text()).toContain('✅ 2 berhasil dikompres')
+    expect(w.text()).toContain('➖ 1 dilewati/dilindungi')
+    expect(w.text()).toContain('Hemat 1.53 MB (53.3%)')
+    const row = w.find('.tbl-pk tbody tr')
+    expect(row.text()).toContain('it_sby')
+    expect(row.text()).toContain('1.53 MB')
+    expect(row.text()).toContain('2026-10-16 09:01:00')
+  })
+
+  it('filter tanggal meminta laporan ulang dengan parameter', async () => {
+    const w = mount(LogsView)
+    await flushPromises()
+    await w.findAll('input[type="date"]')[0].setValue('2026-10-01')
+    await w.findAll('button').find((b) => b.text().includes('Terapkan')).trigger('click')
+    await flushPromises()
+    expect(apiMock).toHaveBeenCalledWith('/api/pdfkit/report', expect.objectContaining({
+      params: expect.objectContaining({ date_from: '2026-10-01' }),
+    }))
+  })
+
+  it('gagal memuat laporan → pesan error panel, audit log tetap tampil', async () => {
+    apiMock.mockImplementation((path) =>
+      path === '/api/pdfkit/report'
+        ? Promise.reject(new Error('DB error'))
+        : Promise.resolve(LOGS))
+    const w = mount(LogsView)
+    await flushPromises()
+    expect(w.text()).toContain('DB error')
+    expect(w.text()).toContain('GA1')
   })
 })
 

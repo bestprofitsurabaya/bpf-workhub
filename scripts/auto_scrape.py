@@ -20,6 +20,7 @@ import os
 import sys
 import time
 from datetime import datetime, timedelta
+from html import escape as html_escape
 
 sys.path.insert(0, '/app')
 
@@ -27,7 +28,7 @@ from modules.news_scraper.scraper_engine import scrape_newsmaker, fetch_article_
 from modules.news_scraper.wp_client import WpClient
 from modules.news_scraper.seo_optimizer import (
     rewrite_content, build_article_html, seo_analyze,
-    apply_backlinks, normalize_title
+    apply_backlinks, normalize_title, wp_block
 )
 from modules.news_scraper.routes import _fetch_all_posts, _build_excerpt
 from modules.news_scraper import WP_SITES_FILE, BACKLINKS_FILE, DEFAULT_AUTHORITY_SITES, DEFAULT_KEYWORD_MAPPING
@@ -68,6 +69,63 @@ def filter_recent(articles, max_age_days, now=None):
             stats['old'] += 1
             stats['newest_skipped'] = max(stats['newest_skipped'], raw)
     return kept, stats
+
+
+def attach_source_image(client, nonce, article, title):
+    """Unggah foto milik berita sumber sebagai featured image.
+
+    Foto diambil dari ``article['image_url']`` (og:image halaman sumber),
+    jadi yang tampil di kartu/artikel adalah gambar berita aslinya — bukan
+    stok atau logo. Mengembalikan ``(media_id, figure_html)``; ``(0, '')``
+    bila artikel tidak punya gambar atau unggahan gagal (alur tetap jalan).
+    """
+    url = (article.get('image_url') or '').strip()
+    if not url:
+        return 0, ''
+
+    media = client.upload_image(url, nonce)
+    if not media:
+        _sl.log('WARNING', 'AUTO', f'Gambar sumber gagal diunggah: {url[:100]}')
+        return 0, ''
+
+    media_id = int(media.get('id') or 0)
+    src = media.get('source_url') or ''
+    if not (media_id and src):
+        return 0, ''
+
+    details = media.get('media_details') or {}
+    width = int(details.get('width') or 1200)
+    height = int(details.get('height') or 675)
+
+    # Alt text = judul artikel (SEO gambar + aksesibilitas pembaca layar).
+    try:
+        client.request('POST', f'{client.wp_url}/wp-json/wp/v2/media/{media_id}',
+                       nonce, json={'alt_text': title})
+    except Exception:
+        _sl.log('WARNING', 'AUTO', f'Alt text gagal disetel untuk media {media_id}')
+
+    figure = wp_block(
+        '<figure class="wp-block-image size-large">'
+        f'<img src="{html_escape(src, quote=True)}" '
+        f'alt="{html_escape(title, quote=True)}" '
+        f'width="{width}" height="{height}" class="wp-post-image"/>'
+        '</figure>'
+    )
+    return media_id, figure
+
+
+def source_backlink(article):
+    """Paragraf "Sumber asli" ke halaman asal berita (E-E-A-T + atribusi)."""
+    link = (article.get('link') or '').strip()
+    if not link:
+        return ''
+    name = (article.get('source') or 'sumber asli').replace('_', ' ')
+    return wp_block(
+        '<p style="margin-top:20px;padding:12px;background:#f0f9ff;border:1px solid #bae6fd;'
+        'border-radius:8px;font-size:13px;color:#0369a1;">📰 Sumber asli: '
+        f'<a href="{html_escape(link, quote=True)}" target="_blank" rel="nofollow noopener" '
+        f'style="color:#0284c7;font-weight:600;">{html_escape(name)}</a></p>'
+    )
 
 
 def main():
@@ -194,6 +252,15 @@ def main():
             a = seo_analyze(html, title)
             html, _ = apply_backlinks(html, title, auth, km, 3)
 
+            # Foto + atribusi sumber: kartu berita butuh gambar, dan Google
+            # News/Discover hanya menampilkan artikel yang punya gambar.
+            featured_media_id, figure_html = attach_source_image(client, msg, art, title)
+            if figure_html:
+                html = figure_html + '\n\n' + html
+            backlink_html = source_backlink(art)
+            if backlink_html:
+                html = html.rstrip() + '\n\n' + backlink_html
+
             tags = [t.strip().capitalize() for t in 'newsmaker.id,Market,Financial News'.split(',') if t.strip()]
             tw = [w.capitalize() for w in title.lower().split()
                   if w not in {'dan', 'di', 'ke', 'dari', 'yang', 'untuk', 'dengan', 'ini', 'itu'} and len(w) > 3]
@@ -216,7 +283,8 @@ def main():
                              # Excerpt polos utk meta description Rank Math (sinkron routes.py).
                              'excerpt': _build_excerpt(content),
                              'status': 'publish',
-                             'date': f'{pd}T{pt}:00', 'tags': tids, 'featured_media': 0}
+                             'date': f'{pd}T{pt}:00', 'tags': tids,
+                             'featured_media': featured_media_id}
 
                 if len(html.encode('utf-8')) > 120 * 1024:
                     se = html.rfind('<!-- BPF CTA Widget -->')

@@ -7,6 +7,52 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.47.0 — 16 Oktober 2026 (PDF Kit: kompres PDF untuk IT + daftar lindungi otomatis)
+
+**Fitur baru** — halaman **📄 PDF Kit** (`/app/pdfkit`, menu sidebar IT) untuk role IT
+cabang (`it_sby` … `it_lpg`) + admin.
+
+- **Enam mode kompresi**: `lossless` (qpdf — struktur & stream dirapikan; teks, tautan,
+  dan gambar asli tidak disentuh), `ringan` 150 dpi, `sedang` 120 dpi, `kuat` 100 dpi,
+  `maksimal` 72 dpi + JPEG (Ghostscript `pdfwrite`), dan `target` (rantai otomatis
+  lossless → ringan → kuat → maksimal yang **berhenti begitu target ukuran tercapai**).
+  Pada semua mode Ghostscript teks & vektor tetap teks sehingga masih bisa dicari.
+- **Daftar lindungi otomatis** — berkas yang sha256-nya terdaftar di
+  `document_registry` (dokumen terbitan aplikasi: kuitansi air minum, laporan overtime,
+  laporan in-out) **dilewati** karena mengompresnya mematahkan verifikasi keaslian
+  `POST /api/documents/verify`. PDF **bertanda tangan digital** (`pdfsig`) dan
+  **terenkripsi** (`pdfinfo`) juga tidak diproses. Statusnya tampil sebagai
+  🛡️ *Dilindungi* / ➖ *Dilewati* beserta alasannya — jadi dokumen yang tidak boleh
+  dikompres ditolak sistem, bukan bergantung kedisiplinan operator.
+- **Berkas asli tidak pernah ditimpa**: hasil selalu berkas baru `*_kompres.pdf`.
+  Hasil yang tidak menyusut ≥2% dibuang dan ditandai "sudah optimal" supaya IT tidak
+  mengunduh berkas sia-sia. Tiap berkas dilaporkan: jumlah halaman, ukuran sebelum →
+  sesudah, persen hemat, mode yang dipakai, dan apakah teks masih bisa diekstrak.
+- **REST**: `GET /api/pdfkit/modes`, `POST /api/pdfkit/jobs` (multipart 1–10 berkas,
+  maks 100 MB/berkas & 250 MB sekali submit), `GET /api/pdfkit/jobs`,
+  `GET/DELETE /api/pdfkit/jobs/<id>`, `POST /api/pdfkit/jobs/<id>/cancel`,
+  `GET /api/pdfkit/download/<job_id>/<file>` (path-guard + hanya milik job). Job
+  memakai registry in-memory pola Transcoder, antrean `MAX_CONCURRENT=1` (Ghostscript
+  haus RAM), hasil di `data/transcoder/pdfkit/` (volume persisten, retensi 48 jam).
+- **Laporan pemakaian** — panel **📄 Pemakaian PDF Kit** di halaman **Audit Log**: per user
+  menampilkan jumlah job, berkas, byte sebelum → sesudah, byte & persen yang dihemat,
+  lengkap dengan filter tanggal & cabang. Sumbernya `activity_logs` (`pdfkit_submit` dari
+  route + `pdfkit_done` yang ditulis worker saat job selesai), jadi angkanya tetap ada
+  walau berkas hasil sudah kedaluwarsa (retensi 48 jam). Endpoint: `GET /api/pdfkit/report`.
+  Submit & selesai memakai **identitas yang sama** (nama lengkap user, cadangan username)
+  supaya satu orang tidak terpecah jadi dua baris di laporan.
+- **Dependensi image**: `ghostscript` + `qpdf` ditambahkan di Dockerfile; `poppler-utils`
+  yang sudah terpasang dipakai untuk `pdfinfo`/`pdfsig`/`pdftotext` (deteksi sifat PDF).
+- `modules/doc_integrity.py`: fungsi baru **`lookup_sha256()`** (cari registri dari hash
+  tanpa memuat isi PDF) — dipakai PDF Kit, dan `lookup_pdf()` kini memakainya juga.
+- **Uji**: 36 pytest (`tests/test_pdfkit.py` — helper, guard, API, logika rantai target,
+  agregasi laporan, kompresi nyata gs/qpdf) + vitest (`PdfKitView.test.js`, `LogsView.test.js`)
+  lulus; uji nyata: PDF scan 240 dpi 1,7 MB → 121 KB (maksimal), teks tetap terekstrak.
+  Fixture autouse menambal `log_activity_async` sehingga menjalankan suite **tidak** menulis
+  jejak uji ke `activity_logs` produksi.
+
+---
+
 ## v2.46.5 — 30 September 2026 (Scraper: template meta description & SEO title + skrip WP-CLI konversi artikel lama)
 
 - **Template meta Rank Math** — dua field baru di panel upload: template

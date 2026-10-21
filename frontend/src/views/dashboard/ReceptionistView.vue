@@ -4,8 +4,10 @@ import { api } from '../../api'
 import StatCard from '../../components/StatCard.vue'
 import Modal from '../../components/Modal.vue'
 import { useRealtimeStore } from '../../stores/realtime'
+import { useStepupStore } from '../../stores/stepup'
 
 const realtime = useRealtimeStore()
+const stepup = useStepupStore()
 
 const list = ref([])
 const stats = ref(null)
@@ -73,7 +75,10 @@ async function saveEdit() {
 async function doVerify(a) {
   busy.value = true; msg.value = ''
   try {
-    const r = await api(`/api/applicants/${a.id}/verify`, { method: 'POST' })
+    const r = await stepup.require(
+      () => api(`/api/applicants/${a.id}/verify`, { method: 'POST' }),
+      'verifikasi data pelamar',
+    )
     msg.value = '✅ ' + (r.msg || 'Terverifikasi')
     load()
   } catch (e) { msg.value = '❌ ' + e.message }
@@ -122,9 +127,12 @@ async function saveStatus() {
   }
   savingStatus.value = true; msg.value = ''
   try {
-    const r = await api(`/api/applicants/${a.id}/status`, {
-      method: 'POST', body: { status: statusType.value, reason: statusForm.value.reason },
-    })
+    const r = await stepup.require(
+      () => api(`/api/applicants/${a.id}/status`, {
+        method: 'POST', body: { status: statusType.value, reason: statusForm.value.reason },
+      }),
+      'mengubah status pelamar',
+    )
     msg.value = '✅ ' + (r.msg || 'Status diperbarui')
     statusAppt.value = null
     load()
