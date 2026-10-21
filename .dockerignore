@@ -5,6 +5,11 @@
 .vscode/
 .idea/
 *.md
+# Dokumen yang dibutuhkan guard 7 titik stamp versi saat pytest dijalankan
+# di dalam image (tiga titik stamp berupa .md — lihat modules/version_stamp.py).
+!CHANGELOG.md
+!docs/internal/USER_LIST.md
+!guides/USER_GUIDE.md
 *.pyc
 __pycache__/
 *.py[cod]

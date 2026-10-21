@@ -2,7 +2,7 @@
 
 **Sistem Manajemen Armada untuk PT. Bestprofit Futures — Kantor Pusat Jakarta**
 
-> 📅 Versi 2.42.0 · September 2026 — **Resepsionis penuh: kelola pelamar & in-out karyawan dari aplikasi** (catat Keluar/Masuk, registrasi pelamar → karyawan, guard sync, laporan harian PDF) · **Realtime sheet resepsionis** (bridge Apps Script v2 — push onEdit → webhook) · Kualitas konten scraper · Overtime wall-clock sesuai sheet · Edit/hapus transaksi air minum (opsional per cabang) · Admin per-cabang (`admin_<kode>`) · Approval Berjenjang · Program 6 tahap ISO 27001 selesai · Kantor Pusat Jakarta (Equity Tower)
+> 📅 Versi 2.48.0 · Oktober 2026 — **PWA mobile Driver/OB/Security di `/m/`** (BBM, trip, overtime, kasbon, offline queue) · **Resepsionis penuh** (pelamar & in-out karyawan dari aplikasi) · **PDF Kit** kompres PDF untuk IT · **Transcoder** YouTube → audio/video · Approval Berjenjang · Admin per-cabang (`admin_<kode>`) · Program 6 tahap ISO 27001 selesai · Kantor Pusat Jakarta (Equity Tower)
 
 ---
 
@@ -148,7 +148,7 @@ Username dibuat agar **langsung terbaca divisi & cabang pemiliknya**:
 | Komponen | Teknologi | Fungsi |
 |----------|-----------|--------|
 | Backend | Python Flask | Server & API |
-| Runtime | Gunicorn (eventlet) | WSGI production (sejak v2.29.1) |
+| Runtime | Gunicorn (gevent) | WSGI production (gevent sejak v2.38.0) |
 | Frontend | Vue 3 + Vite | Tampilan SPA (di-build ke dalam image) |
 | Database | MariaDB | Penyimpanan data |
 | Cache | Redis | Session & real-time |
@@ -166,7 +166,9 @@ bpf-workhub/
 │   ├── routes_driver.py    # Endpoint driver
 │   ├── routes_cash.py      # Endpoint kasbon
 │   ├── routes_overtime.py  # Endpoint lembur
-│   ├── routes_news_scraper.py  # Scraper berita
+│   ├── news_scraper/       # Scraper & upload berita
+│   ├── transcoder/         # Konversi media (YouTube)
+│   ├── pdfkit/             # Kompres PDF
 │   └── ...
 ├── frontend/               # SPA Vue 3
 │   ├── src/views/          # Halaman-halaman
@@ -218,7 +220,7 @@ python -m pytest tests/ -v
 cd frontend && npm test
 ```
 
-**Status:** 593 pytest (pass) + 8 skip + 141 vitest · Semua ✅ PASS + audit dependensi bersih (v2.39.2 — CI GitHub Actions: Backend pytest + pip-audit, Frontend unit test/build + npm audit, Image scan Trivy; hijau di tiap push)
+**Status:** seluruh pytest & vitest lulus + audit dependensi bersih (CI GitHub Actions: Backend pytest + pip-audit, Frontend unit test/build + npm audit, Image scan Trivy; hijau di tiap push)
 
 ---
 

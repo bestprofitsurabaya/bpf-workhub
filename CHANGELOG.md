@@ -7,6 +7,29 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.48.0 — 21 Oktober 2026 (PWA Mobile: Driver, OB & Security)
+
+**Fitur baru** — aplikasi **PWA mobile** di `/m/` (satu shell, otomatis deteksi role
+driver / ob / security setelah login PIN). Sumber: `mobile/` (bind-mount
+`./mobile:/app/mobile:ro` — edit statik tanpa rebuild image; route Python
+`/m/` di `modules/routes_spa.py`).
+
+- **Driver** (5 tab): BBM (foto ODO/struk, harga dari server, GPS + reverse
+  geocode Nominatim), Trip (multi-rute + muat appointment hari ini), Overtime
+  Driver (foto mulai/selesai base64 + GPS), Kasbon (pengajuan & daftar LPJ →
+  isi LPJ lewat tab BBM), Rapor (feedback).
+- **OB & Security**: submit overtime (nama & posisi diambil dari sesi server,
+  foto mulai wajib, GPS) + riwayat sendiri (`/api/overtime/mine`).
+- **Offline queue** di localStorage: BBM/TRIP/OVERTIME antre saat offline dan
+  dikirim ulang otomatis saat kembali online (mirip perilaku SPA).
+- **Service worker** (`/m/sw.js`): app shell cache-first, `/api/` & Nominatim
+  selalu network; manifest standalone + ikon maskable 192/512.
+- Keamanan tetap di server: sesi + `X-CSRF-Token`, validasi & harga BBM dari
+  `vehicle_fuel_prices`, identitas driver dari sesi (bukan body).
+- Diverifikasi E2E dari NAS (21 Okt): login driver `wicak` & OB `ob_febri_sby`
+  sukses, endpoint yang dipakai app semua 200, portal `/app/` tidak ada regresi,
+  `pytest tests/test_driver_session.py tests/test_driver_context.py` 12 passed.
+
 ## v2.47.0 — 16 Oktober 2026 (PDF Kit: kompres PDF untuk IT + daftar lindungi otomatis)
 
 **Fitur baru** — halaman **📄 PDF Kit** (`/app/pdfkit`, menu sidebar IT) untuk role IT

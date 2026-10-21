@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<title>BPF Mobile</title>
+<link rel="manifest" href="/m/manifest.webmanifest">
+<meta name="theme-color" content="#0b1c39">
+<style>
+:root{--navy:#0b1c39;--gold:#f2ac59;--bg:#f4f6fa;--card:#fff;--txt:#18243d;--muted:#7a8499;--ok:#15803d;--err:#c2352b}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--txt);min-height:100vh;font-size:15px}
+header{position:sticky;top:0;z-index:5;background:var(--navy);color:#fff;padding:12px 14px;display:flex;align-items:center;gap:10px}
+header h1{font-size:15px;flex:1;line-height:1.25}
+header .avatar{width:34px;height:34px;border-radius:50%;background:var(--gold);color:#123;display:grid;place-items:center;font-weight:700;flex:none}
+header .btn{margin:0;width:auto;padding:7px 12px}
+main{padding:12px 12px 92px;max-width:640px;margin:0 auto}
+.card{background:var(--card);border-radius:12px;padding:14px;margin-bottom:12px;box-shadow:0 1px 3px rgba(16,24,40,.08)}
+label{display:block;font-size:12px;color:var(--muted);margin:10px 0 4px;font-weight:600}
+input,select,textarea{width:100%;padding:11px 12px;border:1px solid #d7dce5;border-radius:9px;font-size:16px;background:#fff}
+.btn{border:0;border-radius:10px;padding:13px;font-size:15px;font-weight:700;margin-top:12px;cursor:pointer;width:100%}
+.btn.primary{background:var(--navy);color:#fff}
+.btn.gold{background:var(--gold);color:#20293f}
+.btn.ghost{background:#eef1f6;color:var(--txt)}
+.btn:disabled{opacity:.55}
+.tabs{position:fixed;bottom:0;left:0;right:0;display:flex;background:#fff;border-top:1px solid #e3e7ee;z-index:6;padding-bottom:env(safe-area-inset-bottom)}
+.tabs button{flex:1;border:0;background:none;padding:9px 2px;font-size:10.5px;color:var(--muted);font-weight:600}
+.tabs button.on{color:var(--navy)}
+.tabs button .ic{display:block;font-size:19px;margin-bottom:2px}
+.toast{position:fixed;left:12px;right:12px;bottom:80px;z-index:99;background:var(--navy);color:#fff;padding:11px 14px;border-radius:10px;font-size:13px;box-shadow:0 4px 14px rgba(0,0,0,.3)}
+.toast.err{background:var(--err)}.toast.ok{background:var(--ok)}
+.gps{font-size:12px;color:var(--muted);background:#f0f3f8;border-radius:8px;padding:8px;margin-top:10px}
+.gps.ok{color:var(--ok)}
+.photo-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px}
+.photo-item{border:1px dashed #c6cdd9;border-radius:10px;padding:8px;text-align:center;font-size:11px;color:var(--muted);min-height:88px;position:relative;overflow:hidden}
+.photo-item img{width:100%;height:62px;object-fit:cover;border-radius:6px;margin-bottom:4px}
+.photo-item input{position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer}
+.photo-item .tag{font-weight:700;color:var(--txt)}
+.photo-item.req::after{content:'';position:absolute;top:5px;right:7px;width:15px;height:15px;border-radius:50%;background:var(--err)}
+.photo-item.done::after{content:'✓';line-height:16px;text-align:center;background:var(--ok);width:16px}
+.row{display:flex;gap:8px}.row>*{min-width:0}
+.row label:first-child{margin-top:10px}
+.route{border:1px solid #e3e7ee;border-radius:10px;padding:4px 10px 10px;margin-top:8px}
+.route-head{display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--muted);padding-top:2px}
+.list-item{border-bottom:1px solid #eef1f6;padding:9px 2px;font-size:13px}
+.list-item:last-child{border-bottom:0}
+.center{text-align:center;color:var(--muted);font-size:13px;padding:14px 0}
+.login-wrap{min-height:92vh;display:grid;place-items:center;padding:20px}
+.login-card{background:var(--card);border-radius:16px;padding:26px 20px;width:100%;max-width:360px;box-shadow:0 8px 30px rgba(11,28,57,.18)}
+.login-card h2{color:var(--navy)}
+.login-card .sub{font-size:12px;color:var(--muted);margin-bottom:12px}
+.logo{width:56px;height:56px;background:var(--navy);border-radius:14px;display:grid;place-items:center;color:var(--gold);font-weight:800;font-size:22px;margin-bottom:10px}
+.toast-wrap button{margin-top:0}
+.queue-bar{display:flex;gap:8px;align-items:center;background:#fff7ed;border:1px solid #f2ac5955;border-radius:10px;padding:9px 12px;font-size:12px;margin-bottom:10px}
+.queue-bar b{color:#92400e}
+.queue-bar .btn{width:auto;margin:0;padding:6px 10px}
+.badge{display:inline-block;background:#eef1f6;border-radius:999px;padding:2px 8px;font-size:11px;color:var(--muted)}
+a.txt{color:var(--navy)}
+</style>
+</head>
+<body id="root"></body>
+<script>
+'use strict';
+/* BPF Mobile PWA — single shell, role-aware (driver / ob / security).
+   Sumber API & field disamakan dengan frontend SPA Vue (frontend/src). */
+const $root = document.body;
+const q = (s) => $root.querySelector(s);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+const S = {
+  user: null, profile: null, tab: 'bbm',
+  gps: {lat: null, lon: null, addr: '', detail: {}, locating: false},
+  online: navigator.onLine,
+  metaKet: [], appts: null, kas: null, lpj: null,
+  feedback: null, mine: [],
+  queue: JSON.parse(localStorage.getItem('m_queue') || '[]'),
+  photos: {}, otMulai: null, otSelesai: null,
+};
+window.addEventListener('online', () => { S.online = true; flushQueue(); if (S.user) paint(); });
+window.addEventListener('offline', () => { S.online = false; if (S.user) paint(); });
+
+/* ============================== API ============================== */
+const csrf = () => localStorage.getItem('bpf_csrf') || '';
+async function api(path, {method = 'GET', body = null, form = null} = {}) {
+  const opts = {method, headers: {Accept: 'application/json'}};
+  if (body !== null) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
+  if (form) { opts.headers['X-Requested-With'] = 'XMLHttpRequest'; opts.body = form; }
+  if (method !== 'GET' && method !== 'HEAD') opts.headers['X-CSRF-Token'] = csrf();
+  const r = await fetch(path, opts);
+  if (r.status === 401) { sessionEnd(); throw new Error('Sesi berakhir — silakan login ulang.'); }
+  let j = null; try { j = await r.json(); } catch {}
+  if (!r.ok) throw new Error(j?.msg || j?.error || ('HTTP ' + r.status));
+  return j;
+}
+function sessionEnd() {
+  localStorage.removeItem('m_user'); localStorage.removeItem('bpf_csrf');
+  S.user = null; S.profile = null; paintLogin();
+}
+
+/* ============================== Toast ============================ */
+let toastT = null;
+function toast(msg, kind = '') {
+  $root.querySelectorAll('.toast').forEach((t) => t.remove());
+  const t = document.createElement('div'); t.className = 'toast ' + kind; t.textContent = msg;
+  $root.appendChild(t); clearTimeout(toastT); toastT = setTimeout(() => t.remove(), 4200);
+}
+
+/* ============================== GPS ============================== */
+async function detailedLocation(lat, lon) {
+  const r = await fetch('https://nominatim.openstreetmap.org/reverse?lat=' + lat + '&lon=' + lon + '&format=json&zoom=18&addressdetails=1&accept-language=id', {headers: {'User-Agent': 'BPF-Mobile/1.0'}});
+  const d = await r.json();
+  const a = d?.address || {};
+  const parts = (d?.display_name || '').split(',').map((p) => p.trim());
+  const kota = a.city || a.town || a.municipality || '';
+  let kec = a.city_district || a.county || a.municipality || a.district || a.subdistrict || '';
+  if (!kec && kota && parts.length > 2) { const i = parts.findIndex((p) => p.toLowerCase().includes(kota.toLowerCase())); kec = i > 0 ? parts[i - 1] : ''; }
+  return {jalan: a.road || '', nomor: a.house_number || '', kelurahan: a.suburb || a.village || a.residential || '', kecamatan: kec, kota: kota, provinsi: a.state || '', kode_pos: a.postcode || '', full_address: d?.display_name || '', lat: lat, lon: lon};
+}
+async function locate() {
+  if (S.gps.locating) return;
+  S.gps.locating = true; painting && paint();
+  const pos = await new Promise((ok, err) => navigator.geolocation.getCurrentPosition(ok, err, {enableHighAccuracy: true, timeout: 22000}));
+  S.gps.lat = pos.coords.latitude; S.gps.lon = pos.coords.longitude;
+  try {
+    const d = await detailedLocation(S.gps.lat, S.gps.lon);
+    S.gps.addr = d.full_address || (S.gps.lat.toFixed(5) + ', ' + S.gps.lon.toFixed(5));
+    S.gps.detail = d;
+  } catch { S.gps.addr = S.gps.lat.toFixed(5) + ', ' + S.gps.lon.toFixed(5); }
+  S.gps.locating = false; painting && paint();
+}
+async function locateSafe() { try { await locate(); } catch { S.gps.locating = false; toast('GPS gagal — izin lokasi diperlukan', 'err'); if (S.user) paint(); } }
+function gpsFields() {
+  const g = S.gps;
+  return {gps_lat: g.lat ?? '', gps_lon: g.lon ?? '', gps_address: g.addr || '', gps_kelurahan: g.detail?.kelurahan || '', gps_kecamatan: g.detail?.kecamatan || '', gps_kota: g.detail?.kota || '', gps_provinsi: g.detail?.provinsi || '', gps_kode_pos: g.detail?.kode_pos || ''};
+}
+function gpsBox() {
+  const g = S.gps;
+  return '<div class="gps ' + (g.addr ? 'ok' : '') + '">' + (g.locating ? '📡 Mencari lokasi…' : (g.addr ? '📍 ' + esc(g.addr) : '📡 Lokasi belum terdeteksi')) + (S.online ? '' : ' · ⛔ Offline') + '</div>';
+}
+
+/* ========================= Offline queue ========================= */
+function enqueue(entry) {
+  S.queue.push(Object.assign({id: 'q' + Date.now() + Math.random().toString(36).slice(2, 7), ts: new Date().toISOString()}, entry));
+  persistQueue(); paint();
+  toast('📴 Offline — data masuk antrean, dikirim otomatis saat online');
+}
+function persistQueue() { localStorage.setItem('m_queue', JSON.stringify(S.queue)); }
+async function flushQueue() {
+  if (!S.online || !S.user || !S.queue.length) return;
+  const item = S.queue[0];
+  try {
+    if (item.kind === 'json') await api(item.url, {method: 'POST', body: item.body});
+    else {
+      let fields = item.fields;
+      if (fields.__json) { fields = JSON.parse(fields.__json); }
+      else if (typeof fields === 'string') { fields = JSON.parse(fields); }
+      const fd = new FormData();
+      for (const [k, v] of Object.entries(fields)) (Array.isArray(v) ? v : [v]).forEach((x) => fd.append(k, String(x)));
+      for (const [k, dataUrl] of Object.entries(item.files || {})) fd.append(k, await dataUrlToBlob(dataUrl), k + '.jpg');
+      await api(item.url, {method: 'POST', form: fd});
+    }
+    S.queue.shift(); persistQueue();
+    toast('↑ Antrean terkirim: ' + item.label);
+    flushQueue(); if (S.user) paint();
+  } catch (e) {
+    if (String(e.message).includes('Sesi berakhir')) return;
+    if (navigator.onLine) {
+      S.queue.shift(); persistQueue();
+      toast('Antrean ' + item.label + ' gagal & dihapus: ' + e.message, 'err');
+      if (S.user) paint();
+    }
+  }
+}
+setInterval(flushQueue, 50000);
+window.flushQueue = flushQueue;
+window.addEventListener('load', () => flushQueue());
+
+/* ========================= File helpers ========================== */
+function fileToDataUrl(f) { return new Promise((ok, err) => { const r = new FileReader(); r.onload = () => ok(r.result); r.onerror = err; r.readAsDataURL(f); }); }
+async function dataUrlToBlob(du) { return await (await fetch(du)).blob(); }
+
+/* ========================= Login ================================= */
+function paintLogin() {
+  $root.innerHTML = `<div class="login-wrap"><div class="login-card">
+    <div class="logo">B</div>
+    <h2>BPF Mobile</h2>
+    <div class="sub">Login PIN — Driver · OB · Security</div>
+    <label>Username</label><input id="u" autocomplete="username">
+    <label>PIN</label><input id="p" type="password" inputmode="numeric" autocomplete="current-password">
+    <button class="btn primary" id="login">Masuk</button>
+    <div class="center">Sesi & anti-brute-force sama dengan portal web</div>
+  </div></div>`;
+  q('#login').onclick = doLogin;
+  $root.addEventListener('keydown', (e) => { if (e.key === 'Enter') doLogin(); });
+}
+async function doLogin() {
+  const u = q('#u').value.trim(), p = q('#p').value.trim();
+  if (!u || !p) { toast('Isi username & PIN', 'err'); return; }
+  try {
+    const j = await api('/api/auth/login', {method: 'POST', body: {username: u, pin: p}});
+    if (j.status === 'success') {
+      localStorage.setItem('bpf_csrf', j.csrf_token);
+      localStorage.setItem('m_user', JSON.stringify(j.user));
+      S.user = j.user;
+      await afterLogin();
+    } else toast(j.msg || 'Login gagal', 'err');
+  } catch (e) { toast(e.message, 'err'); }
+}
+async function afterLogin() {
+  S.tab = 'bbm'; S.photos = {}; S.otMulai = null; S.otSelesai = null; S.mine = [];
+  if (S.user.role === 'driver') {
+    try { S.profile = await api('/api/driver/me'); } catch { S.profile = {}; }
+  }
+  if (S.user.role === 'driver' || S.user.role === 'ob' || S.user.role === 'security') {
+    try { const j = await api('/api/overtime/form-meta'); S.metaKet = j?.keterangan || []; } catch {}
+    locateSafe();
+  }
+  paint();
+  if (S.user.role === 'driver') loadKas();
+}
+
+/* ========================= Header ================================ */
+function headerInit() {
+  const name = S.user?.full_name || S.user?.user_name || '';
+  const ini = name.split(' ').map((w) => w[0]).slice(0, 2).join('');
+  return '<header><div class="avatar">' + esc(ini) + '</div><h1>' + esc(name) +
+    ' <small style="font-weight:400;font-size:11px;opacity:.85">· ' + esc(S.user?.role || '') + ' · ' + esc(S.user?.branch_code || '') + '</small></h1>' +
+    '<button class="ghost btn" onclick="logout()">Keluar</button></header>';
+}
+window.logout = () => { api('/api/auth/logout', {method: 'POST'}).catch(() => {}); sessionEnd(); };
+
+const queueBar = () => S.queue.length ? '<div class="queue-bar"><b>' + S.queue.length + '</b> data menunggu offline <button class="ghost btn" onclick="flushQueue()">Kirim ulang</button></div>' : '';
+
+/* ========================= Driver: BBM =========================== */
+/* [key, label, required, hanyaNonRekanan] — sama seperti BBMTab.vue */
+const PHOTOS = [
+  ['foto_odo_sebelum', 'Foto ODO Sebelum', 1, 0],
+  ['foto_nota_odo_sesudah', 'Nota + ODO Sesudah', 1, 0],
+  ['foto_struk', 'Foto Struk', 1, 0],
+  ['foto_struk_dispenser', 'Foto Dispenser', 0, 1],
+];
+function viewBBM() {
+  const pr = S.profile || {};
+  return '<div class="card">' + gpsBox() +
+    '<div class="kv"><b>' + esc(pr.name || '') + '</b> · ' + esc(pr.nopol || '-') + ' · ' + esc(pr.vehicle_type || '-') + '</div>' +
+    '<label>SPBU</label><select id="spbu_type"><option value="rekanan"' + (S.spbu !== 'non_rekanan' ? ' selected' : '') + '>Rekanan</option><option value="non_rekanan"' + (S.spbu === 'non_rekanan' ? ' selected' : '') + '>Non-Rekanan</option></select>' +
+    '<div class="row"><div style="flex:1"><label>Nominal (Rp)</label><input id="nominal" type="number" inputmode="numeric" value="' + (S.bbm?.nominal ?? '') + '"></div>' +
+    '<div style="flex:1"><label>ODO (km)</label><input id="odo_km" type="number" inputmode="numeric" value="' + (S.bbm?.odo_km ?? '') + '"></div></div>' +
+    '<div class="row"><div style="flex:1"><label>Jumlah appointment</label><input id="jumlah_appointment" type="number" inputmode="numeric" value="' + (S.bbm?.jap ?? 0) + '"></div>' +
+    '<div style="flex:1"><label>Jenis BBM</label><select id="bbm_type"><option>' + esc(pr.bbm_type || 'PERTALITE') + '</option></select></div></div>' +
+    '<label>Bukti foto' + (S.lpj ? ' — mode <b>LPJ</b> klaim ' + esc(S.lpj.display_id || '') : '') + '</label>' +
+    '<div class="photo-grid">' + PHOTOS.map(([k, l, req, nonrek]) =>
+      ((nonrek && S.spbu === 'non_rekanan') || !nonrek)
+        ? '<div class="photo-item' + (req ? ' req' : '') + (S.photos[k] ? ' done' : '') + '">' +
+          (S.photos[k] ? '<img src="' + S.photos[k].preview + '">' : '') +
+          '<div class="tag">' + l + (req ? ' *' : '') + '</div>' +
+          '<input type="file" accept="image/*" capture="environment" data-photo="' + k + '"></div>'
+        : '').join('') + '</div>' +
+    (S.lpj
+      ? '<button class="btn gold" id="send">Kirim LPJ ' + esc(S.lpj.display_id || '') + '</button>'
+      : '<button class="btn primary" id="send">Kirim Klaim BBM</button>') +
+    '<button class="btn ghost" id="resetbbm">Reset</button>' +
+    '</div>';
+}
+async function submitBBM() {
+  const nominal = +q('#nominal').value || 0, odo_km = +q('#odo_km').value || 0;
+  const reqKeys = PHOTOS.filter((p) => p[2] && !(p[3] && S.spbu !== 'non_rekanan')).map((p) => p[0]);
+  if (!(nominal > 0) || !(odo_km > 0)) { toast('Nominal & ODO wajib > 0', 'err'); return; }
+  const missing = reqKeys.filter((k) => !S.photos[k]);
+  if (missing.length) { toast('Foto wajib belum lengkap: ' + missing.join(', ').replace(/foto_/g, ''), 'err'); return; }
+  toast('📡 Ambil GPS…'); await locateSafe();
+  const fields = {
+    driver_name: (S.profile?.name || '').toUpperCase(), nopol: S.profile?.nopol || '',
+    vehicle_type: S.profile?.vehicle_type || 'AVANZA', bbm_type: S.profile?.bbm_type || 'PERTALITE',
+    nominal: nominal, price_per_liter: 10000, odo_km: odo_km,
+    jumlah_appointment: +q('#jumlah_appointment').value || 0, spbu_type: q('#spbu_type').value,
+    ...gpsFields(),
+  };
+  const files = {}; for (const k of Object.keys(S.photos)) files[k] = S.photos[k].dataUrl;
+  const url = S.lpj ? '/api/cash/submit-lpj/' + S.lpj.cashId : '/driver';
+  const label = S.lpj ? 'LPJ-BBM' : 'BBM';
+  if (!S.online) {
+    enqueue({kind: 'form', label: label, url: url, fields: JSON.stringify(fields), files: files});
+    S.photos = {}; S.lpj = null;
+    return;
+  }
+  try {
+    const fd = new FormData();
+    for (const [k, v] of Object.entries(fields)) fd.append(k, String(v));
+    for (const [k, du] of Object.entries(files)) fd.append(k, await dataUrlToBlob(du), k + '.jpg');
+    const j = await api(url, {method: 'POST', form: fd});
+    if (j.status === 'success') {
+      toast('✅ ' + (j.msg || 'Terkirim') + (j.transaction_id ? ' [' + j.transaction_id + ']' : ''), 'ok');
+      S.photos = {}; if (S.lpj) { S.lpj = null; loadKas(); }
+      paint();
+    } else toast(j.msg || 'Gagal', 'err');
+  } catch (e) { toast(e.message, 'err'); }
+}
+
+/* ========================= Driver: Trip ========================== */
+function viewTrip() {
+  const today = new Date(); const d = today.toISOString().slice(0, 10);
+  const rows = (S.tripRows && S.tripRows.length ? S.tripRows : [{berangkat: 'Kantor', pukulB: '', kmB: '', tujuan: '', pukulT: '', kmT: '', apptId: ''}]);
+  return '<div class="card">' + gpsBox() +
+    '<div class="row"><div style="flex:1"><label>Tanggal</label><input id="trip_date" type="date" value="' + d + '"></div>' +
+    '<div style="flex:1"><label>Nopol</label><input id="nopol" value="' + esc(S.profile?.nopol || '') + '"></div></div>' +
+    '<div class="row"><div style="flex:1"><label>Jam berangkat</label><input id="jam_b" type="time" value="' + today.toTimeString().slice(0, 5) + '"></div>' +
+    '<div style="flex:1"><label>Jam tiba (opsional)</label><input id="jam_t" type="time"></div></div>' +
+    '<div class="row"><div style="flex:1"><label>KM awal</label><input id="km_awal" type="number" inputmode="numeric"></div>' +
+    '<div style="flex:1"><label>KM akhir</label><input id="km_akhir" type="number" inputmode="numeric"></div></div>' +
+    '<label>Rute perjalanan (min. 1)</label><div id="rows">' + rows.map(rowHTML).join('') + '</div>' +
+    '<button class="btn ghost" id="addrow">＋ Tambah rute</button>' +
+    '<button class="btn ghost" id="loadappt">📥 Muat dari appointment hari ini (' + (S.appts?.length ?? '·') + ')</button>' +
+    '<button class="btn primary" id="sendtrip">Kirim Log Perjalanan</button></div>';
+}
+function rowHTML(r) {
+  return '<div class="route"><div class="route-head"><span>Rute</span><button class="ghost btn" data-del style="margin:0;width:auto;padding:4px 8px">✕ hapus</button></div>' +
+    '<div class="row"><div style="flex:3"><label>Berangkat dari</label><input class="r-berangkat" value="' + esc(r.berangkat || '') + '"></div>' +
+    '<div style="flex:1.3"><label>Pukul</label><input class="r-pukulb" type="time" value="' + esc(r.pukulB || '') + '"></div>' +
+    '<div style="flex:1.2"><label>KM</label><input class="r-kmb" type="number" value="' + esc(r.kmB ?? '') + '"></div></div>' +
+    '<div class="row"><div style="flex:3"><label>Tujuan</label><input class="r-tujuan" value="' + esc(r.tujuan || '') + '"></div>' +
+    '<div style="flex:1.3"><label>Pukul</label><input class="r-pukult" type="time" value="' + esc(r.pukulT || '') + '"></div>' +
+    '<div style="flex:1.2"><label>KM</label><input class="r-kmt" type="number" value="' + esc(r.kmT ?? '') + '"></div></div>' +
+    '<input type="hidden" class="r-appt" value="' + esc(r.apptId || '') + '"></div>';
+}
+async function submitTrip() {
+  const nopol = q('#nopol').value.trim(), jam_b = q('#jam_b').value, km_awal = +q('#km_awal').value || 0;
+  if (!nopol || !jam_b || !(km_awal > 0)) { toast('Nopol, jam berangkat & KM awal wajib', 'err'); return; }
+  const items = Array.from($root.querySelectorAll('#rows .route')).map((el) => ({
+    berangkat: el.querySelector('.r-berangkat').value, pukulB: el.querySelector('.r-pukulb').value, kmB: +el.querySelector('.r-kmb').value || 0,
+    tujuan: el.querySelector('.r-tujuan').value, pukulT: el.querySelector('.r-pukult').value, kmT: +el.querySelector('.r-kmt').value || 0,
+    apptId: el.querySelector('.r-appt').value,
+  }));
+  const valid = items.filter((r) => r.berangkat && r.tujuan);
+  if (!valid.length) { toast('Minimal 1 rute (berangkat & tujuan terisi)', 'err'); return; }
+  toast('📡 Ambil GPS…'); await locateSafe();
+  const fields = {
+    driver_name: (S.profile?.name || '').toUpperCase(), nopol: nopol, trip_date: q('#trip_date').value,
+    jam_keberangkatan: jam_b, jam_tiba: q('#jam_t').value, km_awal: km_awal, km_akhir: +q('#km_akhir').value || 0,
+    'lokasi_berangkat[]': valid.map((r) => r.berangkat), 'pukul_berangkat[]': valid.map((r) => r.pukulB), 'km_berangkat[]': valid.map((r) => r.kmB || 0),
+    'lokasi_tujuan[]': valid.map((r) => r.tujuan), 'pukul_tujuan[]': valid.map((r) => r.pukulT), 'km_tujuan[]': valid.map((r) => r.kmT || 0),
+    'appointment_id[]': valid.map((r) => r.apptId), ...gpsFields(),
+  };
+  if (!S.online) { enqueue({kind: 'form', label: 'TRIP', url: '/submit-trip', fields: JSON.stringify(fields), files: {}}); return; }
+  try {
+    const fd = new FormData();
+    for (const [k, v] of Object.entries(fields)) (Array.isArray(v) ? v : [v]).forEach((x) => fd.append(k, String(x)));
+    const j = await api('/submit-trip', {method: 'POST', form: fd});
+    if (j.status === 'success') { toast('✅ Log perjalanan terkirim (' + (valid.length) + ' rute)', 'ok'); S.tripRows = null; paint(); }
+    else toast(j.msg || 'Gagal', 'err');
+  } catch (e) { toast(e.message, 'err'); }
+}
+
+/* ===================== Driver: Overtime ========================== */
+function photoItemHtml(id, label, done) {
+  return '<div class="photo-item' + (done ? ' done' : '') + (label.endsWith('*') ? ' req' : '') + '">' +
+    (done && window['ot_' + id] ? '<img src="' + (window['ot_' + id].preview || '') + '">' : '') +
+    '<div class="tag">' + label + '</div><input type="file" accept="image/*" capture="environment" id="' + id + '" data-otfoto="' + id + '"></div>';
+}
+function viewOT() {
+  const now = new Date();
+  return '<div class="card">' + gpsBox() +
+    '<div class="row"><div style="flex:1"><label>Tanggal</label><input id="ot_tanggal" type="date" value="' + now.toISOString().slice(0, 10) + '"></div>' +
+    '<div style="flex:1.4"><label>Keterangan</label><input id="ot_ket" list="ketlist" placeholder="pilih / ketik"><datalist id="ketlist">' + S.metaKet.map((k) => '<option value="' + esc(k) + '">').join('') + '</datalist></div></div>' +
+    '<div class="row"><div style="flex:1"><label>Waktu mulai</label><input id="ot_mulai" type="time" value="' + now.toTimeString().slice(0, 5) + '"></div>' +
+    '<div style="flex:1"><label>Waktu selesai</label><input id="ot_selesai" type="time"></div></div>' +
+    '<label>Foto bukti</label><div class="photo-grid">' +
+    photoItemHtml('pic_mulai', 'Foto mulai *', !!S.otMulai) +
+    photoItemHtml('pic_selesai', 'Foto selesai', !!S.otSelesai) + '</div>' +
+    '<button class="btn primary" id="sendot">Kirim Overtime' + (S.user?.role === 'driver' ? ' Driver' : '') + '</button>' +
+    '<div class="center">ACC berjenjang: GA HR → Admin · telat melewati deadline ditandai otomatis</div></div>';
+}
+async function submitOT() {
+  const url = S.user.role === 'driver' ? '/api/overtime/driver/submit' : '/api/overtime/me/submit';
+  const body = {tanggal: q('#ot_tanggal').value, waktu_mulai: q('#ot_mulai').value, waktu_selesai: q('#ot_selesai').value, keterangan: q('#ot_ket').value,
+    foto_mulai_b64: S.otMulai?.dataUrl || '', foto_selesai_b64: S.otSelesai?.dataUrl || '', ...gpsFields()};
+  if (!S.otMulai?.dataUrl) { toast('Foto mulai wajib', 'err'); return; }
+  if (!S.online) { enqueue({kind: 'json', label: 'OVERTIME', url: url, body: body}); S.otMulai = null; S.otSelesai = null; paint(); return; }
+  try {
+    const j = await api(url, {method: 'POST', body: body});
+    if (j.status === 'success') {
+      toast((j.submit_late ? '⏳ Terlambat batas — ' : '✅ ') + (j.msg || '') + ' [' + j.display_id + ']', j.submit_late ? '' : 'ok');
+      S.otMulai = null; S.otSelesai = null;
+      if (S.user.role !== 'driver') loadMine();
+      paint();
+    } else toast((Array.isArray(j.errors) ? j.errors.join('; ') : j.msg) || 'Gagal', 'err');
+  } catch (e) { toast(e.message, 'err'); }
+}
+async function loadMine() {
+  try { const j = await api('/api/overtime/mine'); S.mine = j.data || []; } catch {}
+}
+
+/* ======================= Driver: Kasbon ========================== */
+async function loadKas() {
+  const dn = (S.profile?.name || '').toUpperCase();
+  try {
+    const [h, p] = await Promise.all([
+      api('/api/cash/history', {}), api('/api/cash/pending-lpj', {}),
+    ]);
+    S.kas = {history: h.data || [], pending: p.data || []};
+    if (S.user?.role === 'driver' && S.tab === 'kas') paint();
+  } catch {}
+}
+function viewKas() {
+  const h = S.kas?.history || [], p = S.kas?.pending || [];
+  return '<div class="card"><label>Nominal pengajuan (Rp)</label><input id="cash_amt" type="number" inputmode="numeric">' +
+    '<button class="btn primary" id="sendkas">Ajukan Kasbon</button>' +
+    '<div class="center">' + p.length + ' LPJ pending' + (p.length ? ' — klik untuk isi LPJ di tab BBM' : '') + '</div>' +
+    p.map((x) => '<div class="list-item"><button class="ghost btn" style="width:auto;margin:0;padding:7px 10px" data-lpj="' + esc(x.cashId || x.id || '') + '" data-display="' + esc(x.display_id || '') + '">⛽ Isi LPJ ' + esc(x.display_id || x.cashId || '') + '</button></div>').join('') +
+    '<div class="center">Pengajuan terbaru</div>' +
+    h.slice(0, 25).map((x) => '<div class="list-item">' + esc(x.created_at || '') + ' · <b>Rp ' + Number(x.base_amount || 0).toLocaleString('id-ID') + '</b> · ' + esc(x.status || '') + '</div>').join('') + '</div>';
+}
+
+/* ======================= Driver: Rapor =========================== */
+function viewRapor() {
+  return '<div class="card"><div class="center">' + (S.feedback ? S.feedback.replace(/\n/g, '<br>') : 'Memuat rapor…') + '</div></div>';
+}
+async function loadRapor() {
+  try {
+    const j = await api('/api/get-feedback/' + encodeURIComponent(S.profile?.name || ''));
+    S.feedback = typeof j === 'string' ? j : (j.keterangan || j.feedback || j.message || JSON.stringify(j).slice(0, 400));
+    if (S.user?.role === 'driver' && S.tab === 'rapor') paint();
+  } catch { S.feedback = 'Belum ada feedback.'; if (S.user?.role === 'driver' && S.tab === 'rapor') paint(); }
+}
+
+/* ======================= Driver: shell =========================== */
+const DRIVER_TABS = [['bbm', '⛽', 'BBM'], ['trip', '🚗', 'Trip'], ['ot', '⏱', 'Overtime'], ['kas', '💵', 'Kasbon'], ['rapor', '📝', 'Rapor']];
+function paintDriver() {
+  const view = {bbm: viewBBM, trip: viewTrip, ot: viewOT, kas: viewKas, rapor: viewRapor}[S.tab] || viewBBM;
+  $root.innerHTML = headerInit() + queueBar() + '<main id="main">' + view() + '</main>' +
+    '<nav class="tabs">' + DRIVER_TABS.map(([k, i, l]) => '<button class="' + (S.tab === k ? 'on' : '') + '" data-tab="' + k + '"><span class="ic">' + i + '</span>' + l + '</button>').join('') + '</nav>';
+  bindDriver();
+}
+function bindDriver() {
+  $root.querySelectorAll('.tabs button').forEach((b) => b.onclick = () => { S.tab = b.dataset.tab; paint(); if (S.tab === 'kas') loadKas(); if (S.tab === 'rapor') loadRapor(); });
+  $root.querySelectorAll('[data-photo]').forEach((inp) => inp.onchange = async () => {
+    const k = inp.dataset.photo, f = inp.files[0]; if (!f) return;
+    S.photos[k] = {name: f.name || k + '.jpg', dataUrl: await fileToDataUrl(f), preview: URL.createObjectURL(f)};
+    paint();
+  });
+  const on = (sel, h) => { const el = q(sel); if (el) el.onclick = h; };
+  const ch = (sel, h) => { const el = q(sel); if (el) el.onchange = h; };
+  on('#send', submitBBM); on('#resetbbm', () => { S.photos = {}; S.lpj = null; paint(); });
+  ch('#spbu_type', () => { S.spbu = q('#spbu_type').value; paint(); });
+  on('#addrow', () => { const cur = readTripRows(); cur.push({}); S.tripRows = cur; paint(); });
+  on('#loadappt', async () => {
+    try {
+      S.appts = await api('/api/appointments/driver-today');
+      let prev = 'Kantor', prevP = new Date().toTimeString().slice(0, 5);
+      S.tripRows = S.appts.map((a) => { const t = a.sesi === '1' ? '08:30' : '14:30'; const r = {berangkat: prev, pukulB: prevP, kmB: 0, tujuan: a.alamat || '', pukulT: t, kmT: 0, apptId: a.id}; prev = a.alamat || prev; prevP = t; return r; });
+      paint(); toast('📥 ' + S.tripRows.length + ' rute dari appointment', 'ok');
+    } catch (e) { toast(e.message, 'err'); }
+  });
+  on('#sendtrip', submitTrip);
+  on('#sendot', submitOT);
+  ch('#pic_mulai', async (e) => { const f = e.target.files[0]; if (f) { S.otMulai = {dataUrl: await fileToDataUrl(f), preview: URL.createObjectURL(f)}; paint(); } });
+  ch('#pic_selesai', async (e) => { const f = e.target.files[0]; if (f) { S.otSelesai = {dataUrl: await fileToDataUrl(f), preview: URL.createObjectURL(f)}; paint(); } });
+  on('#sendkas', async () => {
+    const amt = +q('#cash_amt').value || 0;
+    if (!(amt > 0)) { toast('Isi nominal', 'err'); return; }
+    if (!confirm('Ajukan dana Rp ' + amt.toLocaleString('id-ID') + '?')) return;
+    try {
+      const j = await api('/api/cash/request', {method: 'POST', body: {driver_name: (S.profile?.name || '').toUpperCase(), nopol: S.profile?.nopol || '', vehicle_type: S.profile?.vehicle_type || 'AVANZA', bbm_type: S.profile?.bbm_type || 'PERTALITE', base_amount: amt}});
+      if (j.status === 'success') { toast('✅ ' + (j.msg || 'Pengajuan terkirim'), 'ok'); loadKas(); paint(); } else toast(j.msg || 'Gagal', 'err');
+    } catch (e) { toast(e.message, 'err'); }
+  });
+  $root.querySelectorAll('[data-lpj]').forEach((b) => b.onclick = () => { S.lpj = {cashId: b.dataset.lpj, display_id: b.dataset.display}; S.tab = 'bbm'; paint(); });
+  $root.querySelectorAll('[data-del]').forEach((b) => b.onclick = () => { const cur = readTripRows(); const routes = Array.from($root.querySelectorAll('#rows .route')); const idx = routes.indexOf(b.closest('.route')); if (idx > -1) cur.splice(idx, 1); S.tripRows = cur.length ? cur : [{}]; paint(); });
+}
+function readTripRows() {
+  return Array.from($root.querySelectorAll('#rows .route')).map((el) => ({
+    berangkat: el.querySelector('.r-berangkat')?.value || '', pukulB: el.querySelector('.r-pukulb')?.value || '', kmB: el.querySelector('.r-kmb')?.value || '',
+    tujuan: el.querySelector('.r-tujuan')?.value || '', pukulT: el.querySelector('.r-pukult')?.value || '', kmT: el.querySelector('.r-kmt')?.value || '',
+    apptId: el.querySelector('.r-appt')?.value || '',
+  }));
+}
+
+/* ======================= OB / Security shell ===================== */
+function paintOt() {
+  $root.innerHTML = headerInit() + queueBar() + '<main id="main">' + viewOT() +
+    '<div class="card"><div class="center">Riwayat overtime Anda (' + S.mine.length + ')</div>' +
+    S.mine.slice(0, 30).map((x) => '<div class="list-item">' + esc(x.display_id || '') + ' · ' + esc(x.tanggal || '') + ' · ' + esc(x.waktu_mulai || '') + '–' + esc(x.waktu_selesai || '') + ' ' +
+      (x.gps_address ? '<span class="badge">📍 GPS</span>' : '<span class="badge">⚠ tanpa GPS</span>') + '</div>').join('') + '</div></main>';
+  bindDriver();
+}
+
+/* ========================= Router ================================ */
+let painting = false;
+function paint() {
+  if (painting) return;
+  if (!S.user) { paintLogin(); return; }
+  if (S.user.role === 'driver') { painting = true; paintDriver(); painting = false; return; }
+  if (S.user.role === 'ob' || S.user.role === 'security') { painting = true; paintOt(); painting = false; return; }
+  $root.innerHTML = headerInit() + '<main><div class="card"><div class="center">Role <b>' + esc(S.user.role) + '</b> belum punya layar mobile.<br><a href="/app/" class="txt">Buka portal web →</a></div></div></main>';
+}
+
+/* ========================= Boot ================================== */
+async function boot() {
+  try {
+    const me = await api('/api/auth/me');
+    if (me?.authenticated) { S.user = me.user; localStorage.setItem('bpf_csrf', me.csrf_token); await afterLogin(); return; }
+  } catch {}
+  const saved = localStorage.getItem('m_user');
+  if (saved) { try { S.user = JSON.parse(saved); paint(); } catch {} }
+  else paintLogin();
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('/m/sw.js').catch(() => {});
+}
+$root.addEventListener('keydown', (e) => { if (e.key === 'Enter' && q('#login')) doLogin(); });
+boot();
+</script>
+</body>
+</html>
