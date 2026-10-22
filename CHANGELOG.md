@@ -7,6 +7,26 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.53.0 — 22 Oktober 2026 (fase-1 perombakan UI/UX: akses & navigasi Finance)
+
+**Temuan audit visual** (screenshot dashboard Finance): halaman utama Finance
+sama sekali tidak memuat alur klaim BBM, sementara seluruh alur payout,
+Subsidi Tepat, dan Berita Acara hidup di `/app/dashboard` yang kunci routenya
+`roles: ['admin']` — finance tidak pernah bisa membukanya. Inilah akar protes
+"UI finance sangat buruk": bukan kosmetik, tapi akses & klasifikasi navigasi.
+
+- 🔓 `/app/dashboard` dibuka untuk role **finance** (antrean klaim BBM:
+  payout, konfirmasi driver, panel Subsidi Tepat, Berita Acara).
+- 🧭 Menu sidebar baru **"🕐 Antrean Verifikasi"** (finance) + badge
+  `bbm_verify_pending` = jumlah klaim `verified_ga` siap pencairan
+  (`routes_nav.py`).
+- ⛽ Dashboard Finance: kartu pintasan **"Klaim BBM menunggu keputusan
+  Anda"** — hitungan klaim siap cair & menunggu arsip + tombol langsung
+  buka antrean (tidak lagi mencari-cari halaman).
+
+Fase berikutnya roadmap perombakan total UI/UX: fase-2 design system global
+(token warna/typografi/komponen dasar), fase-3 polish onboarding & PWA.
+
 ## v2.52.0 — 22 Oktober 2026 (perombakan modal verifikasi Finance — checklist, tab klasifikasi, zoom bukti)
 
 Audit masukan Finance: modal detail berupa tumpukan linier (badge → data → foto →
