@@ -158,6 +158,45 @@ const selLoading = ref(false)
 const selFinanceReview = ref(null) // finance review detail
 const financeRemark = ref('') // remark form
 const financeRemarkSaving = ref(false)
+// v2.50.0 — verifikasi Subsidi Tepat (riwayat SPBU resmi akun perseroan)
+const subsidy = ref(null)
+const subsidyBusy = ref(false)
+
+async function loadSubsidy(txId) {
+  subsidy.value = null
+  if (!['finance', 'admin'].includes(auth.role)) return
+  try { subsidy.value = await api(`/api/subsidy/match/${txId}`) } catch { subsidy.value = null }
+}
+
+async function linkSubsidy(st) {
+  if (!selData.value || !st || subsidyBusy.value) return
+  const ok = await ask(`Tautkan klaim ini ke transaksi SPBU ${st.transaction_id} (${st.volume} L, ${st.spbu_id} ${st.witel || st.city}, ${st.transaction_date})?`, {
+    title: 'Verifikasi Subsidi Tepat',
+    confirmText: 'Tautkan',
+  })
+  if (!ok) return
+  subsidyBusy.value = true
+  try {
+    const r = await api(`/api/subsidy/link/${selData.value.id}`, { method: 'POST', body: { subsidy_transaction_id: st.id } })
+    queueMsg.value = '✅ ' + (r.msg || 'Tertaut')
+    markFirstAction('subsidy_link')
+    await loadSubsidy(selData.value.id)
+  } catch (e) { queueMsg.value = '❌ ' + e.message }
+  finally { subsidyBusy.value = false }
+}
+
+async function unlinkSubsidy() {
+  if (!selData.value || subsidyBusy.value) return
+  const ok = await ask('Lepas tautan verifikasi Subsidi Tepat klaim ini?', { title: 'Verifikasi Subsidi Tepat', confirmText: 'Lepas', danger: true })
+  if (!ok) return
+  subsidyBusy.value = true
+  try {
+    await api(`/api/subsidy/unlink/${selData.value.id}`, { method: 'POST' })
+    queueMsg.value = '✅ Tautan dilepas'
+    await loadSubsidy(selData.value.id)
+  } catch (e) { queueMsg.value = '❌ ' + e.message }
+  finally { subsidyBusy.value = false }
+}
 
 async function loadQueue() {
   queueLoading.value = true; queueMsg.value = ''
@@ -226,7 +265,7 @@ async function openDetail(tx, verify = false) {
   markFirstAction(`detail:${tx.display_id || tx.id}`)
   sel.value = tx
   selLoading.value = true
-  selData.value = null; selCross.value = null; selFinanceReview.value = null
+  selData.value = null; selCross.value = null; selFinanceReview.value = null; subsidy.value = null
   verifyMode.value = false; editMode.value = false
   financeRemark.value = ''
   try {
@@ -240,6 +279,8 @@ async function openDetail(tx, verify = false) {
     selData.value = d
     selCross.value = c
     selFinanceReview.value = fr || null
+    // v2.50.0: kandidat verifikasi Subsidi Tepat (finance/admin)
+    loadSubsidy(tx.id)
     // Tombol 🛡 di baris antrean membuka modal langsung ke form verifikasi anomali
     if (verify && d?.ml_anomaly_flag) openVerify(tx)
   } catch (e) { queueMsg.value = '❌ ' + e.message }
@@ -600,6 +641,57 @@ watch(queueTab, (tab) => {
               </div>
             </div>
           </div>
+        </template>
+
+        <!-- v2.50.0: Verifikasi Subsidi Tepat (finance/admin) -->
+        <template v-if="subsidy && canFinance">
+          <h4 style="margin:14px 0 8px;">⛽ Verifikasi Subsidi Tepat</h4>
+          <template v-if="subsidy.linked">
+            <div style="border:1px solid #05966933;background:#05966914;border-radius:8px;padding:8px 10px;font-size:12px;">
+              <b style="color:#059669;">✅ Tertaut ke SPBU resmi:</b>
+              {{ subsidy.linked.transaction_id }} · {{ subsidy.linked.volume }} L · Rp {{ Number(subsidy.linked.amount).toLocaleString('id-ID') }}
+              · {{ subsidy.linked.transaction_date }} · SPBU {{ subsidy.linked.spbu_id }} {{ subsidy.linked.witel || subsidy.linked.city }}
+              <span class="muted">(oleh {{ subsidy.linked_by }})</span>
+            </div>
+            <button class="btn btn-sm" style="margin-top:6px;" :disabled="subsidyBusy" @click="unlinkSubsidy">🔓 Lepas Tautan</button>
+          </template>
+          <template v-else>
+            <p style="margin:0 0 6px;font-size:12px;" class="muted">
+              Bandingkan klaim ({{ subsidy.nopol_norm }} · {{ subsidy.liter }} L · Rp {{ Number(subsidy.nominal).toLocaleString('id-ID') }}) dengan riwayat akuisisi Subsidi Tepat (SPBU).
+            </p>
+            <div v-if="subsidy.verdict === 'no_record'"
+                 style="border:1px solid #dc262633;background:#dc26260d;border-radius:8px;padding:8px 10px;font-size:12px;color:#b91c1c;">
+              🔴 Tidak ada transaksi SPBU untuk nopol ini ±1 hari dari tanggal klaim.
+              Pastikan data riwayat sudah diimpor (agen pull harian) sebelum memutuskan.
+            </div>
+            <div v-else-if="subsidy.verdict === 'no_match'"
+                 style="border:1px solid #d9770633;background:#d977060d;border-radius:8px;padding:8px 10px;font-size:12px;color:#b45309;">
+              🟡 Ada kandidat, tapi tidak sesuai volume/nominal — cek manual di bawah.
+            </div>
+            <div v-else-if="subsidy.verdict === 'close'"
+                 style="border:1px solid #d9770633;background:#d977060d;border-radius:8px;padding:8px 10px;font-size:12px;color:#b45309;">
+              🟡 Kandidat mendekati (selisih kecil) — periksa lalu tautkan yang benar.
+            </div>
+            <div v-else
+                 style="border:1px solid #05966933;background:#05966914;border-radius:8px;padding:8px 10px;font-size:12px;color:#059669;">
+              🟢 Ada kandidat yang cocok (liter &amp; nominal) — periksa dan tautkan.
+            </div>
+            <table class="table" style="margin-top:8px;font-size:12px;" v-if="(subsidy.candidates || []).length">
+              <thead><tr><th>Waktu SPBU</th><th>Nopol</th><th>Volume</th><th>Nominal</th><th>SPBU</th><th>Verifikasi</th><th></th></tr></thead>
+              <tbody>
+                <tr v-for="c in subsidy.candidates" :key="c.id" :style="c.id === subsidy.linked?.id ? 'background:#05966914;' : ''">
+                  <td>{{ c.transaction_date }}</td>
+                  <td>{{ c.nopol_raw }}</td>
+                  <td>{{ c.volume }} L <span v-if="c.dvol" class="muted">({{ c.dvol > 0 ? '+' : '' }}{{ c.dvol }})</span></td>
+                  <td>Rp {{ Number(c.amount).toLocaleString('id-ID') }}</td>
+                  <td>{{ c.spbu_id }} · {{ c.witel || c.city }}</td>
+                  <td>{{ c.verification }}</td>
+                  <td><button class="btn btn-sm btn-primary" :disabled="subsidyBusy" @click="linkSubsidy(c)">🔗 Tautkan</button></td>
+                </tr>
+              </tbody>
+            </table>
+            <p class="muted" style="font-size:11px;margin:6px 0 0;">Data riwayat diimpor dari portal Subsidi Tepat (agen host); sifatnya bantuan verifikasi — keputusan tetap Finance.</p>
+          </template>
         </template>
 
         <template v-if="selCross">

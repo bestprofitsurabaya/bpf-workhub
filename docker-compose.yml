@@ -91,6 +91,8 @@ services:
       # Graha Bukopin Lantai 11, Jl. Panglima Sudirman No. 10-18, Surabaya 60271
       - DEPOT_LAT=-7.2657205
       - DEPOT_LNG=112.7448072
+      # v2.50.0: token impor data Subsidi Tepat (agen host → /api/subsidy/import)
+      - SUBSIDY_IMPORT_TOKEN=${SUBSIDY_IMPORT_TOKEN:-}
     depends_on:
       db:
         condition: service_healthy

@@ -7,6 +7,29 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.50.0 — 22 Oktober 2026 (integrasi Subsidi Tepat MyPertamina: verifikasi klaim ↔ riwayat SPBU resmi)
+
+Integrasi dengan akun **Subsidi Tepat (MyPertamina)** milik perseroan: riwayat
+transaksi BBM resmi dari SPBU (hasil agen `subsiditepat` di host) kini bisa
+dipakai **Finance** saat verifikasi klaim untuk memastikan kecocokan data:
+
+- 🗄️ **Tabel `subsidy_transactions` (master DB)** — arsip otoritatif riwayat
+  SPBU lintas cabang: transactionId, tanggal SPBU, nopol, produk, volume,
+  nominal, SPBU, kota, tipe verifikasi (QR), + raw payload lengkap.
+  Kolom tautan baru `transactions.subsidy_tx_id/match/linked_by/at` (master +
+  semua cabang, dibuat idempoten saat startup).
+- ⬆️ **`POST /api/subsidy/import`** — upsert data oleh agen (header
+  `X-SUBSIDY-TOKEN` == env `SUBSIDY_IMPORT_TOKEN`) atau admin (sesi); idempoten,
+  anti-duplikat (`ON DUPLICATE KEY`), jelaskan audit trail `subsidy_import`.
+- 🤖 **`GET /api/subsidy/match/<tx>`** — kandidat kecocokan otomatis:
+  nopol dinormalisasi ('B 2731 SRQ'='B2731SRQ'), jendela tanggal ±1 hari,
+  verdict **MATCH** (selisih ≤0.05 L & ≤Rp 2.000) / **CLOSE** (≤2 L) /
+  **NO_MATCH**/**NO_RECORD**. Bersifat ADVISORY — membantu Finance, tidak memblok payout.
+- 🔗 **`POST /api/subsidy/link|unlink/<tx>`** — Finance menautkan klaim ke
+  transaksi SPBU saat verifikasi (audit trail); UI panel **"⛽ Verifikasi
+  Subsidi Tepat"** di modal detail antrean (Finance/admin) di AdminDashboard.
+- 📊 **`GET /api/subsidy/status`** — kesiapan data (jumlah row, tarikan terakhir).
+
 ## v2.49.3 — 22 Oktober 2026 (audit anti-kecurangan klaim BBM: bukti foto, ODO, kapasitas, cap, joint sign-off)
 
 Tindak lanjut diskusi rute BBM (Finance/GA/Driver/Chief Driver) — menutup celah
