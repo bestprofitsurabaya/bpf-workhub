@@ -7,6 +7,21 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.49.1 — 22 Oktober 2026 (patch keamanan dependensi: Pillow 13.0.0 + vite/vitest 5.0.3 untuk CI hijau)
+
+Tindak lanjut CI merah (npm audit + pip-audit, Tahap 4/6 ISO 27001):
+
+- `requirements.txt`: **Pillow 12.3.0 → 13.0.0** — menutup **24 CVE** yang
+  dilaporkan `pip-audit` (semua fix `13.0.0`). Uji lokal: 161 pytest pada modul
+  yang memakai PIL (overtime, PDF Kit, duplikasi foto, scraper layanan, water)
+  → lulus.
+- `frontend`: **vite 8.2.2 → 8.2.4+**, **vitest 5.0.0 → 5.0.3** — mematikan
+  1 vuln high (launch-editor) + 2 moderate (`@vitest/mocker`); `npm audit
+  --audit-level=high` → **0 vulnerabilities**, vitest **214 passed**, build SPA
+  hijau.
+- Stamp versi ikut di-bump **v2.49.1** (7 titik + stamp DB disinkron saat
+  redeploy).
+
 ## v2.49.0 — 22 Oktober 2026 (UI/UX Admin Cabang P0–P5: dashboard tindakan, modal konfirmasi, onboarding & panduan in-app)
 
 Batch usability UI/UX untuk admin cabang (`admin_<kode>`, P0–P5) + instrumentasi
