@@ -25,6 +25,10 @@ const showSiteForm = ref(false)
 const siteForm = ref({ name: '', wp_url: '', wp_media_url: '', username: '', app_password: '', branch_code: '' })
 const showFormPassword = ref(false)
 import { reactive } from 'vue'
+import ConfirmDialog from '../components/ConfirmDialog.vue'
+
+const confirmRef = ref(null)
+const ask = (message, opts) => confirmRef.value?.open(message, opts) ?? Promise.resolve(false)
 const showCardPassword = reactive({}) // {siteName: true/false}
 
 // Scraper
@@ -220,7 +224,7 @@ async function saveSite() {
   finally { busy.value = false }
 }
 async function deleteSite(name) {
-  if (!confirm(`Hapus "${name}"?`)) return
+  if (!(await ask(`Hapus "${name}"?`, { confirmText: 'Ya, lanjutkan', danger: true }))) return
   busy.value = true
   try { await api(`/api/scraper/sites/${encodeURIComponent(name)}`, { method: 'DELETE' }); msg.value = `✅ "${name}" dihapus`; await loadSites() }
   catch (e) { msg.value = '❌ ' + e.message }
@@ -317,7 +321,7 @@ async function deleteDuplicate(postIds) {
   const keepId = postIds[0]
   const toDelete = postIds.slice(1)
   if (!toDelete.length) { msg.value = 'ℹ️ Hanya ada 1 post di grup ini — tidak ada yang perlu dihapus'; return }
-  if (!confirm(`Hapus ${toDelete.length} duplikat dan simpan 1 terbaru (post #${keepId})?`)) return
+  if (!(await ask(`Hapus ${toDelete.length} duplikat dan simpan 1 terbaru (post #${keepId})?`, { confirmText: 'Ya, lanjutkan', danger: true }))) return
   dupBusy.value = true
   try {
     const r = await api('/api/scraper/duplicates/delete', {
@@ -335,7 +339,7 @@ async function deleteDuplicate(postIds) {
 // Server memproses maks 150 hapus per request, jadi di-loop sampai remaining=0.
 async function cleanupAllDuplicates() {
   if (!dupSite.value || cleanupBusy.value) return
-  if (!confirm(`⚠️ Hapus SEMUA artikel duplikat di "${dupSite.value}"?\n\nHanya duplikat yang dihapus — dari tiap grup duplikat, artikel TERBARU dipertahankan. Tindakan ini PERMANEN.`)) return
+  if (!(await ask(`⚠️ Hapus SEMUA artikel duplikat di "${dupSite.value}"?\n\nHanya duplikat yang dihapus — dari tiap grup duplikat, artikel TERBARU dipertahankan. Tindakan ini PERMANEN.`, { confirmText: 'Ya, lanjutkan', danger: true }))) return
   cleanupBusy.value = true
   if (!cleanupStartTs.value) { cleanupDone.value = 0; cleanupStartTs.value = Date.now() }
   try {
@@ -367,9 +371,17 @@ async function deleteAllPosts() {
     ? `Ringkasan cek terakhir: ${dupCount} post dalam ${duplicates.value.length} grup duplikat. PERHATIAN: SEMUA post di site ini akan dihapus, bukan hanya duplikat.`
     : 'PERHATIAN: SEMUA post di site ini akan dihapus (bukan hanya duplikat). Jalankan Check dulu untuk ringkasan.'
   // Confirm 1: summary + permanence warning
-  if (!confirm(`⚠️ Hapus SEMUA post di "${dupSite.value}"?\n\n${summary}\nTindakan ini PERMANEN dan tidak bisa dibatalkan!`)) return
+  if (!(await ask(`⚠️ Hapus SEMUA post di "${dupSite.value}"?\n\n${summary}\nTindakan ini PERMANEN dan tidak bisa dibatalkan!`, { confirmText: 'Ya, lanjutkan', danger: true }))) return
   // Confirm 2: typed confirmation token
-  const token = (prompt(`Konfirmasi final: ketik "HAPUS SEMUA" untuk menghapus semua post di "${dupSite.value}":`) || '').trim().toUpperCase()
+  const token = (await ask(`Konfirmasi final: ketik "HAPUS SEMUA" untuk menghapus semua post di "${dupSite.value}":`, {
+    title: 'Konfirmasi final',
+    confirmText: 'Hapus semua',
+    danger: true,
+    input: true,
+    required: true,
+    value: '',
+    placeholder: 'HAPUS SEMUA',
+  }) || '').trim().toUpperCase()
   if (token !== 'HAPUS SEMUA') return
   dupBusy.value = true
   try {
@@ -1030,6 +1042,7 @@ onMounted(() => { loadSites(); loadDashboard(); document.documentElement.classLi
       </div>
     </Modal>
   </div>
+  <ConfirmDialog ref="confirmRef" />
 </template>
 
 <style scoped>

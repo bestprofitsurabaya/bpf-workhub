@@ -4,6 +4,7 @@ import { api } from '../api'
 import { useAuthStore } from '../stores/auth'
 import { useStepupStore } from '../stores/stepup'
 import Modal from '../components/Modal.vue'
+import { formatDateTime } from '../utils/format.js'
 
 const stepup = useStepupStore()
 
@@ -264,7 +265,7 @@ onMounted(load)
               <b>{{ c.display_id }}</b> <span class="badge badge-amber">FUNDS WITH DRIVER</span>
               <div class="muted" style="font-size:12px;">👤 {{ c.driver_name }} · 🚗 {{ c.nopol || '—' }} · {{ fmtRp(c.total_amount) }}</div>
             </div>
-            <span class="muted" style="font-size:11px;">{{ c.created_at }}</span>
+            <span class="muted" style="font-size:11px;">{{ formatDateTime(c.created_at) }}</span>
           </div>
         </div>
       </div>
@@ -280,7 +281,7 @@ onMounted(load)
           <div class="field"><label>Kendaraan / BBM</label><input class="input" :value="detailData.vehicle_type + ' · ' + detailData.bbm_type" disabled /></div>
           <div class="field"><label>Total</label><input class="input" :value="fmtRp(detailData.total_amount) + ' (kode: ' + detailData.daily_code + ')'" disabled /></div>
           <div class="field"><label>Status</label><input class="input" :value="(detailData.status || '').replace(/_/g, ' ')" disabled /></div>
-          <div class="field"><label>Dibuat</label><input class="input" :value="detailData.created_at" disabled /></div>
+          <div class="field"><label>Dibuat</label><input class="input" :value="formatDateTime(detailData.created_at)" disabled /></div>
         </div>
         <p v-if="detailData.notes" class="muted" style="font-size:12px;margin:8px 0;">📝 {{ detailData.notes }}</p>
         <div v-if="detailData.lpj" style="margin-top:12px;">

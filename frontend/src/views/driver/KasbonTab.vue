@@ -2,6 +2,10 @@
 import { onMounted, ref } from 'vue'
 import { useDriverStore } from '../../stores/driverStore'
 import { api } from '../../api'
+import ConfirmDialog from '../../components/ConfirmDialog.vue'
+
+const confirmRef = ref(null)
+const ask = (message, opts) => confirmRef.value?.open(message, opts) ?? Promise.resolve(false)
 
 const store = useDriverStore()
 const emit = defineEmits(['toast'])
@@ -35,7 +39,7 @@ async function submit() {
   const base = Number(baseAmount.value) || 0
   if (base <= 0) { emit('toast', '⚠️ Isi nominal dulu', 'error'); return }
   const total = totalAmount()
-  if (!confirm(`Ajukan dana sebesar Rp ${total.toLocaleString('id-ID')}?\n\nNominal ini sudah termasuk kode unik hari ini.`)) return
+  if (!(await ask(`Ajukan dana sebesar Rp ${total.toLocaleString('id-ID')}?\n\nNominal ini sudah termasuk kode unik hari ini.`, { confirmText: 'Ya, lanjutkan' }))) return
   submitting.value = true
   try {
     const j = await api('/api/cash/request', {
@@ -60,7 +64,7 @@ async function submit() {
 }
 
 async function removeCash(id) {
-  if (!confirm('Hapus pengajuan ini?')) return
+  if (!(await ask('Hapus pengajuan ini?', { confirmText: 'Ya, lanjutkan', danger: true }))) return
   try {
     await api(`/api/cash/delete/${id}`, { method: 'POST' })
     emit('toast', '✅ Pengajuan dihapus', 'success')
@@ -156,6 +160,7 @@ onMounted(loadData)
       </template>
     </div>
   </div>
+  <ConfirmDialog ref="confirmRef" />
 </template>
 
 <style scoped>

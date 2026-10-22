@@ -143,15 +143,27 @@ class TestBranchAPI:
         client, _ = _patch_branch_api(monkeypatch, _db())
         with client.session_transaction() as s:
             s['user_role'] = 'admin'
+            s['user_name'] = 'admin'
         r = client.get('/api/branches')
         assert r.status_code == 200
         codes = [b['code'] for b in r.get_json()['branches']]
         assert codes == ['SBY', 'MLG']
 
+    def test_list_branches_admin_cabang_hanya_miliknya(self, monkeypatch):
+        client, _ = _patch_branch_api(monkeypatch, _db())
+        with client.session_transaction() as s:
+            s['user_role'] = 'admin'
+            s['user_name'] = 'admin_sby'
+            s['branch_code'] = 'SBY'
+        r = client.get('/api/branches')
+        assert r.status_code == 200
+        assert [b['code'] for b in r.get_json()['branches']] == ['SBY']
+
     def test_save_branch_baru(self, monkeypatch):
         client, conn = _patch_branch_api(monkeypatch, _db())
         with client.session_transaction() as s:
             s['user_role'] = 'admin'
+            s['user_name'] = 'admin'
         r = client.post('/api/branches/save', json={
             'code': 'BDG', 'name': 'Cabang Bandung', 'db_name': 'bpf_branch_bandung',
             'city': 'Bandung', 'company_name': 'PT BESTPROFIT FUTURES', 'ensure_db': False,
@@ -167,6 +179,7 @@ class TestBranchAPI:
         client, _ = _patch_branch_api(monkeypatch, _db())
         with client.session_transaction() as s:
             s['user_role'] = 'admin'
+            s['user_name'] = 'admin'
         assert client.post('/api/branches/save', json={'code': 'X', 'name': '', 'db_name': ''}).status_code == 400
         assert client.post('/api/branches/save', json={'code': 'X', 'name': 'X', 'db_name': 'bad name!'}).status_code == 400
 
@@ -206,6 +219,49 @@ class TestBranchAPI:
         assert client.get('/api/branches').status_code == 403
         assert client.post('/api/branches/save', json={}).status_code == 403
         assert client.post('/api/branches/switch', json={'code': 'MLG'}).status_code == 403
+
+
+class TestBranchAdminScope:
+    """P0 UI/UX: admin_<kode> tidak boleh melihat/mengelola cabang lain."""
+
+    def _client_sby(self, monkeypatch):
+        client, conn = _patch_branch_api(monkeypatch, _db())
+        with client.session_transaction() as s:
+            s['user_role'] = 'admin'
+            s['user_name'] = 'admin_sby'
+            s['branch_code'] = 'SBY'
+        return client, conn
+
+    def test_stats_admin_cabang_hanya_kode_sendiri(self, monkeypatch):
+        import modules.routes_branches as rb
+        captured = {}
+
+        def fake_stats(conn=None, codes=None):
+            captured['codes'] = codes
+            return [{'code': 'SBY'}]
+
+        monkeypatch.setattr(rb.bm, 'branch_stats', fake_stats)
+        client, _ = self._client_sby(monkeypatch)
+        r = client.get('/api/branches/stats')
+        assert r.status_code == 200
+        assert captured['codes'] == ['SBY']
+        assert [b['code'] for b in r.get_json()['branches']] == ['SBY']
+
+    def test_aksi_kelola_cabang_ditolak_untuk_admin_cabang(self, monkeypatch):
+        client, _ = self._client_sby(monkeypatch)
+        requests = [
+            ('post', '/api/branches/save'),
+            ('post', '/api/branches/MLG/seed-demo'),
+            ('post', '/api/branches/MLG/activate'),
+            ('post', '/api/branches/MLG/deactivate'),
+            ('post', '/api/branches/MLG/ensure-db'),
+            ('get', '/api/branches/consolidated'),
+            ('get', '/api/branches/consolidated-pdf'),
+            ('get', '/api/branches/consolidated-excel'),
+        ]
+        for method, url in requests:
+            r = getattr(client, method)(url, json={}) if method == 'post' else getattr(client, method)(url)
+            assert r.status_code == 403, (url, r.status_code, r.get_json())
 
 
 class TestLoginBranchScope:
@@ -348,6 +404,7 @@ class TestBranchSeedDemo:
         client = app.test_client()
         with client.session_transaction() as s:
             s['user_role'] = 'admin'
+            s['user_name'] = 'admin'
         r = client.post('/api/branches/MLG/seed-demo')
         assert r.status_code == 200, r.get_json()
         d = r.get_json()
@@ -377,6 +434,7 @@ class TestBranchSeedDemo:
         client = app.test_client()
         with client.session_transaction() as s:
             s['user_role'] = 'admin'
+            s['user_name'] = 'admin'
         assert client.post('/api/branches/MLG/seed-demo').status_code == 404
 
 
@@ -413,6 +471,10 @@ class TestBranchStats:
         assert by_code['SBY']['users'] == 1              # admin (SBY)
         assert by_code['MLG']['users'] == 1              # eko (MLG)
         assert by_code['MLG']['transactions'] == 0       # DB MLG tidak tersedia
+
+        # Filter `codes` — dipakai admin cabang agar tidak membaca DB lain.
+        filtered = bm.branch_stats(conn=conn, codes=['mlg'])
+        assert [s['code'] for s in filtered] == ['MLG']
 
 
 def test_consolidated_pdf_renders(monkeypatch):

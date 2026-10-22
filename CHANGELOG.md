@@ -7,6 +7,42 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.49.0 — 22 Oktober 2026 (UI/UX Admin Cabang P0–P5: dashboard tindakan, modal konfirmasi, onboarding & panduan in-app)
+
+Batch usability UI/UX untuk admin cabang (`admin_<kode>`, P0–P5) + instrumentasi
+uji kegunaan. Protokol uji: `docs/internal/USABILITY_TEST_P5.md`.
+
+- **P0 — scoping data & aksi cabang**: admin cabang kini benar-benar terkunci di
+  cabangnya — `/api/branches`, `/stats`, `/report-pdf` difilter `admin_branches()`,
+  8 aksi lintas cabang (save/seed-demo/activate/deactivate/ensure-db/consolidated*)
+  dilindungi `@ho_only` (403), `branch_stats()` dibatasi DB cabangnya, Settings
+  read-only untuk admin cabang.
+- **P1 — information architecture**: 25 menu datar → **6 grup** per role;
+  **badge angka antrean** di sidebar + hasil pencarian; **pencarian menu**
+  `Ctrl/Cmd+K`; **breadcrumb**; `GET /api/nav/badges` (ringan, per role, refresh
+  realtime + 60 dtk). Tests: `tests/test_nav_badges.py` + AppLayout.test.js.
+- **P2 — dashboard berbasis tindakan**: blok **⚡ Perlu Tindakan Hari Ini**
+  3–5 kartu klikabel dari utilisation stats — kartu 0 disembunyikan, semua bersih
+  → banner sukses. KPI 6 → 3, **Aksi Cepat** dihapus (duplikat sidebar), tabel
+  antrean **10 → 6 kolom** (ODO/liter/BBM/foto pindah ke modal Detail).
+- **P3 — bahasa manusiawi & modal konfirmasi**: komponen **ConfirmDialog**
+  (termasuk mode input wajib) menggantikan **semua** `confirm()`/`prompt()` native
+  di 14 view; tombol antrean berteks (Setujui/Tolak/Cairkan/Arsipkan); format
+  Rupiah/tanggal/status memakai `utils/format.js` di 5 view; alasan tolak wajib
+  dengan validasi inline; label role & status lebih manusiawi.
+- **P4 — onboarding & bantuan in-app**: **Help Center** (`❓` / tombol `?`) —
+  panduan per halaman (19 halaman) + **glosarium 20 istilah** + pencarian; tur
+  onboarding 4 langkah role-aware otomatis sekali per akun/perangkat; aplikasi
+  Driver juga dapat bantuan + tur sendiri. Tests: HelpCenter, OnboardingTour.
+- **P5 — perangkat uji kegunaan**: protokol 5 tugas + target
+  **time-to-first-action < 30 dtk**; instrumentasi `utils/usability.js` hanya
+  aktif dengan `?p5=1` (`sessionStorage`, tidak dikirim ke server) dan panel
+  diagnostik di Help Center. Sesi 5 partisipan menyusul dengan pengguna nyata.
+- **Uji**: `npx vitest run` → **214 passed** (termasuk test Transcoder yang
+  flaky-fake-timer diperbaiki); `npm run build` hijau; `pytest tests/test_branches.py
+  tests/test_admin_scope.py tests/test_nav_badges.py` → 38 passed. Tanpa perubahan
+  dependensi.
+
 ## v2.48.0 — 21 Oktober 2026 (PWA Mobile: Driver, OB & Security)
 
 **Fitur baru** — aplikasi **PWA mobile** di `/m/` (satu shell, otomatis deteksi role

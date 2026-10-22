@@ -47,7 +47,7 @@ async function mountView() {
 }
 
 describe('DriverView', () => {
-  beforeEach(() => { vi.clearAllMocks() })
+  beforeEach(() => { vi.clearAllMocks(); localStorage.setItem('bpf_onboarded:rivan', '1') })
   afterEach(() => { vi.unstubAllGlobals() })
 
   it('menampilkan shell PWA driver dengan 4 tab navigasi', async () => {
@@ -57,6 +57,16 @@ describe('DriverView', () => {
     expect(w.text()).toContain('Trip')
     expect(w.text()).toContain('Rapor')
     expect(w.text()).toContain('🟢 Online')
+    w.unmount()
+  })
+
+  it('tombol bantuan membuka glosarium khusus driver', async () => {
+    const w = await mountView()
+    await w.find('button[title="Bantuan & glosarium"]').trigger('click')
+    await flushPromises()
+    expect(w.text()).toContain('Aplikasi Driver')
+    await w.findAll('button').find((b) => b.text().includes('Glosarium')).trigger('click')
+    expect(w.text()).toContain('LPJ')
     w.unmount()
   })
 

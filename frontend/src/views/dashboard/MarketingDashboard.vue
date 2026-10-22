@@ -3,6 +3,10 @@ import { onMounted, ref } from 'vue'
 import { api } from '../../api'
 import StatCard from '../../components/StatCard.vue'
 import Modal from '../../components/Modal.vue'
+import ConfirmDialog from '../../components/ConfirmDialog.vue'
+
+const confirmRef = ref(null)
+const ask = (message, opts) => confirmRef.value?.open(message, opts) ?? Promise.resolve(false)
 
 const today = new Date().toISOString().slice(0, 10)
 const list = ref([])
@@ -117,7 +121,14 @@ async function saveEdit() {
 
 const canceling = ref(false)
 async function doCancel(a) {
-  const reason = prompt(`Alasan membatalkan ${a.display_id} (${a.nasabah_name}):`, '')
+  const reason = await ask(`Alasan membatalkan ${a.display_id} (${a.nasabah_name}):`, {
+    title: 'Batalkan appointment',
+    confirmText: 'Batalkan',
+    danger: true,
+    input: true,
+    required: true,
+    placeholder: 'mis. nasabah membatalkan perjalanan',
+  })
   if (reason === null) return
   canceling.value = true
   msg.value = ''
@@ -270,4 +281,5 @@ onMounted(() => { load(); loadMembers(); loadCompleted() })
       </form>
     </Modal>
   </div>
+  <ConfirmDialog ref="confirmRef" />
 </template>

@@ -32,6 +32,13 @@ function defaultMock() {
 }
 
 const assignSelects = (w) => w.findAll('select.assign-select')
+const btnByText = (w, text) => w.findAll('button').find((b) => b.text() === text)
+const confirmYes = async (w, text = 'Ya, lanjutkan') => {
+  const b = btnByText(w, text)
+  expect(b).toBeTruthy()
+  await b.trigger('click')
+  await flushPromises()
+}
 
 describe('ChiefDriverDashboard', () => {
   beforeEach(() => {
@@ -72,6 +79,8 @@ describe('ChiefDriverDashboard', () => {
     await flushPromises()
     await w.findAll('button').find((b) => b.text() === '🌍').trigger('click')
     await flushPromises()
+    await w.find('textarea').setValue('Alasan uji')
+    await confirmYes(w, 'Simpan area')
     expect(apiMock).toHaveBeenCalledWith('/api/appointments/1', { method: 'PATCH', body: { area: 'Alasan uji' } })
   })
 
@@ -80,7 +89,7 @@ describe('ChiefDriverDashboard', () => {
     await flushPromises()
     await w.findAll('button').find((b) => b.text() === '↩️').trigger('click')
     await flushPromises()
-    expect(global.confirm).toHaveBeenCalled()
+    await confirmYes(w)
     expect(apiMock).toHaveBeenCalledWith('/api/appointments/3/unassign', { method: 'POST' })
   })
 
@@ -89,7 +98,8 @@ describe('ChiefDriverDashboard', () => {
     await flushPromises()
     await w.findAll('button').find((b) => b.text() === '✕').trigger('click')
     await flushPromises()
-    expect(global.prompt).toHaveBeenCalled()
+    await w.find('textarea').setValue('Alasan uji')
+    await confirmYes(w, 'Batalkan')
     expect(apiMock).toHaveBeenCalledWith('/api/appointments/1/cancel', { method: 'POST', body: { reason: 'Alasan uji' } })
   })
 

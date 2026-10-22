@@ -2,10 +2,13 @@
 import { computed, onMounted, ref } from 'vue'
 import { api } from '../api'
 import Modal from '../components/Modal.vue'
+import ConfirmDialog from '../components/ConfirmDialog.vue'
 import { identity } from '../stores/identity'
 import { useAuthStore } from '../stores/auth'
 
 const auth = useAuthStore()
+const confirmRef = ref(null)
+const ask = (message, opts) => confirmRef.value?.open(message, opts) ?? Promise.resolve(false)
 
 const drivers = ref([])
 const vehicles = ref([])
@@ -23,7 +26,7 @@ const showBulk = ref(false)
 
 async function bulkCreate(scope) {
   const label = scope === 'driver' ? 'SEMUA driver aktif' : scope === 'marketing' ? 'SEMUA user di dropdown marketing' : 'semua akun'
-  if (!confirm(`Buat akun login (PIN 123456) untuk ${label} yang belum punya akun?`)) return
+  if (!(await ask(`Buat akun login (PIN 123456) untuk ${label} yang belum punya akun?`, { confirmText: 'Ya, lanjutkan' }))) return
   bulkBusy.value = true; bulkMsg.value = ''; bulkResult.value = null
   try {
     const r = await api('/api/users/bulk-create', { method: 'POST', body: { scope } })
@@ -145,7 +148,7 @@ async function ensureDb(code) {
 }
 
 async function seedDemoBranch(code) {
-  if (!confirm(`Tanam data demo (rute + transaksi dummy) ke cabang ${code}? Idempoten — data asli aman.`)) return
+  if (!(await ask(`Tanam data demo (rute + transaksi dummy) ke cabang ${code}? Idempoten — data asli aman.`, { confirmText: 'Ya, lanjutkan' }))) return
   branchBusy.value = true; branchMsg.value = ''
   try {
     const r = await api(`/api/branches/${encodeURIComponent(code)}/seed-demo`, { method: 'POST' })
@@ -198,7 +201,7 @@ async function loadDocSequences() {
 
 async function resetSeq(row) {
   const scope = row.date ? `tanggal ${fmtSeqDate(row.date)}` : 'SEMUA tanggal'
-  if (!confirm(`Reset counter ${row.prefix} cabang ${row.branch} (${scope})?\n\nNomor berikutnya akan mulai dari 0001. HANYA lakukan bila belum ada dokumen dgn nomor tsb yang masih dipakai hari ini.`)) return
+  if (!(await ask(`Reset counter ${row.prefix} cabang ${row.branch} (${scope})?\n\nNomor berikutnya akan mulai dari 0001. HANYA lakukan bila belum ada dokumen dgn nomor tsb yang masih dipakai hari ini.`, { confirmText: 'Ya, lanjutkan', danger: true }))) return
   docseqMsg.value = ''
   try {
     const r = await api('/api/admin/doc-sequences/reset', {
@@ -220,7 +223,7 @@ async function loadDemoStatus() {
 }
 
 async function demoSeed() {
-  if (!confirm('Buat data demo (rute appointment + transaksi dummy)? Aman — idempoten, tidak mengubah data asli.')) return
+  if (!(await ask('Buat data demo (rute appointment + transaksi dummy)? Aman — idempoten, tidak mengubah data asli.', { confirmText: 'Ya, lanjutkan' }))) return
   demoBusy.value = true; demoMsg.value = ''
   try {
     const r = await api('/api/demo/seed', { method: 'POST', body: { scope: 'all' } })
@@ -231,7 +234,7 @@ async function demoSeed() {
 }
 
 async function demoClean() {
-  if (!confirm('BERSIHKAN semua data demo (rute appointment DEMO-* + transaksi dummy)? Data asli TIDAK terpengaruh.')) return
+  if (!(await ask('BERSIHKAN semua data demo (rute appointment DEMO-* + transaksi dummy)? Data asli TIDAK terpengaruh.', { confirmText: 'Ya, lanjutkan', danger: true }))) return
   demoBusy.value = true; demoMsg.value = ''
   try {
     const r = await api('/api/demo/clean', { method: 'POST', body: { scope: 'all' } })
@@ -260,7 +263,7 @@ async function loadEditEnabled() {
 async function toggleWaterEdit(e) {
   const enabled = e.target.checked
   const verb = enabled ? 'AKTIFKAN' : 'NONAKTIFKAN'
-  if (!confirm(`${verb} fitur edit/hapus transaksi air minum untuk cabang ini?\n\nBila aktif: Finance bisa mengedit & menghapus pengajuan (wajib PIN, tercatat di audit log).`)) {
+  if (!(await ask(`${verb} fitur edit/hapus transaksi air minum untuk cabang ini?\n\nBila aktif: Finance bisa mengedit & menghapus pengajuan (wajib PIN, tercatat di audit log).`, { confirmText: 'Ya, lanjutkan' }))) {
     e.target.checked = !enabled
     return
   }
@@ -357,7 +360,7 @@ async function loadWebhook() {
 }
 
 async function rotateWebhook() {
-  if (!confirm('Buat secret webhook baru? Token lama di Apps Script langsung tidak berlaku.')) return
+  if (!(await ask('Buat secret webhook baru? Token lama di Apps Script langsung tidak berlaku.', { confirmText: 'Ya, lanjutkan' }))) return
   webhookBusy.value = true; webhookMsg.value = ''
   try {
     const r = await api('/api/receptionist/webhook-config', { method: 'POST' })
@@ -431,7 +434,7 @@ async function addDriver() {
 }
 
 async function deleteDriver(name) {
-  if (!confirm(`HAPUS permanen driver "${name}"?`)) return
+  if (!(await ask(`HAPUS permanen driver "${name}"?`, { confirmText: 'Ya, lanjutkan', danger: true }))) return
   busy.value = true; msg.value = ''
   try {
     await api(`/api/drivers/${encodeURIComponent(name)}/delete`, { method: 'POST' })
@@ -442,7 +445,7 @@ async function deleteDriver(name) {
 
 /** Reset PIN massal seluruh akun driver ke 123456 (onboarding cepat). */
 async function resetDriverPinMassal() {
-  if (!confirm('Reset PIN SEMUA akun driver menjadi 123456?')) return
+  if (!(await ask('Reset PIN SEMUA akun driver menjadi 123456?', { confirmText: 'Ya, lanjutkan', danger: true }))) return
   busy.value = true; msg.value = ''
   try {
     const r = await api('/api/drivers/pin-reset', { method: 'POST', body: { new_pin: '123456' } })
@@ -491,7 +494,7 @@ async function loadRetention() {
 async function archiveAuditLogs() {
   const n = Number(archiveDays.value)
   if (!n || n < 30) { retentionMsg.value = '❌ Minimal 30 hari (anti salah-klik).'; return }
-  if (!confirm(`Arsipkan SEMUA jejak audit lebih tua dari ${n} hari di seluruh database (master + cabang)?\n\nBaris dipindah ke tabel arsip activity_logs_archive (tetap utuh & bisa dibuka), lalu dihapus dari tabel aktif. Tindakan ini dicatat di register retensi + audit log.`)) return
+  if (!(await ask(`Arsipkan SEMUA jejak audit lebih tua dari ${n} hari di seluruh database (master + cabang)?\n\nBaris dipindah ke tabel arsip activity_logs_archive (tetap utuh & bisa dibuka), lalu dihapus dari tabel aktif. Tindakan ini dicatat di register retensi + audit log.`, { confirmText: 'Ya, lanjutkan', danger: true }))) return
   retentionBusy.value = true; retentionMsg.value = ''
   try {
     const r = await api('/api/admin/retention/archive-audit', { method: 'POST', body: { days: n } })
@@ -726,14 +729,21 @@ onMounted(() => {
       </div>
 
       <div id="sec-cabang" class="card card-pad" style="margin-bottom:16px;">
-        <h3 style="margin:0;">🏢 Cabang (Multi-Cabang)</h3>
+        <h3 style="margin:0;">{{ auth.isHoAdmin ? '🏢 Cabang (Multi-Cabang)' : '🏢 Cabang Anda' }}</h3>
         <p class="muted" style="font-size:11px;">
-          Satu instalasi melayani banyak cabang — setiap cabang punya <b>database sendiri</b> (isolasi data penuh).
-          Alamat &amp; telepon tiap cabang dipakai sebagai <b>kop dokumen resmi</b> (PDF/Excel export) —
-          perbarui di sini bila kantor pindah. Cabang aktif: <b>{{ currentBranch?.name || '—' }}</b>
+          <template v-if="auth.isHoAdmin">
+            Satu instalasi melayani banyak cabang — setiap cabang punya <b>database sendiri</b> (isolasi data penuh).
+            Alamat &amp; telepon tiap cabang dipakai sebagai <b>kop dokumen resmi</b> (PDF/Excel export) —
+            perbarui di sini bila kantor pindah. Cabang aktif: <b>{{ currentBranch?.name || '—' }}</b>
+          </template>
+          <template v-else>
+            Anda login sebagai <b>Admin Cabang</b> — data dan operasional dibatasi ke cabang aktif.
+            Perubahan identitas cabang, database, dan status aktif hanya dapat dilakukan Admin Pusat.
+            Cabang aktif: <b>{{ currentBranch?.name || '—' }}</b>
+          </template>
         </p>
         <div class="row" style="margin-top:10px;gap:8px;align-items:center;flex-wrap:wrap;">
-          <button class="btn btn-primary btn-sm" @click="openBranchForm(null)">➕ Tambah Cabang</button>
+          <button v-if="auth.isHoAdmin" class="btn btn-primary btn-sm" @click="openBranchForm(null)">➕ Tambah Cabang</button>
           <template v-if="auth.isHoAdmin">
             <label class="muted" style="font-size:12px;">Ganti cabang (Admin Pusat):</label>
             <select class="select" style="width:auto;" :value="currentBranch?.code" :disabled="branchBusy" @change="switchBranch($event.target.value)">
@@ -754,10 +764,13 @@ onMounted(() => {
                 <td>{{ b.city || '—' }}</td>
                 <td><span class="badge" :class="b.is_active ? 'badge-green' : 'badge-red'">{{ b.is_active ? 'Aktif' : 'Nonaktif' }}</span></td>
                 <td>
-                  <button v-if="auth.isHoAdmin" class="btn btn-sm" @click="openBranchForm(b)" title="Edit identitas cabang (nama, kota, alamat kop dokumen, telepon)">✏️ Edit</button>
-                  <button class="btn btn-sm" @click="ensureDb(b.code)" title="Buat/sinkronkan database cabang">🗄️ DB</button>
-                  <button class="btn btn-sm" @click="seedDemoBranch(b.code)" title="Tanam data demo (rute + transaksi dummy) ke cabang ini">🧪 Demo</button>
-                  <button class="btn btn-sm" @click="toggleBranch(b.code, !b.is_active)" :disabled="branchBusy">{{ b.is_active ? '🔴 Nonaktifkan' : '🟢 Aktifkan' }}</button>
+                  <template v-if="auth.isHoAdmin">
+                    <button class="btn btn-sm" @click="openBranchForm(b)" title="Edit identitas cabang (nama, kota, alamat kop dokumen, telepon)">✏️ Edit</button>
+                    <button class="btn btn-sm" @click="ensureDb(b.code)" title="Buat/sinkronkan database cabang">🗄️ DB</button>
+                    <button class="btn btn-sm" @click="seedDemoBranch(b.code)" title="Tanam data demo (rute + transaksi dummy) ke cabang ini">🧪 Demo</button>
+                    <button class="btn btn-sm" @click="toggleBranch(b.code, !b.is_active)" :disabled="branchBusy">{{ b.is_active ? '🔴 Nonaktifkan' : '🟢 Aktifkan' }}</button>
+                  </template>
+                  <span v-else class="muted" style="font-size:11px;">Read-only</span>
                 </td>
               </tr>
               <tr v-if="!branches.length"><td colspan="6" class="empty">Belum ada cabang.</td></tr>
@@ -1065,6 +1078,8 @@ onMounted(() => {
         <button class="btn btn-primary" :disabled="busy" @click="addVehicle">💾 Simpan</button>
       </div>
     </Modal>
+
+    <ConfirmDialog ref="confirmRef" />
   </div>
 </template>
 

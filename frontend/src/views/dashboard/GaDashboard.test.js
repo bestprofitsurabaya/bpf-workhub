@@ -19,6 +19,14 @@ const CASH = [
 ]
 const TRIPS = [{ id: 1 }, { id: 2 }, { id: 3 }]
 
+const btnByText = (w, text) => w.findAll('button').find((b) => b.text() === text)
+const confirmYes = async (w) => {
+  const b = btnByText(w, 'Ya, setujui')
+  expect(b).toBeTruthy()
+  await b.trigger('click')
+  await flushPromises()
+}
+
 async function mountView() {
   apiMock.mockImplementation((path) => {
     if (path === '/api/stats') return Promise.resolve(STATS)
@@ -42,7 +50,7 @@ describe('GaDashboard', () => {
   it('menampilkan kartu statistik & kasbon menunggu approve GA', async () => {
     const w = await mountView()
     expect(w.text()).toContain('Antrean GA')
-    expect(w.text()).toContain('Verified GA')
+    expect(w.text()).toContain('Terverifikasi GA')
     expect(w.text()).toContain('3')
     expect(w.text()).toContain('Rp 250.000') // 150.000 + 100.000 DRAFT
   })
@@ -58,16 +66,14 @@ describe('GaDashboard', () => {
 
   it('approve memanggil /api/queue/approve-ga setelah konfirmasi', async () => {
     const w = await mountView()
-    vi.stubGlobal('confirm', vi.fn(() => true))
-    await w.findAll('button').find((b) => b.text().includes('Approve')).trigger('click')
+    await w.findAll('button').find((b) => b.text().includes('Setujui')).trigger('click')
     await flushPromises()
-    expect(global.confirm).toHaveBeenCalled()
+    await confirmYes(w)
     expect(apiMock).toHaveBeenCalledWith('/api/queue/approve-ga/5', { method: 'POST' })
   })
 
   it('approve ditolak 428 STEPUP_REQUIRED: modal PIN terbuka, lalu retry setelah PIN', async () => {
     const w = await mountView()
-    vi.stubGlobal('confirm', vi.fn(() => true))
     const stepup = useStepupStore()
 
     // Percobaan approve pertama ditolak server (belum ada grant step-up)
@@ -78,8 +84,9 @@ describe('GaDashboard', () => {
       .mockRejectedValueOnce(stepupErr)                 // approve-ga → 428
       .mockResolvedValueOnce({ status: 'success' })     // /api/step-up → sukses
 
-    await w.findAll('button').find((b) => b.text().includes('Approve')).trigger('click')
+    await w.findAll('button').find((b) => b.text().includes('Setujui')).trigger('click')
     await flushPromises()
+    await confirmYes(w)
 
     // Modal step-up terbuka; aksi belum di-retry
     expect(stepup.open).toBe(true)
@@ -102,7 +109,7 @@ describe('GaDashboard', () => {
     const flagRow = rows.find((r) => r.text().includes('BBM-002'))
     const btnTexts = flagRow.findAll('button').map((b) => b.text())
     expect(btnTexts.some((t) => t.includes('Verifikasi'))).toBe(true)
-    expect(btnTexts.some((t) => t.includes('Approve'))).toBe(false)
+    expect(btnTexts.some((t) => t.includes('Setujui'))).toBe(false)
   })
 
   it('verifikasi anomali: wajib centang konfirmasi sebelum kirim', async () => {

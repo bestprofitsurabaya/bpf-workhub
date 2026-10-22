@@ -1,23 +1,32 @@
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { api, notifyUnauthorized } from '../../api'
 import { useAuthStore } from '../../stores/auth'
 import StatCard from '../../components/StatCard.vue'
 import Modal from '../../components/Modal.vue'
+import ConfirmDialog from '../../components/ConfirmDialog.vue'
+import { formatDateTime, formatNumber, formatRupiah, transactionStatusLabel } from '../../utils/format.js'
 import LoadingState from '../../components/LoadingState.vue'
 import EmptyState from '../../components/EmptyState.vue'
 import ErrorState from '../../components/ErrorState.vue'
 import { useStepupStore } from '../../stores/stepup'
+import { markFirstAction } from '../../utils/usability.js'
 
 const stepup = useStepupStore()
+const router = useRouter()
+const confirmRef = ref(null)
+const ask = (message, opts) => confirmRef.value?.open(message, opts) ?? Promise.resolve(false)
 
 const auth = useAuthStore()
 const s = ref(null)
 const loading = ref(true)
 const err = ref('')
 
-const fmt = (n) => 'Rp ' + Number(n || 0).toLocaleString('id-ID')
-const num = (n) => Number(n || 0).toLocaleString('id-ID')
+const fmt = formatRupiah
+const num = formatNumber
+const statusLabel = transactionStatusLabel
+const fmtDateTime = (v) => formatDateTime(v, false)
 
 onMounted(async () => {
   try { s.value = await api('/api/stats') }
@@ -25,25 +34,58 @@ onMounted(async () => {
   finally { loading.value = false }
   loadQueue()
   loadBranchStats()
+  loadNavBadges()
 })
 
 async function refreshStats() {
   // Refresh diam-diam (tanpa mengubah state loading) agar dashboard tidak berkedip.
   try { s.value = await api('/api/stats') } catch { /* abaikan */ }
+  loadNavBadges()
 }
 
 const cards = computed(() => {
   if (!s.value) return []
   const c = [
-    { icon: '🕐', label: 'Antrean GA (pending)', value: s.value.pending, color: '#dc2626', roles: ['ga', 'admin'] },
-    { icon: '✅', label: 'Verified GA', value: s.value.verified_ga, color: '#0891b2', roles: ['ga', 'admin'] },
-    { icon: '💰', label: 'Menunggu Finance (os_finance)', value: s.value.os_finance, color: '#d97706', roles: ['finance', 'admin'] },
-    { icon: '📦', label: 'Terarsip', value: s.value.archived, color: '#059669', roles: ['ga', 'finance', 'admin'] },
-    { icon: '📅', label: 'Transaksi Hari Ini', value: s.value.today_tx, color: '#2563eb', roles: ['ga', 'finance', 'admin'] },
-    { icon: '💵', label: 'Nominal Hari Ini', value: fmt(s.value.today_nominal), color: '#7c3aed', roles: ['finance', 'admin'] },
+    { icon: '✅', label: 'Terverifikasi GA', value: s.value.verified_ga, color: '#0891b2', roles: ['ga', 'admin'], sub: 'Siap dicairkan Finance' },
+    { icon: '📅', label: 'Transaksi Hari Ini', value: s.value.today_tx, color: '#2563eb', roles: ['ga', 'finance', 'admin'], sub: 'Klaim masuk hari ini' },
+    { icon: '💵', label: 'Nominal Hari Ini', value: fmt(s.value.today_nominal), color: '#7c3aed', roles: ['finance', 'admin'], sub: 'Total nilai klaim hari ini' },
   ]
   return c.filter((x) => x.roles.includes(auth.role))
 })
+
+// ============================================================
+// P2 UI/UX — "Perlu Tindakan Hari Ini"
+// ============================================================
+const navBadges = ref({})
+async function loadNavBadges() {
+  try {
+    const d = await api('/api/nav/badges')
+    navBadges.value = d?.badges || {}
+  } catch { navBadges.value = {} }
+}
+
+const actionCards = computed(() => {
+  if (!s.value) return []
+  const b = navBadges.value
+  const list = [
+    { key: 'ga', icon: '🕐', label: 'Klaim menunggu verifikasi GA', hint: 'Antrean GA (pending)', count: Number(s.value.pending || 0), color: '#dc2626', roles: ['ga', 'admin'], kind: 'queue', tab: 'ga' },
+    { key: 'finance', icon: '💰', label: 'Klaim siap dicairkan Finance', hint: 'Menunggu Finance (os_finance)', count: Number(s.value.os_finance || 0), color: '#d97706', roles: ['finance', 'admin'], kind: 'queue', tab: 'finance' },
+    { key: 'water', icon: '🚰', label: 'Air minum menunggu verifikasi', hint: 'Pengajuan OB perlu dicek', count: Number(b.water_pending || 0), color: '#0891b2', roles: ['finance', 'admin'], kind: 'route', to: '/water' },
+    { key: 'assignments', icon: '🚗', label: 'Penugasan belum dikonfirmasi', hint: 'Driver belum konfirmasi kendaraan', count: Number(b.assignments_pending || 0), color: '#7c3aed', roles: ['ga', 'admin'], kind: 'route', to: '/assignments' },
+    { key: 'cash', icon: '💵', label: 'Kasbon / LPJ menunggu', hint: 'LPJ atau pencairan kasbon', count: Number(b.cash_pending || 0), color: '#059669', roles: ['ga', 'finance', 'admin'], kind: 'route', to: '/cash' },
+  ]
+  return list.filter((x) => x.roles.includes(auth.role))
+})
+const visibleActions = computed(() => actionCards.value.filter((a) => a.count > 0))
+function runAction(a) {
+  markFirstAction(`dashboard:${a.label}`)
+  if (a.kind === 'queue') {
+    queueTab.value = a.tab
+    nextTick(() => document.getElementById('antrean-kerja')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+  } else if (a.to) {
+    router.push(a.to)
+  }
+}
 
 // ============================================================
 // Ringkasan Cabang (v2.20.0) — statistik per cabang (Admin)
@@ -88,19 +130,6 @@ function exportQueueExcel() {
     .catch((e) => { queueMsg.value = '❌ Gagal export Excel: ' + e.message })
 }
 
-const quick = computed(() => {
-  const m = [
-    { icon: '🗺️', label: 'Log Perjalanan', path: '/trips', roles: ['ga', 'finance', 'admin'] },
-    { icon: '🚗', label: 'Assignments', path: '/assignments', roles: ['ga', 'admin'] },
-    { icon: '📋', label: 'Rekap', path: '/rekap', roles: ['finance', 'admin'] },
-    { icon: '📈', label: 'Analytics', path: '/analytics', roles: ['ga', 'finance', 'admin'] },
-    { icon: '👥', label: 'Manajemen User', path: '/users', roles: ['admin'] },
-    { icon: '📝', label: 'Audit Log', path: '/logs', roles: ['admin'] },
-    { icon: '⚙️', label: 'Pengaturan', path: '/settings', roles: ['admin'] },
-  ]
-  return m.filter((x) => x.roles.includes(auth.role))
-})
-
 // ============================================================
 // Antrean Kerja — approve GA / payout / archive / reject / detail
 // ============================================================
@@ -119,6 +148,7 @@ const queueTabs = computed(() => QUEUE_TABS.filter((t) => t.roles.includes(auth.
 const canApprove = computed(() => ['ga', 'admin'].includes(auth.role))
 const canFinance = computed(() => ['finance', 'admin'].includes(auth.role))
 const isAdmin = computed(() => auth.role === 'admin')
+const isHoAdmin = computed(() => auth.isHoAdmin)
 
 // Modal detail transaksi
 const sel = ref(null)
@@ -137,13 +167,19 @@ async function loadQueue() {
 }
 
 async function queueAction(path, label, needsStepup = false) {
-  if (!confirm(`Yakin ${label}?`)) return false
+  const ok = await ask(`Yakin ${label}?`, {
+    title: 'Konfirmasi tindakan',
+    confirmText: 'Ya, lanjutkan',
+    danger: /hapus|tolak|menolak|PERMANEN/i.test(label),
+  })
+  if (!ok) return false
   qBusy.value = true; queueMsg.value = ''
   try {
     // Aksi uang (approve/payout) wajib step-up — PIN ulang bila perlu (ISO/IEC 27001 A.8.5)
     const run = () => api(path, { method: 'POST' })
     const r = needsStepup ? await stepup.require(run, label) : await run()
     queueMsg.value = '✅ ' + (r.msg || r.message || label)
+    markFirstAction(`queue:${label}`)
     loadQueue(); refreshStats()
     return true
   } catch (e) { queueMsg.value = '❌ ' + e.message; return false }
@@ -167,7 +203,14 @@ const doPayout = (tx) => queueAction(`/api/queue/payout/${tx.id}`, 'mencairkan d
 const doArchive = (tx) => queueAction(`/api/queue/archive/${tx.id}`, 'mengarsipkan klaim ini')
 
 async function doReject(tx) {
-  const reason = prompt(`Alasan menolak ${tx.display_id} (${tx.driver_name}):`, '')
+  const reason = await ask(`Alasan menolak ${tx.display_id} (${tx.driver_name}):`, {
+    title: 'Tolak klaim',
+    confirmText: 'Tolak klaim',
+    danger: true,
+    input: true,
+    required: true,
+    placeholder: 'mis. foto bukti tidak terbaca / nominal tidak sesuai',
+  })
   if (reason === null) return
   qBusy.value = true; queueMsg.value = ''
   try {
@@ -180,6 +223,7 @@ async function doReject(tx) {
 }
 
 async function openDetail(tx, verify = false) {
+  markFirstAction(`detail:${tx.display_id || tx.id}`)
   sel.value = tx
   selLoading.value = true
   selData.value = null; selCross.value = null; selFinanceReview.value = null
@@ -325,19 +369,43 @@ watch(queueTab, (tab) => {
     <div v-if="loading" class="empty">⏳ Memuat data…</div>
     <div v-else-if="err" class="alert alert-error">{{ err }}</div>
     <template v-else>
+      <!-- P2: yang perlu dikerjakan lebih dulu, bukan sekadar angka -->
+      <section v-if="visibleActions.length" class="action-wrap">
+        <div class="row" style="flex-wrap:wrap;gap:8px;align-items:baseline;">
+          <h2 class="sec-title" style="margin:0;">⚡ Perlu Tindakan Hari Ini</h2>
+          <span class="muted" style="font-size:11px;">Klik kartu untuk langsung ke antrean terkait.</span>
+        </div>
+        <div class="action-grid">
+          <button v-for="a in visibleActions" :key="a.key" type="button" class="action-card"
+                  :style="{ '--accent': a.color }" :aria-label="`${a.label}: ${a.count}`" @click="runAction(a)">
+            <span class="action-ico" aria-hidden="true">{{ a.icon }}</span>
+            <span class="action-count">{{ a.count }}</span>
+            <span class="action-label">{{ a.label }}</span>
+            <span class="action-hint">{{ a.hint }}</span>
+          </button>
+        </div>
+      </section>
+      <div v-else class="card card-pad action-clear">
+        <b>✅ Tidak ada tindakan mendesak hari ini.</b>
+        <span class="muted" style="font-size:12px;">Antrean sudah bersih — Anda bisa lanjut memantau laporan di bawah.</span>
+      </div>
+
+      <h2 class="sec-title">📊 Ringkasan Angka</h2>
       <div class="stat-grid">
-        <StatCard v-for="c in cards" :key="c.label" :icon="c.icon" :label="c.label" :value="c.value" :color="c.color" />
+        <StatCard v-for="c in cards" :key="c.label" :icon="c.icon" :label="c.label" :value="c.value" :color="c.color" :sub="c.sub" />
       </div>
 
       <!-- Ringkasan Cabang (Admin) -->
       <div v-if="isAdmin" class="card card-pad" style="margin-top:18px;">
         <div class="row" style="flex-wrap:wrap;gap:8px;align-items:center;">
-          <h3 style="margin:0;">🏢 Ringkasan Cabang</h3>
-          <span class="muted" style="font-size:11px;">Transaksi, kunjungan hari ini &amp; user per cabang (multi-cabang)</span>
+          <h3 style="margin:0;">🏢 {{ isHoAdmin ? 'Ringkasan Cabang' : 'Ringkasan Cabang Anda' }}</h3>
+          <span class="muted" style="font-size:11px;">{{ isHoAdmin ? 'Transaksi, kunjungan hari ini & user per cabang (multi-cabang)' : 'Transaksi, kunjungan hari ini & user cabang aktif' }}</span>
           <div class="spacer"></div>
-          <button class="btn btn-sm" title="Unduh PDF ringkasan cabang" @click="openBranchReportPdf">📄 PDF</button>
-          <button class="btn btn-sm" title="Unduh laporan konsolidasi lintas cabang (semua DB) sebagai PDF" aria-label="Unduh PDF konsolidasi lintas cabang" @click="openConsolidatedPdf">🧮 PDF Konsolidasi</button>
-          <button class="btn btn-sm" title="Unduh laporan konsolidasi lintas cabang sebagai Excel" aria-label="Unduh Excel konsolidasi lintas cabang" @click="openConsolidatedExcel">🧮 Excel Konsolidasi</button>
+          <button class="btn btn-sm" :title="isHoAdmin ? 'Unduh PDF ringkasan cabang' : 'Unduh PDF ringkasan cabang Anda'" @click="openBranchReportPdf">📄 PDF</button>
+          <template v-if="isHoAdmin">
+            <button class="btn btn-sm" title="Unduh laporan konsolidasi lintas cabang (semua DB) sebagai PDF" aria-label="Unduh PDF konsolidasi lintas cabang" @click="openConsolidatedPdf">🧮 PDF Konsolidasi</button>
+            <button class="btn btn-sm" title="Unduh laporan konsolidasi lintas cabang sebagai Excel" aria-label="Unduh Excel konsolidasi lintas cabang" @click="openConsolidatedExcel">🧮 Excel Konsolidasi</button>
+          </template>
           <button class="btn btn-sm" :disabled="branchStatsLoading" @click="loadBranchStats">🔄</button>
         </div>
         <div v-if="branchStatsLoading" class="empty" style="padding:14px;">⏳ Memuat…</div>
@@ -361,7 +429,7 @@ watch(queueTab, (tab) => {
       </div>
 
       <!-- Antrean Kerja -->
-      <div class="card card-pad" style="margin-top:18px;">
+      <div id="antrean-kerja" class="card card-pad" style="margin-top:18px;">
         <div class="row" style="flex-wrap:wrap;gap:8px;">
           <h3 style="margin:0;">🕐 Antrean Kerja</h3>
           <button v-for="t in queueTabs" :key="t.key" class="btn btn-sm" :class="queueTab === t.key ? 'btn-primary' : ''" @click="queueTab = t.key">{{ t.label }}</button>
@@ -369,28 +437,30 @@ watch(queueTab, (tab) => {
           <span v-if="queueMsg" class="alert" :class="queueMsg.startsWith('✅') ? 'alert-success' : 'alert-error'" style="margin:0;">{{ queueMsg }}</span>
           <div class="spacer"></div>
         </div>
+        <p class="muted" style="font-size:11px;margin:8px 0 0;">
+          Tabel diringkas. Klik <b>Detail</b> untuk melihat BBM, liter, ODO, foto bukti, dan cross-check.
+        </p>
         <div v-if="queueLoading"><LoadingState rows="3" label="Memuat antrean…" /></div>
         <div v-else-if="queueMsg && queueMsg.startsWith('❌')" ><ErrorState :message="queueMsg.slice(2)" @retry="loadQueue" /></div>
         <div class="table-wrap" v-else>
           <table class="tbl">
-            <thead><tr><th>ID</th><th>Driver</th><th>Nopol</th><th>BBM</th><th>Nominal</th><th>Liter</th><th>ODO</th><th>Anomali</th><th>Waktu</th><th></th></tr></thead>
+            <thead><tr><th>ID</th><th>Driver / Nopol</th><th>Nominal</th><th>Status</th><th>Waktu</th><th>Aksi</th></tr></thead>
             <tbody>
               <tr v-for="t in queue" :key="t.id">
                 <td><b>{{ t.display_id }}</b></td>
-                <td>{{ t.driver_name }}</td>
-                <td>{{ t.nopol }}</td>
-                <td>{{ t.bbm_type }}</td>
-                <td>{{ fmt(t.nominal) }}</td>
-                <td>{{ Number(t.liter || 0).toFixed(2) }}</td>
-                <td>{{ t.odo_km ?? '—' }}</td>
                 <td>
-                  <span v-if="t.ml_anomaly_flag" class="badge badge-red">⚠️ Anomali</span>
-                  <template v-else-if="getFlag(t.id)?.flags?.length">
-                    <span v-for="(fl, fi) in getFlag(t.id).flags" :key="fi" class="badge" :class="fl.level === 'danger' ? 'badge-red' : 'badge-amber'" style="font-size:10px;">{{ fl.level === 'danger' ? '🔴' : '🟡' }} {{ fl.msg }}</span>
-                  </template>
-                  <span v-else class="muted">—</span>
+                  {{ t.driver_name }}
+                  <div class="muted" style="font-size:10px;">{{ t.nopol }}</div>
                 </td>
-                <td class="muted">{{ t.created_at }}</td>
+                <td>{{ fmt(t.nominal) }}</td>
+                <td>
+                  <span class="badge" :class="t.status === 'rejected' ? 'badge-red' : t.status === 'archived' ? 'badge-green' : t.status === 'os_finance' ? 'badge-amber' : 'badge-blue'">{{ statusLabel(t.status) }}</span>
+                  <span v-if="t.ml_anomaly_flag" class="badge badge-red" style="margin-left:4px;">⚠️ Anomali</span>
+                  <template v-else-if="getFlag(t.id)?.flags?.length">
+                    <span v-for="(fl, fi) in getFlag(t.id).flags" :key="fi" class="badge" :class="fl.level === 'danger' ? 'badge-red' : 'badge-amber'" style="font-size:10px;margin-left:4px;">{{ fl.level === 'danger' ? '🔴' : '🟡' }} {{ fl.msg }}</span>
+                  </template>
+                </td>
+                <td class="muted">{{ fmtDateTime(t.created_at) }}</td>
                 <td>
                   <button class="btn btn-sm" :disabled="qBusy" title="Detail & verifikasi" @click="openDetail(t)">👁 Detail</button>
                   <template v-if="queueTab === 'ga' && canApprove">
@@ -398,40 +468,28 @@ watch(queueTab, (tab) => {
                       <button class="btn btn-sm btn-primary" :disabled="qBusy" style="margin-left:6px;" title="Verifikasi anomali penuh (foto + konfirmasi) langsung di SPA" @click="openDetail(t, true)">🛡 Verifikasi</button>
                     </template>
                     <template v-else>
-                      <button class="btn btn-sm btn-primary" :disabled="qBusy" style="margin-left:6px;" @click="doApprove(t)">✅</button>
-                      <button class="btn btn-sm btn-danger" :disabled="qBusy" style="margin-left:6px;" @click="doReject(t)">❌</button>
+                      <button class="btn btn-sm btn-primary" :disabled="qBusy" style="margin-left:6px;" title="Setujui klaim" @click="doApprove(t)">✅ Setujui</button>
+                      <button class="btn btn-sm btn-danger" :disabled="qBusy" style="margin-left:6px;" title="Tolak klaim" @click="doReject(t)">❌ Tolak</button>
                     </template>
                   </template>
                   <template v-else-if="queueTab === 'finance' && canFinance">
-                    <button class="btn btn-sm btn-primary" :disabled="qBusy" style="margin-left:6px;" @click="doPayout(t)">💰</button>
+                    <button class="btn btn-sm btn-primary" :disabled="qBusy" style="margin-left:6px;" title="Cairkan dana" @click="doPayout(t)">💰 Cairkan</button>
                   </template>
                   <template v-else-if="queueTab === 'driver_confirm' && canFinance">
-                    <button class="btn btn-sm btn-primary" :disabled="qBusy" style="margin-left:6px;" @click="doArchive(t)">📦</button>
+                    <button class="btn btn-sm btn-primary" :disabled="qBusy" style="margin-left:6px;" title="Arsipkan" @click="doArchive(t)">📦 Arsipkan</button>
                   </template>
                 </td>
               </tr>
-              <tr v-if="!queue.length"><td colspan="10" style="padding:0;"><EmptyState message="Antrean kosong. 🎉" icon="🎉" /></td></tr>
+              <tr v-if="!queue.length"><td colspan="6" style="padding:0;"><EmptyState message="Antrean kosong. 🎉" icon="🎉" /></td></tr>
             </tbody>
           </table>
         </div>
       </div>
 
-      <div class="card card-pad" style="margin-top:18px;">
-        <h3>⚡ Aksi Cepat</h3>
-        <div class="stat-grid">
-          <router-link v-for="q in quick" :key="q.path" :to="q.path" style="text-decoration:none;">
-            <div class="stat-card" style="display:flex;align-items:center;gap:12px;">
-              <span style="font-size:22px;">{{ q.icon }}</span>
-              <span style="font-weight:600;font-size:13px;">{{ q.label }}</span>
-            </div>
-          </router-link>
-        </div>
-      </div>
-
-      <div class="card card-pad" style="margin-top:18px;">
-        <h3>🔎 Verifikasi Mendalam</h3>
-        <p class="muted" style="font-size:12px;">
-          Semua alur verifikasi kini tersedia langsung dari SPA — tanpa pindah ke antarmuka klasik:
+      <details class="card card-pad help-details">
+        <summary>❓ Panduan verifikasi &amp; perbaikan data</summary>
+        <p class="muted" style="font-size:12px;margin-top:8px;">
+          Semua alur verifikasi tersedia langsung dari SPA — tanpa pindah ke antarmuka klasik:
         </p>
         <ul style="margin:8px 0 0;padding-left:18px;font-size:12px;">
           <li><b>👁 Detail</b> — foto bukti, cross-check (health score, flag, budget) &amp; riwayat pelaku.</li>
@@ -439,7 +497,7 @@ watch(queueTab, (tab) => {
           <li><b>✏️ Edit</b> — perbaikan data kendaraan/BBM/nominal/ODO/SPBU → status <i>modified</i> untuk review ulang.</li>
           <li><b>↩️ Unverify</b> / <b>🗑 Hapus</b> (admin) — koreksi status &amp; penghapusan permanen.</li>
         </ul>
-      </div>
+      </details>
     </template>
 
     <!-- Modal Detail Transaksi -->
@@ -448,7 +506,7 @@ watch(queueTab, (tab) => {
       <div v-else-if="selData">
         <div class="row" style="flex-wrap:wrap;gap:8px;margin-bottom:12px;">
           <span class="badge" :class="selData.ml_anomaly_flag ? 'badge-red' : 'badge-green'">{{ selData.ml_anomaly_flag ? '⚠️ Anomali ML' : 'Normal' }}</span>
-          <span class="badge badge-blue">{{ selData.status }}</span>
+          <span class="badge badge-blue">{{ statusLabel(selData.status) }}</span>
           <span class="badge" :class="selData.is_mypertamina_error ? 'badge-red' : 'badge-gray'">{{ selData.is_mypertamina_error ? '⚠️ Error MyPertamina' : 'MyPertamina OK' }}</span>
         </div>
 
@@ -576,7 +634,7 @@ watch(queueTab, (tab) => {
 
         <div class="row" style="justify-content:flex-end;margin-top:14px;gap:6px;flex-wrap:wrap;">
           <template v-if="selData.status === 'pending' || selData.status === 'modified'">
-            <button v-if="canApprove && !selData.ml_anomaly_flag" class="btn btn-sm btn-primary" :disabled="qBusy" @click="modalAction(`/api/queue/approve-ga/${selData.id}`, 'menyetujui klaim ini', true)">✅ Approve</button>
+            <button v-if="canApprove && !selData.ml_anomaly_flag" class="btn btn-sm btn-primary" :disabled="qBusy" @click="modalAction(`/api/queue/approve-ga/${selData.id}`, 'menyetujui klaim ini', true)">✅ Setujui</button>
             <button v-if="canApprove && selData.ml_anomaly_flag" class="btn btn-sm btn-primary" :disabled="qBusy" @click="openVerify(selData)">🛡 Verifikasi Anomali</button>
             <button v-if="canApprove" class="btn btn-sm" :disabled="qBusy" @click="openEdit(selData)">✏️ Edit</button>
             <button v-if="canApprove" class="btn btn-sm btn-danger" :disabled="qBusy" @click="doReject(selData)">❌ Tolak</button>
@@ -588,5 +646,32 @@ watch(queueTab, (tab) => {
         </div>
       </div>
     </Modal>
+
+    <ConfirmDialog ref="confirmRef" />
   </div>
 </template>
+
+<style scoped>
+.action-wrap { margin-bottom: 18px; }
+.sec-title { font-size: 13px; font-weight: 700; margin: 18px 0 10px; display: flex; align-items: center; gap: 8px; }
+.action-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; margin-top: 10px; }
+.action-card {
+  --accent: var(--primary);
+  display: grid; grid-template-columns: auto 1fr;
+  grid-template-areas: "ico count" "label label" "hint hint";
+  gap: 2px 10px; text-align: left;
+  background: var(--surface); border: 1px solid var(--border);
+  border-left: 4px solid var(--accent); border-radius: 12px;
+  padding: 12px 14px; color: var(--text);
+  box-shadow: var(--shadow); font-family: inherit;
+  transition: transform .15s, border-color .15s;
+}
+.action-card:hover { transform: translateY(-2px); border-color: var(--accent); }
+.action-ico { grid-area: ico; font-size: 20px; line-height: 1; }
+.action-count { grid-area: count; justify-self: end; font-size: 24px; font-weight: 800; line-height: 1; color: var(--accent); }
+.action-label { grid-area: label; font-weight: 700; font-size: 12.5px; }
+.action-hint { grid-area: hint; font-size: 10.5px; color: var(--text-3); }
+.action-clear { display: flex; flex-direction: column; gap: 3px; border-left: 4px solid var(--success); margin-bottom: 18px; }
+.help-details { margin-top: 18px; }
+.help-details summary { cursor: pointer; font-weight: 700; font-size: 13px; }
+</style>

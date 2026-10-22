@@ -3,10 +3,14 @@ import { ref, onMounted, watch } from 'vue'
 import { api } from '../../api'
 import StatCard from '../../components/StatCard.vue'
 import Modal from '../../components/Modal.vue'
+import ConfirmDialog from '../../components/ConfirmDialog.vue'
+import { formatRupiah } from '../../utils/format.js'
 import { useRealtimeStore } from '../../stores/realtime'
 import { useStepupStore } from '../../stores/stepup'
 
 const stepup = useStepupStore()
+const confirmRef = ref(null)
+const ask = (message, opts) => confirmRef.value?.open(message, opts) ?? Promise.resolve(false)
 
 const stats = ref(null)
 const queue = ref([])
@@ -19,7 +23,7 @@ const rejectReason = ref('')
 const verifyFor = ref(null)
 const verifyOk = ref(false)
 
-const fmt = (n) => 'Rp ' + (Number(n) || 0).toLocaleString('id-ID')
+const fmt = formatRupiah
 
 const waitingCash = () =>
   (cash.value || []).filter((c) => c.status === 'DRAFT').reduce((a, c) => a + Number(c.total_amount || 0), 0)
@@ -44,7 +48,11 @@ async function load() {
 }
 
 async function doApprove(tx) {
-  if (!window.confirm(`Setujui klaim ${tx.display_id || tx.id}?`)) return
+  const ok = await ask(`Setujui klaim ${tx.display_id || tx.id}? Klaim akan diteruskan ke Finance untuk pencairan.`, {
+    title: 'Setujui klaim',
+    confirmText: 'Ya, setujui',
+  })
+  if (!ok) return
   busy.value = true
   try {
     // Step-up (ISO/IEC 27001): approve menggerakkan uang → PIN ulang bila perlu
@@ -131,7 +139,7 @@ watch(
     <template v-else>
       <div class="stat-grid" style="margin-bottom:16px;">
         <StatCard icon="🕐" label="Antrean GA" :value="stats?.pending ?? '—'" color="#dc2626" />
-        <StatCard icon="✅" label="Verified GA" :value="stats?.verified_ga ?? '—'" color="#0891b2" />
+        <StatCard icon="✅" label="Terverifikasi GA" :value="stats?.verified_ga ?? '—'" color="#0891b2" />
         <StatCard icon="📦" label="Terarsip" :value="stats?.archived ?? '—'" color="#059669" />
         <StatCard icon="📅" label="Transaksi Hari Ini" :value="stats?.today_tx ?? '—'" color="#2563eb" />
         <StatCard icon="💵" label="Kasbon Menunggu Approve" :value="fmt(waitingCash())" color="#d97706" :sub="waitingCashCount() + ' pengajuan'" />
@@ -151,7 +159,7 @@ watch(
                 <td>{{ fmt(t.nominal) }}</td>
                 <td><span v-if="t.ml_anomaly_flag" class="badge badge-amber">⚠️ ML</span><span v-else class="muted">—</span></td>
                 <td>
-                  <button v-if="!t.ml_anomaly_flag" class="btn btn-sm btn-primary" :disabled="busy" @click="doApprove(t)">✅ Approve</button>
+                  <button v-if="!t.ml_anomaly_flag" class="btn btn-sm btn-primary" :disabled="busy" @click="doApprove(t)">✅ Setujui</button>
                   <button v-else class="btn btn-sm btn-primary" :disabled="busy" title="Klaim ber-flag anomali ML — verifikasi foto bukti & konfirmasi" @click="openVerify(t)">🛡 Verifikasi</button>
                   <button class="btn btn-sm" :disabled="busy" style="margin-left:6px;" @click="openReject(t)">✕ Tolak</button>
                 </td>
@@ -182,7 +190,7 @@ watch(
           <h3 style="margin-top:16px;">⚡ Aksi Cepat</h3>
           <div class="quick-links">
             <router-link class="btn" to="/trips">🗺️ Review Trip</router-link>
-            <router-link class="btn" to="/assignments">🚗 Assignments</router-link>
+            <router-link class="btn" to="/assignments">🚗 Penugasan Driver</router-link>
             <router-link class="btn" to="/cash">💵 Kasbon</router-link>
             <router-link class="btn" to="/water">🚰 Air Minum</router-link>
             <router-link class="btn" to="/analytics">📈 Analytics</router-link>
@@ -214,6 +222,8 @@ watch(
         <button class="btn btn-primary" :disabled="busy || !verifyOk" @click="doVerify">✅ Verifikasi &amp; Setujui</button>
       </div>
     </Modal>
+
+    <ConfirmDialog ref="confirmRef" />
   </div>
 </template>
 

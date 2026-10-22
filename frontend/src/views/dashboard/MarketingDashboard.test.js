@@ -79,7 +79,11 @@ describe('MarketingDashboard', () => {
     const w = await mountView()
     await w.findAll('button').find((b) => b.text().includes('✕ Batal')).trigger('click')
     await flushPromises()
-    expect(global.prompt).toHaveBeenCalled()
+    await w.find('.modal-box textarea').setValue('Alasan uji')
+    const batal = w.find('.modal-box').findAll('button').find((b) => b.text() === 'Batalkan')
+    expect(batal).toBeTruthy()
+    await batal.trigger('click')
+    await flushPromises()
     expect(apiMock).toHaveBeenCalledWith('/api/appointments/1/cancel', { method: 'POST', body: { reason: 'Alasan uji' } })
   })
 

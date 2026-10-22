@@ -10,6 +10,9 @@ import TripTab from './TripTab.vue'
 import KasbonTab from './KasbonTab.vue'
 import RaporTab from './RaporTab.vue'
 import OvertimeDriverTab from './OvertimeDriverTab.vue'
+import HelpCenter from '../../components/HelpCenter.vue'
+import OnboardingTour from '../../components/OnboardingTour.vue'
+import { onboardingSteps } from '../../content/help.js'
 
 const auth = useAuthStore()
 const store = useDriverStore()
@@ -20,6 +23,21 @@ const brandIcon = '/static/icon-192.png'
 const tab = ref(localStorage.getItem('driverTab') || 'bbm')
 const dark = ref(localStorage.getItem('bpf_dark') === '1')
 const toasts = ref([])
+const helpOpen = ref(false)
+const tourOpen = ref(false)
+const tourSteps = ref([])
+const onboardKey = computed(() => `bpf_onboarded:${auth.user?.user_name || ''}`)
+let tourTimer = null
+
+function startTour() {
+  helpOpen.value = false
+  tourSteps.value = onboardingSteps('driver', auth.user)
+  tourOpen.value = true
+}
+function finishTour() {
+  if (auth.user?.user_name) localStorage.setItem(onboardKey.value, '1')
+  tourOpen.value = false
+}
 
 const TABS = [
   { key: 'bbm', label: 'BBM', icon: '⛽' },
@@ -103,10 +121,16 @@ async function init() {
   }, 30000)
 }
 
-onMounted(init)
+onMounted(async () => {
+  await init()
+  tourTimer = setTimeout(() => {
+    if (auth.user?.user_name && localStorage.getItem(onboardKey.value) !== '1') startTour()
+  }, 700)
+})
 onBeforeUnmount(() => {
   socket?.disconnect()
   clearInterval(syncTimer)
+  clearTimeout(tourTimer)
   if (onOnline) window.removeEventListener('online', onOnline)
   if (onOffline) window.removeEventListener('offline', onOffline)
 })
@@ -121,6 +145,7 @@ onBeforeUnmount(() => {
         <div class="d-name">{{ store.profile?.name || (auth.user?.full_name || 'Driver') }}</div>
         <div class="muted" style="font-size:10px;">{{ store.profile?.nopol || '' }} · {{ store.profile?.vehicle_type || '' }}</div>
       </div>
+      <button class="btn-icon" title="Bantuan & glosarium" aria-label="Bantuan" @click="helpOpen = true">❓</button>
       <DriverNotifBell />
       <button class="btn-icon" :title="dark ? 'Mode terang' : 'Mode gelap'" @click="toggleDark">{{ dark ? '☀️' : '🌙' }}</button>
       <button class="btn-icon" title="Keluar" @click="doLogout">🚪</button>
@@ -162,6 +187,8 @@ onBeforeUnmount(() => {
     </template>
 
     <!-- Toasts -->
+    <HelpCenter :open="helpOpen" path="/driver" :role="auth.role" @close="helpOpen = false" @replay-tour="startTour" />
+    <OnboardingTour :open="tourOpen" :steps="tourSteps" @close="finishTour" @done="finishTour" />
     <div class="d-toasts">
       <transition-group name="toast">
         <div v-for="t in toasts" :key="t.id" class="d-toast" :class="t.type">{{ t.text }}</div>

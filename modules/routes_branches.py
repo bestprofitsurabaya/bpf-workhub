@@ -12,7 +12,8 @@ from modules.config import get_master_connection, get_db_connection
 from modules.helpers import role_required, log_activity_async
 from modules import branch_manager as bm
 from modules.security import rate_limit
-from modules.admin_scope import is_ho_admin, scope_denied_response
+from modules.admin_scope import (is_ho_admin, scope_denied_response,
+                                 admin_branches, ho_only)
 
 _DUMMY_TX_SQL = """INSERT IGNORE INTO transactions
     (driver_name, nopol, vehicle_type, bbm_type, nominal, liter, price_per_liter,
@@ -27,17 +28,25 @@ def register_branch_routes(app):
     @app.route('/api/branches')
     @role_required(['admin'])
     def api_branches_list():
+        """Daftar cabang — Admin Pusat semua, Admin cabang hanya miliknya."""
         try:
-            return jsonify({'branches': bm.list_branches()})
+            branches = bm.list_branches()
+            codes, all_b = admin_branches()
+            if not all_b:
+                allowed = {str(c).upper() for c in codes}
+                branches = [b for b in branches
+                            if str(b.get('code', '')).upper() in allowed]
+            return jsonify({'branches': branches})
         except Exception as e:
             return jsonify({'error': str(e)}), 500
 
     @app.route('/api/branches/stats')
     @role_required(['admin'])
     def api_branches_stats():
-        """Statistik ringkas per cabang untuk dashboard Admin."""
+        """Statistik ringkas per cabang — Admin cabang hanya cabangnya."""
         try:
-            return jsonify({'branches': bm.branch_stats()})
+            codes, all_b = admin_branches()
+            return jsonify({'branches': bm.branch_stats(codes=None if all_b else codes)})
         except Exception as e:
             return jsonify({'error': str(e)}), 500
 
@@ -65,7 +74,7 @@ def register_branch_routes(app):
             return jsonify({'error': str(e)}), 500
 
     @app.route('/api/branches/save', methods=['POST'])
-    @role_required(['admin'])
+    @ho_only
     def api_branches_save():
         try:
             data = request.get_json(silent=True) or {}
@@ -88,7 +97,7 @@ def register_branch_routes(app):
             return jsonify({'status': 'error', 'msg': str(e)}), 500
 
     @app.route('/api/branches/<code>/seed-demo', methods=['POST'])
-    @role_required(['admin'])
+    @ho_only
     @rate_limit(limit=10, window=60, scope='seed-demo')
     def api_branches_seed_demo(code):
         """Tanam data demo (rute + transaksi dummy) langsung ke DB cabang tertentu.
@@ -127,10 +136,11 @@ def register_branch_routes(app):
     @app.route('/api/branches/report-pdf')
     @role_required(['admin'])
     def api_branches_report_pdf():
-        """PDF ringkasan per cabang (transaksi, kunjungan hari ini, user)."""
+        """PDF ringkasan per cabang (Admin cabang: hanya cabangnya)."""
         try:
             from modules.pdf_generator import BranchSummaryPDF
-            stats = bm.branch_stats()
+            codes, all_b = admin_branches()
+            stats = bm.branch_stats(codes=None if all_b else codes)
             pdf = BranchSummaryPDF()
             pdf.add_page()
             pdf.generate(stats)
@@ -144,7 +154,7 @@ def register_branch_routes(app):
             return jsonify({'error': str(e)}), 500
 
     @app.route('/api/branches/<code>/activate', methods=['POST'])
-    @role_required(['admin'])
+    @ho_only
     def api_branches_activate(code):
         try:
             code = code.strip().upper()
@@ -157,7 +167,7 @@ def register_branch_routes(app):
             return jsonify({'status': 'error', 'msg': 'Terjadi kesalahan server'}), 500
 
     @app.route('/api/branches/<code>/deactivate', methods=['POST'])
-    @role_required(['admin'])
+    @ho_only
     def api_branches_deactivate(code):
         try:
             code = code.strip().upper()
@@ -174,7 +184,7 @@ def register_branch_routes(app):
             return jsonify({'status': 'error', 'msg': 'Terjadi kesalahan server'}), 500
 
     @app.route('/api/branches/<code>/ensure-db', methods=['POST'])
-    @role_required(['admin'])
+    @ho_only
     def api_branches_ensure_db(code):
         try:
             code = code.strip().upper()
@@ -246,13 +256,13 @@ def register_branch_routes(app):
         return stats, latest
 
     @app.route('/api/branches/consolidated')
-    @role_required(['admin'])
+    @ho_only
     def api_branches_consolidated():
         stats, latest = _consolidated_payload()
         return jsonify({'branches': stats, 'latest_by_branch': latest})
 
     @app.route('/api/branches/consolidated-pdf')
-    @role_required(['admin'])
+    @ho_only
     def api_branches_consolidated_pdf():
         from modules.pdf_generator import ConsolidatedReportPDF
         stats, latest = _consolidated_payload()
@@ -272,7 +282,7 @@ def register_branch_routes(app):
         return resp
 
     @app.route('/api/branches/consolidated-excel')
-    @role_required(['admin'])
+    @ho_only
     def api_branches_consolidated_excel():
         from io import BytesIO
         from openpyxl import Workbook

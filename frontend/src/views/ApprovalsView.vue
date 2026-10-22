@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { api } from '../api'
 import Modal from '../components/Modal.vue'
 import StatCard from '../components/StatCard.vue'
+import { formatDateTime } from '../utils/format.js'
 
 // v2.36.0 — Approval Berjenjang: antrean ACC atasan (Chief Driver → GA,
 // GA HR → Admin). Daftar hanya pengajuan yang langkah aktifnya milik sesi
@@ -16,6 +17,17 @@ const busy = ref(false)
 const items = ref([])          // baris approval_requests dari /api/approvals
 const decideFor = ref(null)    // item yang sedang diputus
 const note = ref('')
+const noteError = ref('')
+
+const ROLE_LABEL = {
+  chief_driver: 'Chief Driver',
+  ga: 'GA',
+  ga_hr: 'GA HR',
+  admin: 'Admin',
+  driver: 'Driver',
+  marketing: 'Marketing',
+}
+const roleLabel = (role) => ROLE_LABEL[role] || role || '—'
 
 const DOC_LABEL = {
   cash: '💵 Kasbon', bbm: '⛽ Klaim BBM',
@@ -45,6 +57,7 @@ async function load() {
 function openDecide(r) {
   decideFor.value = r
   note.value = ''
+  noteError.value = ''
 }
 
 function stepIndex(r) {
@@ -53,18 +66,17 @@ function stepIndex(r) {
 
 function chainLabel(r) {
   const steps = Array.isArray(r.chain) ? r.chain : []
-  return steps.map((s, i) => `${i + 1}. ${s.approver || s.role || '?'}`).join(' → ')
+  return steps.map((s, i) => `${i + 1}. ${roleLabel(s.approver || s.role)}`).join(' → ')
 }
 
 async function decide(decision) {
   const r = decideFor.value
   if (!r) return
   if (decision === 'rejected' && !note.value.trim()) {
-    alert('Alasan penolakan wajib diisi')
+    noteError.value = 'Alasan penolakan wajib diisi.'
     return
   }
-  const label = decision === 'approved' ? 'menyetujui (ACC)' : 'menolak'
-  if (!window.confirm(`${label.charAt(0).toUpperCase() + label.slice(1)} pengajuan ${r.display_id || r.doc_type + ' #' + r.doc_ref}?`)) return
+  noteError.value = ''
   busy.value = true
   try {
     const d = await api(`/api/approvals/${r.doc_type}/${r.doc_ref}/decision`, {
@@ -75,7 +87,7 @@ async function decide(decision) {
     decideFor.value = null
     await load()
   } catch (e) {
-    alert('❌ ' + (e.message || 'Gagal mencatat keputusan'))
+    msg.value = '❌ ' + (e.message || 'Gagal mencatat keputusan')
   } finally {
     busy.value = false
   }
@@ -137,11 +149,11 @@ onMounted(load)
               </td>
               <td>
                 {{ r.requested_by || '—' }}
-                <div class="muted" style="font-size:12px;">{{ r.requester_role }}</div>
+                <div class="muted" style="font-size:12px;">{{ roleLabel(r.requester_role) }}</div>
               </td>
               <td><span v-if="r.branch_code" class="badge badge-blue">{{ r.branch_code }}</span><span v-else class="muted">—</span></td>
               <td style="font-size:12px;">{{ chainLabel(r) }}</td>
-              <td style="font-size:12px;">{{ (r.created_at || '').replace('T', ' ').slice(0, 16) }}</td>
+              <td style="font-size:12px;">{{ formatDateTime(r.created_at) }}</td>
               <td><button class="btn btn-primary" style="width:100%;" @click="openDecide(r)">Keputusan</button></td>
             </tr>
           </tbody>
@@ -161,6 +173,7 @@ onMounted(load)
         <div class="field">
           <label>Catatan <span class="muted">(wajib bila menolak)</span></label>
           <textarea v-model="note" class="input" rows="3" placeholder="mis. Nominal tidak sesuai kebutuhan perjalanan"></textarea>
+          <p v-if="noteError" class="alert alert-error" style="margin:6px 0 0;padding:6px 10px;">{{ noteError }}</p>
         </div>
         <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px;">
           <button class="btn" :disabled="busy" @click="decideFor = null">Batal</button>

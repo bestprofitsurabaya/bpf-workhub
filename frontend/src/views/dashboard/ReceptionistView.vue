@@ -5,6 +5,10 @@ import StatCard from '../../components/StatCard.vue'
 import Modal from '../../components/Modal.vue'
 import { useRealtimeStore } from '../../stores/realtime'
 import { useStepupStore } from '../../stores/stepup'
+import ConfirmDialog from '../../components/ConfirmDialog.vue'
+
+const confirmRef = ref(null)
+const ask = (message, opts) => confirmRef.value?.open(message, opts) ?? Promise.resolve(false)
 
 const realtime = useRealtimeStore()
 const stepup = useStepupStore()
@@ -142,7 +146,7 @@ async function saveStatus() {
 
 // ---- Hapus ----
 async function doDelete(a) {
-  if (!confirm(`Hapus ${a.display_id} (${a.nama_lengkap}) beserta seluruh riwayat kehadirannya?`)) return
+  if (!(await ask(`Hapus ${a.display_id} (${a.nama_lengkap}) beserta seluruh riwayat kehadirannya?`, { confirmText: 'Ya, lanjutkan', danger: true }))) return
   busy.value = true; msg.value = ''
   try {
     const r = await api(`/api/applicants/${a.id}`, { method: 'DELETE' })
@@ -181,7 +185,7 @@ async function saveRegister() {
 // ---- SYNC Google Sheet pelamar (v2.41.0) ----
 const syncing = ref(false)
 async function syncSheet() {
-  if (!confirm('Tarik data terbaru dari Google Sheet pelamar? Baris sheet baru akan ditambahkan, data yang dikelola di sini (status/kehadiran) tidak tersentuh.')) return
+  if (!(await ask('Tarik data terbaru dari Google Sheet pelamar? Baris sheet baru akan ditambahkan, data yang dikelola di sini (status/kehadiran) tidak tersentuh.', { confirmText: 'Ya, lanjutkan' }))) return
   syncing.value = true; msg.value = ''
   try {
     const r = await api('/api/receptionist/sync/applicants', { method: 'POST' })
@@ -264,7 +268,7 @@ async function toggleOption(o) {
 }
 
 async function delOption(o) {
-  if (!confirm(`Hapus opsi User "${o.name}"?`)) return
+  if (!(await ask(`Hapus opsi User "${o.name}"?`, { confirmText: 'Ya, lanjutkan', danger: true }))) return
   optBusy.value = true
   try {
     const r = await api(`/api/applicants/user-options/${o.id}`, { method: 'DELETE' })
@@ -543,6 +547,7 @@ onMounted(() => {
       </div>
     </Modal>
   </div>
+  <ConfirmDialog ref="confirmRef" />
 </template>
 
 <style scoped>

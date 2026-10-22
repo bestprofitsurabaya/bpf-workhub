@@ -45,7 +45,7 @@ async function act(id, action) {
 
 const STATUS = {
   pending: ['⏳ Pending', 'badge-amber'],
-  verified_ga: ['✅ Verified GA', 'badge-blue'],
+  verified_ga: ['✅ Terverifikasi GA', 'badge-blue'],
   rejected: ['❌ Ditolak', 'badge-red'],
 }
 
@@ -61,7 +61,7 @@ onMounted(load)
         <div class="field" style="margin:0;"><label>Status</label>
           <select class="select" v-model="f.status">
             <option value="">Semua</option><option value="pending">Pending</option>
-            <option value="verified_ga">Verified GA</option><option value="rejected">Ditolak</option>
+            <option value="verified_ga">Terverifikasi GA</option><option value="rejected">Ditolak</option>
           </select>
         </div>
         <button class="btn btn-primary" @click="load" style="margin-top:18px;">🔍 Terapkan</button>

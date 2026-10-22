@@ -5,6 +5,7 @@ import LoadingState from '../components/LoadingState.vue'
 import EmptyState from '../components/EmptyState.vue'
 import ErrorState from '../components/ErrorState.vue'
 import Modal from '../components/Modal.vue'
+import { formatDateTime } from '../utils/format.js'
 
 const logs = ref([])
 const loading = ref(true)
@@ -217,7 +218,7 @@ onMounted(async () => {
             <thead><tr><th>Waktu</th><th>User</th><th>Tipe</th><th>Aksi</th><th>Ref</th><th>Cabang</th><th>IP</th><th></th></tr></thead>
             <tbody>
               <tr v-for="l in paged" :key="l.id">
-                <td class="muted">{{ l.created_at }}</td>
+                <td class="muted">{{ formatDateTime(l.created_at) }}</td>
                 <td><b>{{ l.user_name }}</b></td>
                 <td><span class="badge badge-gray">{{ l.user_type }}</span></td>
                 <td>{{ actionLabel(l.action) }}</td>
@@ -251,7 +252,7 @@ onMounted(async () => {
           <span v-if="detail.branch_code" class="branch-chip">🏢 {{ detail.branch_code }}</span>
         </div>
         <p class="muted" style="font-size:12px;margin-top:6px;">
-          🕐 {{ detail.created_at }} · 🌐 {{ detail.ip_address || '—' }} · Ref: {{ detail.transaction_id || '—' }}
+          🕐 {{ formatDateTime(detail.created_at) }} · 🌐 {{ detail.ip_address || '—' }} · Ref: {{ detail.transaction_id || '—' }}
         </p>
         <p v-if="detail.user_agent" class="muted" style="font-size:11px;word-break:break-all;">🖥️ {{ detail.user_agent }}</p>
         <div v-if="detail.old_data" style="margin-top:12px;">

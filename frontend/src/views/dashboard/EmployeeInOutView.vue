@@ -5,6 +5,10 @@ import StatCard from '../../components/StatCard.vue'
 import Modal from '../../components/Modal.vue'
 import { useStepupStore } from '../../stores/stepup'
 import { useRealtimeStore } from '../../stores/realtime'
+import ConfirmDialog from '../../components/ConfirmDialog.vue'
+
+const confirmRef = ref(null)
+const ask = (message, opts) => confirmRef.value?.open(message, opts) ?? Promise.resolve(false)
 
 const stepup = useStepupStore()
 const realtime = useRealtimeStore()
@@ -128,7 +132,7 @@ async function saveEdit() {
 
 // ---- Hapus catatan app (step-up PIN) ----
 async function doDelete(r) {
-  if (!confirm(`Hapus catatan in-out ${r.nama || ''}? Tercatat di audit log.`)) return
+  if (!(await ask(`Hapus catatan in-out ${r.nama || ''}? Tercatat di audit log.`, { confirmText: 'Ya, lanjutkan', danger: true }))) return
   busy.value = true; msg.value = ''
   try {
     const res = await stepup.require(
@@ -374,6 +378,7 @@ onMounted(() => {
       </div>
     </Modal>
   </div>
+  <ConfirmDialog ref="confirmRef" />
 </template>
 
 <style scoped>

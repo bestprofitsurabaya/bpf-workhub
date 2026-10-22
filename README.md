@@ -2,7 +2,7 @@
 
 **Sistem Manajemen Armada untuk PT. Bestprofit Futures — Kantor Pusat Jakarta**
 
-> 📅 Versi 2.48.0 · Oktober 2026 — **PWA mobile Driver/OB/Security di `/m/`** (BBM, trip, overtime, kasbon, offline queue) · **Resepsionis penuh** (pelamar & in-out karyawan dari aplikasi) · **PDF Kit** kompres PDF untuk IT · **Transcoder** YouTube → audio/video · Approval Berjenjang · Admin per-cabang (`admin_<kode>`) · Program 6 tahap ISO 27001 selesai · Kantor Pusat Jakarta (Equity Tower)
+> 📅 Versi 2.49.0 · Oktober 2026 — **UI/UX admin cabang P0–P5** (scoping data, dashboard tindakan, modal konfirmasi, onboarding & panduan in-app) · **PWA mobile Driver/OB/Security di `/m/`** (BBM, trip, overtime, kasbon, offline queue) · **Resepsionis penuh** (pelamar & in-out karyawan dari aplikasi) · **PDF Kit** kompres PDF untuk IT · **Transcoder** YouTube → audio/video · Approval Berjenjang · Admin per-cabang (`admin_<kode>`) · Program 6 tahap ISO 27001 selesai · Kantor Pusat Jakarta (Equity Tower)
 
 ---
 

@@ -374,14 +374,19 @@ def ensure_branch_database(code, conn=None):
     return True, f'Database {db_name} untuk cabang {code} siap'
 
 
-def branch_stats(conn=None):
+def branch_stats(conn=None, codes=None):
     """Statistik ringkas per cabang (untuk dashboard Admin).
 
     - transactions (total) & appointments hari ini dari DB masing-masing cabang
     - jumlah user (master) per branch_code
+    - `codes` (opsional) membatasi cabang yang dihitung — dipakai Admin cabang
+      agar tidak membaca DB cabang lain.
     Cabang yang DB-nya tidak bisa dihubungi → 0 (tidak menggagalkan laporan).
     """
     branches = list_branches(conn=conn)
+    if codes is not None:
+        allowed = {str(c).strip().upper() for c in codes}
+        branches = [b for b in branches if str(b.get('code', '')).upper() in allowed]
     # User per cabang (master)
     users_by_branch = {}
     mc = conn or get_master_connection()

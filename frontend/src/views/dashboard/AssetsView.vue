@@ -3,6 +3,10 @@ import { computed, onMounted, ref } from 'vue'
 import { api } from '../../api'
 import StatCard from '../../components/StatCard.vue'
 import Modal from '../../components/Modal.vue'
+import ConfirmDialog from '../../components/ConfirmDialog.vue'
+
+const confirmRef = ref(null)
+const ask = (message, opts) => confirmRef.value?.open(message, opts) ?? Promise.resolve(false)
 
 const tab = ref('ac') // ac | vehicles | recommendations | components
 const list = ref([])
@@ -64,7 +68,7 @@ async function saveAc() {
   } catch (e) { msg.value = '❌ ' + e.message }
 }
 async function delAc(a) {
-  if (!confirm(`Hapus AC ${a.asset_id} beserta seluruh log servisnya?`)) return
+  if (!(await ask(`Hapus AC ${a.asset_id} beserta seluruh log servisnya?`, { confirmText: 'Ya, lanjutkan', danger: true }))) return
   try {
     const r = await api(`/api/assets/ac/${encodeURIComponent(a.asset_id)}`, { method: 'DELETE' })
     msg.value = '✅ ' + (r.msg || 'Dihapus'); loadTab(); loadSummary()
@@ -90,7 +94,7 @@ async function saveAcLog() {
   } catch (e) { msg.value = '❌ ' + e.message }
 }
 async function delAcLog(log) {
-  if (!confirm('Hapus log servis ini?')) return
+  if (!(await ask('Hapus log servis ini?', { confirmText: 'Ya, lanjutkan', danger: true }))) return
   try {
     await api(`/api/assets/ac-logs/${log.id}`, { method: 'DELETE' })
     openAcLog(acLogTarget.value)
@@ -117,7 +121,7 @@ async function saveVeh() {
   } catch (e) { msg.value = '❌ ' + e.message }
 }
 async function delVeh(v) {
-  if (!confirm(`Hapus kendaraan ${v.nopol} beserta seluruh log servisnya?`)) return
+  if (!(await ask(`Hapus kendaraan ${v.nopol} beserta seluruh log servisnya?`, { confirmText: 'Ya, lanjutkan', danger: true }))) return
   try {
     const r = await api(`/api/assets/vehicles/${v.id}`, { method: 'DELETE' })
     msg.value = '✅ ' + (r.msg || 'Dihapus'); loadTab(); loadSummary()
@@ -143,7 +147,7 @@ async function saveVehSvc() {
   } catch (e) { msg.value = '❌ ' + e.message }
 }
 async function delVehSvc(svc) {
-  if (!confirm('Hapus log servis ini?')) return
+  if (!(await ask('Hapus log servis ini?', { confirmText: 'Ya, lanjutkan', danger: true }))) return
   try {
     await api(`/api/assets/vehicle-services/${svc.id}`, { method: 'DELETE' })
     openVehSvc(vehSvcTarget.value); loadTab()
@@ -536,6 +540,7 @@ onMounted(() => { loadSummary(); loadTab() })
       </div>
     </Modal>
   </div>
+  <ConfirmDialog ref="confirmRef" />
 </template>
 
 <style scoped>

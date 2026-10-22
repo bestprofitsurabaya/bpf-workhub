@@ -49,10 +49,10 @@ describe('ApprovalsView', () => {
     expect(w.text()).toContain('OTL-SBY-20260906-0002')
     expect(w.text()).toContain('Budi Driver')
     // rantai ACC dirender (langkah 1 & 2)
-    expect(w.text()).toContain('chief_driver →')
-    expect(w.text()).toContain('2. ga')
-    expect(w.text()).toContain('ga_hr →')
-    expect(w.text()).toContain('2. admin')
+    expect(w.text()).toContain('Chief Driver →')
+    expect(w.text()).toContain('2. GA')
+    expect(w.text()).toContain('GA HR →')
+    expect(w.text()).toContain('2. Admin')
   })
 
   it('ACC melalui modal memanggil endpoint keputusan', async () => {
@@ -84,7 +84,7 @@ describe('ApprovalsView', () => {
     const rejectBtn = w.findAll('button').find((b) => b.text().includes('Tolak'))
     await rejectBtn.trigger('click')
     await flushPromises()
-    expect(vi.mocked(alert).mock.calls.some((c) => String(c[0]).includes('wajib'))).toBe(true)
+    expect(w.text()).toContain('Alasan penolakan wajib diisi')
     expect(apiMock).not.toHaveBeenCalledWith(
       expect.stringContaining('/decision'),
       expect.anything(),

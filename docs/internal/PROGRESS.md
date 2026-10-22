@@ -82,6 +82,141 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 ## 🗂️ Riwayat Sesi
 
+### Sesi 2026-10-21 — UI/UX Admin Cabang (P0–P5) ✅ SELESAI + v2.49.0 DEPLOY
+
+> Konteks: evaluasi UI untuk akun `admin_sby` (PIN 123456). Temuan utama:
+> 21 menu datar, dashboard padat, dan yang paling kritis — admin cabang masih
+> bisa melihat/mengelola cabang lain lewat endpoint `/api/branches/*`.
+
+**P0 — scoping data & aksi (selesai):**
+- `modules/routes_branches.py`: `/api/branches`, `/stats`, `/report-pdf` kini
+  difilter `admin_branches()`; `/save`, `/<code>/seed-demo`, `activate`,
+  `deactivate`, `ensure-db`, `/consolidated*` dilindungi `@ho_only`.
+- `modules/branch_manager.py`: `branch_stats(conn=None, codes=None)` — admin
+  cabang hanya menghitung/membaca DB cabangnya (tidak menyentuh DB lain).
+- `frontend/src/views/SettingsView.vue`: admin cabang melihat section
+  "Cabang Anda" read-only — tombol Tambah Cabang, Edit, DB, Demo,
+  aktif/nonaktif disembunyikan (`v-if="auth.isHoAdmin"`).
+- `frontend/src/views/dashboard/AdminDashboard.vue`: judul jadi "Ringkasan
+  Cabang Anda" + tombol PDF/Excel Konsolidasi disembunyikan untuk admin cabang.
+- Tests: `tests/test_branches.py` — list & stats terfilter, 8 aksi lintas
+  cabang → 403, plus filter `branch_stats(codes=...)`.
+  Hasil: `pytest tests/test_branches.py tests/test_admin_scope.py` → **34 passed**.
+
+**P1 — information architecture (selesai):**
+- `frontend/src/layouts/AppLayout.vue`: 25 menu datar → **6 grup**
+  (Ringkasan, Operasional, Persetujuan & SDM, Laporan & Analisis,
+  Administrasi, Perkakas IT); grup kosong otomatis hilang per role.
+- **Badge angka antrean** di sidebar + hasil pencarian: Dashboard GA,
+  Dashboard Finance, Penugasan Driver, Kasbon/BBM, Air Minum, ACC Atasan.
+- **Pencarian menu** `Ctrl/Cmd+K` (juga tombol di topbar) — filter label,
+  grup, path; navigasi ↑↓/Enter/Esc.
+- **Breadcrumb** "Beranda / Grup / Halaman" di atas konten; perbaikan
+  pencocokan path agar `/ga-hr` tidak terbaca sebagai `/ga`.
+- `modules/routes_nav.py` (baru) + registrasi di `app.py`:
+  `GET /api/nav/badges` — hitungan ringan per role, memakai DB cabang sesi,
+  tanpa audit log; refresh saat mount, event realtime, dan tiap 60 dtk.
+- Tests: `tests/test_nav_badges.py` — 4 uji (admin, GA, Finance, Chief Driver)
+  memastikan angka & query sesuai role; `frontend/src/layouts/AppLayout.test.js`
+  — 4 uji (grouping, badge, breadcrumb, Ctrl+K → Enter). Hasil:
+  `pytest tests/test_nav_badges.py tests/test_branches.py tests/test_admin_scope.py`
+  → **38 passed**; `npx vitest run` → **200 passed**; `npm run build` hijau.
+
+**P2 — dashboard berbasis tindakan (selesai):**
+- `frontend/src/views/dashboard/AdminDashboard.vue`: blok teratas
+  **⚡ Perlu Tindakan Hari Ini** — 3–5 kartu klikabel (antrean GA, Finance,
+  air minum, penugasan driver, kasbon/LPJ) dari `/api/stats` +
+  `/api/nav/badges`; kartu bernilai 0 disembunyikan, jika semua bersih muncul
+  banner "✅ Tidak ada tindakan mendesak hari ini".
+- Klik kartu antrean → pindah tab + scroll ke **Antrean Kerja**; kartu lain →
+  halaman terkait. Badge ikut disegarkan setelah aksi (`refreshStats`).
+- KPI dipangkas dari 6 → 3 kartu relevan (Terverifikasi GA, Transaksi Hari Ini,
+  Nominal Hari Ini) + sub-penjelasan singkat; blok **Aksi Cepat** dihapus
+  (duplikat sidebar); **Panduan verifikasi** dipindah ke `<details>` tertutup.
+- Tabel antrean diringkas **10 → 6 kolom** (ID, Driver/Nopol, Nominal, Status,
+  Waktu, Aksi). ODO/liter/BBM/foto/cross-check tetap di modal Detail.
+  Waktu diformat `id-ID`, status memakai label manusiawi (Menunggu GA,
+  Menunggu Finance, Terarsip, dst.), badge anomali tetap tampil.
+- Tests: 2 uji baru di `AdminDashboard.test.js` (kartu membuka tab antrean;
+  tabel 6 kolom tanpa ODO/liter). Hasil: `npx vitest run` → **202 passed**;
+  `npm run build` hijau. Tidak ada perubahan backend.
+
+**P3 — bahasa manusiawi & konfirmasi modal (selesai):**
+- `frontend/src/components/ConfirmDialog.vue` (baru): modal konfirmasi reusable
+  dengan mode input wajib (pengganti `prompt()`), tombol destruktif merah,
+  fokus otomatis, dan validasi inline.
+- **Semua `confirm()` / `prompt()` native di frontend dihapus** dan diganti
+  modal: AdminDashboard, GaDashboard, SettingsView, ApprovalsView, AssetsView,
+  ReceptionistView, WaterView, ChiefDriverDashboard, MarketingDashboard,
+  KasbonTab, EmployeeInOutView, TranscoderView, PdfKitView, ItEfView.
+- AdminDashboard: tombol antrean kini berteks (**✅ Setujui, ❌ Tolak,
+  💰 Cairkan, 📦 Arsipkan**) — bukan ikon saja; alasan tolak memakai textarea
+  wajib; label kartu tidak lagi menampilkan `pending`/`os_finance` mentah;
+  badge status di modal Detail memakai label manusiawi.
+- `frontend/src/utils/format.js` (baru): `formatRupiah`, `formatNumber`,
+  `formatDateTime`, `formatDate`, `transactionStatusLabel` — dipakai di
+  AdminDashboard, RekapView, ApprovalsView, LogsView, dan CashView.
+- ApprovalsView: konfirmasi native yang redundan dihapus (modal keputusan sudah
+  menjadi konfirmasi), validasi alasan tampil inline, rantai ACC memakai label
+  role (Chief Driver, GA, GA HR, Admin), tanggal diformat `id-ID`.
+- Istilah: **Verified GA → Terverifikasi GA**, **Assignments → Penugasan
+  Driver** (termasuk label/filter di TripsView & GaDashboard).
+- Tests: `ConfirmDialog.test.js` (2 uji) + pembaruan 10 test view untuk alur
+  modal. Hasil: `npx vitest run` → **204 passed**; `npm run build` hijau.
+
+**P4 — onboarding, glosarium & bantuan per halaman (selesai):**
+- `frontend/src/content/help.js` (baru): **20 istilah glosarium** (GA, LPJ,
+  ODO, anomali ML, step-up PIN, dst.), panduan untuk 19 halaman, dan langkah
+  onboarding yang menyesuaikan role (termasuk alur khusus Driver).
+- `frontend/src/components/HelpCenter.vue` (baru): modal bantuan dengan tab
+  **Halaman ini** dan **Glosarium**, pencarian istilah, chip istilah terkait,
+  serta tombol “Tampilkan tur singkat”.
+- `frontend/src/components/OnboardingTour.vue` (baru): tur 4 langkah dengan
+  tombol Lewati/Sebelumnya/Lanjut, indikator langkah, dan “Mulai pakai”.
+- `frontend/src/layouts/AppLayout.vue`: tombol **❓** di topbar, pintasan
+  **?**, dan onboarding otomatis saat login pertama per akun
+  (`localStorage: bpf_onboarded:<username>`). Tur bisa diputar ulang dari
+  Help Center.
+- `frontend/src/views/driver/DriverView.vue`: bantuan + onboarding yang sama
+  untuk aplikasi driver (fokus BBM, Kasbon/LPJ, offline-sync, keamanan PIN).
+- Tests: `HelpCenter.test.js` (3 uji), `OnboardingTour.test.js` (2 uji),
+  tambahan uji bantuan di AppLayout & DriverView. Hasil:
+  `npx vitest run` → **211 passed**; `npm run build` hijau. Tanpa perubahan backend.
+
+**P5 — perangkat uji kegunaan & instrumentasi (siap uji):**
+- `docs/internal/USABILITY_TEST_P5.md` (baru): protokol 5 tugas, naskah
+  fasilitator, lembar observasi, target lulus, dan template temuan. Target:
+  **time-to-first-action < 30 detik** (minimal 4/5 peserta).
+- `frontend/src/utils/usability.js` (baru): penanda sesi + aksi bermakna
+  pertama (`sessionStorage`), reset sesi, format durasi. Instrumentasi hanya
+  aktif dengan `?p5=1` (tersimpan sebagai `localStorage: bpf_p5`), jadi tidak
+  mengganggu pengguna biasa.
+- `AppLayout.vue`: mulai timer setelah login, catat navigasi via pencarian
+  menu. `AdminDashboard.vue`: catat klik kartu tindakan, buka detail, dan aksi
+  antrean berhasil.
+- `HelpCenter.vue`: panel **🧪 Mode uji kegunaan** menampilkan aksi pertama,
+  durasi, status target, dan tombol reset — dipakai fasilitator saat sesi.
+- Tests: `usability.test.js` (2 uji) + `HelpCenter.test.js` (1 uji diagnostik).
+  Hasil: **214 passed**; `npm run build` hijau. Tanpa perubahan backend.
+- **Sesi dengan 5 partisipan belum dijalankan** (butuh pengguna + data demo).
+  Jalankan sesuai protokol, catat hasil di bagian ini sebelum rilis.
+
+**Roadmap UI/UX (bertahap):**
+- [x] P0 scoping data & aksi cabang
+- [x] P1 sidebar grouping + badge tindakan + pencarian/breadcrumb
+- [x] P2 dashboard "Perlu Tindakan Hari Ini" + ringkas tabel antrean
+- [x] P3 bahasa manusiawi, tombol teks, format tanggal/Rupiah, modal konfirmasi
+- [x] P4 onboarding login pertama + glosarium + bantuan per halaman
+- [x] P5 perangkat uji + instrumentasi time-to-first-action
+- [ ] P5 jalankan sesi 5 partisipan & catat hasil (target < 30 dtk)
+
+**Catatan rilis:** batch P0–P5 dirilis sebagai **v2.49.0** (22 Okt 2026) —
+di-commit & di-deploy (build image SPA, health OK, stamp DB tersinkron
+v2.49.0). Onboarding ditandai per akun di perangkat (localStorage); di browser
+baru akan tampil sekali lagi dan bisa dilewati.
+Onboarding ditandai per akun di perangkat (localStorage); di browser baru
+akan tampil sekali lagi dan bisa dilewati.
+
 ### Sesi 2026-09-14 (lanjutan) — 18 typo tanggal: DB dikoreksi ulang + paket koreksi sheet ✅ DB SELESAI / ⏳ SHEET (owner)
 
 > Tindak lanjut sisa sesi 11 Sep. Temuan kunci: koreksi DB 11 Sep TERTIMPA

@@ -60,40 +60,49 @@ async function mountWith(role) {
 }
 
 const btnByText = (w, text) => w.findAll('button').find((b) => b.text() === text)
+const confirmYes = async (w) => {
+  const btn = btnByText(w, 'Ya, lanjutkan')
+  expect(btn).toBeTruthy()
+  await btn.trigger('click')
+  await flushPromises()
+}
 
 describe('AdminDashboard', () => {
-  beforeEach(() => { vi.clearAllMocks(); vi.stubGlobal('confirm', vi.fn(() => true)); vi.stubGlobal('prompt', vi.fn(() => 'alasan uji')) })
+  beforeEach(() => { vi.clearAllMocks();  })
   afterEach(() => { vi.unstubAllGlobals() })
 
   it('role ga melihat kartu statistik GA + antrean GA dengan tombol aksi', async () => {
     const w = await mountWith('ga')
-    expect(w.text()).toContain('Antrean GA (pending)')
+    expect(w.text()).toContain('Klaim menunggu verifikasi GA')
     expect(w.text()).toContain('Antrean Kerja')
     expect(w.text()).toContain('BPF-1')
-    expect(btnByText(w, '✅')).toBeTruthy()
-    expect(btnByText(w, '❌')).toBeTruthy()
+    expect(btnByText(w, '✅ Setujui')).toBeTruthy()
+    expect(btnByText(w, '❌ Tolak')).toBeTruthy()
   })
 
   it('role finance melihat kartu finance + tab Finance & Konfirmasi Driver (bukan GA)', async () => {
     const w = await mountWith('finance')
-    expect(w.text()).toContain('Menunggu Finance (os_finance)')
-    expect(w.text()).not.toContain('Antrean GA (pending)')
+    expect(w.text()).toContain('Klaim siap dicairkan Finance')
+    expect(w.text()).not.toContain('Klaim menunggu verifikasi GA')
     expect(w.text()).toContain('💰 Finance')
     expect(w.text()).toContain('🤝 Konfirmasi Driver')
   })
 
   it('klik Approve (✅) memanggil /api/queue/approve-ga/<id>', async () => {
     const w = await mountWith('ga')
-    await btnByText(w, '✅').trigger('click')
+    await btnByText(w, '✅ Setujui').trigger('click')
     await flushPromises()
+    await confirmYes(w)
     expect(apiMock).toHaveBeenCalledWith('/api/queue/approve-ga/1', { method: 'POST' })
   })
 
   it('klik Tolak (❌) meminta alasan lalu memanggil /api/queue/reject/<id>', async () => {
     const w = await mountWith('ga')
-    await btnByText(w, '❌').trigger('click')
+    await btnByText(w, '❌ Tolak').trigger('click')
     await flushPromises()
-    expect(global.prompt).toHaveBeenCalled()
+    await w.find('textarea').setValue('alasan uji')
+    await btnByText(w, 'Tolak klaim').trigger('click')
+    await flushPromises()
     expect(apiMock).toHaveBeenCalledWith('/api/queue/reject/1', { method: 'POST', body: { reason: 'alasan uji' } })
   })
 
@@ -103,8 +112,9 @@ describe('AdminDashboard', () => {
     await flushPromises()
     await flushPromises()
     expect(w.text()).toContain('BPF-3')
-    await btnByText(w, '💰').trigger('click')
+    await btnByText(w, '💰 Cairkan').trigger('click')
     await flushPromises()
+    await confirmYes(w)
     expect(apiMock).toHaveBeenCalledWith('/api/queue/payout/3', { method: 'POST' })
   })
 
@@ -114,8 +124,9 @@ describe('AdminDashboard', () => {
     await flushPromises()
     await flushPromises()
     expect(w.text()).toContain('BPF-4')
-    await btnByText(w, '📦').trigger('click')
+    await btnByText(w, '📦 Arsipkan').trigger('click')
     await flushPromises()
+    await confirmYes(w)
     expect(apiMock).toHaveBeenCalledWith('/api/queue/archive/4', { method: 'POST' })
   })
 
@@ -138,7 +149,7 @@ describe('AdminDashboard', () => {
     await flushPromises()
     // Tanpa tautan klasik: tombol approve cepat TIDAK muncul, diganti verifikasi dari SPA
     expect(w.text()).not.toContain('Wajib klasik')
-    expect(btnByText(w, '✅')).toBeFalsy()
+    expect(btnByText(w, '✅ Setujui')).toBeFalsy()
     expect(btnByText(w, '🛡 Verifikasi')).toBeTruthy()
   })
 
@@ -174,8 +185,9 @@ describe('AdminDashboard', () => {
     expect(w.text()).toContain('Foto Bukti')
     expect(w.text()).toContain('Health Score')
     expect(w.text()).toContain('85')
-    await btnByText(w, '✅ Approve').trigger('click')
+    await btnByText(w, '✅ Setujui').trigger('click')
     await flushPromises()
+    await confirmYes(w)
     expect(apiMock).toHaveBeenCalledWith('/api/queue/approve-ga/1', { method: 'POST' })
   })
 
@@ -186,7 +198,27 @@ describe('AdminDashboard', () => {
     await flushPromises()
     await btnByText(w, '🗑 Hapus').trigger('click')
     await flushPromises()
+    await confirmYes(w)
     expect(apiMock).toHaveBeenCalledWith('/api/queue/delete/1', { method: 'POST' })
+  })
+
+  it('P2: kartu Perlu Tindakan membuka tab antrean terkait', async () => {
+    const w = await mountWith('admin')
+    expect(w.text()).toContain('Perlu Tindakan Hari Ini')
+    const card = w.findAll('.action-card').find((b) => b.text().includes('Klaim siap dicairkan Finance'))
+    expect(card).toBeTruthy()
+    await card.trigger('click')
+    await flushPromises()
+    await flushPromises()
+    expect(w.text()).toContain('BPF-3')
+  })
+
+  it('P2: tabel antrean diringkas menjadi 6 kolom tanpa ODO/liter', async () => {
+    const w = await mountWith('ga')
+    const heads = w.find('#antrean-kerja thead').findAll('th')
+    expect(heads.length).toBe(6)
+    expect(w.find('#antrean-kerja thead').text()).not.toContain('ODO')
+    expect(w.find('#antrean-kerja thead').text()).not.toContain('Liter')
   })
 
   it('transaksi anomali: modal menampilkan 🛡 Verifikasi Anomali — tanpa konfirmasi tidak mengirim API', async () => {
@@ -210,7 +242,7 @@ describe('AdminDashboard', () => {
     await btnByText(w, '👁 Detail').trigger('click')
     await flushPromises(); await flushPromises()
     // Tombol approve cepat TIDAK muncul untuk anomali; ada tombol verifikasi khusus
-    expect(btnByText(w, '✅ Approve')).toBeFalsy()
+    expect(btnByText(w, '✅ Setujui')).toBeFalsy()
     await btnByText(w, '🛡 Verifikasi Anomali').trigger('click')
     await flushPromises()
     await btnByText(w, '✅ Simpan Verifikasi').trigger('click')
@@ -283,6 +315,7 @@ describe('AdminDashboard', () => {
     await flushPromises()
     await btnByText(w, '↩️ Unverify').trigger('click')
     await flushPromises()
+    await confirmYes(w)
     expect(apiMock).toHaveBeenCalledWith('/api/queue/unverify/5', { method: 'POST' })
   })
 })

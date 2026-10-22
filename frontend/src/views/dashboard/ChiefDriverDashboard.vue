@@ -3,6 +3,10 @@ import { computed, onMounted, ref } from 'vue'
 import { api } from '../../api'
 import StatCard from '../../components/StatCard.vue'
 import Modal from '../../components/Modal.vue'
+import ConfirmDialog from '../../components/ConfirmDialog.vue'
+
+const confirmRef = ref(null)
+const ask = (message, opts) => confirmRef.value?.open(message, opts) ?? Promise.resolve(false)
 
 const today = new Date().toISOString().slice(0, 10)
 const date = ref(today)
@@ -97,7 +101,7 @@ async function doAssign(a) {
 async function doGanti(a) {
   const driver = selGanti.value[a.id]
   if (!driver) return
-  if (!confirm(`Ganti driver ${a.driver_name || '-'} → ${driver} untuk ${a.display_id}?`)) return
+  if (!(await ask(`Ganti driver ${a.driver_name || '-'} → ${driver} untuk ${a.display_id}?`, { confirmText: 'Ya, lanjutkan' }))) return
   busy.value = true; msg.value = ''
   try {
     const r = await api(`/api/appointments/${a.id}/assign`, { method: 'POST', body: { driver_name: driver } })
@@ -109,7 +113,7 @@ async function doGanti(a) {
 }
 
 async function doUnassign(a) {
-  if (!confirm(`Batalkan penugasan ${a.display_id} dari ${a.driver_name}?`)) return
+  if (!(await ask(`Batalkan penugasan ${a.display_id} dari ${a.driver_name}?`, { confirmText: 'Ya, lanjutkan', danger: true }))) return
   busy.value = true; msg.value = ''
   try {
     const r = await api(`/api/appointments/${a.id}/unassign`, { method: 'POST' })
@@ -120,7 +124,14 @@ async function doUnassign(a) {
 }
 
 async function doCancel(a) {
-  const reason = prompt(`Alasan membatalkan ${a.display_id} (${a.nasabah_name}):`, '')
+  const reason = await ask(`Alasan membatalkan ${a.display_id} (${a.nasabah_name}):`, {
+    title: 'Batalkan penugasan',
+    confirmText: 'Batalkan',
+    danger: true,
+    input: true,
+    required: true,
+    placeholder: 'mis. nasabah membatalkan perjalanan',
+  })
   if (reason === null) return
   busy.value = true; msg.value = ''
   try {
@@ -132,7 +143,14 @@ async function doCancel(a) {
 }
 
 async function doArea(a) {
-  const area = prompt(`Area untuk ${a.nasabah_name} (${a.display_id}):`, a.area || '')
+  const area = await ask(`Area untuk ${a.nasabah_name} (${a.display_id}):`, {
+    title: 'Ubah area',
+    confirmText: 'Simpan area',
+    input: true,
+    required: true,
+    value: a.area || '',
+    placeholder: 'mis. Surabaya Barat',
+  })
   if (area === null || !area.trim()) return
   busy.value = true; msg.value = ''
   try {
@@ -497,4 +515,5 @@ onMounted(load)
       </div>
     </Modal>
   </div>
+  <ConfirmDialog ref="confirmRef" />
 </template>

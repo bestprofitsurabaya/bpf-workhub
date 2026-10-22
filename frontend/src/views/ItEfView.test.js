@@ -55,6 +55,24 @@ async function mountSeoTab(overrides = {}) {
 
 const deleteAllCalls = () => apiMock.mock.calls.filter(([p]) => p.startsWith('/api/scraper/duplicates/delete-all'))
 const logCalls = () => apiMock.mock.calls.filter(([p]) => p.startsWith('/api/scraper/log'))
+const clickBtn = async (w, text) => {
+  const b = w.findAll('button').find((x) => x.text().includes(text))
+  expect(b).toBeTruthy()
+  await b.trigger('click')
+  await flushPromises()
+}
+const confirmYes = async (w, text = 'Ya, lanjutkan') => {
+  const b = w.findAll('button').find((x) => x.text() === text)
+  expect(b).toBeTruthy()
+  await b.trigger('click')
+  await flushPromises()
+}
+const deleteAll = async (w, token = 'HAPUS SEMUA') => {
+  await clickBtn(w, 'Hapus Semua')
+  await confirmYes(w)
+  await w.find('textarea').setValue(token)
+  await confirmYes(w, 'Hapus semua')
+}
 
 describe('ItEfView — Hapus Semua (delete-all) double-confirm flow', () => {
   beforeEach(() => {
@@ -66,47 +84,40 @@ describe('ItEfView — Hapus Semua (delete-all) double-confirm flow', () => {
     vi.clearAllMocks()
   })
 
-  it('confirm #1 menampilkan ringkasan duplikat + peringatan permanen', async () => {
+  it('konfirmasi #1 menampilkan ringkasan duplikat + peringatan permanen', async () => {
     const w = await mountSeoTab()
-    const btn = w.findAll('button').find(b => b.text().includes('Hapus Semua'))
-    await btn.trigger('click')
+    await clickBtn(w, 'Hapus Semua')
 
-    expect(window.confirm).toHaveBeenCalledTimes(1)
-    const text = window.confirm.mock.calls[0][0]
+    const text = w.find('.modal-box').text()
     expect(text).toContain('TestSite')
     expect(text).toContain('PERMANEN')
     // summary from last duplicate check: 5 posts in 2 groups
     expect(text).toContain('5 post dalam 2 grup duplikat')
-    // confirm #2 never shown because #1 was accepted then flow continued
-    expect(window.prompt).toHaveBeenCalledTimes(1)
+    // lanjut ke konfirmasi #2 (input token)
+    await confirmYes(w)
+    expect(w.find('textarea').exists()).toBe(true)
+    expect(w.text()).toContain('Konfirmasi final')
   })
 
-  it('membatalkan di confirm #1 → tidak ada request delete-all', async () => {
-    vi.stubGlobal('confirm', vi.fn(() => false))
+  it('membatalkan di konfirmasi #1 → tidak ada request delete-all', async () => {
     const w = await mountSeoTab()
-    const btn = w.findAll('button').find(b => b.text().includes('Hapus Semua'))
-    await btn.trigger('click')
+    await clickBtn(w, 'Hapus Semua')
+    await confirmYes(w, 'Batal')
 
-    expect(window.prompt).not.toHaveBeenCalled()
+    expect(w.find('textarea').exists()).toBe(false)
     expect(deleteAllCalls()).toHaveLength(0)
   })
 
-  it('token salah di prompt #2 → tidak ada request delete-all', async () => {
-    vi.stubGlobal('prompt', vi.fn(() => 'hapus semua post'))
+  it('token salah di konfirmasi #2 → tidak ada request delete-all', async () => {
     const w = await mountSeoTab()
-    const btn = w.findAll('button').find(b => b.text().includes('Hapus Semua'))
-    await btn.trigger('click')
+    await deleteAll(w, 'hapus semua post')
 
-    expect(window.confirm).toHaveBeenCalledTimes(1)
-    expect(window.prompt).toHaveBeenCalledTimes(1)
     expect(deleteAllCalls()).toHaveLength(0)
   })
 
   it('token valid → POST delete-all dengan confirm token + site', async () => {
     const w = await mountSeoTab()
-    const btn = w.findAll('button').find(b => b.text().includes('Hapus Semua'))
-    await btn.trigger('click')
-    await flushPromises()
+    await deleteAll(w)
 
     const calls = deleteAllCalls()
     expect(calls).toHaveLength(1)
@@ -116,9 +127,7 @@ describe('ItEfView — Hapus Semua (delete-all) double-confirm flow', () => {
 
   it('sukses → pesan ringkasan 25/25 + duplikat dicek ulang + log direfresh', async () => {
     const w = await mountSeoTab()
-    const btn = w.findAll('button').find(b => b.text().includes('Hapus Semua'))
-    await btn.trigger('click')
-    await flushPromises()
+    await deleteAll(w)
 
     expect(w.text()).toContain('Hapus semua selesai: 25/25 post dihapus')
     // re-check duplicates after deletion
@@ -133,9 +142,7 @@ describe('ItEfView — Hapus Semua (delete-all) double-confirm flow', () => {
       // stay unhandled until the await, tripping Vitest's unhandled-rejection guard.
       '/api/scraper/duplicates/delete-all': () => Promise.reject(new Error('Site memiliki 600 post (> cap 500).')),
     })
-    const btn = w.findAll('button').find(b => b.text().includes('Hapus Semua'))
-    await btn.trigger('click')
-    await flushPromises()
+    await deleteAll(w)
 
     expect(w.text()).toContain('Site memiliki 600 post (> cap 500).')
   })
@@ -201,9 +208,8 @@ describe('ItEfView — cleanup duplikat (bulk keep-terbaru) + proteksi keep_ids'
         return round < 3 ? { ok: true, deleted: 2, remaining: 5 } : { ok: true, deleted: 1, remaining: 0 }
       },
     })
-    const btn = w.findAll('button').find(b => b.text().includes('Simpan Terbaru'))
-    await btn.trigger('click')
-    await flushPromises()
+    await clickBtn(w, 'Simpan Terbaru')
+    await confirmYes(w)
 
     expect(cleanupCalls().length).toBe(3)
     for (const [, opts] of cleanupCalls()) expect(opts.body.site_name).toBe('TestSite')
@@ -214,9 +220,8 @@ describe('ItEfView — cleanup duplikat (bulk keep-terbaru) + proteksi keep_ids'
     const w = await mountSeoTab({
       '/api/scraper/duplicates/cleanup': () => Promise.reject(new Error('boom')),
     })
-    const btn = w.findAll('button').find(b => b.text().includes('Simpan Terbaru'))
-    await btn.trigger('click')
-    await flushPromises()
+    await clickBtn(w, 'Simpan Terbaru')
+    await confirmYes(w)
 
     expect(cleanupCalls().length).toBe(1)
     expect(w.text()).toContain('boom')
@@ -231,6 +236,7 @@ describe('ItEfView — cleanup duplikat (bulk keep-terbaru) + proteksi keep_ids'
     expect(btns.length).toBeGreaterThan(0)
     await btns[0].trigger('click')
     await flushPromises()
+    await confirmYes(w)
 
     const calls = deleteCalls()
     expect(calls).toHaveLength(1)

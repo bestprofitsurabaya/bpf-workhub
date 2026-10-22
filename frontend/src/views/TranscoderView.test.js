@@ -47,12 +47,10 @@ const fillForm = async (w, urls = 'https://youtu.be/a1') => {
 
 beforeEach(() => {
   apiMock.mockImplementation(apiRouter())
-  vi.useFakeTimers({ shouldAdvanceTime: true })
   // elemen unduhan tidak boleh benar-benar diklik di test
   vi.spyOn(document, 'createElement')
 })
 afterEach(() => {
-  vi.useRealTimers()
   vi.restoreAllMocks()
 })
 
@@ -151,17 +149,24 @@ describe('TranscoderView — daftar job & hasil', () => {
     const del = w.findAll('button').find(b => b.text().includes('Hapus'))
     await del.trigger('click')
     await flushPromises()
+    const yes = w.findAll('button').find(b => b.text() === 'Ya, lanjutkan')
+    expect(yes).toBeTruthy()
+    await yes.trigger('click')
+    await flushPromises()
     const call = apiMock.mock.calls.find(([p, o]) => p.includes('/jobs/tc000001') && o?.method === 'DELETE')
     expect(call).toBeTruthy()
   })
 
   it('cancel konfirmasi dulu — bila ditolak, API tidak dipanggil', async () => {
     apiMock.mockImplementation(apiRouter({ '/api/transcoder/jobs': { jobs: [RUNNING_JOB] } }))
-    global.confirm = vi.fn(() => false)
     const w = mount(TranscoderView)
     await flushPromises()
     const cancel = w.findAll('button').find(b => b.text().includes('Batalkan'))
     await cancel.trigger('click')
+    await flushPromises()
+    const no = w.findAll('button').find(b => b.text() === 'Batal')
+    expect(no).toBeTruthy()
+    await no.trigger('click')
     await flushPromises()
     expect(apiMock.mock.calls.filter(([p]) => p.includes('/cancel')).length).toBe(0)
   })

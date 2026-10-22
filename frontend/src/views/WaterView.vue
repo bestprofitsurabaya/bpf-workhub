@@ -4,6 +4,10 @@ import { api } from '../api'
 import { useAuthStore } from '../stores/auth'
 import { useStepupStore } from '../stores/stepup'
 import Modal from '../components/Modal.vue'
+import ConfirmDialog from '../components/ConfirmDialog.vue'
+
+const confirmRef = ref(null)
+const ask = (message, opts) => confirmRef.value?.open(message, opts) ?? Promise.resolve(false)
 
 const stepup = useStepupStore()
 
@@ -233,7 +237,7 @@ async function addBrand() {
 }
 
 async function deleteBrand(b) {
-  if (!confirm(`Nonaktifkan merk "${b.brand}"?`)) return
+  if (!(await ask(`Nonaktifkan merk "${b.brand}"?`, { confirmText: 'Ya, lanjutkan', danger: true }))) return
   busy.value = true
   try {
     const d = await api(`/api/water/brands/${b.id}`, { method: 'DELETE' })
@@ -287,7 +291,7 @@ async function submitEdit() {
 }
 
 async function deletePurchase(p) {
-  if (!confirm(`HAPUS PERMANEN pengajuan ${p.display_id}?\n\nBaris + item + foto bukti akan dihapus. Snapshot lengkap tetap tercatat di audit log.`)) return
+  if (!(await ask(`HAPUS PERMANEN pengajuan ${p.display_id}?\n\nBaris + item + foto bukti akan dihapus. Snapshot lengkap tetap tercatat di audit log.`, { confirmText: 'Ya, lanjutkan', danger: true }))) return
   busy.value = true; msg.value = ''
   try {
     const d = await stepup.require(
@@ -597,6 +601,7 @@ onMounted(() => { form.value.items.push(newItem()); load() })
       <button class="btn btn-sm" style="position:absolute;top:16px;right:16px;" @click.stop="previewUrl = ''">✖ Tutup</button>
     </div>
   </div>
+  <ConfirmDialog ref="confirmRef" />
 </template>
 
 <style scoped>

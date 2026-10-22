@@ -282,6 +282,7 @@ from modules.routes_water import register_water_routes
 from modules.routes_applicants import register_applicant_routes
 from modules.routes_assets import register_asset_routes
 from modules.routes_branches import register_branch_routes
+from modules.routes_nav import register_nav_routes
 from modules.routes_docseq import register_docseq_routes
 from modules.routes_overtime import register_overtime_routes
 from modules.routes_receptionist import register_receptionist_routes
@@ -311,6 +312,7 @@ register_water_routes(app)
 register_applicant_routes(app)
 register_asset_routes(app)
 register_branch_routes(app)
+register_nav_routes(app)
 register_docseq_routes(app)
 register_overtime_routes(app)
 register_receptionist_routes(app)

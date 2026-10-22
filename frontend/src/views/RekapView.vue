@@ -4,6 +4,7 @@ import { api } from '../api'
 import LoadingState from '../components/LoadingState.vue'
 import EmptyState from '../components/EmptyState.vue'
 import ErrorState from '../components/ErrorState.vue'
+import { formatDateTime, formatRupiah, transactionStatusLabel } from '../utils/format.js'
 
 const today = new Date().toISOString().slice(0, 10)
 const start = ref(new Date(Date.now() - 7 * 864e5).toISOString().slice(0, 10))
@@ -17,7 +18,7 @@ const PER_PAGE = 50
 const loading = ref(true)
 const err = ref('')
 
-const fmt = (n) => 'Rp ' + Number(n || 0).toLocaleString('id-ID')
+const fmt = formatRupiah
 
 async function load(resetPage = true) {
   loading.value = true; err.value = ''
@@ -79,8 +80,8 @@ onMounted(load)
                 <td>{{ t.bbm_type }}</td>
                 <td>{{ fmt(t.nominal) }}</td>
                 <td>{{ Number(t.liter || 0).toFixed(2) }}</td>
-                <td class="muted">{{ t.created_at }}</td>
-                <td><span class="badge" :class="statusBadge(t.status)[1]">{{ statusBadge(t.status)[0] }} {{ t.status }}</span></td>
+                <td class="muted">{{ formatDateTime(t.created_at) }}</td>
+                <td><span class="badge" :class="statusBadge(t.status)[1]">{{ statusBadge(t.status)[0] }} {{ transactionStatusLabel(t.status) }}</span></td>
               </tr>
               <tr v-if="!rows.length"><td colspan="8" style="padding:0;"><EmptyState message="Tidak ada data pada rentang tanggal ini." icon="🗓️" /></td></tr>
             </tbody>

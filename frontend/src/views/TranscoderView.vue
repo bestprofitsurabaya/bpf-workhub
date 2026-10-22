@@ -2,6 +2,10 @@
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { api } from '../api'
 import EmptyState from '../components/EmptyState.vue'
+import ConfirmDialog from '../components/ConfirmDialog.vue'
+
+const confirmRef = ref(null)
+const ask = (message, opts) => confirmRef.value?.open(message, opts) ?? Promise.resolve(false)
 
 // ---------------------------------------------------------------- state
 const urls = ref('')                 // textarea multi-link (per baris / koma)
@@ -131,7 +135,7 @@ async function submit() {
 }
 
 async function cancelJob(j) {
-  if (!confirm(`Batalkan job ${j.id}? Proses unduhan/konversi yang sedang jalan dihentikan.`)) return
+  if (!(await ask(`Batalkan job ${j.id}? Proses unduhan/konversi yang sedang jalan dihentikan.`, { confirmText: 'Ya, lanjutkan', danger: true }))) return
   try {
     await api(`/api/transcoder/jobs/${j.id}/cancel`, { method: 'POST' })
     await loadJobs()
@@ -140,7 +144,7 @@ async function cancelJob(j) {
 
 async function removeJob(j) {
   const nOut = (j.items || []).reduce((a, it) => a + (it.outputs?.length || 0), 0)
-  if (!confirm(`Hapus job ${j.id}${nOut ? ` beserta ${nOut} berkas hasil` : ''}? Tidak bisa dibatalkan.`)) return
+  if (!(await ask(`Hapus job ${j.id}${nOut ? ` beserta ${nOut} berkas hasil` : ''}? Tidak bisa dibatalkan.`, { confirmText: 'Ya, lanjutkan', danger: true }))) return
   try {
     await api(`/api/transcoder/jobs/${j.id}`, { method: 'DELETE' })
     await loadJobs()
@@ -338,6 +342,7 @@ onBeforeUnmount(() => {
       </div>
     </section>
   </div>
+  <ConfirmDialog ref="confirmRef" />
 </template>
 
 <style scoped>

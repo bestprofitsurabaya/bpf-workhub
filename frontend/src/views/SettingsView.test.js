@@ -16,6 +16,13 @@ const BBMS = [{ id: 1, name: 'PERTALITE', price_per_liter: 10000, is_active: tru
 // Status fitur edit/hapus air minum (v2.37.0) — diubah per test.
 let waterEditEnabled = false
 
+const confirmYes = async (w) => {
+  const b = w.findAll('button').find((x) => x.text() === 'Ya, lanjutkan')
+  expect(b).toBeTruthy()
+  await b.trigger('click')
+  await flushPromises()
+}
+
 async function mountView() {
   apiMock.mockImplementation((path) => {
     if (path === '/api/drivers') return Promise.resolve(DRIVERS)
@@ -73,7 +80,7 @@ describe('SettingsView', () => {
     const w = await mountView()
     await w.findAll('button').find((b) => b.text() === '🗑').trigger('click')
     await flushPromises()
-    expect(global.confirm).toHaveBeenCalled()
+    await confirmYes(w)
     expect(apiMock).toHaveBeenCalledWith('/api/drivers/RIVAN/delete', { method: 'POST' })
   })
 
@@ -81,7 +88,7 @@ describe('SettingsView', () => {
     const w = await mountView()
     await w.findAll('button').find((b) => b.text().includes('PIN Driver')).trigger('click')
     await flushPromises()
-    expect(global.confirm).toHaveBeenCalled()
+    await confirmYes(w)
     expect(apiMock).toHaveBeenCalledWith('/api/drivers/pin-reset', {
       method: 'POST',
       body: expect.objectContaining({ new_pin: '123456' }),
@@ -117,6 +124,7 @@ describe('SettingsView', () => {
     expect(toggle.element.checked).toBe(false)
     await toggle.setValue(true)
     await flushPromises()
+    await confirmYes(w)
     const put = apiMock.mock.calls.find((c) => c[0] === '/api/water/edit-enabled' && c[1]?.method === 'PUT')
     expect(put).toBeTruthy()
     expect(put[1].body).toEqual({ enabled: true })
