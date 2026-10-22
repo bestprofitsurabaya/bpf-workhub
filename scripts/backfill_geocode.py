@@ -6,7 +6,7 @@ NULL, lalu mengisi dari geocode cache / Nominatim (rate-limited 1 req/detik —
 aman untuk puluhan alamat).
 
 Jalankan (di dalam container web):
-    docker exec bbm_web python3 scripts/backfill_geocode.py
+    docker exec bpf-workhub-web python3 scripts/backfill_geocode.py
 
 Idempotent: hanya memproses baris dengan lat IS NULL — aman dijalankan ulang.
 """

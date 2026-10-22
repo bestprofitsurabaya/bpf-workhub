@@ -1,9 +1,9 @@
-name: bpf-bbm-system
+name: bpf-workhub
 
 services:
   db:
     image: mariadb:10.11
-    container_name: bbm_mariadb
+    container_name: bpf-workhub-db
     environment:
       # v2.30: kredensial dibaca dari .env (JANGAN hardcode di repo).
       # Hanya berlaku saat volume DB pertama kali dibuat; rotasi kredensial
@@ -18,7 +18,7 @@ services:
       # Akses admin dari host tetap bisa via 127.0.0.1:3307.
       - "127.0.0.1:3307:3306"
     volumes:
-      - bbm_db_data:/var/lib/mysql
+      - db_data:/var/lib/mysql
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql
     restart: unless-stopped
     mem_limit: 2g
@@ -44,7 +44,7 @@ services:
 
   web:
     build: .
-    container_name: bbm_web
+    container_name: bpf-workhub-web
     ports:
       # v2.29: bind localhost saja. HTTPS publik dilayani nextcloud_nginx
       # (container network), bukan port host. Akses dev via SSH tunnel.
@@ -127,17 +127,17 @@ services:
         max-size: "20m"
         max-file: "3"
     networks:
-      - default            # Terhubung ke bbm_mariadb
+      - default            # Terhubung ke bpf-workhub-db
       - nextcloud_net      # Terhubung ke nextcloud_nginx (HTTPS proxy)
 
   redis:
     image: redis:7-alpine
-    container_name: bbm_redis
+    container_name: bpf-workhub-redis
     restart: unless-stopped
     mem_limit: 128m
     command: redis-server --appendonly no --maxmemory 64mb --maxmemory-policy allkeys-lru
     volumes:
-      - bbm_redis_data:/data
+      - redis_data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 30s
@@ -156,7 +156,7 @@ services:
   # ------------------------------------------------------------
   backup:
     image: mariadb:10.11
-    container_name: bbm_backup
+    container_name: bpf-workhub-backup
     environment:
       - TZ=Asia/Jakarta
       - MYSQL_HOST=db
@@ -173,7 +173,7 @@ services:
       # Default 0 4 = Minggu 04:00 WIB. Bisa dimatikan dgn nilai "off".
       - RESTORE_TEST_CRON=${RESTORE_TEST_CRON:-0 4 * * 0}
     volumes:
-      - bbm_backups:/backups
+      - backups:/backups
       - ./scripts/backup-db.sh:/usr/local/bin/backup-db.sh:ro
       - ./scripts/backup-freshness-check.sh:/usr/local/bin/backup-freshness-check.sh:ro
       - ./scripts/restore-test.sh:/usr/local/bin/restore-test.sh:ro
@@ -212,10 +212,17 @@ services:
     networks:
       - default
 
+# v2.53.1: nama volume EKSPLISIT pola bpf-workhub (tidak ikut prefix nama
+# project compose) — sebelumnya bpf-bbm-system_bbm_* yang membingungkan.
+# Data volume lama dimigrasi 1:1 saat standardisasi (copy file, bukan dump
+# ulang) sehingga tidak ada kehilangan data.
 volumes:
-  bbm_db_data:
-  bbm_redis_data:
-  bbm_backups:
+  db_data:
+    name: bpf-workhub_db_data
+  redis_data:
+    name: bpf-workhub_redis_data
+  backups:
+    name: bpf-workhub_backups
 
 networks:
   default:

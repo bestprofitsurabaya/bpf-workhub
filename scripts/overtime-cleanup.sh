@@ -2,7 +2,7 @@
 # ============================================================
 # Overtime Photo Cleanup — dijalankan oleh cron di dalam container.
 # Hapus foto overtime yang lebih lama dari 180 hari (6 bulan).
-# Dipanggil via cron atau manual: docker exec bbm_web sh /app/scripts/overtime-cleanup.sh
+# Dipanggil via cron atau manual: docker exec bpf-workhub-web sh /app/scripts/overtime-cleanup.sh
 # ============================================================
 
 MAX_AGE_DAYS=${MAX_AGE_DAYS:-180}

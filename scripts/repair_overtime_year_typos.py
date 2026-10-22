@@ -14,7 +14,7 @@ Guard keamanan:
   - Jejak audit `overtime_update` (old_data/new_data snapshot) — semantik sama
     dengan endpoint PATCH /api/overtime/<modul>/<id> (✏️ Edit UI GA HR).
 
-Cara pakai (di container bbm_web):
+Cara pakai (di container bpf-workhub-web):
     python3 /tmp/repair_overtime_year_typos.py           # dry-run (default)
     python3 /tmp/repair_overtime_year_typos.py --apply   # eksekusi + audit
 

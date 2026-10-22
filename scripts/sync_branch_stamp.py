@@ -1,7 +1,7 @@
 """Sinkronkan identitas cabang (system_name/system_version/address/phone)
 ke system_config tiap DB cabang — idempoten (8 Sep 2026, v2.37.7).
 
-Jalankan: docker exec bbm_web python3 /app/scripts_sync_stamp_tmp.py
+Jalankan: docker exec bpf-workhub-web python3 /app/scripts_sync_stamp_tmp.py
 """
 import sys
 sys.path.insert(0, '/app')

@@ -40,8 +40,8 @@ if [ -z "$OLD_ROOT" ] || [ -z "$OLD_APP" ]; then
 fi
 
 # --- Container MariaDB berjalan? ---
-if ! docker ps --format '{{.Names}}' | grep -qx 'bbm_mariadb'; then
-  echo "❌ Container bbm_mariadb tidak berjalan — rotasi dibatalkan." >&2
+if ! docker ps --format '{{.Names}}' | grep -qx 'bpf-workhub-db'; then
+  echo "❌ Container bpf-workhub-db tidak berjalan — rotasi dibatalkan." >&2
   exit 1
 fi
 
@@ -50,7 +50,7 @@ NEW_ROOT="$(openssl rand -hex 24)"
 NEW_APP="$(openssl rand -hex 24)"
 
 echo "🔐 Mengecek koneksi dengan kredensial lama…"
-if ! docker exec bbm_mariadb mariadb -uroot -p"$OLD_ROOT" -e "SELECT 1" >/dev/null 2>&1; then
+if ! docker exec bpf-workhub-db mariadb -uroot -p"$OLD_ROOT" -e "SELECT 1" >/dev/null 2>&1; then
   echo "❌ Kredensial root lama di .env TIDAK valid — rotasi dibatalkan." >&2
   exit 1
 fi
@@ -63,7 +63,7 @@ echo "📦 Backup .env → $BAK"
 
 # --- Rotasi di MariaDB (berlaku langsung; volume DB tidak dibuat ulang) ---
 echo "🔄 Rotasi password root + bpf_user di MariaDB…"
-docker exec -i bbm_mariadb mariadb -uroot -p"$OLD_ROOT" <<SQL
+docker exec -i bpf-workhub-db mariadb -uroot -p"$OLD_ROOT" <<SQL
 ALTER USER 'root'@'localhost' IDENTIFIED BY '${NEW_ROOT}';
 ALTER USER 'root'@'%' IDENTIFIED BY '${NEW_ROOT}';
 ALTER USER 'bpf_user'@'%' IDENTIFIED BY '${NEW_APP}';
@@ -72,7 +72,7 @@ SQL
 echo "✅ ALTER USER selesai."
 
 # --- Verifikasi kredensial BARU (root) ---
-if ! docker exec bbm_mariadb mariadb -uroot -p"$NEW_ROOT" -e "SELECT 1" >/dev/null 2>&1; then
+if ! docker exec bpf-workhub-db mariadb -uroot -p"$NEW_ROOT" -e "SELECT 1" >/dev/null 2>&1; then
   echo "❌ Verifikasi root password BARU gagal — pulihkan dari $BAK lalu cek DB." >&2
   exit 1
 fi

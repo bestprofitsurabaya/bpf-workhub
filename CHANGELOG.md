@@ -7,6 +7,27 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.53.1 — 22 Oktober 2026 (standardisasi infrastruktur: semua container & volume memakai pola `bpf-workhub`)
+
+Permintaan ops: saat melakukan recreate, *semua* resource Docker memakai nama
+`sistem` yang satu dan mudah dilanjutkan programmer baru sebelumnya masih
+mencampur prefix lama (`bpf-bbm-system` project, `bbm_web/bbm_mariadb/
+bbm_redis/bbm_backup`, volume `bbm_db_data` dst).
+
+- 🐳 **Docker Compose**: `name: bpf-workhub`; container `bpf-workhub-web`,
+  `bpf-workhub-db`, `bpf-workhub-redis`, `bpf-workhub-backup`; volume dengan
+  **nama eksplisit** `bpf-workhub_db_data`, `bpf-workhub_redis_data`,
+  `bpf-workhub_backups` (tidak ikut double-prefix nama project).
+- 🥇 **Migrasi data tanpa dump**: stack lama dihentikan (`docker compose down`),
+  isi volume dicopy 1:1 via container alpine (`cp -a`), ukuran verifikasi byte
+  MATCH (315.559.671 B), lalu stack baru start — DB cabang & arsip utuh.
+- 🔧 Skrip & doc operasional ikut direname (`scripts/*`, `docs/public/
+  PELATIHAN.md`, `nginx_bbm_system.conf`); dokumen historis PROGRESS tidak
+  disinggung (jejak audit tetap asli).
+- 📖 **`docs/DEVELOPER.md` baru** — onboarding programmer lanjutan (quickstart,
+  peta DB 10 database, 7 titik stamp, cara deploy, uji Berita Acara, agen
+  subsiditepat).
+
 ## v2.53.0 — 22 Oktober 2026 (fase-1 perombakan UI/UX: akses & navigasi Finance)
 
 **Temuan audit visual** (screenshot dashboard Finance): halaman utama Finance

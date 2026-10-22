@@ -5,7 +5,7 @@
 # Dipanggil otomatis di akhir backup-db.sh, tapi juga bisa jalan
 # mandiri (cron/manual) untuk audit backup literal:
 #
-#   docker exec bbm_backup /bin/sh /usr/local/bin/backup-freshness-check.sh
+#   docker exec bpf-workhub-backup /bin/sh /usr/local/bin/backup-freshness-check.sh
 #
 # Pengecekan:
 #   1. File backup TERBARU berumur <= BACKUP_MAX_AGE_HOURS (default 30 —

@@ -47,15 +47,15 @@ if [[ ! -f "$SQL" ]]; then
   exit 1
 fi
 
-if docker exec bbm_mariadb mariadb -uroot -p"$ROOT_PW" bpf_asset_system < "$SQL" >> "$LOG" 2>&1; then
+if docker exec bpf-workhub-db mariadb -uroot -p"$ROOT_PW" bpf_asset_system < "$SQL" >> "$LOG" 2>&1; then
   log "OK: data demo dihapus (H+1 setelah $MEETING_DATE)"
 else
-  log "ERROR: cleanup gagal — jalankan manual: docker exec -i bbm_mariadb mariadb -uroot -p\"\$MYSQL_ROOT_PASSWORD\" (dari .env) bpf_asset_system < $SQL"
+  log "ERROR: cleanup gagal — jalankan manual: docker exec -i bpf-workhub-db mariadb -uroot -p\"\$MYSQL_ROOT_PASSWORD\" (dari .env) bpf_asset_system < $SQL"
   exit 1
 fi
 
 # Hapus user driver demo RIVAN (dibuat untuk demo).
-docker exec bbm_mariadb mariadb -uroot -p"$ROOT_PW" bpf_asset_system \
+docker exec bpf-workhub-db mariadb -uroot -p"$ROOT_PW" bpf_asset_system \
   -e "DELETE FROM users WHERE username='RIVAN' AND role='driver';" >> "$LOG" 2>&1 || true
 
 # Jangan jalankan lagi besok: pindahkan tanggal meeting ke masa lalu sudah otomatis,

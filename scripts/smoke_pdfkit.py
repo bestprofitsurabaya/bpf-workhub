@@ -5,8 +5,8 @@ Login sebagai it_sby (PIN dibaca dari DB, tidak pernah dicetak), unggah PDF scan
 job uji supaya tidak mengotori data. Jalankan setelah `docker compose build web
 && up -d`:
 
-    docker cp scripts/smoke_pdfkit.py bbm_web:/tmp/smoke_pdfkit.py
-    docker exec -w /app bbm_web python3 /tmp/smoke_pdfkit.py
+    docker cp scripts/smoke_pdfkit.py bpf-workhub-web:/tmp/smoke_pdfkit.py
+    docker exec -w /app bpf-workhub-web python3 /tmp/smoke_pdfkit.py
 
 WAJIB lewat HTTPS — `SESSION_COOKIE_SECURE=true` sehingga cookie sesi tidak
 terkirim via http:// (lihat BASE di bawah). Keluaran terakhir: login ok, 6 mode,

@@ -6,7 +6,7 @@
 # bukan hanya terbuat. Kegunaan ISO 27001 A.8.13.
 #
 # Cara pakai (dari host):
-#   docker exec bbm_backup /bin/sh /usr/local/bin/restore-test.sh
+#   docker exec bpf-workhub-backup /bin/sh /usr/local/bin/restore-test.sh
 #   ⚡ buat uji restore di DB SEMENTARA, tidak menyentuh DB asli
 #   ⚡ keluar 0 bila verifikasi restore OK; 1..3 bila gagal
 # ============================================================
