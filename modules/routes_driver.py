@@ -1,16 +1,83 @@
 """Driver & PWA routes"""
 from flask import (request, redirect, session,
                    send_from_directory, jsonify, make_response)
-from modules.config import get_db_connection
+from modules.config import get_db_connection, get_master_connection
 from modules.helpers import (save_file, resolve_driver_form_context, validate_bbm_for_vehicle,
                              ensure_all_master_data, generate_display_id, log_activity_async,
-                             session_driver_name, role_required)
+                             session_driver_name, role_required, sha256_file,
+                             ensure_anti_fraud_schema)
 from modules.engine import PerformanceAnalyzer
 from modules.approvals import hook_create_approval  # v2.36.0
 from datetime import datetime
 import os
+import json
+import threading
+
+
+def _register_proof_hashes(tx_id, display_id, driver_name, nopol, photo_meta, branch_db=''):
+    """Catat hash bukti ke proof_registry (master) — best-effort (v2.49.3).
+
+    Gagal tidak menggagalkan klaim (fail-open ala doc_integrity) — tapi
+    duplikasi PENUH setelah foto ini tak terdeteksi hanya bila DB mati;
+    saat startup normal registry selalu ada.
+    """
+    if not photo_meta:
+        return False
+    try:
+        conn = get_master_connection()
+        if not conn:
+            return False
+        cur = conn.cursor()
+        try:
+            for field, meta in photo_meta.items():
+                h = (meta or {}).get('sha256')
+                if not h:
+                    continue
+                cur.execute(
+                    "INSERT INTO proof_registry (sha256, field, tx_id, display_id, "
+                    "driver_name, nopol, branch_db) VALUES (%s,%s,%s,%s,%s,%s,%s)",
+                    (h, field, tx_id, display_id, driver_name, nopol, branch_db))
+            conn.commit()
+            return True
+        finally:
+            try:
+                cur.close()
+            except Exception:
+                pass
+            try:
+                conn.close()
+            except Exception:
+                pass
+    except Exception as e:
+        print(f"[proof_registry] gagal catat hash #{display_id}: {e}")
+        return False
+
 
 def register_driver_routes(app, socketio):
+    # v2.49.3: pastikan kolom anti-kecurangan & registry bukti sudah ada
+    # (master + tiap DB cabang) sebelum endpoint klaim dipakai. Idempoten.
+    def _ensure_all_dbs():
+        try:
+            if ensure_anti_fraud_schema():
+                from modules.branch_manager import list_branches
+                from modules.config import get_db_connection as _gc
+                from modules.branch_db_map import DEFAULT_BRANCH_CODE
+                for b in (list_branches() or []):
+                    if b.get('is_active') and b.get('db_name'):
+                        c = _gc(branch_code=b.get('code'))
+                        if c:
+                            ensure_anti_fraud_schema(c)
+                            try:
+                                c.close()
+                            except Exception:
+                                pass
+        except Exception as e:
+            print(f"[anti-fraud] ensure schema startup: {e}")
+    try:
+        threading.Thread(target=_ensure_all_dbs, daemon=True).start()
+    except Exception:
+        pass
+
 
     @app.route('/')
     def index():
@@ -111,30 +178,195 @@ def register_driver_routes(app, socketio):
                     return jsonify({'status': 'error',
                                     'msg': 'Foto wajib gagal disimpan (format file tidak didukung): ' + ', '.join(rejected_photos)}), 400
 
-                cursor.execute("SELECT odo_km FROM transactions WHERE nopol=%s ORDER BY created_at DESC LIMIT 1", (nopol,))
+                # --- v2.49.3 anti-kecurangan bukti & input (audit 22 Okt 2026)
+                # 1. ODO mundur DITOLAK hard (bukan hanya flag) — baseline
+                #    hanya dari transaksi tervalidasi, bukan rejected/pending.
+                cursor.execute(
+                    "SELECT odo_km, display_id FROM transactions "
+                    "WHERE nopol=%s AND status IN ('verified_ga','os_finance','archived') "
+                    "ORDER BY created_at DESC LIMIT 1", (nopol,))
                 previous = cursor.fetchone()
+                if previous and odo_km < int(previous['odo_km'] or 0):
+                    for saved in (foto_odo_sebelum, foto_nota_odo_sesudah, foto_struk, foto_struk_dispenser):
+                        if saved:
+                            try:
+                                _p = os.path.join(upload_dir, saved)
+                                if os.path.exists(_p):
+                                    os.remove(_p)
+                            except OSError:
+                                pass
+                    cursor.close(); conn.close(); conn = None
+                    return jsonify({'status': 'error', 'msg':
+                                    (f"ODO mundur: {odo_km} km < klaim valid terakhir "
+                                     f"{int(previous['odo_km'])} km ({previous['display_id']}). "
+                                     "Periksa pembacaan odometer; bila meter baru dipasang, "
+                                     "laporkan GA/Admin untuk kalibrasi.")}), 400
+
+                # 2. Kapasitas tangki fisik — liter hasil klaim tak boleh lewat
+                #    kapasitas kendaraan (>100% tolak, >90% flag).
+                capacity = 0
+                try:
+                    cursor.execute("SELECT fuel_capacity FROM vehicles WHERE vehicle_type=%s LIMIT 1", (vehicle_type,))
+                    vrow = cursor.fetchone()
+                    capacity = float(vrow['fuel_capacity'] or 0) if vrow and vrow.get('fuel_capacity') else 0
+                except Exception:
+                    capacity = 0
+                if capacity > 0 and liter > capacity:
+                    for saved in (foto_odo_sebelum, foto_nota_odo_sesudah, foto_struk, foto_struk_dispenser):
+                        if saved:
+                            try:
+                                _p = os.path.join(upload_dir, saved)
+                                if os.path.exists(_p):
+                                    os.remove(_p)
+                            except OSError:
+                                pass
+                    cursor.close(); conn.close(); conn = None
+                    return jsonify({'status': 'error', 'msg':
+                                    (f"Klaim {liter:.1f} L melebihi kapasitas tangki "
+                                     f"{vehicle_type} ({capacity:.0f} L) — tidak mungkin fisik. "
+                                     "Periksa nominal/odometer.")}), 400
+
+                # 3. Cap nominal harian & mingguan per driver (soft — flag anomali,
+                #    bukan tolak; batas diatur Admin per DB via system_config).
+                anomaly_reasons = []
+                if odo_repeat_check := (previous and int(previous['odo_km'] or 0) == odo_km):
+                    anomaly_reasons.append('ODO tidak berubah dari klaim terakhir')
+                try:
+                    for cfg_key, days, label in (('bbm_daily_cap_driver', 1, 'harian'),
+                                                 ('bbm_weekly_cap_driver', 7, 'mingguan')):
+                        cursor.execute("SELECT config_value FROM system_config WHERE config_key=%s", (cfg_key,))
+                        crow = cursor.fetchone()
+                        cap = float(crow['config_value']) if crow and crow.get('config_value') else 0
+                        if cap <= 0:
+                            continue
+                        cursor.execute(
+                            "SELECT COALESCE(SUM(nominal),0) AS total FROM transactions "
+                            "WHERE driver_name=%s AND transaction_type='CLAIM' "
+                            "AND status <> 'rejected' "
+                            f"AND created_at >= DATE_SUB(NOW(), INTERVAL {int(days)} DAY)", (driver_name,))
+                        trow = cursor.fetchone()
+                        total = float(trow['total'] or 0) if trow else 0.0
+                        if total + nominal > cap:
+                            anomaly_reasons.append(
+                                f"Total klaim {label} akan melewati batas Rp{cap:,.0f} "
+                                f"(Rp{total + nominal:,.0f})")
+                except Exception as cap_err:
+                    print(f"[bbm] cap check: {cap_err}")
+
+                # 4. Duplikasi foto — hash konten vs registry master (30 hari).
+                #    Foto struk/ODO yang sama dipakai ulang klaim apa pun → DITOLAK.
+                photo_paths = {f: (os.path.join(upload_dir, fn) if fn else None)
+                               for f, fn in (
+                                   ('foto_odo_sebelum', foto_odo_sebelum),
+                                   ('foto_nota_odo_sesudah', foto_nota_odo_sesudah),
+                                   ('foto_struk', foto_struk),
+                                   ('foto_struk_dispenser', foto_struk_dispenser))}
+                photo_meta = {}
+                dup_hits = []
+                try:
+                    reg_conn = None
+                    mconn = get_master_connection()
+                    if mconn:
+                        cur2 = mconn.cursor(dictionary=True)
+                        try:
+                            cur2.execute(  # idempoten; registry di master
+                                """CREATE TABLE IF NOT EXISTS proof_registry (
+                                    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                                    sha256 CHAR(64) NOT NULL,
+                                    field VARCHAR(40) NOT NULL DEFAULT '',
+                                    tx_id INT NOT NULL DEFAULT 0,
+                                    display_id VARCHAR(30) DEFAULT '',
+                                    driver_name VARCHAR(150) DEFAULT '',
+                                    nopol VARCHAR(30) DEFAULT '',
+                                    branch_db VARCHAR(60) DEFAULT '',
+                                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                                    KEY idx_sha (sha256), KEY idx_created (created_at), KEY idx_tx (tx_id)
+                                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4""")
+                            mconn.commit()
+                            from modules.helpers import sha256_file, extract_photo_meta  # noqa
+                            hashes = {}
+                            for field, path in photo_paths.items():
+                                if not path or not os.path.exists(path):
+                                    continue
+                                h = sha256_file(path)
+                                if not h:
+                                    continue
+                                hashes[field] = h
+                                meta = extract_photo_meta(path)
+                                meta['sha256'] = h
+                                meta['bytes'] = os.path.getsize(path)
+                                photo_meta[field] = meta
+                            if hashes:
+                                ph = list(hashes.values())
+                                fmt = ','.join(['%s'] * len(ph))
+                                cur2.execute(
+                                    f"SELECT r.sha256, r.display_id, r.created_at FROM proof_registry r "
+                                    f"WHERE r.sha256 IN ({fmt}) AND r.created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)",
+                                    tuple(ph))
+                                dup_hits = cur2.fetchall() or []
+                        finally:
+                            try:
+                                cur2.close()
+                            except Exception:
+                                pass
+                            try:
+                                mconn.close()
+                            except Exception:
+                                pass
+                except Exception as pr_err:
+                    print(f"[bbm] proof registry: {pr_err}")
+                if dup_hits:
+                    for saved in photo_paths.values():
+                        if saved:
+                            try:
+                                _p = saved
+                                if os.path.exists(_p):
+                                    os.remove(_p)
+                            except OSError:
+                                pass
+                    ids = ', '.join(str(d.get('display_id') or '?') for d in dup_hits[:3])
+                    cursor.close(); conn.close(); conn = None
+                    return jsonify({'status': 'error', 'msg':
+                                    (f"Foto bukti sudah pernah dipakai di klaim #{ids}. "
+                                     "Setiap pengisian wajib foto asli baru — foto ulang "
+                                     "di tempat pengisian.")}), 400
+                if not photo_meta.get('foto_struk', {}).get('exif_datetime') and \
+                   not photo_meta.get('foto_struk_dispenser', {}).get('exif_datetime'):
+                    anomaly_reasons.append('Foto struk tanpa data exif kamera (periksa asal foto)')
+
                 km_per_liter = 0
-                if previous and previous['odo_km']<odo_km and liter>0:
-                    km_per_liter = (odo_km - previous['odo_km'])/liter
+                if previous and previous['odo_km'] < odo_km and liter > 0:
+                    km_per_liter = (odo_km - previous['odo_km']) / liter
 
                 analysis = PerformanceAnalyzer.analyze_performance(nopol, km_per_liter, conn, vehicle_type, bbm_type)
+                if anomaly_reasons:
+                    analysis['is_anomaly'] = True
+                    analysis['message'] = '; '.join(anomaly_reasons) + \
+                        (f' | {analysis["message"]}' if analysis.get('message') else '')
+                if capacity > 0 and liter > capacity * 0.9:
+                    analysis['is_anomaly'] = True
+                    analysis['message'] = (f"Pengisian {liter:.1f} L > 90% kapasitas tangki "
+                                           f"({capacity:.0f} L) — verifikasi fisik struk")
                 display_id = generate_display_id('BPF', conn)
 
                 cursor.execute("""
                     INSERT INTO transactions (display_id, transaction_type, driver_name, nopol, vehicle_type, bbm_type, nominal, liter, price_per_liter,
                     odo_km, spbu_type, foto_odo_sebelum, foto_nota_odo_sesudah, foto_struk, foto_struk_dispenser,
                     status, ml_anomaly_flag, km_per_liter, gps_latitude, gps_longitude, gps_address,
-                    gps_kelurahan, gps_kecamatan, gps_kota, gps_provinsi, gps_kode_pos, jumlah_appointment)
+                    gps_kelurahan, gps_kecamatan, gps_kota, gps_provinsi, gps_kode_pos, jumlah_appointment, proof_meta)
                     VALUES (%s,'CLAIM',%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'pending',%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                 """, (display_id, driver_name, nopol, vehicle_type, bbm_type, nominal, liter, price_per_liter,
                       odo_km, spbu_type, foto_odo_sebelum, foto_nota_odo_sesudah, foto_struk, foto_struk_dispenser,
                       analysis['is_anomaly'], km_per_liter, gps_lat, gps_lon, gps_address,
-                      gps_kelurahan, gps_kecamatan, gps_kota, gps_provinsi, gps_kode_pos, jumlah_appointment))
+                      gps_kelurahan, gps_kecamatan, gps_kota, gps_provinsi, gps_kode_pos, jumlah_appointment,
+                      (json.dumps(photo_meta, default=str) if photo_meta else None)))
 
                 tx_id = cursor.lastrowid
                 conn.commit()
                 # v2.36.0: jurnal ACC berjenjang (Chief Driver → GA) — best-effort.
                 hook_create_approval(conn, 'bbm', tx_id, display_id=display_id, role='driver')
+                # Registry hash bukti (best-effort, master DB — lintas cabang).
+                _register_proof_hashes(tx_id, display_id, driver_name, nopol, photo_meta)
                 log_activity_async(tx_id, 'create', 'driver', driver_name, ip=request.remote_addr)
                 try:
                     socketio.emit('new_claim', {

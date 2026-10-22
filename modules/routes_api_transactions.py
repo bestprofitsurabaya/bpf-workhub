@@ -1,4 +1,5 @@
 """API Routes - Transactions, Cross-Check, Analytics, Stats"""
+import json
 from flask import request, jsonify, session
 from modules.config import get_db_connection
 from modules.helpers import log_activity_async, role_required
@@ -202,6 +203,49 @@ def register_transaction_api(app):
 
             has_danger = any(f['level'] == 'danger' for f in flags)
             overall = 'danger' if has_danger else ('warning' if any(f['level']=='warning' for f in flags) else 'success')
+
+            # v2.49.3 (audit): sinyal bukti foto dari proof_meta (EXIF/GPS).
+            proof_meta = {}
+            try:
+                if isinstance(tx.get('proof_meta'), dict):
+                    proof_meta = tx['proof_meta']
+                elif tx.get('proof_meta'):
+                    proof_meta = json.loads(tx['proof_meta'])
+            except Exception:
+                proof_meta = {}
+            proof_signals = []
+            for field, meta in (proof_meta or {}).items():
+                if not isinstance(meta, dict):
+                    continue
+                label = field.replace('foto_', '')
+                if meta.get('exif_datetime'):
+                    try:
+                        from datetime import datetime as _dt
+                        t_exif = _dt.strptime(meta['exif_datetime'], '%Y:%m:%d %H:%M:%S')
+                        t_claim = tx.get('created_at')
+                        delta_min = abs((t_claim - t_exif).total_seconds() / 60) if t_claim else None
+                        if delta_min is not None and delta_min > 1440:
+                            proof_signals.append({'level': 'warning',
+                                                  'msg': f'{label}: waktu kamera beda {delta_min/60:.0f} jam dari klaim'})
+                    except Exception:
+                        pass
+                elif field != 'foto_struk_dispenser':
+                    proof_signals.append({'level': 'info',
+                                          'msg': f'{label}: tanpa EXIF (bukan langsung kamera / sudah diproses)'})
+                if meta.get('exif_gps') and tx.get('gps_latitude') and tx.get('gps_longitude'):
+                    import math
+                    try:
+                        lat1, lng1 = float(meta['exif_gps'][0]), float(meta['exif_gps'][1])
+                        lat2, lng2 = float(tx['gps_latitude']), float(tx['gps_longitude'])
+                        dkm = 6371.0 * 2 * math.asin(math.sqrt(
+                            math.sin(math.radians((lat2-lat1)/2))**2 +
+                            math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) *
+                            math.sin(math.radians((lng2-lng1)/2))**2))
+                        if dkm > 5:
+                            proof_signals.append({'level': 'warning',
+                                                  'msg': f'{label}: kamera {dkm:.1f} km dari GPS klaim'})
+                    except Exception:
+                        pass
             cursor.close(); conn.close()
 
             return jsonify({
@@ -211,6 +255,8 @@ def register_transaction_api(app):
                 'monthly': {'total_tx': monthly['total_tx'], 'total_nominal': float(monthly['total_nominal'])},
                 'budget': budget, 'budget_usage_percent': round(budget_usage, 1), 'health_score': health_score,
                 'flags': flags, 'overall': overall,
+                'proof_signals': proof_signals,
+                'anomaly_cleared_by': tx.get('anomaly_cleared_by'),
                 'recommendation': 'AMAN' if overall=='success' else ('PERLU PERHATIAN' if overall=='warning' else 'INVESTIGASI!')
             })
         except Exception as e:

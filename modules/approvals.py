@@ -387,6 +387,23 @@ def decide(conn, doc_type, doc_ref, decision, actor, actor_role='', note=''):
     if (str(actor or '').lower() == str(row.get('requested_by', '')).lower()
             and str(actor_role or '').lower() == str(row.get('requester_role', '')).lower()):
         return False, 'Pengaju tidak boleh memutus pengajuannya sendiri'
+    # v2.49.3 (audit): guard "orang sama" lewat akun berbeda — self-approval
+    # tidak boleh lolos hanya karena username/role beda. Cocokkan full_name
+    # akun aktor (dari users) dengan nama pengaju pada jurnal.
+    try:
+        cur_p = conn.cursor(dictionary=True)
+        cur_p.execute("SELECT full_name FROM users WHERE username=%s LIMIT 1", (actor,))
+        actor_row = cur_p.fetchone()
+        cur_p.close()
+        actor_full = str((actor_row or {}).get('full_name') or '').strip().lower()
+        requester_full = str(row.get('requested_by') or '').strip().lower()
+        if actor_full and requester_full and actor_full == requester_full:
+            return False, ('Tidak boleh memutus pengajuan sendiri '
+                           '(nama akun sama dengan nama pengaju)')
+    except Exception as person_err:
+        # Guard person-level best-effort — kegagalan lookup tidak boleh
+        # memblokir alur ACC; perlindungan utama tetap pada guard akun-identik.
+        print(f"[approvals] person guard: {person_err}")
     if not decision_allowed(row, actor, actor_role):
         return False, f'Menunggu persetujuan: {step_label(current_step(row))}'
     steps = _row_steps(row)

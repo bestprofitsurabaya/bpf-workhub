@@ -177,6 +177,60 @@ window.addEventListener('load', () => flushQueue());
 
 /* ========================= File helpers ========================== */
 function fileToDataUrl(f) { return new Promise((ok, err) => { const r = new FileReader(); r.onload = () => ok(r.result); r.onerror = err; r.readAsDataURL(f); }); }
+
+/* =================== BUKTI FOTO LIVE (v2.49.3 — anti kecurangan) ================
+   Foto klaim WAJIB mengalir dari kamera belakang live + judul saat-dan-tempat
+   yang DI-BAKAR ke pixel (atas & bawah — anti-crop). File galeri dri HP tetap
+   bisa dipilih bila kamera gagal/izin ditolak (fallback picker asli), namun
+   server menandai "tanpa EXIF kamera" sebagai sinyal verifikasi ke GA.  */
+async function openLiveCamera(label) {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error('no-camera');
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:#000;z-index:9999;display:flex;flex-direction:column;';
+  overlay.innerHTML =
+    '<video playsinline style="flex:1;object-fit:cover;background:#000"></video>' +
+    '<div style="display:flex;gap:8px;padding:12px;background:#111">' +
+    '<button style="flex:2;padding:14px;font-size:16px;border-radius:8px;border:0;background:#2d9d78;color:#fff" data-cap>📸 Ambil ' + esc(label || 'Foto') + '</button>' +
+    '<button style="flex:1;padding:14px;border-radius:8px;border:0;background:#555;color:#fff" data-cancel>Batal</button></div>';
+  document.body.appendChild(overlay);
+  const video = overlay.querySelector('video');
+  const stream = await navigator.mediaDevices.getUserMedia({
+    video: {facingMode: {ideal: 'environment'}, width: {ideal: 1600}, height: {ideal: 1200}}, audio: false});
+  video.srcObject = stream;
+  await video.play().catch(() => {});
+  const cleanup = () => { try { stream.getTracks().forEach((t) => t.stop()); } catch {} overlay.remove(); };
+  const stampText = () => {
+    const d = new Date();
+    const p = (n, l = 2) => String(n).padStart(l, '0');
+    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds()) + ' WIB';
+  };
+  return await new Promise((resolve) => {
+    overlay.querySelector('[data-cap]').onclick = () => {
+      try {
+        const vw = video.videoWidth || 1600, vh = video.videoHeight || 1200;
+        const w = Math.min(vw, 1600), h = Math.round(vh * (w / vw));
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(video, 0, 0, w, h);
+        const g = S.gps || {};
+        const line1 = 'BPF ' + esc((S.profile?.nopol || '-').toUpperCase()) + ' · ' + stampText();
+        const line2 = g.lat != null ? 'GPS ' + (+g.lat).toFixed(5) + ',' + (+g.lon).toFixed(5) + ' · TIDAK SAH DI-CROP' : 'GPS TIDAK TERSEDIA · TIDAK SAH DI-CROP';
+        const bar = Math.max(30, Math.round(h * 0.05));
+        for (const [y] of [[0], [h - bar]]) {
+          ctx.fillStyle = 'rgba(0,0,0,0.66)'; ctx.fillRect(0, y, w, bar);
+          ctx.fillStyle = '#fff'; ctx.textBaseline = 'middle';
+          ctx.font = Math.round(bar * 0.5) + 'px monospace';
+          ctx.fillText(line1, 10, y + bar * 0.30);
+          ctx.fillText(line2, 10, y + bar * 0.74);
+        }
+        cleanup();
+        resolve(canvas.toDataURL('image/jpeg', 0.82));
+      } catch (e2) { cleanup(); resolve(null); }
+    };
+    overlay.querySelector('[data-cancel]').onclick = () => { cleanup(); resolve(null); };
+  });
+}
 async function dataUrlToBlob(du) { return await (await fetch(du)).blob(); }
 
 /* ========================= Login ================================= */
@@ -433,10 +487,35 @@ function paintDriver() {
 }
 function bindDriver() {
   $root.querySelectorAll('.tabs button').forEach((b) => b.onclick = () => { S.tab = b.dataset.tab; paint(); if (S.tab === 'kas') loadKas(); if (S.tab === 'rapor') loadRapor(); });
-  $root.querySelectorAll('[data-photo]').forEach((inp) => inp.onchange = async () => {
-    const k = inp.dataset.photo, f = inp.files[0]; if (!f) return;
-    S.photos[k] = {name: f.name || k + '.jpg', dataUrl: await fileToDataUrl(f), preview: URL.createObjectURL(f)};
-    paint();
+  $root.querySelectorAll('[data-photo]').forEach((inp) => {
+    inp.onchange = async () => {
+      const k = inp.dataset.photo, f = inp.files[0]; if (!f) return;
+      S.photos[k] = {name: f.name || k + '.jpg', dataUrl: await fileToDataUrl(f), preview: URL.createObjectURL(f)};
+      paint();
+    };
+    // v2.49.3: klik foto → kamera LIVE + watermark (anti pakai ulang foto).
+    // Bila kamera gagal/tidak didukung → biarkan picker asli jalan.
+    inp.onclick = async (e) => {
+      if (inp.dataset.native === '1') return;                  // fallback picker asli
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
+      e.preventDefault();
+      const label = inp.closest('.photo-item')?.querySelector('.tag')?.textContent || 'Foto';
+      try {
+        const dataUrl = await openLiveCamera(label.trim());
+        if (dataUrl) {
+          const k = inp.dataset.photo;
+          S.photos[k] = {name: k + '_' + Date.now() + '.jpg', dataUrl: dataUrl, preview: dataUrl};
+          paint();
+        } else if (S.photos[k] === undefined) {
+          paint(); // batal — penampil tetap
+        }
+      } catch (err) {
+        toast('Kamera tidak tersedia — pilih dari galeri', 'err');
+        inp.dataset.native = '1'; // tak blok handler berikutnya (anti loop)
+        inp.click();
+        inp.dataset.native = '';
+      }
+    };
   });
   const on = (sel, h) => { const el = q(sel); if (el) el.onclick = h; };
   const ch = (sel, h) => { const el = q(sel); if (el) el.onchange = h; };

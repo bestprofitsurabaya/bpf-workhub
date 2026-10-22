@@ -242,6 +242,132 @@ def save_file(file_obj, prefix, nopol, upload_folder):
     return None
 
 
+# ============================================================
+# Anti-kecurangan bukti klaim (v2.49.3 — temuan audit 22 Okt 2026)
+# ------------------------------------------------------------
+# 1. sha256_file      — sidik jari konten bukti (anti foto dipakai ulang)
+# 2. extract_photo_meta — EXIF (waktu/GPS kamera) untuk flag verifikasi
+# 3. ensure_anti_fraud_schema — kolom transactions + tabel proof_registry
+# Registry hash disimpan di DB MASTER — deteksi duplikasi lintas cabang
+# sekalipun klaim masuk ke DB cabang masing-masing.
+# ============================================================
+
+BBM_PHOTO_FIELDS = ('foto_odo_sebelum', 'foto_nota_odo_sesudah',
+                    'foto_struk', 'foto_struk_dispenser')
+
+_PROOF_REGISTRY_DDL = """
+CREATE TABLE IF NOT EXISTS proof_registry (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    sha256 CHAR(64) NOT NULL,
+    field VARCHAR(40) NOT NULL DEFAULT '',
+    tx_id INT NOT NULL DEFAULT 0,
+    display_id VARCHAR(30) DEFAULT '',
+    driver_name VARCHAR(150) DEFAULT '',
+    nopol VARCHAR(30) DEFAULT '',
+    branch_db VARCHAR(60) DEFAULT '',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    KEY idx_sha (sha256),
+    KEY idx_created (created_at),
+    KEY idx_tx (tx_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+"""
+
+_TX_NEW_COLUMNS = (
+    ("proof_meta", "JSON NULL"),
+    ("anomaly_cleared_by", "VARCHAR(150) NULL"),
+    ("anomaly_cleared_at", "TIMESTAMP NULL NULL"),
+)
+
+
+def sha256_file(filepath):
+    """SHA-256 byte file — None bila gagal. (v2.49.3)"""
+    try:
+        import hashlib
+        h = hashlib.sha256()
+        with open(filepath, 'rb') as f:
+            for chunk in iter(lambda: f.read(1 << 16), b''):
+                h.update(chunk)
+        return h.hexdigest()
+    except Exception as e:
+        print(f"[sha256_file] {filepath}: {e}")
+        return None
+
+
+def extract_photo_meta(filepath):
+    """EXIF ringkas bukti foto: waktu ambil & GPS kamera (best-effort).
+
+    Return dict {'exif_datetime': 'YYYY:MM:DD HH:MM:SS'|None,
+                 'exif_gps': [lat, lng]|None} — {} bila tidak JPEG/gagal.
+    Bukan clamp menolak (EXIF bisa sah dihapus) — dipakai untuk FLAG
+    verifikasi GA: tak ada EXIF / jam gelap / lokasi jauh dari klaim.
+    """
+    meta = {}
+    try:
+        from PIL import Image
+        from PIL.ExifTags import TAGS, GPSTAGS
+        img = Image.open(filepath)
+        exif = getattr(img, '_getexif', lambda: None)()
+        if not exif:
+            return meta
+        ex = {TAGS.get(k, k): v for k, v in exif.items() if isinstance(k, int)}
+        dt = ex.get('DateTimeOriginal') or ex.get('DateTime')
+        if dt:
+            meta['exif_datetime'] = str(dt)[:19]
+        gps = ex.get('GPSInfo')
+        if gps and isinstance(gps, dict):
+            gp = {GPSTAGS.get(k, k): v for k, v in gps.items() if isinstance(k, int)}
+
+            def _deg(d, ref):
+                try:
+                    val = float(d[0]) + float(d[1]) / 60 + float(d[2]) / 3600 if d and len(d) == 3 else float(d or 0)
+                    return -val if str(ref).upper() in ('S', 'W') else val
+                except Exception:
+                    return None
+            lat = _deg(gp.get('GPSLatitude'), gp.get('GPSLatitudeRef', ''))
+            lng = _deg(gp.get('GPSLongitude'), gp.get('GPSLongitudeRef', ''))
+            if lat is not None and lng is not None:
+                meta['exif_gps'] = [round(lat, 6), round(lng, 6)]
+    except Exception as e:
+        # EXIF kosong normal (PNG/screenshot/lama) — TIDAK error.
+        return meta
+    return meta
+
+
+def ensure_anti_fraud_schema(conn=None):
+    """Idempoten: kolom transactions + tabel proof_registry (satu DB).
+
+    Aman dipanggil tiap startup; kolom memakai ADD COLUMN IF NOT EXISTS
+    (dukungan MariaDB 10.11 sesuai image db service).
+    """
+    own = conn is None
+    if conn is None:
+        from modules.config import get_master_connection
+        conn = get_master_connection()
+    if not conn:
+        return False
+    cur = conn.cursor()
+    try:
+        cur.execute(_PROOF_REGISTRY_DDL)
+        for col, definition in _TX_NEW_COLUMNS:
+            try:
+                cur.execute(f"ALTER TABLE transactions ADD COLUMN IF NOT EXISTS {col} {definition}")
+            except Exception as col_err:
+                # Kolom sudah ada / ALTER tidak bisa — jangan gagalkan startup.
+                print(f"[anti-fraud] kolom {col}: {col_err}")
+        conn.commit()
+        return True
+    finally:
+        try:
+            cur.close()
+        except Exception:
+            pass
+        if own:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+
 def secrets_rand(n=6):
     """Acak aman (hex) untuk nama file — menghindari tabrakan & tebakan."""
     import secrets as _s

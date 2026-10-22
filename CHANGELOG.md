@@ -7,6 +7,36 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.49.3 — 22 Oktober 2026 (audit anti-kecurangan klaim BBM: bukti foto, ODO, kapasitas, cap, joint sign-off)
+
+Tindak lanjut diskusi rute BBM (Finance/GA/Driver/Chief Driver) — menutup celah
+dari pembedahan kode 22 Okt 2026:
+
+- 🖼️ **Bukti foto punya sidik jari** — hash SHA-256 konten tiap foto klaim
+  dicatat ke `proof_registry` (master DB, lintas cabang). Foto struk/ODO yang
+  **sama dipakai ulang klaim mana pun ≤30 hari → DITOLAK** (400) saat submit.
+- 📷 **PWA live camera + watermark** — antrean foto di `/m/` kini membuka kamera
+  belakang langsung (getUserMedia) dengan cap **tanggal-jam-GPS-nopol yang
+  di-burn ke pixel** (atas+bawah, anti-crop). Bila kamera gagal, fallback picker
+  galeri — tapi GA menerima sinyal `tanpa EXIF`.
+- 🏗️ **EXIF digali & di-flag** — waktu/GPS kamera sediakan dalam `proof_meta`;
+  `/api/cross-check` kini menampilkan `proof_signals`: waktu kamera beda jam dari
+  klaim, kamera >5 km dari GPS klaim, tanpa EXIF.
+- 🏗️ **ODO mundur DITOLAK** dan **baseline ODO hanya dari status tervalidasi**
+  (`verified_ga/os_finance/archived`) — klaim rejected/pending tidak lagi
+  menjadi pembanding (bug nyata di `routes_driver.py`).
+- 🏗️ **Batas fisik** — liter klaim > 100% `fuel_capacity` ditolak; > 90% dan
+  ODO tak berubah + cap nominal klaim `bbm_daily_cap_driver` /
+  `bbm_weekly_cap_driver` memakai flag anomali (soft cap; default off, diatur
+  Admin per cabang via system_config).
+- 🚦 **Joint sign-off anomali** — payout (Finance) kini minta klaim ber-flag
+  anomali **sudah di-clear GA** (`/api/queue/anomaly-clear`, step-up PIN).
+  Unverify kembali mereset clear — payout otomatis tertahan lagi.
+- 🚧 **Self-approval level orang** — jurnal ACC kini juga memblok keputusan bila
+  full_name akun aktor == nama pengaju (jebol via 2 akun ditutup).
+- Kolom baru `transactions.proof_meta/anomaly_cleared_by/at` dibuat idempoten
+  (master + semua DB cabang) di startup; registrasi hash best-effort.
+
 ## v2.49.2 — 22 Oktober 2026 (temuan audit sysadmin: backup drill, werzeug guard, dokumentasi env, kebersihan repo)
 
 Tindak lanjut audit sistem (security + ops) 22 Oktober 2026:

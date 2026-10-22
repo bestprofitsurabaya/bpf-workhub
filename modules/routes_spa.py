@@ -361,6 +361,34 @@ def register_spa_routes(app):
         except Exception as e:
             return jsonify({'status': 'error', 'msg': str(e)}), 500
 
+    @app.route('/api/queue/anomaly-clear/<int:tx_id>', methods=['POST'])
+    @role_required(['ga'])
+    @stepup_required
+    def api_queue_anomaly_clear(tx_id):
+        """v2.49.3 (audit): GA bersihkan flag anomali SETELAH verifikasi pENUH.
+
+        Wajib step-up PIN (modal PIN 10 menit) — sama seangkatan aksi uang.
+        Finance kemudian boleh payout karena anomali sudah disaksikan GA.
+        """
+        actor = _queue_actor()
+        try:
+            conn = get_db_connection()
+            if not conn:
+                return jsonify({'status': 'error', 'msg': 'DB error'}), 500
+            cursor = conn.cursor()
+            cursor.execute(
+                "UPDATE transactions SET anomaly_cleared_by=%s, anomaly_cleared_at=NOW() "
+                "WHERE id=%s AND ml_anomaly_flag=1", (actor, tx_id))
+            affected = cursor.rowcount
+            conn.commit()
+            cursor.close(); conn.close()
+            if affected == 0:
+                return jsonify({'status': 'error', 'msg': 'Transaksi tidak ber-flag anomali / tidak ada.'}), 409
+            log_activity_async(tx_id, 'anomaly_clear', 'ga', actor, ip=_client_ip())
+            return jsonify({'status': 'success', 'msg': f'Anomali #{tx_id} dikonfirmasi terverifikasi oleh {actor}.'})
+        except Exception as e:
+            return jsonify({'status': 'error', 'msg': str(e)}), 500
+
     @app.route('/api/queue/payout/<int:tx_id>', methods=['POST'])
     @role_required(['finance', 'admin'])
     @stepup_required
@@ -370,6 +398,16 @@ def register_spa_routes(app):
             conn = get_db_connection()
             if not conn:
                 return jsonify({'status': 'error', 'msg': 'DB error'}), 500
+            cursor = conn.cursor(dictionary=True)
+            # v2.49.3 (audit): klaim ber-flag anomali wajib sudah di-clear GA
+            # (verifikasi foto penuh + PIN) sebelum uang keluar — joint sign-off.
+            cursor.execute("SELECT ml_anomaly_flag, anomaly_cleared_by, display_id FROM transactions WHERE id=%s", (tx_id,))
+            txrow = cursor.fetchone()
+            if txrow and txrow.get('ml_anomaly_flag') and not txrow.get('anomaly_cleared_by'):
+                cursor.close(); conn.close()
+                return jsonify({'status': 'error', 'msg':
+                                (f"Transaksi #{txrow.get('display_id') or tx_id} ber-flag anomali — "
+                                 "wajib di-clear GA (verifikasi foto penuh) sebelum pencairan.")}), 409
             cursor = conn.cursor()
             cursor.execute("UPDATE transactions SET status='os_finance', finance_payout_by=%s, finance_payout_at=NOW(), payout_by_user=%s WHERE id=%s AND status='verified_ga'", (actor, actor, tx_id))
             affected = cursor.rowcount
@@ -583,7 +621,11 @@ def register_spa_routes(app):
             if not conn:
                 return jsonify({'status': 'error', 'msg': 'DB error'}), 500
             cursor = conn.cursor()
-            cursor.execute("UPDATE transactions SET status='pending' WHERE id=%s AND status='verified_ga'", (tx_id,))
+            # v2.49.3: unverify kembali ke pending → flag anomali dianggap
+            # belum disaksikan lagi (hapus clear lama supaya payout kembali
+            # tertahan sampai GA meng-clear ulang).
+            cursor.execute("UPDATE transactions SET status='pending', anomaly_cleared_by=NULL, "
+                           "anomaly_cleared_at=NULL WHERE id=%s AND status='verified_ga'", (tx_id,))
             affected = cursor.rowcount
             conn.commit()
             cursor.close(); conn.close()
