@@ -7,6 +7,37 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.49.2 — 22 Oktober 2026 (temuan audit sysadmin: backup drill, werzeug guard, dokumentasi env, kebersihan repo)
+
+Tindak lanjut audit sistem (security + ops) 22 Oktober 2026:
+
+- 🧹 **Kebersihan repo**: hapus 2 file sisa backup `modules/*.bak-*`
+  (`routes_applicants.py.bak-stepup`, `routes_spa.py.bak-last-login`);
+  pindahkan snapshot data runtime 7 MB
+  (`backup_overtime_driver_sheet_20260906.json`) keluar repo →
+  `/srv/bpf-workhub/backups-repo-root/` (disk besar 1.7 TB).
+- 🔐 ** Werkzeug dev-runner guard (app.py)**: blok `python app.py` kini
+  refuser di produksi (`SystemExit` + instruksi gunicorn) — menghapus
+  risiko menambah server dev tanpa proxy di jalur produksi.
+  Produksi tetap selalu via gunicorn (`CMD` Dockerfile).
+- 🗄️ **Backup lebih diuji, bukan diandalkan**:
+  - *backup-freshness-check.sh* — uji gzip -t semua dump hari ini +
+    umur file terbaru ≤ `BACKUP_MAX_AGE_HOURS` (default 30 jam), dipanggil
+    otomatis di akhir `backup-db.sh`, bertindak lintas (bila check gagal,
+    backup exit 1).
+  - *restore-test.sh* — drill restore mingguan (Minggu 04:00 WIB,
+    `RESTORE_TEST_CRON`) ke DB sementara `restore_dr_tmp` yang di-drop sehabis
+    verifikasi row; drill pertama sukses (users=53, transactions=135).
+  - Integrasi **Uptime Kuma** opsional: `BACKUP_KUMA_HEARTBEAT` (push tiap
+    backup OK) & `BACKUP_KUMA_ALERT_URL` (push saat gagal) di `.env`.
+- 📄 **README**: bagian baru *"Variabel Environment"* (termasuk `MIKROTIK_*`
+  — kredensial di `.env`, tidak hardcode, saat ini belum dipakai kode) +
+  bagian *"Menjalankan Test di Host"* via `scripts/run-tests.sh`.
+- 🧪 **run-tests.sh**: default aman (skipp 2 file test butuh DB yang di CI
+  sukses dan di host perlu env) dan mode `--db` dengan kredensial `.env`.
+  Membenahkan 11 error lama saat pytest di host (root cause: test tanpa
+  `DB_PASSWORD`; **CI-parity** kini tersedia lokal).
+
 ## v2.49.1 — 22 Oktober 2026 (patch keamanan dependensi: Pillow 13.0.0 + vite/vitest 5.0.3 untuk CI hijau)
 
 Tindak lanjut CI merah (npm audit + pip-audit, Tahap 4/6 ISO 27001):

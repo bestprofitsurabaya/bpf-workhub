@@ -40,3 +40,14 @@ find "$OUT_DIR" -name 'bpf_*.sql.gz' -mtime "+${RETENTION}" -delete 2>/dev/null 
 } > "$OUT_DIR/last-backup.txt"
 
 echo "[backup] OK $(date -Iseconds) — DB: ${DUMPED:-none}"
+
+# 4. Verifikasi integritas + freshness (v2.49.2 audit fix)
+#    - Uji gzip -t tiap file dump HARI INI (ketahuan korup di hari yang sama,
+#      bukan saat restore butuh di t+30 hari)
+#    - Heartbeat/alert Uptime Kuma bila BACKUP_KUMA_HEARTBEAT/KUMA_ALERT_URL di-set
+if [ -x /usr/local/bin/backup-freshness-check.sh ]; then
+  if ! /usr/local/bin/backup-freshness-check.sh; then
+    echo "[backup] FRESHNESS CHECK GAGAL — lihat output di atas"
+    exit 1
+  fi
+fi

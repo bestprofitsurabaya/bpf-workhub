@@ -158,21 +158,41 @@ services:
       - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD wajib di .env}
       - BACKUP_RETENTION_DAYS=30
       - BACKUP_CRON=0 3 * * *
+      # v2.49.2: monitoring backup via Uptime Kuma (opsional, isi di .env).
+      # BACKUP_KUMA_HEARTBEAT = URL push monitor → di-curl tiap backup OK
+      # BACKUP_KUMA_ALERT_URL = URL push monitor → di-curl bila check gagal
+      - BACKUP_KUMA_HEARTBEAT=${BACKUP_KUMA_HEARTBEAT:-}
+      # Juga dipakai oleh backup-freshness-check.sh (umur file terbaru):
+      - BACKUP_MAX_AGE_HOURS=${BACKUP_MAX_AGE_HOURS:-30}
+      # v2.49.2: drill restore otomatis mingguan (2 field "menit jam").
+      # Default 0 4 = Minggu 04:00 WIB. Bisa dimatikan dgn nilai "off".
+      - RESTORE_TEST_CRON=${RESTORE_TEST_CRON:-0 4 * * 0}
     volumes:
       - bbm_backups:/backups
       - ./scripts/backup-db.sh:/usr/local/bin/backup-db.sh:ro
+      - ./scripts/backup-freshness-check.sh:/usr/local/bin/backup-freshness-check.sh:ro
+      - ./scripts/restore-test.sh:/usr/local/bin/restore-test.sh:ro
     # Image mariadb:10.11 (Debian) TIDAK punya crond — pakai loop scheduler.
     # Jam jalan dibaca dari 2 field pertama BACKUP_CRON (default 0 3 = 03:00).
     entrypoint: |
       /bin/sh -c 'M=$$(echo $${BACKUP_CRON} | awk "{print \$1}"); \
       H=$$(echo $${BACKUP_CRON} | awk "{print \$2}"); \
+      RT=$${RESTORE_TEST_CRON:-0 4 * * 0}; \
       echo "Backup scheduler siap — jalan tiap hari jam $$H:$$(printf %02d $$M) (retensi $${BACKUP_RETENTION_DAYS} hari)"; \
+      if [ "$$RT" != "off" ]; then \
+        RM=$$(echo $$RT | awk "{print \$1}"); RH=$$(echo $$RT | awk "{print \$2}"); \
+        echo "Restore drill mingguan: jam $$RH:$$(printf %02d $$RM) (RESTORE_TEST_CRON=$$RT)"; \
+      fi; \
       while :; do \
         now=$$(date +%s); t=$$(date -d "today $$H:$$M" +%s); \
         [ "$$t" -le "$$now" ] && t=$$(date -d "tomorrow $$H:$$M" +%s); \
         sleep $$((t - now)); \
         echo "[scheduler] mulai backup $$(date -Iseconds)"; \
         /bin/sh /usr/local/bin/backup-db.sh >> /var/log/backup.log 2>&1 || echo "[scheduler] backup GAGAL — cek /var/log/backup.log"; \
+        if [ "$$RT" != "off" ] && [ "$$(date +%u)" = "7" ]; then \
+          echo "[scheduler] drill restore Minggu $$(date -Iseconds)"; \
+          /bin/sh /usr/local/bin/restore-test.sh >> /var/log/backup.log 2>&1 || echo "[scheduler] drill restore GAGAL — cek /var/log/backup.log"; \
+        fi; \
       done'
     depends_on:
       db:

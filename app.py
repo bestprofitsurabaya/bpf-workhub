@@ -507,4 +507,13 @@ def session_binding_check():
               f'({saved_ip} → {current_ip})')
 
 if __name__ == '__main__':
+    # Werkzeug dev runner HANYA untuk development lokal.
+    # Produksi selalu via gunicorn (CMD Dockerfile), tidak melewati blok ini.
+    # Guard: di production jalur python app.py langsung ditolak — menghindari
+    # server dev tanpa TLS/proxy secara tak sengaja (v2.49.2 audit fix).
+    if os.environ.get('FLASK_ENV', 'production').lower() == 'production':
+        raise SystemExit(
+            '[SECURITY] Refused to run Werkzeug dev server in production.\n'
+            '           Gunakan: gunicorn --worker-class gevent -w 1 --bind 0.0.0.0:5000 app:app'
+        )
     socketio.run(app, host='0.0.0.0', port=5000, debug=False, allow_unsafe_werkzeug=True)

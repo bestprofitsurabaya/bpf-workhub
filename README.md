@@ -180,6 +180,54 @@ bpf-workhub/
 
 ---
 
+## ⚙️ Variabel Environment (`.env`)
+
+Template lengkap: `.env.example`. Selalu salin dulu: `cp .env.example .env && chmod 600 .env`.
+`.env` **tidak pernah di-commit** (sudah di `.gitignore`; permission 600).
+
+| Variabel | Wajib | Fungsi | Default |
+|---|---|---|---|
+| `SECRET_KEY` | ✅ | Kunci sesi Flask — generate `openssl rand -hex 32` | — (ditolak di produksi) |
+| `SESSION_COOKIE_SECURE` | | `true` bila akses via HTTPS produksi; `false` hanya dev http LAN | `true` |
+| `MYSQL_ROOT_PASSWORD` | ✅ | Password root DB (backup service & restore manual) | — |
+| `MYSQL_PASSWORD` | ✅ | Password user aplikasi `bpf_user` (web + healthcheck) | — |
+| `MYSQL_DATABASE` / `MYSQL_USER` | | Nama DB & user awal (berlaku saat volume DB pertama dibuat) | `bpf_asset_system` / `bpf_user` |
+| `DB_NAME` / `DB_USER` | | Kredensial yang dipakai aplikasi web | sama di atas |
+| `DB_POOL_SIZE` / `BRANCH_POOL_SIZE` | | Ukuran pool koneksi master / per-cabang | `25` / `5` |
+| `SESSION_HOURS` | | Masa aktif sesi login (jam) | `12` |
+| `MIKROTIK_HOST` / `MIKROTIK_USER` / `MIKROTIK_PASSWORD` | | Kredensial RouterOS Mikrotik — **cadangan integrasi hotspot (belum dipakai kode saat ini)**; simpan di `.env`, jangan hardcode & jangan commit | kosong |
+| `STEPUP_TTL_SECONDS` | | Masa grant PIN ulang aksi keuangan (min 60) | `600` |
+| `STALE_ACCOUNT_DAYS` | | Ambang akun basi Access Review (min 30) | `90` |
+| `RETENTION_DAYS_AUDIT_LOGS` | | Retensi log audit (hari) | `1825` |
+| `SCRAPER_LOG_LEVEL` | | Level log scraper | `INFO` |
+
+> ⚠️ Rotasi kredensial DB yang sudah jalan **tidak** lewat `.env` saja (env MySQL hanya
+> dipakai saat volume pertama kali dibuat) — gunakan
+> `scripts/rotate-db-credentials.sh`, lalu update `.env` agar backup container tetap cocok.
+
+---
+
+## 🧪 Menjalankan Test di Host
+
+CI selalu hijau — ia menyediakan `SECRET_KEY` & DB sendiri. Di host (tanpa env),
+2 file test (`test_security_headers.py`, `test_scraper_wp_status.py`) akan error
+karena butuh kredensial DB. Gunakan script ini:
+
+```bash
+# Mode aman (default) — skipp 2 file butuh-DB, cocok untuk loop harian:
+./scripts/run-tests.sh
+
+# Semua test, termasuk 2 file di atas — kredensial dibaca dari .env
+# (host MariaDB 127.0.0.1:3307; import app hanya mengeksekusi ensure-schema
+#  "IF EXISTS", tapi tetap: hindari saat DB produksi sedang sibuk):
+./scripts/run-tests.sh --db
+
+# File/filter spesifik:
+./scripts/run-tests.sh --db tests/test_security_headers.py -q
+```
+
+---
+
 ## 🔒 Keamanan
 
 - 🔐 Login PIN dengan brute-force protection
