@@ -198,6 +198,43 @@ async function unlinkSubsidy() {
   finally { subsidyBusy.value = false }
 }
 
+// v2.51.0 — Berita Acara Rekonsiliasi Subsidi Tepat (PDF untuk kantor pusat)
+const attestOpen = ref(false)
+const attestPeriod = ref(new Date().toISOString().slice(0, 7))
+const attestBusy = ref(false)
+const attestMsg = ref('')
+const attestList = ref([])
+
+async function openAttest() {
+  attestOpen.value = true
+  attestMsg.value = ''
+  try { attestList.value = (await api('/api/subsidy/attest')).attestations || [] }
+  catch { attestList.value = [] }
+}
+
+async function createAttest(row) {
+  if (attestBusy.value) return
+  if (row) {
+    // unduh PDF BA tersimpan
+    window.open(`/api/subsidy/attest/${row.id}/pdf`, '_blank')
+    return
+  }
+  const ok = await ask(`Terbitkan Berita Acara periode ${attestPeriod.value}? Semua klaim yang DITAUT finance di periode itu dimasukkan dokumen (root hash terekam permanen).`, {
+    title: 'Berita Acara Rekonsiliasi', confirmText: 'Terbitkan',
+  })
+  if (!ok) return
+  attestBusy.value = true
+  attestMsg.value = ''
+  try {
+    const r = await api('/api/subsidy/attest', { method: 'POST', body: { period: attestPeriod.value } })
+    attestMsg.value = '✅ ' + (r.msg || 'Terbit')
+    markFirstAction('subsidy_attest')
+    await openAttest()
+    window.open(`/api/subsidy/attest/${r.id}/pdf`, '_blank')
+  } catch (e) { attestMsg.value = '❌ ' + e.message }
+  finally { attestBusy.value = false }
+}
+
 async function loadQueue() {
   queueLoading.value = true; queueMsg.value = ''
   try { queue.value = (await api('/api/queue', { params: { tab: queueTab.value } })) || [] }
@@ -475,6 +512,7 @@ watch(queueTab, (tab) => {
           <h3 style="margin:0;">🕐 Antrean Kerja</h3>
           <button v-for="t in queueTabs" :key="t.key" class="btn btn-sm" :class="queueTab === t.key ? 'btn-primary' : ''" @click="queueTab = t.key">{{ t.label }}</button>
           <button class="btn btn-sm" title="Unduh antrean tab aktif sebagai Excel" aria-label="Unduh antrean sebagai Excel" @click="exportQueueExcel">⬇️ Excel</button>
+          <button v-if="canFinance" class="btn btn-sm" title="Berita Acara Rekonsiliasi Subsidi Tepat — dokumen resmi kantor pusat" @click="openAttest">🖨 Berita Acara SPBU</button>
           <span v-if="queueMsg" class="alert" :class="queueMsg.startsWith('✅') ? 'alert-success' : 'alert-error'" style="margin:0;">{{ queueMsg }}</span>
           <div class="spacer"></div>
         </div>
@@ -737,6 +775,46 @@ watch(queueTab, (tab) => {
           <button v-if="isAdmin" class="btn btn-sm btn-danger" :disabled="qBusy" @click="modalAction(`/api/queue/delete/${selData.id}`, 'menghapus PERMANEN transaksi ini')">🗑 Hapus</button>
         </div>
       </div>
+    </Modal>
+
+    <!-- v2.51.0: Modal Berita Acara Rekonsiliasi Subsidi Tepat -->
+    <Modal v-if="attestOpen" title="🖨 Berita Acara Rekonsiliasi Subsidi Tepat" @close="attestOpen = false">
+      <p class="muted" style="font-size:12px;">
+        Dokumen resmi untuk <b>Kantor Pusat</b>: semua klaim yang <b>diterbitkan/ditautkan Finance</b>
+        di satu periode disandingkan dengan nomor transaksi resmi SPBU (MyPertamina), dilengkapi
+        rantai hash SHA-256 + TTD bertingkat. Kantor pusat dapat mencerminkan setiap nomor transaksi
+        langsung di portal subsiditepat.mypertamina.id → Riwayat.
+      </p>
+      <div class="row" style="gap:8px;margin-top:10px;flex-wrap:wrap;align-items:center;">
+        <input class="input" type="month" v-model="attestPeriod" style="max-width:170px;" :disabled="attestBusy" />
+        <button class="btn btn-sm btn-primary" :disabled="attestBusy" @click="createAttest(null)">🖨 Terbitkan BA</button>
+      </div>
+      <p v-if="attestMsg" class="alert" :class="attestMsg.startsWith('✅') ? 'alert-success' : 'alert-error'" style="margin:10px 0 0;font-size:12px;">{{ attestMsg }}</p>
+
+      <h4 style="margin:16px 0 6px;">📚 BA tersimpan (arsip server)</h4>
+      <div v-if="!attestList.length" class="muted" style="font-size:12px;">
+        Belum ada Berita Acara yang diterbitkan.
+      </div>
+      <div v-else class="table-wrap">
+        <table class="tbl">
+          <thead><tr><th>BA</th><th>Periode</th><th>Klaim</th><th>Root Hash</th><th>Oleh</th><th>Waktu</th><th></th></tr></thead>
+          <tbody>
+            <tr v-for="a in attestList" :key="a.id">
+              <td><b>#{{ a.id }}</b></td>
+              <td>{{ a.period_start }} s/d {{ a.period_end }}</td>
+              <td>{{ a.record_count }}</td>
+              <td class="muted" style="font-size:10px;">{{ (a.root_hash || '').slice(0, 16) }}…</td>
+              <td>{{ a.generated_by }}</td>
+              <td class="muted" style="font-size:11px;">{{ a.generated_at?.slice(0, 19) }}</td>
+              <td><button class="btn btn-sm" @click="createAttest(a)">📄 PDF</button></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="muted" style="font-size:11px;margin-top:10px;">
+        ⚠️ Root hash = sidik jari permanen isi dokumen. Bila data di sistem diubah setelah BA
+        diterbitkan, hash tidak akan cocok dengan salinan cetak — perubahan apa pun terdeteksi.
+      </p>
     </Modal>
 
     <ConfirmDialog ref="confirmRef" />

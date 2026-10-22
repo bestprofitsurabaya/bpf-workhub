@@ -22,10 +22,12 @@ import re
 import threading
 from datetime import datetime, timedelta
 
-from flask import jsonify, request, session
+from flask import jsonify, request, session, make_response, send_from_directory
 
 from modules.config import get_db_connection, get_master_connection
 from modules.helpers import role_required, log_activity_async
+from modules.subsidy_attest import (build_attestation, ensure_attestation_schema,
+                                    mark_pdf_path, persist_attestation)
 
 # ============================================================
 # Schema — idempoten (pola ensure_anti_fraud_schema)
@@ -178,10 +180,12 @@ def _judge(liter, nominal, volume, amount):
 def register_subsidy_routes(app):
 
     # v2.50.0: pastikan schema (master + semua cabang) tiap startup — idempoten.
+    # v2.51.0: + registry subsidy_attestations (master) untuk Berita Acara.
     def _ensure_all_dbs():
         try:
             if not ensure_subsidy_schema():
                 return
+            ensure_attestation_schema()
             from modules.branch_manager import list_branches
             for b in (list_branches() or []):
                 if not (b.get('is_active') and b.get('db_name')):
@@ -431,6 +435,149 @@ def register_subsidy_routes(app):
                 conn.close()
             except Exception:
                 pass
+
+    @app.route('/api/subsidy/attest', methods=['POST'])
+    @role_required(['finance', 'admin'])
+    def api_subsidy_attest_create():
+        """Buat Berita Acara Rekonsiliasi untuk satu periode (v2.51.0).
+
+        Body: {period: 'YYYY-MM'} atau {start: 'YYYY-MM-DD', end: 'YYYY-MM-DD'}.
+        Klaim yang disertakan = yang DITAUT finance (subsidy_linked_at) di
+        periode itu. Menghasilkan PDF + snapshot arsip JSON + registry master.
+        """
+        actor = (session.get('full_name') or session.get('user_name') or 'Finance').strip()
+        data = request.get_json(silent=True) or {}
+        try:
+            period = str(data.get('period') or '').strip()
+            if re.fullmatch(r'\d{4}-\d{2}', period):
+                y, mo = int(period[:4]), int(period[5:7])
+                start = datetime(y, mo, 1).date()
+                nxt = datetime(y + 1, 1, 1) if mo == 12 else datetime(y, mo + 1, 1)
+                end = nxt.date() - timedelta(days=1)
+            else:
+                start = _parse_date(data.get('start')).date() if _parse_date(data.get('start')) else None
+                end = _parse_date(data.get('end')).date() if _parse_date(data.get('end')) else None
+                if not start or not end or end < start:
+                    return jsonify({'status': 'error',
+                                    'msg': "Isi period 'YYYY-MM' atau start/end 'YYYY-MM-DD'"}), 400
+            attest = build_attestation(start, end, actor)
+        except ValueError as ve:
+            return jsonify({'status': 'error', 'msg': str(ve)}), 400
+        except Exception as e:
+            return jsonify({'status': 'error', 'msg': str(e)[:200]}), 500
+
+        try:
+            attest_id = persist_attestation(attest, actor)
+        except Exception as e:
+            return jsonify({'status': 'error', 'msg': f"Registry: {str(e)[:180]}"}), 500
+
+        # PDF + arsip salinan
+        from modules.pdf_generator import AttestReportPDF
+        try:
+            attest['meta'] = {'generated_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+            pdf = AttestReportPDF()
+            pdf.generate(attest, generated_by=actor)
+            pdf_raw = pdf.output(dest='S')
+            pdf_bytes = pdf_raw.encode('latin-1') if isinstance(pdf_raw, str) else bytes(pdf_raw)
+            pdf_rel = os.path.join('data', 'subsidy_attest',
+                                   f'berita_acara_{start}_{end}_{attest_id}.pdf')
+            os.makedirs(os.path.dirname(pdf_rel), exist_ok=True)
+            with open(pdf_rel, 'wb') as f:
+                f.write(pdf_bytes)
+            mark_pdf_path(attest_id, pdf_rel)
+        except Exception as e:
+            return jsonify({'status': 'error', 'msg': f'PDF: {str(e)[:180]}'}), 500
+
+        log_activity_async(0, 'subsidy_attest', 'finance', actor, ip=request.remote_addr,
+                           new_data={'attest_id': attest_id, 'periode': f'{start} s/d {end}',
+                                     'records': attest['record_count'], 'root_hash': attest['root_hash']})
+        return jsonify({
+            'status': 'success',
+            'msg': f"Berita Acara #{attest_id}: {attest['record_count']} klaim, periode {start} s/d {end}",
+            'id': attest_id, 'root_hash': attest['root_hash'],
+            'record_count': attest['record_count'],
+            'snapshot_sha256': attest['snapshot_sha256'],
+        })
+
+    @app.route('/api/subsidy/attest')
+    @role_required(['finance', 'admin'])
+    def api_subsidy_attest_list():
+        """Daftar Berita Acara terakhir (registry master)."""
+        m = get_master_connection()
+        if not m:
+            return jsonify({'error': 'DB error'}), 500
+        cur = m.cursor(dictionary=True)
+        try:
+            cur.execute(
+                "SELECT id, period_start, period_end, record_count, root_hash, "
+                "snapshot_sha256, pdf_path, generated_by, generated_at "
+                "FROM subsidy_attestations ORDER BY id DESC LIMIT 25")
+            rows = cur.fetchall() or []
+            return jsonify({'attestations': [
+                {**r, 'period_start': str(r['period_start']),
+                 'period_end': str(r['period_end']),
+                 'generated_at': str(r['generated_at'])} for r in rows]})
+        except Exception as e:
+            return jsonify({'error': str(e)[:200]}), 500
+        finally:
+            cur.close()
+            try:
+                m.close()
+            except Exception:
+                pass
+
+    @app.route('/api/subsidy/attest/<int:att_id>/pdf')
+    @role_required(['finance', 'admin'])
+    def api_subsidy_attest_pdf(att_id):
+        """Unduh PDF Berita Acara (dari arsip; regenerate bila hilang)."""
+        m = get_master_connection()
+        if not m:
+            return jsonify({'error': 'DB error'}), 500
+        cur = m.cursor(dictionary=True)
+        try:
+            cur.execute("SELECT * FROM subsidy_attestations WHERE id=%s", (att_id,))
+            row = cur.fetchone()
+        finally:
+            cur.close()
+            try:
+                m.close()
+            except Exception:
+                pass
+        if not row:
+            return jsonify({'error': 'Not found'}), 404
+
+        pdf_rel = row.get('pdf_path')
+        if pdf_rel and os.path.isfile(pdf_rel):
+            directory = os.path.dirname(pdf_rel)
+            filename = os.path.basename(pdf_rel)
+        else:
+            # Arsip PDF hilang → bangun ulang dari data tervalidasi + hash lama.
+            try:
+                attest = build_attestation(row['period_start'], row['period_end'],
+                                           row.get('generated_by') or 'Finance')
+            except Exception as e:
+                return jsonify({'error': f'Arsip PDF hilang & data periode berubah: {str(e)[:150]}'}), 409
+            if attest['root_hash'] != row['root_hash']:
+                return jsonify({'error': 'Data periode berubah sejak BA diterbitkan '
+                                         '(root hash tidak cocok) — BA pakai lama tidak sah'}), 409
+            attest['meta'] = {'generated_at': str(row['generated_at'])}
+            from modules.pdf_generator import AttestReportPDF
+            pdf = AttestReportPDF()
+            pdf.generate(attest, generated_by=row.get('generated_by') or 'Finance')
+            pdf_raw = pdf.output(dest='S')
+            pdf_bytes = pdf_raw.encode('latin-1') if isinstance(pdf_raw, str) else bytes(pdf_raw)
+            pdf_rel = os.path.join('data', 'subsidy_attest',
+                                   f"berita_acara_{row['period_start']}_{row['period_end']}_{att_id}.pdf")
+            os.makedirs(os.path.dirname(pdf_rel), exist_ok=True)
+            with open(pdf_rel, 'wb') as f:
+                f.write(pdf_bytes)
+            mark_pdf_path(att_id, pdf_rel)
+            directory, filename = os.path.dirname(pdf_rel), os.path.basename(pdf_rel)
+        resp = make_response(send_from_directory(directory, filename))
+        resp.headers['Content-Type'] = 'application/pdf'
+        fname = f"BPF_Berita_Acara_SubsidiTepat_{row['period_start']}_{row['period_end']}_BA{att_id}.pdf"
+        resp.headers['Content-Disposition'] = f'inline; filename="{fname}"'
+        return resp
 
     @app.route('/api/subsidy/status')
     @role_required(['finance', 'admin'])

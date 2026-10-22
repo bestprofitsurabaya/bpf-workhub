@@ -62,6 +62,9 @@ services:
       - ./data/news_scraper:/app/data/news_scraper
       # v2.46.0: hasil transcoder (persisten, di luar image) — v2.47 pindah /srv
       - /srv/bpf-workhub/data/transcoder:/app/data/transcoder
+      # v2.51.0: arsip Berita Acara Rekonsiliasi Subsidi Tepat (PDF + snapshot
+      # JSON bukti hash) WAJIB persisten — dokumen resmi kantor pusat
+      - /srv/bpf-workhub/data/subsidy_attest:/app/data/subsidy_attest
       - ./fonts:/app/fonts
       # v2.48.0: PWA mobile — bind mount supaya edit file tidak perlu rebuild image
       - ./mobile:/app/mobile:ro

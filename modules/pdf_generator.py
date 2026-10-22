@@ -11,7 +11,7 @@ from modules.company_identity import get_company_identity, IDENTITY_DEFAULTS  # 
 # ============================================================
 COMPANY_NAME = 'PT BESTPROFIT FUTURES'
 COMPANY_SUBTITLE = 'Kantor Pusat | Jakarta'
-SYSTEM_VERSION = 'BPF WorkHub v2.50.1'
+SYSTEM_VERSION = 'BPF WorkHub v2.51.0'
 LOGO_FILENAMES = ['icon-512.png', 'icon-192.png']
 PHOTO_FIELDS = [
     ('foto_odo_sebelum', 'ODO Sebelum'),
@@ -1932,3 +1932,190 @@ class OvertimeFormPDF(BPFBasePDF):
             return (buf, w_mm, h_mm)
         except Exception:
             return None
+
+
+class AttestReportPDF(BPFBasePDF):
+    """Berita Acara Rekonsiliasi (v2.51.0) — klaim BBM ↔ Subsidi Tepat.
+
+    Dokumen resmi untuk Kantor Pusat: setiap baris menyandingkan klaim driver
+    dengan data sistem Pertamina (transactionId SPBU, timestamp server,
+    verifikasi QR), rantai hash SHA-256 per record + ROOT hash, hash snapshot
+    arsip JSON, dan TTD bertingkat (GA + Finance sebagai verifikator final).
+    """
+
+    def __init__(self, title='BERITA ACARA REKONSILIASI SUBSIDI TEPAT'):
+        super().__init__(orientation='L', unit='mm', format='A4')
+        self._title = title
+        self.set_auto_page_break(auto=True, margin=15)
+
+    def header(self):
+        super().header()
+        self.set_font(self._font(), 'B', 11)
+        self.set_text_color(*INK)
+        self.cell(0, 6, self.clean_text(self._title), align='C', new_x='LMARGIN', new_y='NEXT')
+        self.set_font(self._font(), 'I', 8)
+        self.set_text_color(*GRAY_LABEL)
+        self.cell(0, 5, 'Klaim BBM Driver vs Riwayat Transaksi SPBU resmi '
+                        '(MyPertamina - akun Subsidi Tepat perseroan)',
+                  align='C', new_x='LMARGIN', new_y='NEXT')
+        self.ln(2)
+        self.set_text_color(*INK)
+
+    def generate(self, attest, generated_by=''):
+        """attest = hasil build_attestation() + meta registry."""
+        records = attest.get('records') or []
+        self.add_page()
+
+        # ---- blok identitas dokumen ----
+        meta = attest.get('meta') or {}
+        self.set_font(self._font(), 'B', 8)
+        self.set_text_color(*INK)
+        self.cell(0, 5, f"Periode tautan verifikasi Finance: "
+                        f"{self.clean_text(str(attest.get('period_start')))} s/d "
+                        f"{self.clean_text(str(attest.get('period_end')))}",
+                  new_x='LMARGIN', new_y='NEXT')
+        self.set_font(self._font(), '', 8)
+        self.set_text_color(*INK_SOFT)
+        self.cell(0, 5, f"Dibuat oleh: {self.clean_text(generated_by or '-')}    "
+                        f"Waktu: {self.clean_text(meta.get('generated_at') or '-')}    "
+                        f"Jumlah klaim: {len(records)}",
+                  new_x='LMARGIN', new_y='NEXT')
+        self.ln(1.5)
+        self.set_font(self._font(), 'I', 7)
+        self.set_text_color(*GRAY_LABEL)
+        self.multi_cell(0, 4.2,
+                        "Verifikasi mandiri Kantor Pusat: setiap nomor transaksi di kolom "
+                        "TRANSAKSI SPBU dapat dilihat langsung di portal resmi "
+                        "subsiditepat.mypertamina.id (login akun Subsidi Tepat perseroan > "
+                        "Riwayat Transaksi). Volume, nominal, dan waktu pengisian berasal "
+                        "dari server SPBU Pertamina, bukan entri driver. Integritas dokumen "
+                        "dijamin rantai hash di bawah: mengubah satu angka pada sistem "
+                        "apapun akan membuat ROOT hash tidak cocok dengan cetakan ini.",
+                        new_x='LMARGIN', new_y='NEXT')
+        self.ln(2)
+        self.set_text_color(*INK)
+
+        # ---- tabel utama ----
+        headers = ['NO', 'TGL TAUT', 'NO. DOKUMEN', 'NOPOL', 'DRIVER',
+                   'LITER KL/SPBU', 'NOMINAL KL/SPBU', 'TRANSAKSI SPBU',
+                   'TGL SPBU', 'SELISIH', 'GA', 'FINANCE']
+        widths = [8, 24, 34, 18, 22, 22, 26, 30, 24, 20, 16, 20]
+        aligns = ['C', 'C', 'L', 'C', 'L', 'C', 'R', 'L', 'C', 'C', 'C', 'C']
+        self._table_header(headers, widths, font_size=6.8, row_h=6.5)
+        fill = False
+        total_liter = 0.0
+        total_nominal = 0.0
+        for idx, c in enumerate(records, 1):
+            rec = c.get('_rec') or {}
+            liter_kl = float(rec.get('claim_liter') or 0)
+            liter_spbu = float(rec.get('spbu_volume') or 0)
+            nom_kl = float(rec.get('claim_nominal') or 0)
+            nom_spbu = float(rec.get('spbu_amount') or 0)
+            total_liter += liter_spbu
+            total_nominal += nom_spbu
+            dv = liter_kl - liter_spbu
+            dn = nom_kl - nom_spbu
+            selisih = f"{dv:+.2f}L/{dn:+,.0f}".replace(',', '.')
+            if abs(dv) <= 0.051 and abs(dn) <= 2000:
+                selisih = '0'
+            spbu_dt = str(rec.get('spbu_transaction_date') or '')
+            taut_dt = str(rec.get('subsidy_linked_at') or '')
+            self._table_row([
+                idx, self._short_dt(taut_dt), rec.get('display_id') or '-',
+                rec.get('nopol_norm') or '-', rec.get('driver') or '-',
+                f"{liter_kl:.2f}/{liter_spbu:.2f}",
+                f"{nom_kl:,.0f}/{nom_spbu:,.0f}".replace(',', '.'),
+                rec.get('spbu_transaction_id') or '-',
+                self._short_dt(spbu_dt), selisih,
+                (rec.get('ga_approved_by') or '-').split(' ')[0],
+                (rec.get('subsidy_linked_by') or '-').split(' ')[0],
+            ], widths, aligns=aligns, fill=fill, row_h=5.6)
+            fill = not fill
+        # baris total
+        self.set_font(self._font(), 'B', 7)
+        self.set_fill_color(*ZEBRA_FILL)
+        self.set_text_color(*INK)
+        self.cell(sum(widths[:5]), 6.5, 'TOTAL (menurut sistem SPBU Pertamina)', border=1,
+                  align='R', fill=True)
+        self.cell(widths[5], 6.5, f"{total_liter:.2f}", border=1, align='C', fill=True)
+        self.cell(widths[6], 6.5, f"{total_nominal:,.0f}".replace(',', '.'), border=1,
+                  align='R', fill=True)
+        # catatan: default new_y cell = TOP → posisi Y kini MENGGUNJUNG atas
+        # baris total; ln harus menambah tinggi baris agar judul tidak menimpa.
+        self.cell(sum(widths[7:]), 6.5, '', border=1, fill=True)
+        self.ln(11)
+
+        # ---- integritas: rantai hash ----
+        self.set_font(self._font(), 'B', 8)
+        self.set_text_color(*INK)
+        self.cell(0, 5, 'INTEGRITAS DOKUMEN (rantai hash SHA-256)',
+                  new_x='LMARGIN', new_y='NEXT')
+        self.set_font('courier', '', 6.5)
+        self.set_text_color(*INK_SOFT)
+        self.cell(0, 4.5, f"Algoritma : hash_n = SHA-256(hash_n-1 + record_n); "
+                          f"ROOT = SHA-256(hash_terakhir + 'records={len(records)}')",
+                  new_x='LMARGIN', new_y='NEXT')
+        self.cell(0, 4.5, f"ROOT      : {attest.get('root_hash')}",
+                  new_x='LMARGIN', new_y='NEXT')
+        self.cell(0, 4.5, f"Snapshot arsip JSON (SHA-256): {attest.get('snapshot_sha256')}",
+                  new_x='LMARGIN', new_y='NEXT')
+        self.ln(1.5)
+        # manifest per record (courier kecil, setengah hash per sel agar muat)
+        self.set_font('courier', '', 5.2)
+        for c in records:
+            h = str(c.get('record_hash') or '')
+            self.cell(40, 3.4, str(c.get('display_id') or ''), border=0)
+            self.cell(30, 3.4, str(c.get('subsidy_transaction_id') or ''), border=0)
+            self.cell(0, 3.4, f"h={h[:32]} {h[32:]}", new_x='LMARGIN', new_y='NEXT')
+        self.set_text_color(*INK)
+
+        # ---- TTD bertingkat ----
+        if self.get_y() + 40 > self.h - 20:
+            self.add_page()
+        self.ln(6)
+        self._attest_signatures(attest, generated_by)
+        self.set_text_color(*INK)
+
+    def _short_dt(self, s):
+        s = str(s or '')
+        return s[:16] if len(s) >= 16 else (s or '-')
+
+    def _attest_signatures(self, attest, generated_by):
+        """Dua blok TTD sejajar: GA (kiri) + Finance verifikator final (kanan)."""
+        ga_names, finance_names = set(), set()
+        for c in (attest.get('records') or []):
+            rec = c.get('_rec') or {}
+            if rec.get('ga_approved_by'):
+                ga_names.add(str(rec['ga_approved_by']).strip())
+            if rec.get('subsidy_linked_by'):
+                finance_names.add(str(rec['subsidy_linked_by']).strip())
+        if generated_by:
+            finance_names.add(generated_by)
+        col_w = 95
+        x_l = self.l_margin + 8
+        x_r = self.w - self.r_margin - col_w - 8
+        y0 = self.get_y()
+
+        def _block(x, label_mengetahui, name, role_label):
+            self.set_xy(x, y0)
+            self.set_font(self._font(), '', 8)
+            self.set_text_color(*RULE)
+            self.cell(col_w, 5, label_mengetahui, align='C')
+            self.set_xy(x, y0 + 15)
+            self.set_draw_color(*GRAY_LABEL)
+            self.set_line_width(0.3)
+            self.line(x + 10, y0 + 15, x + col_w - 10, y0 + 15)
+            self.set_xy(x, y0 + 17)
+            self.set_font(self._font(), 'B', 9)
+            self.set_text_color(*INK)
+            self.cell(col_w, 5, self.clean_text(name).upper(), align='C')
+            self.set_xy(x, y0 + 22)
+            self.set_font(self._font(), 'I', 7)
+            self.set_text_color(*GRAY_LABEL)
+            self.cell(col_w, 4, role_label, align='C')
+
+        _block(x_l, 'Diperiksa & disahkan,', ', '.join(sorted(ga_names)) or 'General Affairs',
+               'General Affairs ( Kontrol Internal Cabang )')
+        _block(x_r, 'Verifikasi final,', ', '.join(sorted(finance_names)) or 'Finance',
+               'Finance ( Verifikator Final )')
+        self.set_y(y0 + 30)

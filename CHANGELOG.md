@@ -7,6 +7,30 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.51.0 — 22 Oktober 2026 (Berita Acara Rekonsiliasi Subsidi Tepat — dokumen resmi kantor pusat)
+
+Finance kini dapat menerbitkan **Berita Acara Rekonsiliasi** (PDF landscape, berkop) untuk
+satu periode: semua klaim yang **ditaut Finance** di periode itu disandingkan dengan data
+sistem Pertamina — dibuat sulit dibantah:
+
+- 🧾 **Bukti pihak ketiga per baris**: `transactionId` SPBU, timestamp server SPBU,
+  verifikasi QR, SPBU/witel, volume & nominal menurut sistem Pertamina + selisih vs klaim.
+  Kantor pusat bisa mencerminkan setiap nomor langsung di portal
+  subsiditepat.mypertamina.id → Riwayat.
+- 🔐 **Rantai hash SHA-256**: `hash_n = SHA-256(hash_n-1 + record_n)` (JSON kanonik),
+  ROOT = SHA-256(hash terakhir + 'records=N') — ditulis di PDF; mengubah satu angka di
+  DB mana pun membuat ROOT tidak cocok dengan cetakan yang sudah diteken.
+- 📦 **Snapshot arsip JSON read-only** (`data/subsidy_attest/`) + hash file tercantum
+  di dokumen — salinan mentah tarikan portal yang tak dapat diubah dari aplikasi.
+- ✍️ **TTD bertingkat** diambil dari data: nama GA (verifikasi masuk) + Finance
+  (verifikator final) sebagaimana tercatat di audit trail.
+- Modul baru `modules/subsidy_attest.py` (registry `subsidy_attestations` di master,
+  builder rantai hash, snapshot, persist), endpoint `POST/GET /api/subsidy/attest` +
+  `GET /api/subsidy/attest/<id>/pdf` (unduh dari arsip; bila file arsip hilang,
+  PDF dibangun ulang hanya bila ROOT masih cocok — BA lama tak bisa dipalsukan).
+- UI: tombol **🖨 Berita Acara SPBU** di header Antrean Kerja (finance/admin) + modal
+  periode bulanan, daftar BA tersimpan, unduh PDF.
+
 ## v2.50.1 — 22 Oktober 2026 (hotfix: driver gagal submit klaim — 500 & antrean offline)
 
 Ditemukan saat uji klaim nyata driver "ahmad" (user laporan `NotFoundError`
