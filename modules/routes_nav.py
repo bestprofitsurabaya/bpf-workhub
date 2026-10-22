@@ -88,6 +88,10 @@ def register_nav_routes(app):
                     conn, "SELECT COUNT(*) FROM transactions WHERE status='os_finance'")
                 out['water_pending'] = _count(
                     conn, "SELECT COUNT(*) FROM water_purchases WHERE status='pending'")
+                # v2.53.0: klaim AG terverifikasi siap pencairan — badge
+                # 'Antrean Verifikasi' (klaim BBM kini bisa dibuka finance).
+                out['bbm_verify_pending'] = _count(
+                    conn, "SELECT COUNT(*) FROM transactions WHERE status='verified_ga'")
 
             if role in ('ga', 'finance', 'admin'):
                 cash = 0

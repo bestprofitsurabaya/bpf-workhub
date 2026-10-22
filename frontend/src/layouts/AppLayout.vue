@@ -35,6 +35,9 @@ const MENU_GROUPS = [
       { label: 'Dashboard', path: '/dashboard', icon: '📊', roles: ['admin'] },
       { label: 'Dashboard GA', path: '/ga', icon: '🧾', roles: ['ga', 'admin'], badge: 'ga_pending' },
       { label: 'Dashboard Finance', path: '/finance', icon: '💰', roles: ['finance', 'admin'], badge: 'finance_pending' },
+      // v2.53.0: antrean klaim BBM (AdminDashboard) dibuka untuk finance —
+      // payout/Subsidi Tepat/Berita Acara ada di sini (audit akses UI finance).
+      { label: 'Antrean Verifikasi', path: '/dashboard', icon: '🕐', roles: ['finance'], badge: 'bbm_verify_pending' },
       { label: 'Marketing Hub', path: '/marketing', icon: '📣', roles: ['marketing'] },
       { label: 'Chief Driver', path: '/chief-driver', icon: '🚛', roles: ['chief_driver', 'ga', 'admin'] },
     ],

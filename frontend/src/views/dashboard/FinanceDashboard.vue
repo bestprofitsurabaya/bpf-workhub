@@ -11,6 +11,19 @@ const data = ref(null)
 const fmtRp = (n) => 'Rp ' + (Number(n) || 0).toLocaleString('id-ID')
 const fmtNum = (n) => (Number(n) || 0).toLocaleString('id-ID')
 
+// v2.53.0: Klaim BBM — pintasan pekerjaan utama Finance (restrukturisasi UI)
+const bbm = ref({ ready: 0, confirm: 0 })
+const arrLen = (v) => (Array.isArray(v) ? v.length : 0)
+async function loadBbm() {
+  try {
+    const [finQ, drvQ] = await Promise.all([
+      api('/api/queue', { params: { tab: 'finance' } }).catch(() => null),
+      api('/api/queue', { params: { tab: 'driver_confirm' } }).catch(() => null),
+    ])
+    bbm.value = { ready: arrLen(finQ), confirm: arrLen(drvQ) }
+  } catch { bbm.value = { ready: 0, confirm: 0 } }
+}
+
 function buildQuery() {
   const q = new URLSearchParams()
   if (from.value) q.set('from', from.value)
@@ -40,7 +53,7 @@ function statusBadge(s) {
   )
 }
 
-onMounted(load)
+onMounted(() => { load(); loadBbm() })
 </script>
 
 <template>
@@ -63,6 +76,20 @@ onMounted(load)
 
     <div v-if="loading" class="card card-pad muted skeleton">Memuat…</div>
     <template v-else-if="data">
+      <!-- v2.53.0: Klaim BBM — pintasan pekerjaan utama Finance -->
+      <div class="card card-pad" data-testid="bbm-quick" style="margin-bottom:16px;display:flex;gap:14px;align-items:center;flex-wrap:wrap;border-left:4px solid #d97706;">
+        <div style="font-size:26px;">⛽</div>
+        <div class="grow">
+          <div style="font-weight:700;">Klaim BBM menunggu keputusan Anda</div>
+          <div class="muted" style="font-size:12px;">
+            <b :style="bbm.ready ? 'color:#d97706;' : ''">{{ bbm.ready }}</b> klaim terverifikasi GA siap dicairkan
+            <template v-if="bbm.confirm"> · <b>{{ bbm.confirm }}</b> menunggu konfirmasi driver / arsip</template>
+            — verifikasi Subsidi Tepat (riwayat SPBU resmi) langsung dari modal detail.
+          </div>
+        </div>
+        <router-link to="/dashboard" class="btn btn-primary" style="text-decoration:none;">🕐 Buka Antrean Verifikasi</router-link>
+      </div>
+
       <!-- Statistik air minum -->
       <div class="stat-grid" style="margin-bottom:16px;">
         <StatCard icon="📄" label="Total Pengajuan" :value="fmtNum(data.summary.total)" color="#2563eb" />
