@@ -363,6 +363,7 @@ def ensure_fuel_prices_schema(conn=None):
     """
     own = conn is None
     if conn is None:
+        from modules.config import get_master_connection
         conn = get_master_connection()
     if not conn:
         return False
