@@ -333,6 +333,58 @@ def extract_photo_meta(filepath):
     return meta
 
 
+_FUEL_PRICES_DDL = """
+CREATE TABLE IF NOT EXISTS vehicle_fuel_prices (
+    vehicle_type VARCHAR(50) NOT NULL,
+    bbm_type VARCHAR(50) NOT NULL,
+    price_per_liter DECIMAL(15,2) NOT NULL,
+    updated_by VARCHAR(80) DEFAULT 'system',
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_vtype_bbm (vehicle_type, bbm_type)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+"""
+
+# Harga default mengikuti jenis BBM (bbm_types) untuk setiap kombinasi
+# kendaraan×BBM yang diizinkan (vehicle_bbm_allowed). Admin bisa menimpa
+# per kendaraan nanti.
+_FUEL_PRICES_SEED = """
+INSERT IGNORE INTO vehicle_fuel_prices (vehicle_type, bbm_type, price_per_liter, updated_by)
+SELECT a.vehicle_type, a.bbm_type, b.price_per_liter, 'system-seed'
+FROM vehicle_bbm_allowed a
+JOIN bbm_types b ON b.name = a.bbm_type
+"""
+
+
+def ensure_fuel_prices_schema(conn=None):
+    """v2.50.1: buat + seed tabel vehicle_fuel_prices (idempoten SATU DB).
+
+    Bug 584ba88 (25 Agu 2026): driver_form merujuk tabel ini untuk harga
+    server-side, tapi tabel tak pernah dibuat → POST /driver 500 (1146).
+    """
+    own = conn is None
+    if conn is None:
+        conn = get_master_connection()
+    if not conn:
+        return False
+    cur = conn.cursor()
+    try:
+        cur.execute(_FUEL_PRICES_DDL)
+        try:
+            cur.execute(_FUEL_PRICES_SEED)
+        except Exception as seed_err:
+            # DB baru tanpa vehicle_bbm_allowed/bbm_types — tidak fatal.
+            print(f"[fuel-prices] seed: {seed_err}")
+        conn.commit()
+        return True
+    finally:
+        cur.close()
+        if own:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+
 def ensure_anti_fraud_schema(conn=None):
     """Idempoten: kolom transactions + tabel proof_registry (satu DB).
 

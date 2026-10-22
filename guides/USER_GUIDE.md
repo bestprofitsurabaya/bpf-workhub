@@ -1,4 +1,4 @@
-# 📖 Panduan Pengguna BPF WorkHub v2.50.0
+# 📖 Panduan Pengguna BPF WorkHub v2.50.1
 
 > **Siapa pun kamu — sopir, OB, admin, atau pimpinan — panduan ini ditulis untuk kamu.**
 > Tidak perlu paham teknis. Cukup ikuti langkah-langkah sesuai bagianmu.
@@ -1134,4 +1134,4 @@ Jika upload ke WordPress gagal, pesan error sekarang menampilkan **response body
 
 Ada pertanyaan atau kendala? Hubungi **Admin** atau **tim IT** — mereka bisa melihat riwayat sistem (Audit Log) untuk membantu menyelesaikan masalahmu dengan cepat.
 
-*BPF WorkHub v2.50.0 · Panduan Pengguna · Diperbarui 22 Oktober 2026*
+*BPF WorkHub v2.50.1 · Panduan Pengguna · Diperbarui 22 Oktober 2026*

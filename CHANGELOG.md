@@ -7,6 +7,28 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.50.1 — 22 Oktober 2026 (hotfix: driver gagal submit klaim — 500 & antrean offline)
+
+Ditemukan saat uji klaim nyata driver "ahmad" (user laporan `NotFoundError`
+IndexedDB + `POST /driver` 500):
+
+- 🐞 **`POST /driver` 500 — tabel `vehicle_fuel_prices` tak pernah dibuat.**
+  Refactor 25 Agu (commit `584ba88`, security review) memindahkan harga ke
+  lookup server-side tabel `vehicle_fuel_prices`, tapi migration tabelnya
+  tertinggal di SEMUA DB (master + cabang) → `ProgrammingError 1146` setiap
+  driver submit klaim.
+  - `ensure_fuel_prices_schema()` idempoten (master + tiap cabang saat startup):
+    buat tabel + seed harga default per kombinasi kendaraan×BBM dari
+    `bbm_types.price_per_liter` (dapat ditimpa Admin per kendaraan nanti).
+  - Guard di `driver_form`: bila tabel/lookup gagal → fallback harga 10.000
+    (tak 500 lagi).
+- 🐞 **IndexedDB store "not found" berulang (antrean offline driver)** — DB di
+  browser dibuat bundel lama; bundel baru menagih store yang tak ada, upgrade
+  tak jalan karena versi sama → `NotFoundError` tiap sync.
+  - `frontend/src/utils/idb.js` v5 + self-heal: deteksi store yang hilang,
+    buka ulang dengan versi lebih tinggi dan buat semua store otomatis;
+    tangani `VersionError` (DB browser versi lebih tinggi dari kode).
+
 ## v2.50.0 — 22 Oktober 2026 (integrasi Subsidi Tepat MyPertamina: verifikasi klaim ↔ riwayat SPBU resmi)
 
 Integrasi dengan akun **Subsidi Tepat (MyPertamina)** milik perseroan: riwayat

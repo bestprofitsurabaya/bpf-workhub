@@ -1,21 +1,20 @@
 /**
  * IndexedDB wrapper — antrean offline driver + trip drafts (auto-save).
  * 4 stores: fuel_queue, trip_queue, lpj_queue, trip_drafts
+ *
+ * v2.50.1: self-heal — bila bundel baru menagih store yang belum ada di DB
+ * browser (dibuat versi lama), store otomatis dibuat via version-bump tanpa
+ * error 'object store not found' berulang. Bump DB_VER juga paksa upgrade.
  */
 const DB_NAME = 'BPF_Driver_DB'
-const DB_VER = 4
+const DB_VER = 5
 const STORES = ['fuel_queue', 'trip_queue', 'lpj_queue', 'trip_drafts']
 
 let _dbPromise = null
 
-function openDB() {
-  if (_dbPromise) return _dbPromise
-  _dbPromise = new Promise((resolve, reject) => {
-    if (typeof indexedDB === 'undefined') {
-      reject(new Error('IndexedDB tidak didukung browser ini'))
-      return
-    }
-    const req = indexedDB.open(DB_NAME, DB_VER)
+function _openVersion(ver) {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, ver)
     req.onupgradeneeded = (e) => {
       const d = e.target.result
       for (const s of STORES) {
@@ -23,13 +22,49 @@ function openDB() {
       }
     }
     req.onsuccess = (e) => resolve(e.target.result)
-    req.onerror = (e) => { _dbPromise = null; reject(e) }
+    req.onerror = (e) => reject(e)
+    req.onblocked = () => reject(new Error('IndexedDB blocked — tutup tab lain lalu muat ulang'))
   })
-  return _dbPromise
 }
 
-function tx(store, mode) {
-  return openDB().then((db) => db.transaction(store, mode))
+async function openDB() {
+  if (_dbPromise) return _dbPromise
+  _dbPromise = (async () => {
+    if (typeof indexedDB === 'undefined') throw new Error('IndexedDB tidak didukung browser ini')
+    let db
+    try {
+      db = await _openVersion(DB_VER)
+    } catch (err) {
+      // E11: versi tersimpan lebih tinggi → buka tanpa versi (aktual).
+      if (err && err.name === 'VersionError') db = await _openVersion()
+      else throw err
+    }
+    // v2.50.1: DB lama bisa punya versi >= DB_VER tapi store tak lengkap
+    // (di-*open* versi lama kode). Upgrade tidak jalan lagi di versi sama →
+    // cek isi, bila ada store hilang buka ulang dengan versi lebih tinggi.
+    const missing = () => STORES.filter((s) => !db.objectStoreNames.contains(s))
+    let attempt = 0
+    while (missing().length && attempt < 3) {
+      try {
+        db.close()
+      } catch { /* ignore */ }
+      attempt++
+      db = await _openVersion(db.version + 1)
+    }
+    if (missing().length) throw new Error('Store IndexedDB tidak dapat dibuat: ' + missing().join(','))
+    return db
+  })()
+  try {
+    return await _dbPromise
+  } catch (e) {
+    _dbPromise = null
+    throw e
+  }
+}
+
+async function tx(store, mode) {
+  const db = await openDB()
+  return db.transaction(store, mode)
 }
 
 export async function addToQueue(store, data) {

@@ -5,7 +5,7 @@ from modules.config import get_db_connection, get_master_connection
 from modules.helpers import (save_file, resolve_driver_form_context, validate_bbm_for_vehicle,
                              ensure_all_master_data, generate_display_id, log_activity_async,
                              session_driver_name, role_required, sha256_file,
-                             ensure_anti_fraud_schema)
+                             ensure_anti_fraud_schema, ensure_fuel_prices_schema)
 from modules.engine import PerformanceAnalyzer
 from modules.approvals import hook_create_approval  # v2.36.0
 from datetime import datetime
@@ -56,9 +56,10 @@ def _register_proof_hashes(tx_id, display_id, driver_name, nopol, photo_meta, br
 def register_driver_routes(app, socketio):
     # v2.49.3: pastikan kolom anti-kecurangan & registry bukti sudah ada
     # (master + tiap DB cabang) sebelum endpoint klaim dipakai. Idempoten.
+    # v2.50.1: + tabel vehicle_fuel_prices (harga server-side, bug 584ba88).
     def _ensure_all_dbs():
         try:
-            if ensure_anti_fraud_schema():
+            if ensure_anti_fraud_schema() and ensure_fuel_prices_schema():
                 from modules.branch_manager import list_branches
                 from modules.config import get_db_connection as _gc
                 from modules.branch_db_map import DEFAULT_BRANCH_CODE
@@ -67,6 +68,7 @@ def register_driver_routes(app, socketio):
                         c = _gc(branch_code=b.get('code'))
                         if c:
                             ensure_anti_fraud_schema(c)
+                            ensure_fuel_prices_schema(c)
                             try:
                                 c.close()
                             except Exception:
@@ -142,9 +144,15 @@ def register_driver_routes(app, socketio):
                     return jsonify({'status': 'error', 'msg': validation['error']}), 400
 
                 # --- Use server-side price, NOT client-provided ---
-                cursor.execute("SELECT price_per_liter FROM vehicle_fuel_prices WHERE vehicle_type=%s AND bbm_type=%s", (vehicle_type, bbm_type))
-                price_row = cursor.fetchone()
-                price_per_liter = float(price_row['price_per_liter']) if price_row and price_row.get('price_per_liter') else 10000
+                # v2.50.1: tabel vehicle_fuel_prices dijasikan idempoten startup;
+                # guard ini mencegah 500 bila tabel hilang lagi (fallback 10.000).
+                try:
+                    cursor.execute("SELECT price_per_liter FROM vehicle_fuel_prices WHERE vehicle_type=%s AND bbm_type=%s", (vehicle_type, bbm_type))
+                    price_row = cursor.fetchone()
+                    price_per_liter = float(price_row['price_per_liter']) if price_row and price_row.get('price_per_liter') else 10000
+                except Exception as price_err:
+                    print(f"[driver] fuel price fallback: {price_err}")
+                    price_per_liter = 10000
                 liter = nominal / price_per_liter if price_per_liter > 0 else 0
 
                 ensure_all_master_data(driver_name, nopol, vehicle_type, bbm_type, price_per_liter)
