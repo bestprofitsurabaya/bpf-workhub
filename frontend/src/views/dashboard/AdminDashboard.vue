@@ -198,6 +198,50 @@ async function unlinkSubsidy() {
   finally { subsidyBusy.value = false }
 }
 
+// v2.52.0 — restrukturisasi modal detail: tab klasifikasi + checklist
+// verifikasi + zoom foto. Tujuan: Finance/GA tak lagi melihat tumpukan
+// info tanpa urutan — keputusan berbasis checklist yang jelas.
+const modalTab = ref('bukti')
+const photoZoom = ref(null)
+const modalTabs = computed(() => {
+  const t = [{ key: 'bukti', label: '📋 Bukti & Data' }]
+  if (canFinance.value) t.push({ key: 'subsidi', label: '⛽ Subsidi Tepat' })
+  t.push({ key: 'analisis', label: '💰 Analisis Keuangan' })
+  return t
+})
+const checklist = computed(() => {
+  const d = selData.value
+  const items = []
+  items.push({
+    label: 'Verifikasi GA',
+    state: d?.ga_approved_by ? 'ok' : 'wait',
+    detail: d?.ga_approved_by
+      ? `${d.ga_approved_by}${d.ga_approved_at ? ' · ' + String(d.ga_approved_at).slice(0, 16) : ''}`
+      : 'Menunggu ACC GA',
+  })
+  items.push({
+    label: 'Anomali ML',
+    state: !d?.ml_anomaly_flag ? 'none' : (d?.anomaly_cleared_by ? 'ok' : 'warn'),
+    detail: !d?.ml_anomaly_flag ? 'Tidak ber-flag'
+      : (d?.anomaly_cleared_by ? `Diperiksa ${d.anomaly_cleared_by}` : 'Belum diperiksa GA'),
+  })
+  items.push({
+    label: 'Subsidi Tepat',
+    state: subsidy.value?.linked ? 'ok' : (subsidy.value ? 'warn' : 'na'),
+    detail: subsidy.value?.linked
+      ? `${subsidy.value.linked.transaction_id} · ${subsidy.value.linked.volume} L`
+      : (subsidy.value ? (subsidy.value.verdict || '—').toUpperCase() : '—'),
+  })
+  const hs = selCross.value?.health_score
+  items.push({
+    label: 'Health Score',
+    state: hs == null ? 'na' : (hs >= 80 ? 'ok' : hs >= 60 ? 'warn' : 'bad'),
+    detail: selCross.value
+      ? `${hs ?? '—'}/100 · Budget ${selCross.value.budget_usage_percent ?? '—'}%` : '—',
+  })
+  return items
+})
+
 // v2.51.0 — Berita Acara Rekonsiliasi Subsidi Tepat (PDF untuk kantor pusat)
 const attestOpen = ref(false)
 const attestPeriod = ref(new Date().toISOString().slice(0, 7))
@@ -305,6 +349,8 @@ async function openDetail(tx, verify = false) {
   selData.value = null; selCross.value = null; selFinanceReview.value = null; subsidy.value = null
   verifyMode.value = false; editMode.value = false
   financeRemark.value = ''
+  modalTab.value = 'bukti'
+  photoZoom.value = null
   try {
     const promises = [
       api(`/api/transactions/detail/${tx.id}`),
@@ -589,7 +635,21 @@ watch(queueTab, (tab) => {
           <span class="badge" :class="selData.is_mypertamina_error ? 'badge-red' : 'badge-gray'">{{ selData.is_mypertamina_error ? '⚠️ Error MyPertamina' : 'MyPertamina OK' }}</span>
         </div>
 
-        <div class="form-grid">
+        <!-- v2.52.0: Ringkasan Verifikasi — checklist keputusan di atas -->
+        <div class="verify-checklist" data-testid="verify-checklist">
+          <div v-for="it in checklist" :key="it.label" class="vc-item" :class="'vc-' + it.state">
+            <div class="vc-head"><span class="vc-dot">{{ it.state === 'ok' ? '✅' : it.state === 'warn' ? '⚠️' : it.state === 'bad' ? '🔴' : it.state === 'none' ? '✅' : '⏳' }}</span><span class="vc-label">{{ it.label }}</span></div>
+            <div class="vc-detail">{{ it.detail }}</div>
+          </div>
+        </div>
+
+        <!-- v2.52.0: tab klasifikasi konten modal -->
+        <div class="row" style="gap:6px;margin:12px 0 0;flex-wrap:wrap;">
+          <button v-for="t in modalTabs" :key="t.key" class="btn btn-sm" :class="modalTab === t.key ? 'btn-primary' : ''" @click="modalTab = t.key">{{ t.label }}</button>
+        </div>
+
+        <template v-if="modalTab === 'bukti'">
+        <div class="form-grid" style="margin-top:12px;">
           <div class="field"><label>Driver</label><input class="input" :value="selData.driver_name" disabled /></div>
           <div class="field"><label>Nopol / Kendaraan</label><input class="input" :value="selData.nopol + ' · ' + (selData.vehicle_type || '')" disabled /></div>
           <div class="field"><label>BBM / SPBU</label><input class="input" :value="selData.bbm_type + ' · ' + (selData.spbu_type || '')" disabled /></div>
@@ -601,11 +661,11 @@ watch(queueTab, (tab) => {
         <p v-if="selData.rejection_reason" class="alert alert-error" style="margin:6px 0;">❌ Alasan tolak: {{ selData.rejection_reason }}</p>
 
         <h4 style="margin:12px 0 8px;">📷 Foto Bukti</h4>
-        <div v-if="selData.photos?.length" style="display:flex;gap:8px;flex-wrap:wrap;">
-          <a v-for="p in selData.photos" :key="p.url" :href="p.url" target="_blank" style="text-align:center;text-decoration:none;">
-            <img :src="p.url" :alt="p.label" style="width:84px;height:84px;object-fit:cover;border-radius:8px;border:1px solid var(--border, #334155);" />
+        <div v-if="selData.photos?.length" style="display:flex;gap:10px;flex-wrap:wrap;">
+          <button v-for="p in selData.photos" :key="p.url" title="Klik untuk perbesar" style="background:none;border:none;padding:0;cursor:zoom-in;text-align:center;" @click="photoZoom = p.url">
+            <img :src="p.url" :alt="p.label" style="width:120px;height:120px;object-fit:cover;border-radius:8px;border:1px solid var(--border, #334155);" />
             <div class="muted" style="font-size:10px;">{{ p.label }}</div>
-          </a>
+          </button>
         </div>
         <div v-else class="muted" style="font-size:12px;">Tidak ada foto bukti.</div>
 
@@ -646,7 +706,10 @@ watch(queueTab, (tab) => {
           <button class="btn btn-sm btn-primary" :disabled="qBusy" @click="doModify(selData)">💾 Simpan Perubahan</button>
           <button class="btn btn-sm" :disabled="qBusy" @click="editMode = false">Batal</button>
         </div>
+        </template>
 
+        <!-- 💰 Analisis Keuangan (tab) — bagian 1: volume & budget -->
+        <template v-else-if="modalTab === 'analisis'">
         <!-- Finance Review (prev ODO, monthly, budget) -->
         <template v-if="selFinanceReview && canFinance">
           <h4 style="margin:14px 0 8px;">💰 Finance Review</h4>
@@ -680,7 +743,9 @@ watch(queueTab, (tab) => {
             </div>
           </div>
         </template>
+        </template>
 
+        <template v-else-if="modalTab === 'subsidi' && canFinance">
         <!-- v2.50.0: Verifikasi Subsidi Tepat (finance/admin) -->
         <template v-if="subsidy && canFinance">
           <h4 style="margin:14px 0 8px;">⛽ Verifikasi Subsidi Tepat</h4>
@@ -731,7 +796,9 @@ watch(queueTab, (tab) => {
             <p class="muted" style="font-size:11px;margin:6px 0 0;">Data riwayat diimpor dari portal Subsidi Tepat (agen host); sifatnya bantuan verifikasi — keputusan tetap Finance.</p>
           </template>
         </template>
+        </template>
 
+        <template v-else-if="modalTab === 'analisis'">
         <template v-if="selCross">
           <h4 style="margin:14px 0 8px;">🩺 Cross-Check</h4>
           <div class="row" style="gap:10px;flex-wrap:wrap;">
@@ -761,7 +828,9 @@ watch(queueTab, (tab) => {
             Rekomendasi: <b>{{ selCross.recommendation }}</b> · Rata-rata 3 bulan: {{ selCross.avg_3months?.avg_kml || '—' }} km/L ({{ selCross.avg_3months?.tx_count || 0 }} tx)
           </p>
         </template>
+        </template>
 
+        <!-- v2.52.0: Keputusan — selalu tampak, terpisah dari konten tab -->
         <div class="row" style="justify-content:flex-end;margin-top:14px;gap:6px;flex-wrap:wrap;">
           <template v-if="selData.status === 'pending' || selData.status === 'modified'">
             <button v-if="canApprove && !selData.ml_anomaly_flag" class="btn btn-sm btn-primary" :disabled="qBusy" @click="modalAction(`/api/queue/approve-ga/${selData.id}`, 'menyetujui klaim ini', true)">✅ Setujui</button>
@@ -817,6 +886,12 @@ watch(queueTab, (tab) => {
       </p>
     </Modal>
 
+    <!-- v2.52.0: overlay zoom foto bukti -->
+    <div v-if="photoZoom" class="photo-zoom-overlay" @click="photoZoom = null">
+      <img :src="photoZoom" alt="Foto bukti diperbesar" />
+      <p class="muted" style="color:#e2e8f0;font-size:11px;margin-top:6px;">Klik di mana saja untuk menutup</p>
+    </div>
+
     <ConfirmDialog ref="confirmRef" />
   </div>
 </template>
@@ -844,4 +919,32 @@ watch(queueTab, (tab) => {
 .action-clear { display: flex; flex-direction: column; gap: 3px; border-left: 4px solid var(--success); margin-bottom: 18px; }
 .help-details { margin-top: 18px; }
 .help-details summary { cursor: pointer; font-weight: 700; font-size: 13px; }
+
+/* v2.52.0 — checklist verifikasi + zoom foto (modal detail) */
+.verify-checklist {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px; margin-top: 2px;
+}
+.vc-item {
+  border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px;
+  background: var(--surface);
+}
+.vc-head { display: flex; gap: 6px; align-items: center; font-weight: 700; font-size: 12px; }
+.vc-dot { font-size: 13px; }
+.vc-detail { font-size: 10.5px; color: var(--text-3); margin-top: 2px; word-break: break-all; }
+.vc-ok { border-left: 3px solid var(--success, #059669); }
+.vc-warn { border-left: 3px solid #d97706; }
+.vc-bad { border-left: 3px solid #dc2626; }
+.vc-wait { border-left: 3px solid var(--border); }
+.vc-none { border-left: 3px solid var(--border); }
+.vc-na { border-left: 3px solid var(--border); opacity: .7; }
+.photo-zoom-overlay {
+  position: fixed; inset: 0; z-index: 60;
+  background: rgba(2, 6, 23, .82); display: flex; flex-direction: column;
+  align-items: center; justify-content: center; cursor: zoom-out; padding: 24px;
+}
+.photo-zoom-overlay img {
+  max-width: min(92vw, 900px); max-height: 82vh; border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(0,0,0,.5);
+}
 </style>

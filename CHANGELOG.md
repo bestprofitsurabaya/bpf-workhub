@@ -7,6 +7,24 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.52.0 — 22 Oktober 2026 (perombakan modal verifikasi Finance — checklist, tab klasifikasi, zoom bukti)
+
+Audit masukan Finance: modal detail berupa tumpukan linier (badge → data → foto →
+form → 3 panel analisis → tombol campur semua role) tanpa urutan kerja —
+pemegang keputusan harus bergulir panjang dan menggabungkan info sendiri.
+
+- ✅ **Ringkasan Verifikasi (checklist) di atas modal**: 4 chip status —
+  Verifikasi GA (nama+waktu), Anomali ML (diperiksa GA atau tidak ber-flag),
+  Subsidi Tepat (tertaut / verdict), Health Score & Budget. Keputusan payout
+  cukup melihat satu panel.
+- 🗂 **Tab klasifikasi konten**: `📋 Bukti & Data` (data klaim, foto, form
+  verifikasi anomali & edit), `⛽ Subsidi Tepat` (kandidat SPBU + taut,
+  finance/admin), `💰 Analisis Keuangan` (cross-check + finance review +
+  catatan). Bar aksi keputusan selalu tampak di bawah.
+- 📷 **Zoom foto bukti**: thumbnail 120px + overlay perbesar full-screen
+  (Finance memeriksa nota tanpa membuka tab baru).
+- Semua 16 test AdminDashboard tetap lolos (tombol & alur tidak berubah).
+
 ## v2.51.0 — 22 Oktober 2026 (Berita Acara Rekonsiliasi Subsidi Tepat — dokumen resmi kantor pusat)
 
 Finance kini dapat menerbitkan **Berita Acara Rekonsiliasi** (PDF landscape, berkop) untuk
