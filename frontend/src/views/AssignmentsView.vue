@@ -1,6 +1,7 @@
 <script setup>
 import { onMounted, ref } from 'vue'
 import { api } from '../api'
+import PageHeader from '../components/PageHeader.vue'
 
 const active = ref([])
 const unassigned = ref([])
@@ -52,6 +53,7 @@ onMounted(load)
 
 <template>
   <div>
+    <PageHeader icon="🚗" title="Penugasan Driver" subtitle="Assign & lepas kendaraan ke driver aktif" />
     <div class="card card-pad" style="margin-bottom:16px;">
       <h3>➕ Assign Kendaraan</h3>
       <div class="row">

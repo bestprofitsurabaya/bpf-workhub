@@ -3,6 +3,7 @@ import { onMounted, ref } from 'vue'
 import { api } from '../api'
 import { useAuthStore } from '../stores/auth'
 import Modal from '../components/Modal.vue'
+import PageHeader from '../components/PageHeader.vue'
 
 const auth = useAuthStore()
 const trips = ref([])
@@ -54,6 +55,7 @@ onMounted(load)
 
 <template>
   <div>
+    <PageHeader icon="🗺️" title="Log Perjalanan" subtitle="Log perjalanan driver menunggu verifikasi GA" />
     <div class="card card-pad" style="margin-bottom:16px;">
       <div class="row">
         <div class="field" style="margin:0;"><label>Driver</label><input class="input" v-model="f.driver" placeholder="Nama driver" /></div>

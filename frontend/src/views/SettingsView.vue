@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { api } from '../api'
 import Modal from '../components/Modal.vue'
 import ConfirmDialog from '../components/ConfirmDialog.vue'
+import PageHeader from '../components/PageHeader.vue'
 import { identity } from '../stores/identity'
 import { useAuthStore } from '../stores/auth'
 
@@ -585,6 +586,7 @@ onMounted(() => {
 
 <template>
   <div>
+    <PageHeader icon="⚙️" title="Pengaturan" subtitle="Konfigurasi aplikasi — data master, integrasi & keamanan" />
     <div v-if="msg" class="alert" :class="msg.startsWith('✅') ? 'alert-success' : 'alert-error'">{{ msg }}</div>
     <div v-if="loading" class="empty skeleton">⏳ Memuat…</div>
     <div v-else-if="err" class="alert alert-error">{{ err }}</div>

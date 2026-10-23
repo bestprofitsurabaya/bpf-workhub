@@ -4,6 +4,7 @@ import { api } from '../../api'
 import StatCard from '../../components/StatCard.vue'
 import Modal from '../../components/Modal.vue'
 import ConfirmDialog from '../../components/ConfirmDialog.vue'
+import PageHeader from '../../components/PageHeader.vue'
 
 const confirmRef = ref(null)
 const ask = (message, opts) => confirmRef.value?.open(message, opts) ?? Promise.resolve(false)
@@ -276,6 +277,7 @@ onMounted(load)
 
 <template>
   <div>
+    <PageHeader icon="🚛" title="Chief Driver" subtitle="Papan penugasan driver & rute kunjungan hari ini" />
     <div class="card card-pad" style="margin-bottom:16px;">
       <div class="row" style="flex-wrap:wrap;gap:10px;">
         <div class="field" style="margin:0;"><label>Tanggal Board</label>

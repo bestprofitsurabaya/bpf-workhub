@@ -4,6 +4,7 @@ import { api } from '../../api'
 import StatCard from '../../components/StatCard.vue'
 import Modal from '../../components/Modal.vue'
 import ConfirmDialog from '../../components/ConfirmDialog.vue'
+import PageHeader from '../../components/PageHeader.vue'
 
 const confirmRef = ref(null)
 const ask = (message, opts) => confirmRef.value?.open(message, opts) ?? Promise.resolve(false)
@@ -211,25 +212,16 @@ onMounted(() => { loadSummary(); loadTab() })
 
 <template>
   <div>
-    <div class="card card-pad" style="margin-bottom:16px;">
-      <div class="row" style="flex-wrap:wrap;gap:8px;align-items:center;">
-        <div class="grow">
-          <h3 style="margin:0;">🔧 Aset &amp; Pemeliharaan</h3>
-          <p class="muted" style="font-size:11px;margin-top:4px;">
-            Pemeliharaan unit AC kantor &amp; kendaraan — data hasil migrasi dari sistem aset lama.
-            <span v-if="summary" class="badge badge-blue" style="margin-left:6px;">{{ summary.ac_total }} AC · {{ summary.vehicle_total }} kendaraan</span>
-            <span v-if="summary && summary.urgent" class="badge badge-red" style="margin-left:6px;">⚠️ {{ summary.urgent }} rekomendasi mendesak</span>
-          </p>
-        </div>
-        <div class="row" style="gap:6px;">
-          <button class="btn" :class="tab==='ac' ? 'btn-primary' : ''" @click="switchTab('ac')">❄️ AC ({{ acList.length }})</button>
-          <button class="btn" :class="tab==='vehicles' ? 'btn-primary' : ''" @click="switchTab('vehicles')">🚗 Kendaraan ({{ vehList.length }})</button>
-          <button class="btn" :class="tab==='recommendations' ? 'btn-primary' : ''" @click="switchTab('recommendations')">📋 Rekomendasi ({{ recList.filter(r=>r.status==='Pending').length }})</button>
-          <button class="btn" :class="tab==='components' ? 'btn-primary' : ''" @click="switchTab('components')">🧩 Komponen ({{ compList.length }})</button>
-        </div>
-      </div>
-      <div v-if="msg" class="alert" :class="msg.startsWith('✅') ? 'alert-success' : 'alert-error'" style="margin-top:10px;">{{ msg }}</div>
-    </div>
+    <PageHeader icon="🔧" title="Aset & Pemeliharaan" subtitle="Pemeliharaan unit AC kantor & kendaraan — data hasil migrasi dari sistem aset lama.">
+      <span v-if="summary" class="badge badge-blue">{{ summary.ac_total }} AC · {{ summary.vehicle_total }} kendaraan</span>
+      <span v-if="summary && summary.urgent" class="badge badge-red">⚠️ {{ summary.urgent }} rekomendasi mendesak</span>
+      <button class="btn" :class="tab==='ac' ? 'btn-primary' : ''" @click="switchTab('ac')">❄️ AC ({{ acList.length }})</button>
+      <button class="btn" :class="tab==='vehicles' ? 'btn-primary' : ''" @click="switchTab('vehicles')">🚗 Kendaraan ({{ vehList.length }})</button>
+      <button class="btn" :class="tab==='recommendations' ? 'btn-primary' : ''" @click="switchTab('recommendations')">📋 Rekomendasi ({{ recList.filter(r=>r.status==='Pending').length }})</button>
+      <button class="btn" :class="tab==='components' ? 'btn-primary' : ''" @click="switchTab('components')">🧩 Komponen ({{ compList.length }})</button>
+    </PageHeader>
+
+    <div v-if="msg" class="alert" :class="msg.startsWith('✅') ? 'alert-success' : 'alert-error'" style="margin-bottom:16px;">{{ msg }}</div>
 
     <!-- ============ TAB AC ============ -->
     <template v-if="tab === 'ac'">

@@ -7,6 +7,16 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.58.0 — 23 Oktober 2026 (fase-2 gelombang 5: sisa view SPA — rollout selesai)
+
+- 12 view terakhir masuk standar: Trips, Assignments, Cash, Settings,
+  AccessReview, Assets, ChiefDriver, Marketing, Receptionist, EmployeeInOut,
+  Overtime (GA HR), Traineer — **seluruh halaman utama SPA kini memakai
+  PageHeader yang sama**.
+- Publik & PWA mobile (Login/Apply/Form OT/driver/*) sengaja tidak — punya
+  layout sendiri; TranscoderView & PdfKitView bertahan desain bespoke-nya.
+- ✔️ 217 vitest hijau. Fase-2 design system: SELESAI; lanjut fase-3 polish.
+
 ## v2.57.0 — 23 Oktober 2026 (fase-2 gelombang 4: view operasional)
 
 - 🚰 WaterView · 👥 UsersView · 📝 LogsView · ✅ ApprovalsView ·

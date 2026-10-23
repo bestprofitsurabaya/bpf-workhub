@@ -3,6 +3,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { api } from '../../api'
 import StatCard from '../../components/StatCard.vue'
 import Modal from '../../components/Modal.vue'
+import PageHeader from '../../components/PageHeader.vue'
 
 const tab = ref('driver') // 'driver' | 'ob'
 const loading = ref(true)
@@ -431,15 +432,9 @@ watch(tab, loadTab)
 
 <template>
   <div class="page">
-    <div class="card card-pad" style="margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-      <div class="grow">
-        <h2 style="margin:0;">⏰ Data Overtime</h2>
-        <div class="muted" style="font-size:12px;">
-          Overtime Driver (sinkronisasi Google Sheet) &amp; OB/Security (form publik) — khusus GA HR
-        </div>
-      </div>
+    <PageHeader icon="⏰" title="Data Overtime" subtitle="Overtime Driver (sinkronisasi Google Sheet) & OB/Security (form publik) — khusus GA HR">
       <a class="btn btn-primary" :href="formLink" target="_blank" rel="noopener">🔗 Form Publik OB/Security</a>
-    </div>
+    </PageHeader>
 
     <div v-if="refreshMsg" class="alert alert-success">✅ Refresh selesai: {{ refreshMsg }}</div>
     <div v-if="err" class="alert alert-error">{{ err }}</div>

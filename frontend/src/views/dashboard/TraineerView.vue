@@ -2,6 +2,7 @@
 import { onMounted, ref, computed } from 'vue'
 import { api } from '../../api'
 import StatCard from '../../components/StatCard.vue'
+import PageHeader from '../../components/PageHeader.vue'
 
 const list = ref([])
 const stats = ref(null)
@@ -52,16 +53,10 @@ onMounted(() => { load(); loadMeta() })
 
 <template>
   <div>
+    <PageHeader icon="🎯" title="Rekrutan Saya (Traineer)" subtitle="Pantau kehadiran orang yang Anda rekrut — interview & 4 hari training.">
+      <span v-if="scopeUpline" class="badge badge-orange">Upline: {{ scopeUpline }}</span>
+    </PageHeader>
     <div class="card card-pad" style="margin-bottom:16px;">
-      <div class="row" style="gap:8px;">
-        <div class="grow">
-          <h3 style="margin:0;">🎯 Rekrutan Saya (Traineer)</h3>
-          <p class="muted" style="font-size:11px;margin-top:4px;">
-            Pantau kehadiran orang yang Anda rekrut — interview &amp; 4 hari training.
-            <span v-if="scopeUpline" class="badge badge-orange" style="margin-left:6px;">Upline: {{ scopeUpline }}</span>
-          </p>
-        </div>
-      </div>
       <div class="row" style="flex-wrap:wrap;gap:10px;align-items:flex-end;margin-top:12px;">
         <div class="field" style="margin:0;"><label>Dari Tanggal</label>
           <input class="input" type="date" v-model="f.date_from" @change="load" /></div>

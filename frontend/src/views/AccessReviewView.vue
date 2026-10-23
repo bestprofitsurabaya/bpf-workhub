@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { api } from '../api'
 import Modal from '../components/Modal.vue'
 import StatCard from '../components/StatCard.vue'
+import PageHeader from '../components/PageHeader.vue'
 
 const loading = ref(true)
 const err = ref('')
@@ -119,10 +120,13 @@ onMounted(load)
 
 <template>
   <div>
-    <div class="card card-pad" style="margin-bottom:16px;display:flex;align-items:center;flex-wrap:wrap;gap:8px;">
-      <div class="grow">
-        <h3 style="margin:0;">🛂 Access Review <span v-if="reviewDue" class="badge badge-red" style="margin-left:6px;">REVIEW TERLAMBAT</span></h3>
-        <p class="muted" style="font-size:11px;margin-top:4px;">
+    <PageHeader icon="🛂" title="Access Review">
+      <span v-if="reviewDue" class="badge badge-red">REVIEW TERLAMBAT</span>
+      <button class="btn" :disabled="busy" @click="exportCsv" title="Unduh CSV untuk arsip triwulanan">📥 Export CSV</button>
+      <button class="btn btn-primary" :disabled="busy" @click="completeReview">✔️ Tandai Review Selesai</button>
+    </PageHeader>
+    <div class="card card-pad" style="margin-bottom:16px;">
+      <p class="muted" style="font-size:11px;margin-top:0;">
           Review hak akses triwulanan (ISO/IEC 27001 A.5.15 · A.8.2 · A.8.3) — akun <b>Basi</b> =
           tidak login &gt; {{ staleDays }} hari · <b>Belum Login</b> = aktif tapi belum pernah masuk.
         </p>
@@ -131,11 +135,8 @@ onMounted(load)
         </p>
         <p v-else class="muted" style="font-size:11px;">📌 Belum pernah ada review tercatat.</p>
       </div>
-      <button class="btn" :disabled="busy" @click="exportCsv" title="Unduh CSV untuk arsip triwulanan">📥 Export CSV</button>
-      <button class="btn btn-primary" :disabled="busy" @click="completeReview">✔️ Tandai Review Selesai</button>
-    </div>
 
-    <div v-if="msg" class="alert" :class="msg.startsWith('✅') ? 'alert-success' : 'alert-error'" style="margin-bottom:16px;">{{ msg }}</div>
+      <div v-if="msg" class="alert" :class="msg.startsWith('✅') ? 'alert-success' : 'alert-error'" style="margin-bottom:16px;">{{ msg }}</div>
 
     <div class="stat-grid" style="margin-bottom:16px;">
       <StatCard icon="👥" label="Total User" :value="summary.total" color="#2563eb" />

@@ -6,6 +6,7 @@ import Modal from '../../components/Modal.vue'
 import { useStepupStore } from '../../stores/stepup'
 import { useRealtimeStore } from '../../stores/realtime'
 import ConfirmDialog from '../../components/ConfirmDialog.vue'
+import PageHeader from '../../components/PageHeader.vue'
 
 const confirmRef = ref(null)
 const ask = (message, opts) => confirmRef.value?.open(message, opts) ?? Promise.resolve(false)
@@ -199,6 +200,7 @@ onMounted(() => {
 
 <template>
   <div>
+    <PageHeader icon="🚪" title="In-Out Karyawan" subtitle="Catatan keluar-masuk karyawan & sinkronisasi Google Sheet" />
     <div class="card card-pad" style="margin-bottom:16px;">
       <div class="row" style="flex-wrap:wrap;gap:10px;align-items:flex-end;">
         <div class="field" style="margin:0;"><label>Dari Tanggal</label>

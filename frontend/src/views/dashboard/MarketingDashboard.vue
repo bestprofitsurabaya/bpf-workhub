@@ -4,6 +4,7 @@ import { api } from '../../api'
 import StatCard from '../../components/StatCard.vue'
 import Modal from '../../components/Modal.vue'
 import ConfirmDialog from '../../components/ConfirmDialog.vue'
+import PageHeader from '../../components/PageHeader.vue'
 
 const confirmRef = ref(null)
 const ask = (message, opts) => confirmRef.value?.open(message, opts) ?? Promise.resolve(false)
@@ -149,6 +150,7 @@ onMounted(() => { load(); loadMembers(); loadCompleted() })
 
 <template>
   <div>
+    <PageHeader icon="📣" title="Marketing Hub" subtitle="Input appointment & pantau kunjungan nasabah" />
     <div class="card card-pad" style="margin-bottom:16px;">
       <h3>📣 Input Appointment Baru</h3>
       <form @submit.prevent="submit">
