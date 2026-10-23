@@ -76,6 +76,11 @@ const dVolFmt = (v) => (v > 0 ? '+' : '') + fmtNum(v)
 // kandidat: tandai yang terpilih, maksimal 5 baris
 const candidates = computed(() => (subsidy.value?.candidates || []).slice(0, 5))
 
+// wave-17: rantai verifikasi per-peran — dibaca dari field aktor+waktu detail
+const gaDone = computed(() => !!data.value?.ga_approved_by || !!data.value?.anomaly_cleared_by)
+const finDone = computed(() => !!data.value?.finance_payout_by)
+const archDone = computed(() => !!data.value?.archived_by)
+
 onMounted(load)
 </script>
 
@@ -206,6 +211,78 @@ onMounted(load)
         </template>
         <p v-else class="muted" style="font-size:12px;margin:0;">Data Subsidi Tepat tidak tersedia.</p>
       </section>
+
+      <!-- (4) Rantai Verifikasi — per-peran (wave-17) -->
+      <section class="cvc-block">
+        <h4 class="cvc-title">⛓ Rantai Verifikasi</h4>
+        <ul class="cvc-chain">
+          <!-- 1: driver submit -->
+          <li class="cvc-step">
+            <span class="cvc-dot cvc-dot-done" aria-hidden="true"></span>
+            <div class="cvc-step-body">
+              <b>🚗 Klaim diajukan driver</b>
+              <span class="muted">{{ data.driver_name }}<template v-if="data.display_id"> · {{ data.display_id }}</template> · {{ data.created_at }}</span>
+            </div>
+          </li>
+          <!-- 2: GA -->
+          <li class="cvc-step" :class="{ 'cvc-step-pending': !gaDone }">
+            <span class="cvc-dot" :class="gaDone ? 'cvc-dot-done' : 'cvc-dot-pending'" aria-hidden="true"></span>
+            <div class="cvc-step-body">
+              <template v-if="gaDone">
+                <div class="cvc-step-head">
+                  <b>🛡 Verifikasi GA</b>
+                  <span class="badge badge-green" style="font-size:10px;">Selesai</span>
+                </div>
+                <span class="muted">
+                  {{ data.ga_approved_by || data.anomaly_cleared_by }}<template v-if="data.ga_approved_at"> · {{ data.ga_approved_at }}</template>
+                  <template v-if="data.anomaly_cleared_by && data.anomaly_cleared_at"> · anomali diklarifikasi {{ data.anomaly_cleared_at }}</template>
+                </span>
+              </template>
+              <template v-else><b class="muted">🛡 Verifikasi GA</b><span class="muted">Menunggu verifikasi GA…</span></template>
+            </div>
+          </li>
+          <!-- 3: Finance -->
+          <li class="cvc-step" :class="{ 'cvc-step-pending': !finDone }">
+            <span class="cvc-dot" :class="finDone ? 'cvc-dot-done' : 'cvc-dot-pending'" aria-hidden="true"></span>
+            <div class="cvc-step-body">
+              <template v-if="finDone">
+                <b>🏦 Verifikasi &amp; Pencairan Finance</b>
+                <span class="muted">{{ data.finance_payout_by }}<template v-if="data.finance_payout_at"> · {{ data.finance_payout_at }}</template></span>
+                <span v-if="subsidy?.linked" class="muted cvc-subrow">
+                  ⛽ Penjodohan SPBU: {{ data.subsidy_linked_by || '—' }}<template v-if="data.subsidy_linked_at"> · {{ data.subsidy_linked_at }}</template>
+                </span>
+              </template>
+              <template v-else><b class="muted">🏦 Verifikasi &amp; Pencairan Finance</b><span class="muted">Menunggu Finance…</span></template>
+            </div>
+          </li>
+          <!-- 4: Arsip -->
+          <li class="cvc-step" :class="{ 'cvc-step-pending': !archDone }">
+            <span class="cvc-dot" :class="archDone ? 'cvc-dot-done' : 'cvc-dot-pending'" aria-hidden="true"></span>
+            <div class="cvc-step-body">
+              <template v-if="archDone">
+                <b>🗄 Arsip</b>
+                <span class="muted">{{ data.archived_by }}<template v-if="data.archived_at"> · {{ data.archived_at }}</template></span>
+              </template>
+              <template v-else><b class="muted">🗄 Arsip</b><span class="muted">Belum diarsipkan…</span></template>
+            </div>
+          </li>
+          <!-- catatan modifikasi (jika ada) -->
+          <li v-if="data.modified_by || data.modification_note" class="cvc-step">
+            <span class="cvc-dot" aria-hidden="true"></span>
+            <div class="cvc-step-body">
+              <b>✏️ Data dikoreksi</b>
+              <span class="muted">{{ data.modified_by || '—' }} — {{ data.modification_note || '—' }}</span>
+            </div>
+          </li>
+          <!-- ditolak -->
+          <li v-if="data.status === 'rejected' && data.rejection_reason" class="cvc-step cvc-step-rejected">
+            <span class="cvc-dot cvc-dot-rejected" aria-hidden="true"></span>
+            <div class="cvc-step-body">
+              <b>❌ Ditolak — {{ data.rejection_reason }}</b>
+            </div>
+          </li>
+        </ul>
+      </section>
     </template>
   </div>
 </template>
@@ -234,4 +311,34 @@ onMounted(load)
 .cvc-flags { margin: 6px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; }
 .cvc-flags li { padding: 4px 8px; border-radius: 6px; font-size: 12px; }
 .muted { color: var(--text-3, #64748b); }
+
+/* wave-17: rantai verifikasi vertikal (dot + garis, CSS murni) */
+.cvc-chain { margin: 0; padding: 0; list-style: none; }
+.cvc-step {
+  position: relative;
+  display: flex;
+  gap: 8px;
+  padding: 0 0 12px 0;
+  font-size: 12px;
+}
+/* garis penghubung antardot */
+.cvc-step:not(:last-child)::before {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 14px;
+  bottom: 0;
+  width: 1px;
+  background: var(--border);
+}
+.cvc-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; margin-top: 4px; }
+.cvc-dot-done { background: var(--success, #059669); }
+.cvc-dot-pending { background: var(--border, #cbd5e1); box-shadow: 0 0 0 2px var(--surface-2, #f8fafc); }
+.cvc-dot-rejected { background: var(--danger, #dc2626); }
+.cvc-step-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.cvc-step-head { display: flex; align-items: center; gap: 6px; }
+.cvc-step-pending .cvc-step-body b { color: var(--text-3, #64748b); font-weight: 500; }
+.cvc-subrow { font-size: 11px; }
+.cvc-step-rejected { color: var(--danger, #dc2626); }
+
 </style>

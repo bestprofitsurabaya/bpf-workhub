@@ -590,6 +590,14 @@ def register_spa_routes(app):
                 if tx.get(field):
                     photos.append({'label': label, 'url': '/uploads/' + str(tx[field])})
             cursor.close(); conn.close()
+            # wave-17: rantai verifikasi per-peran (waktu + aktor per tahap).
+            # Tanggal dibungkus str() hanya bila terisi (None boleh None).
+            _ga_at = tx.get('ga_approved_at')
+            _anom_by = tx.get('anomaly_cleared_by'); _anom_at = tx.get('anomaly_cleared_at')
+            _fin_at = tx.get('finance_payout_at')
+            _sub_by = tx.get('subsidy_linked_by'); _sub_at = tx.get('subsidy_linked_at')
+            _arch_at = tx.get('archived_at')
+            _mod_by = tx.get('modified_by'); _mod_note = tx.get('modification_note')
             return jsonify({
                 'id': tx['id'], 'display_id': tx['display_id'], 'driver_name': tx['driver_name'],
                 'nopol': tx['nopol'], 'vehicle_type': tx.get('vehicle_type'), 'bbm_type': tx.get('bbm_type'),
@@ -604,6 +612,15 @@ def register_spa_routes(app):
                 'created_at': str(tx['created_at']),
                 'ga_approved_by': tx.get('ga_approved_by'), 'finance_payout_by': tx.get('finance_payout_by'),
                 'archived_by': tx.get('archived_by'),
+                'ga_approved_at': str(_ga_at) if _ga_at else None,
+                'anomaly_cleared_by': _anom_by,
+                'anomaly_cleared_at': str(_anom_at) if _anom_at else None,
+                'finance_payout_at': str(_fin_at) if _fin_at else None,
+                'subsidy_linked_by': _sub_by,
+                'subsidy_linked_at': str(_sub_at) if _sub_at else None,
+                'archived_at': str(_arch_at) if _arch_at else None,
+                'modified_by': _mod_by,
+                'modification_note': _mod_note,
                 'photos': photos,
             })
         except Exception as e:

@@ -7,6 +7,17 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.66.0 — 23 Oktober 2026 (fase-3 gelombang 17: rantai verifikasi per-peran)
+
+- ⛓ Blok **Rantai Verifikasi** di `ClaimVerifyCard` — jejak per-peran pada
+  setiap klaim: driver (submit) → GA (verifikasi/klarifikasi anomali) →
+  Finance (verifikasi, penjodohan SPBU Subsidi Tepat) → Arsip; langkah
+  belum terlaku tampil redup dengan aktor pengerjain berikutnya, ditambah
+  baris koreksi (`modified_by`) dan langkah merah saat ditolak.
+- 🔌 Detail endpoint `api_tx_detail` dikembangkan additif (waktu + aktor:
+  ga/anomaly/finance/subsidy/archived/modified).
+- ✔️ 224 vitest (220 + 4 baru), stamp v2.66.0.
+
 ## v2.65.0 — 23 Oktober 2026 (fase-3 gelombang 16: instrumen verifikasi turun ke GA & Finance)
 
 - 🔬 Komponen baru `ClaimVerifyCard.vue` — kartu verifikasi keabsahan klaim
