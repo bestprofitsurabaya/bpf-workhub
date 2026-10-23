@@ -286,7 +286,7 @@ onMounted(() => {
   border: 1px dashed var(--border); border-radius: 10px; padding: 10px 12px; margin-bottom: 12px;
   background: var(--bg-2, #fef3c7);
 }
-.gps-box.ok { background: var(--bg-3, #f0fdf4); border-color: #059669; }
+.gps-box.ok { background: var(--bg-3, #f0fdf4); border-color: var(--success); }
 .gps-title { font-size: 13px; font-weight: 700; }
 .gps-addr { font-size: 11px; opacity: .8; margin-top: 2px; }
 .gps-spbu { font-size: 11px; margin-top: 2px; }
@@ -294,12 +294,12 @@ onMounted(() => {
 .photo-label { font-size: 12px; font-weight: 600; display: block; margin: 10px 0 4px; }
 .photo-box { border: 1px dashed var(--border); border-radius: 10px; padding: 8px; display: flex; gap: 10px; align-items: center; }
 .photo-preview { width: 64px; height: 64px; object-fit: cover; border-radius: 8px; }
-.photo-empty { width: 64px; height: 64px; border-radius: 8px; background: var(--bg-2, #f1f5f9); display: flex; align-items: center; justify-content: center; font-size: 24px; }
+.photo-empty { width: 64px; height: 64px; border-radius: 8px; background: var(--surface-2, #f1f5f9); display: flex; align-items: center; justify-content: center; font-size: 24px; }
 .file-input { display: none; }
 .wm-badge { font-size: 10px; padding: 2px 8px; border-radius: 10px; }
-.wm-badge.processing { background: #fef3c7; color: #d97706; }
-.wm-badge.done { background: #d1fae5; color: #059669; }
-.wm-badge.error { background: #fee2e2; color: #dc2626; }
+.wm-badge.processing { background: #fef3c7; color: var(--warning); }
+.wm-badge.done { background: #d1fae5; color: var(--success); }
+.wm-badge.error { background: #fee2e2; color: var(--danger); }
 .btn-outline { background: transparent; border: 1px solid var(--border, #d1d5db); color: var(--text, #374151); }
 .btn-outline:hover { background: var(--bg-2, #f1f5f9); }
 </style>

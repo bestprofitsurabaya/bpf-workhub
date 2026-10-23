@@ -340,12 +340,12 @@ onUnmounted(() => { if (saveTimer) clearTimeout(saveTimer) })
 
 <style scoped>
 .gps-box { border: 1px dashed var(--border); border-radius: 10px; padding: 10px 12px; margin-bottom: 12px; background: var(--bg-2, #fef3c7); }
-.gps-box.ok { background: var(--bg-3, #f0fdf4); border-color: #059669; }
+.gps-box.ok { background: var(--bg-3, #f0fdf4); border-color: var(--success); }
 .gps-title { font-size: 13px; font-weight: 700; }
 .gps-addr { font-size: 11px; opacity: .8; margin-top: 2px; }
 .gps-spbu { font-size: 11px; margin-top: 2px; }
 .gps-coord { font-size: 10px; opacity: .5; margin-top: 2px; font-family: monospace; }
-.appt-panel { border: 1px solid var(--border); border-radius: 12px; padding: 10px; margin: 10px 0; background: var(--bg-2, #f8fafc); }
+.appt-panel { border: 1px solid var(--border); border-radius: 12px; padding: 10px; margin: 10px 0; background: var(--surface-2, #f8fafc); }
 .appt-item { display: flex; gap: 10px; padding: 8px 0; border-bottom: 1px dashed var(--border); }
 .appt-item:last-child { border-bottom: none; }
 .appt-time { font-size: 11px; font-weight: 700; opacity: .7; min-width: 60px; }

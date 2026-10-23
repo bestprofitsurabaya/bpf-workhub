@@ -92,9 +92,9 @@ function progress(c) {
 }
 
 function barColor(c) {
-  if (c.status === 'COMPLETED') return '#059669'
+  if (c.status === 'COMPLETED') return 'var(--success)'
   const p = progress(c)
-  return p >= 60 ? '#2563eb' : p >= 30 ? '#d97706' : '#94a3b8'
+  return p >= 60 ? 'var(--primary)' : p >= 30 ? 'var(--warning)' : '#94a3b8'
 }
 
 onMounted(loadData)
@@ -164,8 +164,8 @@ onMounted(loadData)
 </template>
 
 <style scoped>
-.lpj-card { background: var(--bg-2, #fef3c7); padding: 10px; border-radius: 8px; margin-bottom: 6px; border-left: 4px solid #d97706; font-size: 12px; }
+.lpj-card { background: var(--bg-2, #fef3c7); padding: 10px; border-radius: 8px; margin-bottom: 6px; border-left: 4px solid var(--warning); font-size: 12px; }
 .hist-card { background: var(--surface); border: 1px solid var(--border); padding: 10px; border-radius: 8px; margin-bottom: 6px; font-size: 12px; }
-.bar { background: var(--bg-2, #e2e8f0); border-radius: 4px; height: 6px; overflow: hidden; }
+.bar { background: var(--border, #e2e8f0); border-radius: 4px; height: 6px; overflow: hidden; }
 .bar-fill { height: 100%; border-radius: 4px; transition: width .5s; }
 </style>
