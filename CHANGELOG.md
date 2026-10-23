@@ -7,6 +7,15 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.59.0 — 23 Oktober 2026 (fase-3 gelombang 6: perapihan visual global)
+
+- 🎨 `main.css` menerima pola primitif: baris tabel melembut (hover sedar
+  light/dark), semua tombol & input bertransisi halus dengan ring fokus
+  halo primary (:focus-visible, aksesibilitas), tombol sekunder punya hover,
+  scrollbar bersih, ikon stat-card dirapikan — efeknya menyapu semua
+  halaman tanpa mengubah struktur view mana pun.
+- ✔️ 217 vitest hijau.
+
 ## v2.58.0 — 23 Oktober 2026 (fase-2 gelombang 5: sisa view SPA — rollout selesai)
 
 - 12 view terakhir masuk standar: Trips, Assignments, Cash, Settings,
