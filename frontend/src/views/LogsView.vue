@@ -211,7 +211,7 @@ onMounted(async () => {
 
       <div class="card">
         <div class="table-wrap">
-          <table class="tbl tbl-logs">
+          <table class="tbl tbl-logs tbl-stick">
             <thead><tr><th>Waktu</th><th>User</th><th>Tipe</th><th>Aksi</th><th>Ref</th><th>Cabang</th><th>IP</th><th></th></tr></thead>
             <tbody>
               <tr v-for="l in paged" :key="l.id">

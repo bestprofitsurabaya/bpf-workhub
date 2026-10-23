@@ -201,7 +201,7 @@ onMounted(locate)
         <img :src="brandIcon" alt="BPF" />
         <h1>Form Overtime OB &amp; Security</h1>
         <p>PT Bestprofit Futures · Jakarta</p>
-        <p style="font-size:11px;color:#6b7280;margin:0;">Equity Tower, SCBD Lot 9, Jl. Jend. Sudirman Kav. 52-53, Jakarta Selatan</p>
+        <p style="font-size:11px;color:var(--text-3);margin:0;">Equity Tower, SCBD Lot 9, Jl. Jend. Sudirman Kav. 52-53, Jakarta Selatan</p>
       </div>
 
       <!-- SUCCESS -->
@@ -338,7 +338,7 @@ onMounted(locate)
 }
 .apply-card {
   width: 100%; max-width: 460px; background: var(--surface); border: 1px solid var(--border);
-  border-radius: 16px; padding: 30px 28px; box-shadow: var(--shadow-lg); animation: popIn .2s ease;
+  border-radius: var(--radius); padding: 30px 28px; box-shadow: var(--shadow-lg); animation: popIn .2s ease;
 }
 .apply-brand { text-align: center; margin-bottom: 18px; }
 .apply-brand img { width: 54px; height: 54px; border-radius: 13px; box-shadow: 0 4px 14px rgba(126, 34, 206, .25); }
@@ -370,7 +370,7 @@ onMounted(locate)
   cursor: pointer; transition: all .2s; overflow: hidden; position: relative;
 }
 .foto-input:hover { border-color: var(--primary, #7c3aed); background: rgba(124,58,237,.04); }
-.foto-input.has-foto { border-style: solid; border-color: #22c55e; }
+.foto-input.has-foto { border-style: solid; border-color: var(--success); }
 .foto-icon { font-size: 28px; margin-bottom: 4px; }
 .foto-text { font-size: 12px; font-weight: 600; color: var(--text-2); }
 .foto-hint { font-size: 10px; color: var(--text-3); margin-top: 2px; }

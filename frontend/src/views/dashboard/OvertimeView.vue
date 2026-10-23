@@ -480,7 +480,7 @@ watch(tab, loadTab)
         <div v-else>
           <div class="muted" style="font-size:12px;margin:8px 0;">{{ dList.length }} catatan ditampilkan</div>
           <div class="table-wrap">
-            <table class="tbl">
+            <table class="tbl tbl-stick">
               <thead><tr><th>Tanggal</th><th>Nama</th><th>No. Kendaraan</th><th>Waktu</th><th>Keterangan</th><th>Broker / Manager</th><th>Sumber</th><th></th></tr></thead>
               <tbody>
                 <tr v-for="r in dPageRows" :key="r.id" :data-id="r.id" :style="lateRowStyle(r)">
@@ -552,7 +552,7 @@ watch(tab, loadTab)
         <div v-else>
           <div class="muted" style="font-size:12px;margin:8px 0;">{{ oList.length }} catatan ditampilkan</div>
           <div class="table-wrap">
-            <table class="tbl">
+            <table class="tbl tbl-stick">
               <thead><tr><th>No.</th><th>Tanggal</th><th>Nama</th><th>Posisi</th><th>Waktu</th><th>Keterangan</th><th>Sumber</th><th></th></tr></thead>
               <tbody>
                 <tr v-for="r in oPageRows" :key="r.id" :style="lateRowStyle(r)">

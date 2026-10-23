@@ -121,7 +121,7 @@ async function submit() {
 /* Brand */
 .login-brand { text-align: center; margin-bottom: 28px; }
 .brand-icon-wrap {
-  display: inline-flex; padding: 12px; background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  display: inline-flex; padding: 12px; background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
   border-radius: 16px; box-shadow: 0 8px 24px rgba(37, 99, 235, 0.3);
 }
 .brand-icon-wrap img { width: 44px; height: 44px; border-radius: 10px; }
@@ -145,7 +145,7 @@ async function submit() {
 .login-btn {
   width: 100%; justify-content: center; padding: 12px; font-size: 15px; font-weight: 700;
   border-radius: 12px; margin-top: 4px; gap: 8px;
-  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
   border: none; box-shadow: 0 4px 14px rgba(37, 99, 235, 0.3);
   transition: all 0.2s;
 }
@@ -159,7 +159,7 @@ async function submit() {
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-.caps-hint { font-size: 11px; color: var(--warning, #f59e0b); font-weight: 600; margin-top: 4px; }
+.caps-hint { font-size: 11px; color: var(--warning); font-weight: 600; margin-top: 4px; }
 
 /* Footer */
 .login-foot { margin-top: 20px; text-align: center; }

@@ -230,6 +230,23 @@ table.tbl { width: 100%; border-collapse: collapse; background: var(--surface); 
 html.dark .tbl tbody tr:hover { background: rgba(59, 130, 246, .08); }
 .tbl tbody tr:last-child td { border-bottom: none; }
 
+/* ---------- Utilities: sticky header & align (opt-in) ---------- */
+/* Sticky header tabel panjang — terapkan kelas .tbl-stick pada <table> (atau wrapper). */
+/* th sudah berlatar token opak var(--surface-2) (.tbl th), jadi warna header
+   konsisten dengan tabel lain dan otomatis ikut varian dark. */
+.tbl-stick thead th {
+  position: sticky;
+  top: 0;
+  background: var(--surface-2);
+  z-index: 2;
+  box-shadow: 0 1px 0 var(--border);
+}
+/* Kontainer scroll — hanya aktif bila .tbl-stick juga dipakai di wrapper. */
+.tbl-stick { max-height: 70vh; overflow: auto; }
+/* Align utility untuk kolom angka/nominal */
+.ta-c { text-align: center; }
+.ta-r { text-align: right; }
+
 /* ---------- Badges ---------- */
 .badge {
   display: inline-flex; align-items: center; gap: 4px;

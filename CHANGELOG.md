@@ -7,6 +7,25 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.64.0 — 23 Oktober 2026 (fase-3 gelombang 12–15: tabel, halaman publik, guard demo, registry cabang)
+
+- 📊 Sticky header tabel panjang: utility `.tbl-stick` (thead menempel saat
+  scroll, latar `var(--surface-2)` opak) + `.ta-c`/`.ta-r` — dipakai di
+  Overtime (Driver & OB/Security) dan Logs; opt-in, tabel lain tak tersentuh.
+- 🌐 Halaman publik ikut token: LoginView gradient brand →
+  `var(--primary)/var(--primary-dark)`, ApplyView & OvertimeFormView radius →
+  `var(--radius)`, warna raw → token; NotFound/Forbidden sudah patuh.
+- 🛡️ Guard anti-baris-demo: 2 query `api_stats` yang bocor (`total` &
+  ringkasan hari ini) kini memfilter `(is_dummy=0 OR is_dummy IS NULL)` —
+  plus test `tests/test_demo_guard.py` (pytest) yang meng-intersep SQL nyata
+  api_stats + nav badges dan menolak query transaksi tanpa filter dummy.
+- 🏢 Registry cabang dikoreksi sesuai situs resmi (hubungi-kami): JKT
+  `Kantor Pusat Equity Tower` (SCBD), JKT2 `Cabang Pacific Place Mall`,
+  aktivasi kembali Jambi (Abunjani, Sipin), Pekanbaru (Sudirman City
+  Square), Pontianak (Megamall A. Yani) + alamat/telepon tiap cabang;
+  Palembang tetap nonaktif (tidak ada di situs resmi).
+- ✔️ 217 vitest + 913 pytest hijau.
+
 ## v2.63.0 — 23 Oktober 2026 (fase-3 gelombang 10: PWA mobile driver)
 
 - 📱 Shell driver: safe-area iPhone (nav bawah + toast), target sentuh ≥44px
