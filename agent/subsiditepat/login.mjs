@@ -133,18 +133,59 @@ async function main() {
   const detect = async () => {
     const txt = ((await page.evaluate(() => document.body.innerText)) || '').toLowerCase();
     return {
-      otp: /(masukkan.*otp|kode otp|verifikasi.*otp|otp method|kode verifikasi)/.test(txt),
+      otp: /(masukkan.*otp|kode otp|verifikasi.*otp|otp method|kode verifikasi|pilih jenis otp)/.test(txt),
+      method: /pilih jenis otp/.test(txt),       // halaman pemilih metode (email/sms)
+      sent: /(kirim ulang|resend|kode otp.*dikirim|terkirim)/.test(txt),
       tnc: /syarat.*ketentuan|setujui.*ketentuan/.test(txt) && txt.length < 1200,
       bad: /(salah|tidak sesuai|tidak ditemukan|terlalu banyak)/.test(txt),
     };
   };
-  let flag = null;
-  for (let i = 0; i < 18 && !flag; i++) {
+  // OTP tidak pernah terkirim sampai: (1) metode Email dipilih, lalu
+  // (2) tombol "Kirim Kode Verifikasi" diklik. Keduanya klik Puppeteer
+  // tepercaya (bukan .click() DOM yg diabaikan React/Mantine).
+  const clickBtn = async (re) => {
+    const handles = await page.$$('button');
+    for (const h of handles) {
+      const t = ((await h.evaluate((el) => el.innerText)) || '').trim();
+      if (re.test(t)) { await h.click(); return true; }
+    }
+    return false;
+  };
+  const pickEmailOtp = async () => {
+    try {
+      // (1) pilih radio Email
+      const picked = await clickBtn(/email/i);
+      console.log(picked ? 'Radio Email dipilih (trusted)' : '(!) tombol Email tidak ketemu');
+      if (!picked) return false;
+      await sleep(1200);
+      // (2) tekan Kirim Kode Verifikasi — inilah yg memicu dispatch OTP
+      const sent = await clickBtn(/kirim kode verifikasi|kirim kode|kirim otp/i);
+      console.log(sent ? '"Kirim Kode Verifikasi" ditekan — menunggu dispatch…' : '(!) tombol Kirim Kode tidak ketemu');
+      return sent;
+    } catch (e) {
+      console.log('(!) pickEmailOtp:', e.message);
+      return false;
+    }
+  };
+  // OTP_SENT hanya bila halaman metode sudah hilang (pindah ke halaman
+  // isi kode) atau ada konfirmasi "kirim ulang/terkirim" — jangan anggap
+  // memilih metode = sudah terkirim.
+  let flag = null, pickedMethod = false;
+  for (let i = 0; i < 30 && flag !== 'OTP_SENT'; i++) {
     await sleep(2500);
     const d = await detect();
     await shot(page, `03_wait_${i}`);
-    if (d.otp) flag = 'OTP_REQUIRED';
-    else if (i >= 5 && d.bad) flag = 'CRED_ABNORMAL';
+    if (d.method && !pickedMethod) {
+      pickedMethod = await pickEmailOtp();
+      await sleep(3000);
+    } else if (pickedMethod && !d.method) {
+      // halaman metode hilang → sudah di halaman isi kode = OTP terkirim
+      flag = 'OTP_SENT';
+    } else if (pickedMethod && d.sent) {
+      flag = 'OTP_SENT';
+    } else if (i >= 8 && d.bad) {
+      flag = 'CRED_ABNORMAL';
+    }
   }
   const urlNow = page.url();
   console.log('URL sekarang:', urlNow);
