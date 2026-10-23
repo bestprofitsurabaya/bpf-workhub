@@ -2,6 +2,8 @@
 import { computed, onMounted, ref } from 'vue'
 import { api } from '../../api'
 import StatCard from '../../components/StatCard.vue'
+import LoadingState from '../../components/LoadingState.vue'
+import ErrorState from '../../components/ErrorState.vue'
 import Modal from '../../components/Modal.vue'
 import ConfirmDialog from '../../components/ConfirmDialog.vue'
 import PageHeader from '../../components/PageHeader.vue'
@@ -297,8 +299,8 @@ onMounted(load)
       </div>
     </div>
 
-    <div v-if="loading" class="empty skeleton">⏳ Memuat…</div>
-    <div v-else-if="err" class="alert alert-error">{{ err }}</div>
+    <div v-if="loading"><LoadingState :rows="4" label="Memuat dashboard rute…" /></div>
+    <div v-else-if="err"><ErrorState :message="err" @retry="load" /></div>
     <template v-else>
       <div class="stat-grid" style="margin-bottom:16px;">
         <StatCard icon="📋" label="Total" :value="stats?.total ?? list.length" color="#2563eb" />

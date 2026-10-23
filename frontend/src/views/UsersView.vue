@@ -4,6 +4,8 @@ import { api } from '../api'
 import { useAuthStore } from '../stores/auth'
 import Modal from '../components/Modal.vue'
 import StatCard from '../components/StatCard.vue'
+import LoadingState from '../components/LoadingState.vue'
+import ErrorState from '../components/ErrorState.vue'
 import PageHeader from '../components/PageHeader.vue'
 
 const auth = useAuthStore()
@@ -357,8 +359,8 @@ onMounted(load)
     </div>
 
     <!-- Loading / Error -->
-    <div v-if="loading" class="empty skeleton">⏳ Memuat…</div>
-    <div v-else-if="err" class="alert alert-error">{{ err }}</div>
+    <div v-if="loading"><LoadingState :rows="5" label="Memuat daftar user…" /></div>
+    <div v-else-if="err"><ErrorState :message="err" @retry="load" /></div>
 
     <!-- User Table -->
     <div v-else class="card">

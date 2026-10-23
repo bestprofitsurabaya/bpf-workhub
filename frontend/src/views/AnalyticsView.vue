@@ -2,6 +2,8 @@
 import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { Chart, registerables } from 'chart.js'
 import { api } from '../api'
+import LoadingState from '../components/LoadingState.vue'
+import ErrorState from '../components/ErrorState.vue'
 import PageHeader from '../components/PageHeader.vue'
 
 Chart.register(...registerables)
@@ -94,8 +96,8 @@ onBeforeUnmount(() => { [ch1, ch2, ch3].forEach((c) => c && c.destroy()) })
       </div>
     </div>
 
-    <div v-if="loading" class="empty skeleton">⏳ Memuat…</div>
-    <div v-else-if="err" class="alert alert-error">{{ err }}</div>
+    <div v-if="loading"><LoadingState :rows="4" label="Memuat analitik…" /></div>
+    <div v-else-if="err"><ErrorState :message="err" @retry="load" /></div>
     <template v-else>
       <!-- Finance -->
       <div class="stat-grid" style="margin-bottom:16px;">

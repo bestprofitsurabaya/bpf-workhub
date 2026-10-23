@@ -3,6 +3,8 @@ import { onMounted, ref } from 'vue'
 import { api } from '../api'
 import { useAuthStore } from '../stores/auth'
 import Modal from '../components/Modal.vue'
+import LoadingState from '../components/LoadingState.vue'
+import ErrorState from '../components/ErrorState.vue'
 import PageHeader from '../components/PageHeader.vue'
 
 const auth = useAuthStore()
@@ -70,8 +72,8 @@ onMounted(load)
       </div>
     </div>
 
-    <div v-if="loading" class="empty skeleton">⏳ Memuat…</div>
-    <div v-else-if="err" class="alert alert-error">{{ err }}</div>
+    <div v-if="loading"><LoadingState :rows="5" label="Memuat log perjalanan…" /></div>
+    <div v-else-if="err"><ErrorState :message="err" @retry="load" /></div>
     <div class="card" v-else>
       <div class="table-wrap">
         <table class="tbl">
