@@ -17,7 +17,7 @@ _APP_ROLES = [
     'admin', 'ga', 'finance', 'marketing', 'chief_driver', 'ob', 'security',
     'receptionist', 'traineer', 'ga_hr',
     'it_sby', 'it_hu', 'it_jkt2', 'it_bdg', 'it_smg', 'it_mlg', 'it_mdn',
-    'it_bjm', 'it_plm', 'it_lpg',
+    'it_bjm', 'it_lpg',
 ]
 
 

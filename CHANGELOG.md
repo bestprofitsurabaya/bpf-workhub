@@ -7,6 +7,19 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.64.1 — 23 Oktober 2026 (pembersihan Palembang dari sistem)
+
+- 🗑️ Cabang Palembang (PLM) dihapus permanen sesuai konfirmasi user —
+  tidak ada di situs resmi: row `branches` + database `bpf_branch_plm`
+  di-drop (backup dulu di `/srv/bpf-workhub/backups_migrasi/`).
+- 🧹 Role `it_plm` dikeluarkan dari semua whitelist (nav, master, access
+  review, news scraper, transcoder, pdfkit, home-map) + mapping berita
+  region Palembang; DDL ENUM role `appointment` tanpa `it_plm`.
+- 📄 Catatan: prefix dokumen pelamar `PLM-` (doc_sequences 'Pendaftaran
+  Pelamar') TIDAK diubah — itu kode dokumen, bukan kode cabang; ID lama
+  tetap bermakna.
+- ✔️ stamp v2.64.1.
+
 ## v2.64.0 — 23 Oktober 2026 (fase-3 gelombang 12–15: tabel, halaman publik, guard demo, registry cabang)
 
 - 📊 Sticky header tabel panjang: utility `.tbl-stick` (thead menempel saat

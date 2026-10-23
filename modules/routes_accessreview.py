@@ -46,7 +46,7 @@ ROLE_LABELS = {
     'receptionist': 'Receptionist', 'traineer': 'Traineer', 'ga_hr': 'GA HR',
     'it_sby': 'IT Surabaya', 'it_hu': 'IT Jakarta HO', 'it_jkt2': 'IT Jakarta 2',
     'it_bdg': 'IT Bandung', 'it_smg': 'IT Semarang', 'it_mlg': 'IT Malang',
-    'it_mdn': 'IT Medan', 'it_bjm': 'IT Banjarmasin', 'it_plm': 'IT Palembang',
+    'it_mdn': 'IT Medan', 'it_bjm': 'IT Banjarmasin',
     'it_lpg': 'IT Lampung',
 }
 

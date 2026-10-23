@@ -17,7 +17,7 @@ transcoder_bp = Blueprint('transcoder', __name__)
 
 TRANSCODER_ROLES = (
     'it_sby', 'it_hu', 'it_jkt2', 'it_bdg', 'it_smg',
-    'it_mlg', 'it_mdn', 'it_bjm', 'it_plm', 'it_lpg', 'admin',
+    'it_mlg', 'it_mdn', 'it_bjm', 'it_lpg', 'admin',
 )
 
 

@@ -1,4 +1,4 @@
-# 📋 Daftar User & Role — BPF WorkHub v2.64.0
+# 📋 Daftar User & Role — BPF WorkHub v2.64.1
 
 Dokumen ini menjelaskan semua role yang didukung sistem, siapa yang memakainya, dan apa yang bisa dilakukan masing-masing.
 
@@ -40,12 +40,12 @@ Akun berikut dibuat otomatis saat inisialisasi database:
 
 Setiap divisi back-office punya user unik per cabang dengan format `{divisi}_{kode_cabang}`:
 
-| Divisi | SBY | HU (JKT) | JKT2 | BDG | SMG | MLG | MDN | BJM | PLM | LPG |
-|--------|-----|----------|------|-----|-----|-----|-----|-----|-----|-----|
-| GA | `ga_sby` | `ga_hu` | `ga_jkt2` | `ga_bdg` | `ga_smg` | `ga_mlg` | `ga_mdn` | `ga_bjm` | `ga_plm` | `ga_lpg` |
-| Finance | `finance_sby` | `finance_hu` | `finance_jkt2` | `finance_bdg` | `finance_smg` | `finance_mlg` | `finance_mdn` | `finance_bjm` | `finance_plm` | `finance_lpg` |
-| GA HR | `gahr_sby` | `gahr_hu` | `gahr_jkt2` | `gahr_bdg` | `gahr_smg` | `gahr_mlg` | `gahr_mdn` | `gahr_bjm` | `gahr_plm` | `gahr_lpg` |
-| Marketing | `marketing_sby` | `marketing_hu` | `marketing_jkt2` | `marketing_bdg` | `marketing_smg` | `marketing_mlg` | `marketing_mdn` | `marketing_bjm` | `marketing_plm` | `marketing_lpg` |
+| Divisi | SBY | HU (JKT) | JKT2 | BDG | SMG | MLG | MDN | BJM | LPG |
+|--------|-----|----------|------|-----|-----|-----|-----|-----|-----|
+| GA | `ga_sby` | `ga_hu` | `ga_jkt2` | `ga_bdg` | `ga_smg` | `ga_mlg` | `ga_mdn` | `ga_bjm` | `ga_lpg` |
+| Finance | `finance_sby` | `finance_hu` | `finance_jkt2` | `finance_bdg` | `finance_smg` | `finance_mlg` | `finance_mdn` | `finance_bjm` | `finance_lpg` |
+| GA HR | `gahr_sby` | `gahr_hu` | `gahr_jkt2` | `gahr_bdg` | `gahr_smg` | `gahr_mlg` | `gahr_mdn` | `gahr_bjm` | `gahr_lpg` |
+| Marketing | `marketing_sby` | `marketing_hu` | `marketing_jkt2` | `marketing_bdg` | `marketing_smg` | `marketing_mlg` | `marketing_mdn` | `marketing_bjm` | `marketing_lpg` |
 | Security | `security_sby` | `security_hu` | `security_jkt2` | `security_bdg` | `security_smg` | `security_mlg` | `security_mdn` | `security_bjm` | `security_plm` | `security_lpg` |
 | IT | `it_sby` | `it_hu` | `it_jkt2` | `it_bdg` | `it_smg` | `it_mlg` | `it_mdn` | `it_bjm` | `it_plm` | `it_lpg` |
 
@@ -64,7 +64,6 @@ Setiap divisi back-office punya user unik per cabang dengan format `{divisi}_{ko
 | `admin_mlg` | MLG | `admin` | `123456` | bpf_branch_malang |
 | `admin_mdn` | MDN | `admin` | `123456` | bpf_branch_mdn |
 | `admin_bjm` | BJM | `admin` | `123456` | bpf_branch_bjm |
-| `admin_plm` | PLM | `admin` | `123456` | bpf_branch_plm |
 | `admin_lpg` | LPG | `admin` | `123456` | bpf_branch_lpg |
 | `admin_jkt2` | JKT2 | `admin` | `123456` | bpf_branch_jkt2 |
 
@@ -102,7 +101,6 @@ Sistem mendukung **11 peran inti** (peran `it` dipecah per cabang pada daftar di
 | 16 | `it_mlg` | 📰 IT Malang | `/app/it` | News Scraper (MLG) |
 | 17 | `it_mdn` | 📰 IT Medan | `/app/it` | News Scraper (MDN) |
 | 18 | `it_bjm` | 📰 IT Banjarmasin | `/app/it` | News Scraper (BJM) |
-| 19 | `it_plm` | 📰 IT Palembang | `/app/it` | News Scraper (PLM) |
 | 20 | `it_lpg` | 📰 IT Lampung | `/app/it` | News Scraper (LPG) |
 
 ---

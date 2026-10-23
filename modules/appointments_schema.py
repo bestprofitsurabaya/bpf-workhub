@@ -104,7 +104,7 @@ def ensure_appointments_schema(conn=None):
         # (dulu: gagal senyap tiap startup sejak role it_* masuk produksi).
         _run("""
             ALTER TABLE users
-            MODIFY role ENUM('admin','ga','finance','marketing','chief_driver','driver','ob','receptionist','traineer','ga_hr','security','it_sby','it_hu','it_jkt2','it_bdg','it_smg','it_mlg','it_mdn','it_bjm','it_plm','it_lpg') NOT NULL DEFAULT 'ga'
+            MODIFY role ENUM('admin','ga','finance','marketing','chief_driver','driver','ob','receptionist','traineer','ga_hr','security','it_sby','it_hu','it_jkt2','it_bdg','it_smg','it_mlg','it_mdn','it_bjm','it_lpg') NOT NULL DEFAULT 'ga'
         """, cursor, "users.role enum")
 
         # --- users: team_name column ---

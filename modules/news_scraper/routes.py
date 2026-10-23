@@ -197,7 +197,6 @@ _BRANCH_CITY_ALIASES = {
     'MLG': ('malang',),
     'MDN': ('medan',),
     'BJM': ('banjarmasin',),
-    'PLM': ('palembang',),
     'LPG': ('lampung',),
 }
 

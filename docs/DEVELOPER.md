@@ -81,7 +81,7 @@ Semua data persisten ada di 3 volume `bpf-workhub_*` + bind mount `/srv/bpf-work
 | `bpf_asset_system` | master: user, `branches`, log aktivitas, registry dokumen, config    |
 | `bpf_branch_sby`   | cabang Surabaya (utama; klaim BBM, air minum, karbon, dsb)           |
 | `bpf_branch_bdg`, `_bjm`, `_jkt`, `_mlb`, `_pnk`, `_stt`, `_tgl`, `_vbi` | cabang lain |
-| (PLM)              | `is_active=0` — tidak punya DB aktif by design, abaikan               |
+| PLM sudah DIHAPUS (23 Okt 2026): row `branches` + DB `bpf_branch_plm` | di-drop setelah backup; prefix dokumen pelamar `PLM-` tetap (kode dokumen, bukan cabang) |
 
 Klaim BBM & Subsidi Tepat hidup **per cabang** (tabel `transactions`,
 `subsidy_attestations` di DB cabang). Joker antar-DB cukup ingat:
