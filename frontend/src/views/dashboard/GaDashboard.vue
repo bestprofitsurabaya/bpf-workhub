@@ -2,6 +2,7 @@
 import { ref, onMounted, watch } from 'vue'
 import { api } from '../../api'
 import StatCard from '../../components/StatCard.vue'
+import PageHeader from '../../components/PageHeader.vue'
 import Modal from '../../components/Modal.vue'
 import ConfirmDialog from '../../components/ConfirmDialog.vue'
 import { formatRupiah } from '../../utils/format.js'
@@ -130,10 +131,7 @@ watch(
 
 <template>
   <div class="page">
-    <div class="card card-pad" style="margin-bottom:16px;">
-      <h2 style="margin:0;">🧾 Dashboard GA</h2>
-      <div class="muted" style="font-size:12px;">Verifikasi klaim BBM, kasbon, dan laporan perjalanan</div>
-    </div>
+    <PageHeader icon="🧾" title="Dashboard GA" subtitle="Verifikasi klaim BBM, kasbon, dan laporan perjalanan" />
 
     <div v-if="loading" class="card card-pad muted skeleton">Memuat…</div>
     <template v-else>

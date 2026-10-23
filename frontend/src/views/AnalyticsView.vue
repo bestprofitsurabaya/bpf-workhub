@@ -2,6 +2,7 @@
 import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { Chart, registerables } from 'chart.js'
 import { api } from '../api'
+import PageHeader from '../components/PageHeader.vue'
 
 Chart.register(...registerables)
 
@@ -84,6 +85,7 @@ onBeforeUnmount(() => { [ch1, ch2, ch3].forEach((c) => c && c.destroy()) })
 
 <template>
   <div>
+    <PageHeader icon="📈" title="Analytics" subtitle="Tren keuangan, cabang, dan pemakaian BBM" />
     <div class="card card-pad" style="margin-bottom:16px;">
       <div class="row">
         <div class="field" style="margin:0;"><label>Dari</label><input class="input" type="date" v-model="start" /></div>

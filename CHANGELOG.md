@@ -7,6 +7,13 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.55.0 — 23 Oktober 2026 (fase-2 gelombang 2: GA · Rekap · Analytics)
+
+- 🧾 **Dashboard GA** — header diberi PageHeader standar
+- 📄 **Rekap** + 📈 **Analytics** — kini punya identitas halaman (PageHeader
+  dengan subtitle), filter card tetap sebagai aksi periode
+- ✔️ 217 vitest hijau
+
 ## v2.54.0 — 23 Oktober 2026 (fase-2 perombakan UI/UX: design system global — gelombang 1 Finance)
 
 - 🧱 **Komponen `PageHeader.vue`** — header halaman standar (ikon + judul +

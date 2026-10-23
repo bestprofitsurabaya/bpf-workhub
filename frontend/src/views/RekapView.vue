@@ -4,6 +4,7 @@ import { api } from '../api'
 import LoadingState from '../components/LoadingState.vue'
 import EmptyState from '../components/EmptyState.vue'
 import ErrorState from '../components/ErrorState.vue'
+import PageHeader from '../components/PageHeader.vue'
 import { formatDateTime, formatRupiah, transactionStatusLabel } from '../utils/format.js'
 
 const today = new Date().toISOString().slice(0, 10)
@@ -49,6 +50,7 @@ onMounted(load)
 
 <template>
   <div>
+    <PageHeader icon="📄" title="Rekap" subtitle="Ringkasan transaksi & klaim per periode" />
     <div class="card card-pad" style="margin-bottom:16px;">
       <div class="row">
         <div class="field" style="margin:0;"><label>Dari</label><input class="input" type="date" v-model="start" /></div>
