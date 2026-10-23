@@ -3,6 +3,7 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { api } from '../api'
 import EmptyState from '../components/EmptyState.vue'
 import ConfirmDialog from '../components/ConfirmDialog.vue'
+import PageHeader from '../components/PageHeader.vue'
 
 const confirmRef = ref(null)
 const ask = (message, opts) => confirmRef.value?.open(message, opts) ?? Promise.resolve(false)
@@ -210,13 +211,9 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="page">
-    <header class="head">
-      <div>
-        <h1>📄 PDF Kit</h1>
-        <p class="sub">Kompres berkas PDF — dari mode aman (lossless) sampai paling kecil (72 dpi + JPEG).</p>
-      </div>
+    <PageHeader icon="📄" title="PDF Kit" subtitle="Kompres berkas PDF — dari mode aman (lossless) sampai paling kecil (72 dpi + JPEG).">
       <div v-if="runningCount" class="run-pill">⚙️ {{ runningCount }} job berjalan</div>
-    </header>
+    </PageHeader>
 
     <div v-if="err" class="banner b-err">⚠️ {{ err }} <button class="x" @click="err=''">✕</button></div>
     <div v-if="ok" class="banner b-ok">✅ {{ ok }} <button class="x" @click="ok=''">✕</button></div>
@@ -356,10 +353,7 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .page { display: flex; flex-direction: column; gap: 16px; }
-.head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-h1 { margin: 0; font-size: 22px; }
 h2 { margin: 0 0 12px; font-size: 15px; }
-.sub { margin: 4px 0 0; font-size: 13px; color: var(--text-2, #64748b); }
 .run-pill { font-size: 13px; background: color-mix(in srgb, var(--primary, #2563eb) 12%, transparent); color: var(--primary, #2563eb); border-radius: 999px; padding: 6px 14px; font-weight: 600; }
 
 .banner { border-radius: 10px; padding: 10px 14px; font-size: 13px; display: flex; align-items: center; gap: 8px; }

@@ -7,6 +7,13 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.60.0 — 23 Oktober 2026 (fase-3 gelombang 7: header bespoke → standar)
+
+- 🎬 TranscoderView & 📄 PdfKitView: header kustom kini memakai PageHeader
+  (meta pil & tombol share ke slot) — SATU-satunya page SPA tersisa dengan
+  header bespoke adalah /it (konsol scraper, desain sendiri by design).
+- ✔️ 217 vitest hijau.
+
 ## v2.59.0 — 23 Oktober 2026 (fase-3 gelombang 6: perapihan visual global)
 
 - 🎨 `main.css` menerima pola primitif: baris tabel melembut (hover sedar
