@@ -1,9 +1,10 @@
-// Sinkronisasi harian Subsidi Tepat → bpf-workhub (v2.68.0 "satukan" agen)
-//   pull data riwayat SPBU (portal resmi, token __mpv-token) →
-//   POST bpf-workhub /api/subsidy/import (X-SUBSIDY-TOKEN) →
-//   POST bpf-workhub /api/subsidy/auto-match (tandai match/close/no_record).
-// Cron terpasang (root user it-ef):
-//   15 6 * * *  <DIR>/scripts/daily_sync.sh >> artifacts/sync_cron.log 2>&1
+# Sinkronisasi harian Subsidi Tepat → bpf-workhub (v2.68.0 "satukan" agen)
+#   pull data riwayat SPBU (portal resmi, token __mpv-token) →
+#   POST bpf-workhub /api/subsidy/import (X-SUBSIDY-TOKEN) →
+#   POST bpf-workhub /api/subsidy/auto-match (tandai match/close/no_record).
+# Cron terpasang (user it-ef):
+#   15 6 * * *  /home/it-ef/bpf-workhub/agent/subsiditepat/scripts/daily_sync.sh
+#               >> /home/it-ef/bpf-workhub/agent/subsiditepat/artifacts/sync_cron.log 2>&1
 # shellcheck disable=SC2164
 set -u
 BASE="$(cd -- "$(dirname -- "$0")/.." && pwd)"

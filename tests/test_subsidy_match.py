@@ -249,3 +249,72 @@ def test_status_sertakan_coverage(env):
     d = client.get('/api/subsidy/status').get_json()
     assert d['count'] == 138
     assert d['coverage']['terbuka'] == 6
+
+
+# ------------------------------------------------------------------
+# v2.69.0 — OTP login ulang agen langsung dari Finance (gate dir)
+# ------------------------------------------------------------------
+@pytest.fixture
+def gate(env, tmp_path, monkeypatch):
+    """gate dir palsu — env-var SUBSIDY_GATE_DIR diarahkan ke tmp_path."""
+    monkeypatch.setenv('SUBSIDY_GATE_DIR', str(tmp_path))
+    return tmp_path
+
+
+def test_otp_request_menulis_gate_file(env, gate):
+    client, *rest = env
+    _login(client)
+    d = client.post('/api/subsidy/otp/request').get_json()
+    assert d['status'] == 'success' and d['state'] == 'starting'
+    req = (gate / 'otp_request.json').read_text()
+    assert 'finance_sby' in req
+
+
+def test_otp_request_tolak_saat_proses_409(env, gate):
+    client, *rest = env
+    _login(client)
+    (gate / 'agent_state.json').write_text('{"state": "verifying"}')
+    r = client.post('/api/subsidy/otp/request')
+    assert r.status_code == 409
+
+
+def test_otp_status_baca_agent_state(env, gate):
+    client, *rest = env
+    _login(client)
+    (gate / 'agent_state.json').write_text(
+        '{"state": "waiting_otp", "msg": "OTP dikirim ke email akun"}')
+    d = client.get('/api/subsidy/otp/status').get_json()
+    assert d['state'] == 'waiting_otp'
+
+
+def test_otp_submit_menulis_kode_ke_gate(env, gate):
+    client, *rest = env
+    _login(client)
+    (gate / 'agent_state.json').write_text('{"state": "waiting_otp"}')
+    d = client.post('/api/subsidy/otp/submit', json={'code': '123456'}).get_json()
+    assert d['status'] == 'success' and d['state'] == 'verifying'
+    body = (gate / 'otp_submit.json').read_text()
+    assert '"123456"' in body
+
+
+def test_otp_submit_blokir_kode_salah_format(env, gate):
+    client, *rest = env
+    _login(client)
+    (gate / 'agent_state.json').write_text('{"state": "waiting_otp"}')
+    r = client.post('/api/subsidy/otp/submit', json={'code': '12a45'})
+    assert r.status_code == 400
+    assert not (gate / 'otp_submit.json').exists()
+
+
+def test_otp_submit_tolak_bila_belum_login_409(env, gate):
+    client, *rest = env
+    _login(client)
+    r = client.post('/api/subsidy/otp/submit', json={'code': '123456'})
+    assert r.status_code == 409
+
+
+def test_otp_role_non_finance_403(env, gate):
+    client, *rest = env
+    _login(client, role='driver')
+    r = client.post('/api/subsidy/otp/request')
+    assert r.status_code == 403

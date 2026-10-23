@@ -76,6 +76,57 @@ _MATCH_RUP = 2000     # propagasi harga/liter antar-deskripsi hari itu
 _CLOSE_LITER = 2.0    # 'close' = kemungkinan sama pos (ruang baca meter)
 
 
+# ============================================================
+# v2.69.0 — Gate OTP: jembatan Finance ↔ agen host (login ulang)
+# ============================================================
+# Agen (login.mjs / verify.mjs di HOST, user it-ef) tak bisa dipanggil
+# dari container web (tanpa Chrome/Xvfb). Maka dir `gate/` di-bind-mount
+# ke container sebagai /app/subsidy_gate — Finance menulis perintah
+# (otp_request.json / otp_submit.json), supervisor otomatis di host
+# mengeksekusi & menulis balik status (agent_state.json):
+#
+#   idle → starting → waiting_otp → verifying → syncing → done | error
+#
+# OTP sendiri TIDAK lewat server bpf-workhub: email ke kotak akun
+# Subsidi Tepat, finance membaca lalu mengetiknya di dashboard.
+
+def _gate_dir():
+    return os.environ.get('SUBSIDY_GATE_DIR', '/app/subsidy_gate')
+
+
+def _gate_read(name, default=None):
+    try:
+        with open(os.path.join(_gate_dir(), name), encoding='utf-8') as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return default if default is not None else {}
+
+
+def _gate_write(name, payload):
+    d = _gate_dir()
+    try:
+        os.makedirs(d, exist_ok=True)
+        tmp = os.path.join(d, name + '.tmp')
+        with open(tmp, 'w', encoding='utf-8') as f:
+            json.dump(payload, f, ensure_ascii=False)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, os.path.join(d, name))
+        try:
+            os.chmod(os.path.join(d, name), 0o644)
+        except OSError:
+            pass
+        return True
+    except OSError as e:
+        print(f"[subsidy-otp] gate write {name}: {e}")
+        return False
+
+
+def _agent_state():
+    st = _gate_read('agent_state.json')
+    return st if isinstance(st, dict) and st.get('state') else {'state': 'idle'}
+
+
 def _norm_nopol(s):
     """'B 2731 SRQ' == 'B2731SRQ' — normalisasi tanpa spasi/tanda, uppercase."""
     return re.sub(r'[^A-Z0-9]', '', str(s or '').upper())[:20]
@@ -739,3 +790,70 @@ def register_subsidy_routes(app):
                 m.close()
             except Exception:
                 pass
+
+    # ------------------------------------------------------------------
+    # v2.69.0 — Login ulang agen Subsidi Tepat langsung dari dashboard
+    # (request OTP email → agen host login → finance masukkan OTP →
+    #  verify token baru → pull + import + auto-match, semua otomatis)
+    # ------------------------------------------------------------------
+    @app.route('/api/subsidy/otp/request', methods=['POST'])
+    @role_required(['finance', 'admin'])
+    def api_subsidy_otp_request():
+        """Finance meminta login baru: agen host menjalankan login.mjs
+        (headful, Xvfb) → OTP dikirim MyPertamina ke email akun."""
+        st = _agent_state().get('state')
+        if st in ('verifying', 'syncing'):
+            return jsonify({'status': 'error',
+                            'msg': 'Agen sedang memproses OTP sebelumnya — tunggu sebentar.'}), 409
+        actor = session.get('user_name') or 'finance'
+        ok = _gate_write('otp_request.json', {
+            'requested_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'by': str(actor),
+        })
+        if not ok:
+            return jsonify({'status': 'error', 'msg': 'Gate agen tidak tersedia'}), 500
+        log_activity_async(0, 'subsidy_otp_request', 'system', str(actor),
+                           ip=request.remote_addr, new_data={})
+        return jsonify({
+            'status': 'success',
+            'state': 'starting',
+            'msg': 'Browser login dijalankan — OTP dikirim MyPertamina ke email akun; '
+                   'cek inbox, lalu masukkan kode di sini (±1–2 menit).'})
+
+    @app.route('/api/subsidy/otp/status')
+    @role_required(['finance', 'admin'])
+    def api_subsidy_otp_status():
+        """Status mesin OTP agen — dibaca dari gate (agent_state.json)."""
+        return jsonify(_agent_state())
+
+    _OTP_RE = re.compile(r'^[0-9]{6}$')
+
+    @app.route('/api/subsidy/otp/submit', methods=['POST'])
+    @role_required(['finance', 'admin'])
+    def api_subsidy_otp_submit():
+        """Finance memasukkan 6 digit OTP → agen host melanjutkan verifikasi
+        (token baru) lalu sync otomatis pull → import → auto-match."""
+        st = _agent_state().get('state')
+        if st in ('verifying', 'syncing'):
+            return jsonify({'status': 'error',
+                            'msg': 'OTP sebelumnya masih diverifikasi — tunggu sebentar.'}), 409
+        if st != 'waiting_otp':
+            return jsonify({'status': 'error',
+                            'msg': 'Belum ada login yang menunggu OTP — klik Minta OTP Email dulu.'}), 409
+        if _gate_read('otp_submit.json'):
+            return jsonify({'status': 'error', 'msg': 'OTP sudah terkirim — tunggu hasilnya.'}), 409
+        data = request.get_json(silent=True) or {}
+        code = str(data.get('code') or '').strip()
+        if not _OTP_RE.match(code):
+            return jsonify({'status': 'error', 'msg': 'Kode OTP harus 6 digit angka'}), 400
+        actor = session.get('user_name') or 'finance'
+        ok = _gate_write('otp_submit.json', {
+            'code': code, 'submitted_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'by': str(actor),
+        })
+        if not ok:
+            return jsonify({'status': 'error', 'msg': 'Gate agen tidak tersedia'}), 500
+        log_activity_async(0, 'subsidy_otp_submit', 'system', str(actor),
+                           ip=request.remote_addr, new_data={})
+        return jsonify({'status': 'success', 'state': 'verifying',
+                        'msg': 'OTP diteruskan ke agen — verifikasi & sinkron data berjalan otomatis.'})

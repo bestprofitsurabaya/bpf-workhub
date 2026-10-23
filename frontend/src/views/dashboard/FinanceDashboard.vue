@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { api } from '../../api'
 import StatCard from '../../components/StatCard.vue'
 import PageHeader from '../../components/PageHeader.vue'
@@ -232,6 +232,81 @@ const covChips = computed(() =>
   covOrder.filter((k) => subsidy.value.coverage?.[k])
     .map((k) => ({ k, label: covLabel[k] || k, n: subsidy.value.coverage[k] })))
 
+// ------------------------------------------------------------
+// v2.69.0 — Login ulang agen Subsidi Tepat langsung dari dashboard:
+// Finance minta OTP (email akun) → agen host login → ketik OTP di sini →
+// verify token baru + pull/import/auto-match otomatis (state dari agen).
+// ------------------------------------------------------------
+const otp = ref({ state: 'idle', msg: '' })
+const otpCode = ref('')
+const otpBusy = ref(false)
+let otpTimer = null
+
+const OTP_LABELS = {
+  idle: 'Idle', starting: 'Browser login berjalan…', waiting_otp: 'Menunggu OTP',
+  verifying: 'Memverifikasi OTP…', syncing: 'Sinkron data…', done: 'Selesai — token baru', error: 'Gagal',
+}
+const otpLabel = computed(() => OTP_LABELS[otp.value?.state] || 'Idle')
+const otpInputShown = computed(() => ['starting', 'waiting_otp'].includes(otp.value?.state))
+const otpReady = computed(() => /^\d{6}$/.test(otpCode.value))
+const otpTone = computed(() => (otp.value?.state === 'done' ? 'alert-success'
+  : otp.value?.state === 'error' ? 'alert-error' : ''))
+
+function otpPollStop() { if (otpTimer) { clearInterval(otpTimer); otpTimer = null } }
+
+async function loadOtpStatus() {
+  try {
+    const st = await api('/api/subsidy/otp/status') || { state: 'idle' }
+    const prev = otp.value?.state
+    otp.value = st
+    if (['starting', 'waiting_otp', 'verifying', 'syncing'].includes(st.state) && !otpTimer) {
+      otpTimer = setInterval(loadOtpStatus, 4000)
+    }
+    if (st.state === 'done' || st.state === 'error') {
+      otpPollStop()
+      if (st.state === 'done' && prev && prev !== 'idle') {
+        await Promise.all([loadSubsidy(), loadBbm()])
+      }
+    }
+  } catch { /* gate belum ada — biarkan */ }
+}
+
+async function otpRequest() {
+  if (otpBusy.value) return
+  otpBusy.value = true
+  try {
+    const r = await api('/api/subsidy/otp/request', { method: 'POST' })
+    if (r?.status === 'success') {
+      otp.value = { state: 'starting', msg: r.msg }
+      otpPollStop()
+      otpTimer = setInterval(loadOtpStatus, 4000)
+    } else {
+      otp.value = { state: otp.value?.state || 'idle', msg: r?.msg || 'Gagal meminta login' }
+    }
+  } catch (e) {
+    otp.value = { state: otp.value?.state || 'idle', msg: '❌ ' + (e.message || 'Gagal meminta login') }
+  } finally { otpBusy.value = false }
+}
+
+async function otpSubmit() {
+  if (otpBusy.value || !otpReady.value) return
+  otpBusy.value = true
+  try {
+    const r = await api('/api/subsidy/otp/submit', { method: 'POST', body: { code: otpCode.value } })
+    if (r?.status === 'success') {
+      otpCode.value = ''
+      otp.value = { state: 'verifying', msg: r.msg }
+    } else {
+      otp.value = { ...otp.value, msg: r?.msg || 'Kode OTP ditolak' }
+    }
+  } catch (e) {
+    otp.value = { ...otp.value, msg: '❌ ' + (e.message || 'Kode OTP ditolak') }
+  } finally { otpBusy.value = false }
+}
+
+onMounted(loadOtpStatus)
+onBeforeUnmount(otpPollStop)
+
 // ============================================================
 // Berita Acara Rekonsiliasi — Subsidi Tepat (daftar BA + unduh PDF)
 // ============================================================
@@ -371,6 +446,30 @@ onMounted(() => { load(); loadBbm(); loadAttest(); loadSubsidy() })
         <div class="mini-tips" style="margin-top:8px;">
           💡 Kandidat kecocokan teperinci (nopol, tanggal, liter) tampil di modal <b>👁 Detail</b> klaim —
           tautkan di sana agar nomor transaksi resmi Pertamina ikut ke Berita Acara.
+        </div>
+
+        <!-- v2.69.0: login ulang agen (OTP) langsung dari Finance -->
+        <div style="margin-top:10px;border-top:1px dashed var(--border, #e2e8f0);padding-top:10px;"
+             data-testid="subsidy-otp">
+          <div class="row" style="gap:8px;align-items:center;flex-wrap:wrap;">
+            <b style="font-size:13px;">🔑 Login ulang agen</b>
+            <span style="font-size:12px;">status: <b data-testid="otp-state">{{ otpLabel }}</b></span>
+            <div class="spacer"></div>
+            <button class="btn btn-sm" data-testid="otp-request" :disabled="otpBusy"
+                    :title="'Browser login agen dijalankan — OTP dikirim ke email akun Subsidi Tepat'"
+                    @click="otpRequest">✉ Minta OTP Email</button>
+          </div>
+          <div v-if="otpInputShown" class="row" style="gap:6px;margin-top:7px;align-items:center;flex-wrap:wrap;"
+               data-testid="otp-input">
+            <input v-model="otpCode" class="inp" data-testid="otp-code" inputmode="numeric"
+                   maxlength="6" placeholder="6 digit OTP dari email" style="width:190px;"
+                   @keyup.enter="otpSubmit" />
+            <button class="btn btn-sm btn-primary" data-testid="otp-submit"
+                    :disabled="otpBusy || !otpReady" @click="otpSubmit">✔ Kirim OTP</button>
+            <span class="muted" style="font-size:11px;">Cek email akun Subsidi Tepat — kode berlaku singkat.</span>
+          </div>
+          <div v-if="otp.msg" class="alert" style="margin-top:6px;font-size:12px;display:inline-block;"
+               :class="otpTone" data-testid="otp-msg">{{ otp.msg }}</div>
         </div>
       </div>
 

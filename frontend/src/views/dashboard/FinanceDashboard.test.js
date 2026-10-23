@@ -212,6 +212,70 @@ describe('FinanceDashboard', () => {
     expect(statusCalls).toBeGreaterThan(before) // status + antrean direfresh
   })
 
+  // v2.69.0: Login ulang agen (OTP) langsung dari dashboard
+  it('🔑 OTP: Minta OTP → status waiting_otp (polling) → input kode → Kirim OTP', async () => {
+    vi.useFakeTimers()
+    let otpState = { state: 'idle' }
+    apiMock.mockImplementation((path, opts = {}) => {
+      if (path === '/api/subsidy/status') return Promise.resolve(SUBSIDY_STATUS)
+      if (path === '/api/subsidy/otp/status') return Promise.resolve(otpState)
+      if (path === '/api/subsidy/otp/request') return Promise.resolve({ status: 'success', state: 'starting', msg: 'Browser login dijalankan — OTP dikirim ke email akun' })
+      if (path === '/api/subsidy/otp/submit') return Promise.resolve({ status: 'success', state: 'verifying', msg: 'OTP diteruskan ke agen' })
+      return financeImpl(path, opts)
+    })
+    const w = mount(FinanceDashboard)
+    await flushPromises()
+    const card = w.find('[data-testid="subsidy-otp"]')
+    expect(card.find('[data-testid="otp-state"]').text()).toContain('Idle')
+    await card.find('[data-testid="otp-request"]').trigger('click')
+    await flushPromises()
+    expect(apiMock).toHaveBeenCalledWith('/api/subsidy/otp/request', { method: 'POST' })
+    expect(card.find('[data-testid="otp-state"]').text()).toContain('Browser login')
+    expect(card.find('[data-testid="otp-msg"]').text()).toContain('OTP dikirim ke email akun')
+    // polling 4 detik → agen sampai halaman OTP (waiting_otp)
+    otpState = { state: 'waiting_otp', msg: 'OTP dikirim ke email akun Subsidi Tepat' }
+    await vi.advanceTimersByTimeAsync(4000)
+    await flushPromises()
+    expect(card.find('[data-testid="otp-state"]').text()).toContain('Menunggu OTP')
+    const inp = card.find('[data-testid="otp-input"]')
+    expect(inp.exists()).toBe(true)
+    await inp.find('[data-testid="otp-code"]').setValue('123456')
+    await inp.find('[data-testid="otp-submit"]').trigger('click')
+    await flushPromises()
+    expect(apiMock).toHaveBeenCalledWith('/api/subsidy/otp/submit', { method: 'POST', body: { code: '123456' } })
+    expect(card.find('[data-testid="otp-state"]').text()).toContain('Memverifikasi OTP')
+    w.unmount()
+    vi.useRealTimers()
+  })
+
+  it('🔑 OTP: kode tak lengkap → tombol Kirim OTP nonaktif; status done tampil hijau', async () => {
+    vi.useFakeTimers()
+    let otpState = { state: 'waiting_otp', msg: 'Menunggu kode OTP' }
+    let statusCalls = 0
+    apiMock.mockImplementation((path) => {
+      if (path === '/api/subsidy/status') { statusCalls++; return Promise.resolve(SUBSIDY_STATUS) }
+      if (path === '/api/subsidy/otp/status') return Promise.resolve(otpState)
+      return financeImpl(path)
+    })
+    const w = mount(FinanceDashboard)
+    await flushPromises()
+    const inp = w.find('[data-testid="subsidy-otp"]').find('[data-testid="otp-input"]')
+    expect(inp.exists()).toBe(true)
+    await inp.find('[data-testid="otp-code"]').setValue('12345')
+    expect(inp.find('[data-testid="otp-submit"]').attributes('disabled')).toBeDefined()
+    await inp.find('[data-testid="otp-code"]').setValue('123456')
+    expect(inp.find('[data-testid="otp-submit"]').attributes('disabled')).toBeUndefined()
+    // agen selesai → pesan done + status klaim/data direfresh
+    otpState = { state: 'done', msg: '✅ Selesai: 138 transaksi ditarik & diimpor' }
+    await vi.advanceTimersByTimeAsync(4000)
+    await flushPromises()
+    const card = w.find('[data-testid="subsidy-otp"]')
+    expect(card.find('[data-testid="otp-msg"]').text()).toContain('Selesai: 138 transaksi')
+    expect(statusCalls).toBeGreaterThan(1) // loadSubsidy() dipanggil ulang
+    w.unmount()
+    vi.useRealTimers()
+  })
+
   it('kartu atas: angka verified_ga (Siap Cair) & os_finance (Menunggu LPJ) + link antrean', async () => {
     apiMock.mockImplementation(financeImpl)
     const w = mount(FinanceDashboard)

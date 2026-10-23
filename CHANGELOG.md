@@ -7,6 +7,22 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.69.0 — 23 Oktober 2026 (login ulang agen Subsidi Tepat via OTP, langsung dari dashboard Finance)
+
+- 🔑 Panel **Login ulang agen** di kartu ⛽ Data SPBU: Finance klik
+  *Minta OTP Email* → supervisor host menjalankan `login.mjs` (headful
+  Chrome, Xvfb) → OTP dari MyPertamina masuk email akun → Finance ketik
+  6 digitnya di dashboard → *Kirim OTP*: `verify.mjs` menaut token baru,
+  lalu otomatis `pull` → `import` → `auto-match`. Tanpa sentuh CLI.
+- 🔀 **Gate** `agent/subsiditepat/gate/` di-bind-mount ke container web
+  (`/app/subsidy_gate`): endpoint `/api/subsidy/otp/request|status|submit`
+  (auth finance/admin) bertukar berkas JSON dengan supervisor host;
+  state: `idle→starting→waiting_otp→verifying→syncing→done|error`.
+- ⏱ Supervisor host `otp_supervisor.mjs` (cron `@reboot` + nohup) —
+  watchdog deteksi browser login mati/session hilang.
+- ✔️ vitest FinanceDashboard 18 (16 + 2 OTP), pytest 16 (9 + 7 OTP),
+  stamp v2.69.0.
+
 ## v2.68.0 — 23 Oktober 2026 (agen subsiditepat disatukan + pencocokan otomatis BBM)
 
 - 🤝 **Subsiditepat masuk ke bpf-workhub** sesuai arahan user: agen tarik riwayat

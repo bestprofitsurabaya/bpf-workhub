@@ -68,6 +68,10 @@ services:
       - ./fonts:/app/fonts
       # v2.48.0: PWA mobile — bind mount supaya edit file tidak perlu rebuild image
       - ./mobile:/app/mobile:ro
+      # v2.69.0: gate OTP agen Subsidi Tepat — endpoint /api/subsidy/otp/*
+      # menulis perintah di sini; supervisor di HOST (otp_supervisor.mjs)
+      # mengeksekusi login/verify/pull & menulis balik agent_state.json
+      - ./agent/subsiditepat/gate:/app/subsidy_gate
     environment:
       - FLASK_DEBUG=0
       - TZ=Asia/Jakarta
