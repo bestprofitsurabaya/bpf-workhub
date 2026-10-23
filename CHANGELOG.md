@@ -7,6 +7,14 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.62.0 — 23 Oktober 2026 (fase-3 gelombang 9: sweep loading/error selesai)
+
+- ⏳ 7 view terakhir (Assets, Traineer, EmployeeInOut, Receptionist,
+  Marketing, Overtime, Water) memakai LoadingState/ErrorState; file Logs
+  sudah terkonversi — denyut "status memuat/galat" kini khusus bersatu di
+  seluruh SPA.
+- ✔️ 217 vitest hijau.
+
 ## v2.61.0 — 23 Oktober 2026 (fase-3 gelombang 8: status memuat/galat standar)
 
 - ⏳/🛑 8 view (Trips, Assignments, Analytics, AccessReview, Users,
