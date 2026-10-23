@@ -334,3 +334,32 @@ html.dark .alert-info { background: #172554; color: #93c5fd; }
   .topbar { padding: 0 12px; }
   .stat-card .s-value { font-size: 19px; }
 }
+
+/* ============================================================
+   v2.54.0 — Fase-2 design system: kelas utilitas bersama
+   Ditulis additive (tidak menimpa aturan lama) supaya view yang
+   belum diperbarui tidak berubah sampai gelombangnya tiba.
+   ============================================================ */
+
+/* Header halaman standar (PageHeader.vue) */
+.page-header { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 16px; }
+.ph-main { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 220px; }
+.ph-icon { font-size: 24px; line-height: 1; }
+.ph-title { font-size: 17px; font-weight: 800; letter-spacing: -0.01em; color: var(--text); margin: 0; }
+.ph-sub { font-size: 12px; color: var(--text-3); margin-top: 2px; }
+.ph-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ph-filter { font-size: 12px; color: var(--text-2); }
+.ph-filter input.inp { margin-left: 6px; }
+
+/* Kartu perhatian (tindakan prioritas — contoh: pintasan klaim BBM) */
+.attention-card {
+  border-left: 4px solid var(--warning);
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.attention-card .ac-icon { font-size: 26px; }
+.attention-card .ac-title { font-weight: 700; }
+.attention-card .ac-sub { font-size: 12px; color: var(--text-3); }
+
+/* Judul di dalam kartu selalu nempel ke atas (hapus duplikasi inline style) */
+.card-pad h3 { margin-top: 0; }

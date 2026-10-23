@@ -2,6 +2,7 @@
 import { ref, onMounted } from 'vue'
 import { api } from '../../api'
 import StatCard from '../../components/StatCard.vue'
+import PageHeader from '../../components/PageHeader.vue'
 
 const from = ref('')
 const to = ref('')
@@ -58,31 +59,27 @@ onMounted(() => { load(); loadBbm() })
 
 <template>
   <div class="page">
-    <!-- Header + filter -->
-    <div class="card card-pad" style="margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-      <div class="grow">
-        <h2 style="margin:0;">💰 Dashboard Finance</h2>
-        <div class="muted" style="font-size:12px;">Rekap air minum &amp; pekerjaan yang menunggu Anda</div>
-      </div>
-      <label class="muted" style="font-size:12px;">Dari
-        <input v-model="from" type="date" class="inp" style="margin-left:6px;" />
+    <!-- Header + filter (v2.54.0: PageHeader standar) -->
+    <PageHeader icon="💰" title="Dashboard Finance" subtitle="Rekap air minum & pekerjaan yang menunggu Anda">
+      <label class="ph-filter">Dari
+        <input v-model="from" type="date" class="inp" />
       </label>
-      <label class="muted" style="font-size:12px;">Sampai
-        <input v-model="to" type="date" class="inp" style="margin-left:6px;" />
+      <label class="ph-filter">Sampai
+        <input v-model="to" type="date" class="inp" />
       </label>
       <button class="btn btn-primary" @click="load">🔍 Terapkan</button>
       <button class="btn" @click="exportCsv" title="Unduh rekap sebagai CSV">⬇️ Export CSV</button>
-    </div>
+    </PageHeader>
 
     <div v-if="loading" class="card card-pad muted skeleton">Memuat…</div>
     <template v-else-if="data">
-      <!-- v2.53.0: Klaim BBM — pintasan pekerjaan utama Finance -->
-      <div class="card card-pad" data-testid="bbm-quick" style="margin-bottom:16px;display:flex;gap:14px;align-items:center;flex-wrap:wrap;border-left:4px solid #d97706;">
-        <div style="font-size:26px;">⛽</div>
+      <!-- v2.53.0/v2.54.0: Klaim BBM — pintasan pekerjaan utama Finance -->
+      <div class="card card-pad attention-card" data-testid="bbm-quick">
+        <div class="ac-icon">⛽</div>
         <div class="grow">
-          <div style="font-weight:700;">Klaim BBM menunggu keputusan Anda</div>
-          <div class="muted" style="font-size:12px;">
-            <b :style="bbm.ready ? 'color:#d97706;' : ''">{{ bbm.ready }}</b> klaim terverifikasi GA siap dicairkan
+          <div class="ac-title">Klaim BBM menunggu keputusan Anda</div>
+          <div class="ac-sub" style="user-select:text;">
+            <b :style="bbm.ready ? 'color:var(--warning);' : ''">{{ bbm.ready }}</b> klaim terverifikasi GA siap dicairkan
             <template v-if="bbm.confirm"> · <b>{{ bbm.confirm }}</b> menunggu konfirmasi driver / arsip</template>
             — verifikasi Subsidi Tepat (riwayat SPBU resmi) langsung dari modal detail.
           </div>

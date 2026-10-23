@@ -7,6 +7,21 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.54.0 — 23 Oktober 2026 (fase-2 perombakan UI/UX: design system global — gelombang 1 Finance)
+
+- 🧱 **Komponen `PageHeader.vue`** — header halaman standar (ikon + judul +
+  subtitle + slot aksi) dengan utilitas CSS token di `styles/main.css`
+  (`.page-header/.ph-*`), light & dark mode otomatis ikut token.
+- 🎨 **Kelas bersama baru**: `.attention-card` (kartu perhatian ala pintasan
+  klaim BBM, warna dari `--warning`), sekaligus aturan `.card-pad h3` agar
+  judul kartu tidak perlu inline style; kelas lama tetap bekerja (additive).
+- 💰 **Dashboard Finance** jadi view pertama yang memakai standard: header →
+  `PageHeader`, kartu pintasan Klaim BBM → `.attention-card`.
+- ➕ 3 test `PageHeader` — total **217 vitest** hijau.
+
+Versi lanjut: gelombang 2 (GA/Rekap/Analytics), 3 (Admin), 4 (polish wizard
+onboarding & PWA).
+
 ## v2.53.1 — 22 Oktober 2026 (standardisasi infrastruktur: semua container & volume memakai pola `bpf-workhub`)
 
 Permintaan ops: saat melakukan recreate, *semua* resource Docker memakai nama
