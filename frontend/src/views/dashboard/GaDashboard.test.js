@@ -145,4 +145,40 @@ describe('GaDashboard', () => {
       body: expect.objectContaining({ reason: 'Foto tidak sesuai' }),
     })
   })
+
+  // Instrumen verifikasi klaim (👁 Detail) — foto bukti + cross-check + Subsidi Tepat
+  const DETAIL_TX = { id: 5, display_id: 'BBM-001', driver_name: 'RIVAN', nopol: 'L 1', nominal: 100000, liter: 20, odo_km: 1000, km_per_liter: 10, photos: [], created_at: '2026-01-01 08:00' }
+  const DETAIL_CROSS = { health_score: 90, flags: [], proof_signals: [], budget_usage_percent: 10, odo_diff: 5, recommendation: 'AMAN', previous_odo: { odo_km: 995 } }
+  const DETAIL_SUBSIDY = { verdict: 'close', liter: 20, nominal: 100000, linked: null, candidates: [] }
+
+  const detailImpl = (path) => {
+    if (path === '/api/transactions/detail/5') return Promise.resolve(DETAIL_TX)
+    if (path.startsWith('/api/cross-check')) return Promise.resolve(DETAIL_CROSS)
+    if (path.startsWith('/api/subsidy/match')) return Promise.resolve(DETAIL_SUBSIDY)
+    if (path === '/api/stats') return Promise.resolve(STATS)
+    if (path.startsWith('/api/queue')) return Promise.resolve(QUEUE)
+    if (path === '/api/cash/history') return Promise.resolve(CASH)
+    if (path.startsWith('/api/trips')) return Promise.resolve({ data: TRIPS })
+    return Promise.resolve({ status: 'success' })
+  }
+
+  it('👁 Detail membuka instrumen verifikasi klaim (3 blok) tanpa hak penjodohan', async () => {
+    apiMock.mockImplementation(detailImpl)
+    const w = mount(GaDashboard)
+    await flushPromises()
+    const row = w.findAll('tbody tr').find((r) => r.text().includes('BBM-001'))
+    await row.findAll('button').find((b) => b.text().includes('Detail')).trigger('click')
+    await flushPromises()
+
+    expect(apiMock).toHaveBeenCalledWith('/api/transactions/detail/5')
+    expect(apiMock).toHaveBeenCalledWith('/api/cross-check/5')
+    expect(apiMock).toHaveBeenCalledWith('/api/subsidy/match/5')
+    // 3 blok instrumen tampil
+    expect(w.text()).toContain('📋 Data Klaim')
+    expect(w.text()).toContain('🩺 Cross-Check Otomatis')
+    expect(w.text()).toContain('⛽ Subsidi Tepat')
+    expect(w.text()).toContain('RIVAN')
+    // GA tidak boleh menjodohkan — hanya kandidat + teks delegasi
+    expect(w.text()).toContain('Penjodohan klaim ↔ SPBU dilakukan oleh Finance')
+  })
 })

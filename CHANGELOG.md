@@ -7,6 +7,20 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.65.0 — 23 Oktober 2026 (fase-3 gelombang 16: instrumen verifikasi turun ke GA & Finance)
+
+- 🔬 Komponen baru `ClaimVerifyCard.vue` — kartu verifikasi keabsahan klaim
+  (data klaim + foto bukti, cross-check otomatis ODO/KM-L/budget + sinyal
+  EXIF/GPS, panel Subsidi Tepat: riwayat SPBU terpasang atau kandidat dengan
+  verdict selisih liter/nominal) — pola menu yang semula hanya ada di
+  Dashboard Admin.
+- 👁 GA: tombol Detail per baris antrean kini membuka kartu verifikasi
+  (read-only untuk penjodohan Subsidi Tepat; keputusan tetap tombol lama).
+- 🏦 Finance: Detail per baris antrean BBM + tombol Jodohkan/Putuskan link
+  riwayat SPBU (`/api/subsidy/link|unlink`), plus section **Berita Acara
+  Rekonsiliasi — Subsidi Tepat** (daftar BA terakhir + unduh PDF).
+- ✔️ 220 vitest (217 + 3 baru), stamp v2.65.0.
+
 ## v2.64.1 — 23 Oktober 2026 (pembersihan Palembang dari sistem)
 
 - 🗑️ Cabang Palembang (PLM) dihapus permanen sesuai konfirmasi user —

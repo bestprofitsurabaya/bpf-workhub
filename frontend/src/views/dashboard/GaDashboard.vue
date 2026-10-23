@@ -5,6 +5,7 @@ import StatCard from '../../components/StatCard.vue'
 import PageHeader from '../../components/PageHeader.vue'
 import Modal from '../../components/Modal.vue'
 import ConfirmDialog from '../../components/ConfirmDialog.vue'
+import ClaimVerifyCard from '../../components/ClaimVerifyCard.vue'
 import { formatRupiah } from '../../utils/format.js'
 import { useRealtimeStore } from '../../stores/realtime'
 import { useStepupStore } from '../../stores/stepup'
@@ -23,6 +24,27 @@ const rejectFor = ref(null)
 const rejectReason = ref('')
 const verifyFor = ref(null)
 const verifyOk = ref(false)
+// Instrumen verifikasi klaim (Detail) — foto bukti + cross-check + Subsidi Tepat
+const detailFor = ref(null)
+
+function openDetail(tx) {
+  detailFor.value = tx
+}
+
+async function detailApprove(tx) {
+  const okDone = await doApprove(tx)
+  if (okDone !== false) detailFor.value = null
+}
+
+function detailReject(tx) {
+  detailFor.value = null
+  openReject(tx)
+}
+
+function detailVerify(tx) {
+  detailFor.value = null
+  openVerify(tx)
+}
 
 const fmt = formatRupiah
 
@@ -66,6 +88,7 @@ async function doApprove(tx) {
     // v2.36.0: ACC berjenjang — klaim masih menunggu ACC Chief Driver.
     if (e.status === 409 && e.data && e.data.code === 'SUPERVISOR_APPROVAL_REQUIRED') {
       alert('⏳ Menunggu ACC atasan (' + (e.data.pending_at || 'Chief Driver') + '). Proses dulu lewat menu ACC Atasan.')
+      return false // ACC 409: klaim belum disetujui — modal detail tetap terbuka
     } else { throw e }
   } finally {
     busy.value = false
@@ -157,7 +180,8 @@ watch(
                 <td>{{ fmt(t.nominal) }}</td>
                 <td><span v-if="t.ml_anomaly_flag" class="badge badge-amber">⚠️ ML</span><span v-else class="muted">—</span></td>
                 <td>
-                  <button v-if="!t.ml_anomaly_flag" class="btn btn-sm btn-primary" :disabled="busy" @click="doApprove(t)">✅ Setujui</button>
+                  <button class="btn btn-sm" :disabled="busy" title="Instrumen verifikasi: foto bukti, cross-check & Subsidi Tepat" @click="openDetail(t)">👁 Detail</button>
+                  <button v-if="!t.ml_anomaly_flag" class="btn btn-sm btn-primary" :disabled="busy" style="margin-left:6px;" @click="doApprove(t)">✅ Setujui</button>
                   <button v-else class="btn btn-sm btn-primary" :disabled="busy" title="Klaim ber-flag anomali ML — verifikasi foto bukti & konfirmasi" @click="openVerify(t)">🛡 Verifikasi</button>
                   <button class="btn btn-sm" :disabled="busy" style="margin-left:6px;" @click="openReject(t)">✕ Tolak</button>
                 </td>
@@ -167,6 +191,7 @@ watch(
           </table>
           <div class="muted" style="font-size:11px;margin-top:8px;">
             Klaim ber-flag ⚠️ ML diverifikasi di sini (tombol 🛡 Verifikasi — periksa foto bukti lalu konfirmasi).
+            Tombol 👁 Detail membuka instrumen verifikasi lengkap sebelum memutuskan.
           </div>
         </div>
 
@@ -218,6 +243,20 @@ watch(
       <div class="row" style="justify-content:flex-end;gap:8px;margin-top:12px;">
         <button class="btn" @click="verifyFor = null">Batal</button>
         <button class="btn btn-primary" :disabled="busy || !verifyOk" @click="doVerify">✅ Verifikasi &amp; Setujui</button>
+      </div>
+    </Modal>
+
+    <!-- Instrumen verifikasi klaim — turunan ringkas modal Detail Admin (tanpa tab) -->
+    <Modal v-if="detailFor" :title="'🔍 Detail ' + (detailFor.display_id || detailFor.id)" @close="detailFor = null">
+      <ClaimVerifyCard ref="cardRef" :tx-id="detailFor.id" />
+      <p class="muted" style="font-size:11px;margin:10px 0 0;">
+        Kandidat Subsidi Tepat hanya baca — penjodohan klaim ↔ SPBU dilakukan oleh Finance.
+      </p>
+      <div class="row" style="justify-content:flex-end;gap:8px;margin-top:12px;">
+        <button class="btn" @click="detailFor = null">Tutup</button>
+        <button class="btn" :disabled="busy" @click="detailReject(detailFor)">✕ Tolak</button>
+        <button v-if="!detailFor.ml_anomaly_flag" class="btn btn-primary" :disabled="busy" @click="detailApprove(detailFor)">✅ Setujui</button>
+        <button v-else class="btn btn-primary" :disabled="busy" @click="detailVerify(detailFor)">🛡 Verifikasi Anomali</button>
       </div>
     </Modal>
 
