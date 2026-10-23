@@ -68,10 +68,12 @@ async function startLogin(req) {
   jobRunning = true;
   try {
     writeState({ state: 'starting', msg: 'Menyiapkan browser login…', requested_by: req?.by || '?' });
-    // Xvfb :99 harus hidup untuk headful Chrome
-    const xv = spawnSync('pgrep', ['-f', '^Xvfb :99'], { encoding: 'utf8' });
+    // Xvfb khusus agen (:98, TANPA -auth) — :99 kadang milik xvfb-run
+    // lama dengan Xauthority, koneksi tanpa XAUTHORITY ditolak
+    // ("Missing X server" dari puppeteer). Display ini dijamin bebas.
+    const xv = spawnSync('pgrep', ['-f', '^Xvfb :98'], { encoding: 'utf8' });
     if (xv.status !== 0) {
-      spawn('Xvfb', [':99', '-screen', '0', '1200x900x24'],
+      spawn('Xvfb', [':98', '-screen', '0', '1200x900x24', '-nolisten', 'tcp'],
             { detached: true, stdio: ['ignore', 'ignore', 'ignore'] }).unref();
       await sleep(1500);
     }
@@ -80,7 +82,7 @@ async function startLogin(req) {
     try { fs.unlinkSync(path.join(ROOT, 'session.txt')); } catch {}
     const log = fs.openSync(path.join(ROOT, 'artifacts/otp_login.log'), 'a');
     spawn('node', ['login.mjs'], {
-      cwd: ROOT, detached: true, env: { ...process.env, DISPLAY: ':99' },
+      cwd: ROOT, detached: true, env: { ...process.env, DISPLAY: ':98' },
       stdio: ['ignore', log, log],
     }).unref();
     try { fs.unlinkSync(gpath('otp_request.json')); } catch {}

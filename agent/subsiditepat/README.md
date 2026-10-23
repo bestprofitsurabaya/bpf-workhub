@@ -19,19 +19,27 @@ push.mjs → POST /api/subsidy/import   (X-SUBSIDY-TOKEN)
 
 ## Jadwal
 
-Cron harian (user `it-ef`): `15 6 * * *` → `agent/subsiditepat/scripts/daily_sync.sh`.
+- Cron harian (user `it-ef`): `15 6 * * *` → `scripts/daily_sync.sh`.
+- Cron `@reboot` → `scripts/otp_supervisor.mjs` (supervisor OTP, tick 4 dtk;
+  start manual: `setsid nohup node scripts/otp_supervisor.mjs >> artifacts/otp_supervisor.log 2>&1 &`).
 
 ## Rahasia (tidak pernah ke-commit — lihat .gitignore)
 
 `/.env`, `/token.json`, `/profile/`, `/data/`, `/artifacts/`.
 
-## Ganti token (habis ~7 hari)
+## Ganti token (habis ~7 hari) — TIDAK PERLU LAGI CLI
 
-```bash
-cd /home/it-ef/bpf-workhub/agent/subsiditepat
-python3 -c 'import subprocess,os' 2>/dev/null   # Xvfb :99 harus hidup
-node login.mjs     # tunggu OTP email
-node verify.mjs <kode_otp>
-```
+**Cara utama (v2.69.0, dari dashboard):** Finance buka menu 💰 Finance →
+kartu ⛽ *Data SPBU — Subsidi Tepat* → panel **🔑 Login ulang agen**:
+1. Klik *✉ Minta OTP Email* — supervisor host menjalankan `login.mjs`
+   (Chrome headful di Xvfb `:98` khusus agen) → OTP dikirim MyPertamina
+   ke email akun.
+2. Baca 6 digit dari email, ketik di kolom OTP → *✔ Kirim OTP* —
+   `verify.mjs` menaut token baru, lalu otomatis pull → import → auto-match.
 
-Xvfb: `Xvfb :99 -screen 0 1200x900x24 &` bila belum jalan.
+**Cara manual (cadangan):** jalankan `node login.mjs` (Xvfb `:98` harus
+hidup: supervisor mengelolanya otomatis) lalu `node verify.mjs <kode>`.
+
+⚠️ Jangan pakai Xvfb `:99` bawaan `xvfb-run` — display itu ber-Xauthority
+klien tanpa XAUTHORITY ditolak ("Missing X server"). Supervisor sengaja
+memakai display `:98` sendiri tanpa -auth.

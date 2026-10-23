@@ -19,7 +19,9 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
   (auth finance/admin) bertukar berkas JSON dengan supervisor host;
   state: `idle→starting→waiting_otp→verifying→syncing→done|error`.
 - ⏱ Supervisor host `otp_supervisor.mjs` (cron `@reboot` + nohup) —
-  watchdog deteksi browser login mati/session hilang.
+  watchdog deteksi browser login mati/session hilang. Chrome headful
+  memakai Xvfb `:98` khusus agen (tanpa -auth) — display `:99` bawaan
+  `xvfb-run` ber-Xauthority & menolak klien ("Missing X server").
 - ✔️ vitest FinanceDashboard 18 (16 + 2 OTP), pytest 16 (9 + 7 OTP),
   stamp v2.69.0.
 

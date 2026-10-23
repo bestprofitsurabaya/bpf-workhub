@@ -1,0 +1,12 @@
+# Rahasia & runtime — TIDAK boleh ke-commit (lihat README)
+.env
+token.json
+cookies.json
+profile/
+data/
+artifacts/
+session.txt
+node_modules/
+gate/*.json
+*.png
+*.html
