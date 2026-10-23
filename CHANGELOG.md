@@ -11,7 +11,8 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 
 - 🗑️ Cabang Palembang (PLM) dihapus permanen sesuai konfirmasi user —
   tidak ada di situs resmi: row `branches` + database `bpf_branch_plm`
-  di-drop (backup dulu di `/srv/bpf-workhub/backups_migrasi/`).
+  di-drop (dump nightly 03:00 pagi itu tersimpan di
+  `/srv/bpf-workhub/backups_migrasi/branch_plm_last_backup_20261023_030001.sql.gz`).
 - 🧹 Role `it_plm` dikeluarkan dari semua whitelist (nav, master, access
   review, news scraper, transcoder, pdfkit, home-map) + mapping berita
   region Palembang; DDL ENUM role `appointment` tanpa `it_plm`.
