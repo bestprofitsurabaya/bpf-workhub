@@ -7,6 +7,13 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.63.0 — 23 Oktober 2026 (fase-3 gelombang 10: PWA mobile driver)
+
+- 📱 Shell driver: safe-area iPhone (nav bawah + toast), target sentuh ≥44px
+  dengan highlight transparan, item nav aktif ber-token + indikator latar
+  soft, warna raw → token design system — tanpa menyentuh logic offline.
+- ✔️ 217 vitest hijau (driver test lulus).
+
 ## v2.62.0 — 23 Oktober 2026 (fase-3 gelombang 9: sweep loading/error selesai)
 
 - ⏳ 7 view terakhir (Assets, Traineer, EmployeeInOut, Receptionist,
