@@ -7,6 +7,13 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.61.0 — 23 Oktober 2026 (fase-3 gelombang 8: status memuat/galat standar)
+
+- ⏳/🛑 8 view (Trips, Assignments, Analytics, AccessReview, Users,
+  Settings, Cash, ChiefDriver) kini memakai LoadingState + ErrorState
+  dengan tombol coba lagi — tidak lagi div skeleton/alert mentah.
+- ✔️ 217 vitest hijau.
+
 ## v2.60.0 — 23 Oktober 2026 (fase-3 gelombang 7: header bespoke → standar)
 
 - 🎬 TranscoderView & 📄 PdfKitView: header kustom kini memakai PageHeader
