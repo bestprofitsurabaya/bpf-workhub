@@ -6,6 +6,8 @@ import { useStepupStore } from '../stores/stepup'
 import Modal from '../components/Modal.vue'
 import ConfirmDialog from '../components/ConfirmDialog.vue'
 import PageHeader from '../components/PageHeader.vue'
+import LoadingState from '../components/LoadingState.vue'
+import ErrorState from '../components/ErrorState.vue'
 
 const confirmRef = ref(null)
 const ask = (message, opts) => confirmRef.value?.open(message, opts) ?? Promise.resolve(false)
@@ -320,8 +322,8 @@ onMounted(() => { form.value.items.push(newItem()); load() })
       <button v-if="!isOB" class="btn" :disabled="exporting" title="Export sesuai filter aktif" @click="exportReport('xlsx')">📊 Export Excel</button>
     </PageHeader>
 
-    <div v-if="loading" class="empty skeleton">⏳ Memuat…</div>
-    <div v-else-if="err" class="alert alert-error">{{ err }}</div>
+    <div v-if="loading"><LoadingState :rows="5" label="Memuat data air minum…" /></div>
+    <div v-else-if="err"><ErrorState :message="err" @retry="load" /></div>
     <template v-else>
       <!-- Filter rentang tanggal (v2.37.4) — default: awal s/d akhir bulan berjalan -->
       <div class="card card-pad" style="margin-bottom:16px;">

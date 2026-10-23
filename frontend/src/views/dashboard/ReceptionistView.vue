@@ -7,6 +7,8 @@ import { useRealtimeStore } from '../../stores/realtime'
 import { useStepupStore } from '../../stores/stepup'
 import ConfirmDialog from '../../components/ConfirmDialog.vue'
 import PageHeader from '../../components/PageHeader.vue'
+import LoadingState from '../../components/LoadingState.vue'
+import ErrorState from '../../components/ErrorState.vue'
 
 const confirmRef = ref(null)
 const ask = (message, opts) => confirmRef.value?.open(message, opts) ?? Promise.resolve(false)
@@ -342,8 +344,8 @@ onMounted(() => {
       <div v-if="msg" class="alert" :class="msg.startsWith('✅') ? 'alert-success' : msg.startsWith('⚠️') ? 'alert-warning' : 'alert-error'" style="margin-top:10px;">{{ msg }}</div>
     </div>
 
-    <div v-if="loading" class="empty skeleton">⏳ Memuat…</div>
-    <div v-else-if="err" class="alert alert-error">{{ err }}</div>
+    <div v-if="loading"><LoadingState :rows="5" label="Memuat data pelamar…" /></div>
+    <div v-else-if="err"><ErrorState :message="err" @retry="load" /></div>
     <template v-else>
       <div class="stat-grid" style="margin-bottom:16px;">
         <StatCard icon="👥" label="Total Pelamar" :value="stats?.total ?? totalAtt" color="#2563eb" />

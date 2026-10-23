@@ -4,6 +4,7 @@ import { api } from '../../api'
 import StatCard from '../../components/StatCard.vue'
 import Modal from '../../components/Modal.vue'
 import PageHeader from '../../components/PageHeader.vue'
+import LoadingState from '../../components/LoadingState.vue'
 
 const tab = ref('driver') // 'driver' | 'ob'
 const loading = ref(true)
@@ -475,7 +476,7 @@ watch(tab, loadTab)
           <button class="btn" @click="openDetailModal('driver')">📋 Detail/Excel</button>
         </div>
 
-        <div v-if="loading" class="empty skeleton">⏳ Memuat…</div>
+        <div v-if="loading"><LoadingState :rows="6" label="Memuat data overtime…" /></div>
         <div v-else>
           <div class="muted" style="font-size:12px;margin:8px 0;">{{ dList.length }} catatan ditampilkan</div>
           <div class="table-wrap">
@@ -547,7 +548,7 @@ watch(tab, loadTab)
           <button class="btn" @click="openDetailModal('ob')">📋 Detail/Excel</button>
         </div>
 
-        <div v-if="loading" class="empty skeleton">⏳ Memuat…</div>
+        <div v-if="loading"><LoadingState :rows="6" label="Memuat data overtime…" /></div>
         <div v-else>
           <div class="muted" style="font-size:12px;margin:8px 0;">{{ oList.length }} catatan ditampilkan</div>
           <div class="table-wrap">

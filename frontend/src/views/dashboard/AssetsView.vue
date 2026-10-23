@@ -5,6 +5,8 @@ import StatCard from '../../components/StatCard.vue'
 import Modal from '../../components/Modal.vue'
 import ConfirmDialog from '../../components/ConfirmDialog.vue'
 import PageHeader from '../../components/PageHeader.vue'
+import LoadingState from '../../components/LoadingState.vue'
+import ErrorState from '../../components/ErrorState.vue'
 
 const confirmRef = ref(null)
 const ask = (message, opts) => confirmRef.value?.open(message, opts) ?? Promise.resolve(false)
@@ -246,8 +248,8 @@ onMounted(() => { loadSummary(); loadTab() })
           <button class="btn btn-primary" @click="openAcModal(null)">＋ Tambah AC</button>
         </div>
       </div>
-      <div v-if="loading" class="empty skeleton">⏳ Memuat…</div>
-      <div v-else-if="err" class="alert alert-error">{{ err }}</div>
+      <div v-if="loading"><LoadingState :rows="4" label="Memuat aset & pemeliharaan…" /></div>
+      <div v-else-if="err"><ErrorState :message="err" @retry="loadTab" /></div>
       <div v-else class="card">
         <div class="table-wrap">
           <table class="tbl">
@@ -293,8 +295,8 @@ onMounted(() => { loadSummary(); loadTab() })
           <button class="btn btn-primary" @click="openVehModal(null)">＋ Tambah Kendaraan</button>
         </div>
       </div>
-      <div v-if="loading" class="empty skeleton">⏳ Memuat…</div>
-      <div v-else-if="err" class="alert alert-error">{{ err }}</div>
+      <div v-if="loading"><LoadingState :rows="4" label="Memuat aset & pemeliharaan…" /></div>
+      <div v-else-if="err"><ErrorState :message="err" @retry="loadTab" /></div>
       <div v-else class="card">
         <div class="table-wrap">
           <table class="tbl">
@@ -335,8 +337,8 @@ onMounted(() => { loadSummary(); loadTab() })
           <button class="btn btn-primary" :disabled="busy" @click="refreshRecs">{{ busy ? '⏳…' : '🔄 Perbarui Rekomendasi' }}</button>
         </div>
       </div>
-      <div v-if="loading" class="empty skeleton">⏳ Memuat…</div>
-      <div v-else-if="err" class="alert alert-error">{{ err }}</div>
+      <div v-if="loading"><LoadingState :rows="4" label="Memuat aset & pemeliharaan…" /></div>
+      <div v-else-if="err"><ErrorState :message="err" @retry="loadTab" /></div>
       <div v-else class="card">
         <div class="table-wrap">
           <table class="tbl">
@@ -370,8 +372,8 @@ onMounted(() => { loadSummary(); loadTab() })
           <button class="btn btn-primary" @click="openCompModal(null)">＋ Tambah Komponen</button>
         </div>
       </div>
-      <div v-if="loading" class="empty skeleton">⏳ Memuat…</div>
-      <div v-else-if="err" class="alert alert-error">{{ err }}</div>
+      <div v-if="loading"><LoadingState :rows="4" label="Memuat aset & pemeliharaan…" /></div>
+      <div v-else-if="err"><ErrorState :message="err" @retry="loadTab" /></div>
       <div v-else class="card">
         <div class="table-wrap">
           <table class="tbl">
