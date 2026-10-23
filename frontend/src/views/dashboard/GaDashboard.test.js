@@ -181,4 +181,32 @@ describe('GaDashboard', () => {
     // GA tidak boleh menjodohkan — hanya kandidat + teks delegasi
     expect(w.text()).toContain('Penjodohan klaim ↔ SPBU dilakukan oleh Finance')
   })
+
+  // wave-18A: 📄 PDF per transaksi di modal Detail GA
+  it('📄 PDF di modal Detail: status pending disembunyikan, selain pending membuka /admin/report/<id>', async () => {
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue(null)
+    // detail pending (DETAIL_TX tanpa status) → tombol PDF tidak ada
+    apiMock.mockImplementation(detailImpl)
+    let w = mount(GaDashboard)
+    await flushPromises()
+    const row = w.findAll('tbody tr').find((r) => r.text().includes('BBM-001'))
+    await row.findAll('button').find((b) => b.text().includes('Detail')).trigger('click')
+    await flushPromises()
+    expect(w.findAll('button').find((b) => b.text() === '📄 PDF')).toBeFalsy()
+    w.unmount()
+    openSpy.mockClear()
+
+    // klaim sudah ACC GA (modified → diverifikasi) → tombol PDF tampil
+    apiMock.mockImplementation((path) => {
+      if (path === '/api/transactions/detail/5') return Promise.resolve({ ...DETAIL_TX, status: 'modified' })
+      return detailImpl(path)
+    })
+    w = mount(GaDashboard)
+    await flushPromises()
+    const row2 = w.findAll('tbody tr').find((r) => r.text().includes('BBM-001'))
+    await row2.findAll('button').find((b) => b.text().includes('Detail')).trigger('click')
+    await flushPromises()
+    await w.findAll('button').find((b) => b.text() === '📄 PDF').trigger('click')
+    expect(openSpy).toHaveBeenCalledWith('/admin/report/5')
+  })
 })

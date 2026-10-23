@@ -221,6 +221,10 @@ def register_subsidy_routes(app):
         if not isinstance(rows, list) or not rows:
             return jsonify({'status': 'error', 'msg': 'rows kosong'}), 400
         rows = rows[:2000]
+        # pulled_at tingkat payload (agent pull.mjs mengirim {pulledAt}) —
+        # dipakai untuk baris tanpa timestamp pulanya sendiri, supaya
+        # /api/subsidy/status (MAX(pulled_at)) tidak pernah NULL.
+        payload_pulled = _parse_date(data.get('pulled_at') or data.get('pulledAt'))
         conn = get_master_connection()
         if not conn:
             return jsonify({'status': 'error', 'msg': 'DB error'}), 500
@@ -228,6 +232,8 @@ def register_subsidy_routes(app):
         try:
             ok = dup = invalid = 0
             for r in rows:
+                if isinstance(r, dict) and not r.get('pulledAt'):
+                    r = {**r, 'pulledAt': payload_pulled}
                 tup = _row_tuple(r)
                 if not tup:
                     invalid += 1
@@ -579,6 +585,107 @@ def register_subsidy_routes(app):
         resp.headers['Content-Disposition'] = f'inline; filename="{fname}"'
         return resp
 
+    @app.route('/api/subsidy/auto-match', methods=['POST'])
+    def api_subsidy_auto_match():
+        """Advisory bulk-match — satu klik Finance setelah agen menarik data.
+
+        Semua klaim BBM yang masih terbuka (belum arsip/ditolak) di DB cabang
+        ini diadu ke master `subsidy_transactions` (nopol + rentang tanggal).
+        Hasil ditulis ke `subsidy_match` (match/close/mismatch/no_record),
+        TIDAK mengubah tautan (subsidy_tx_id) yang sudah dijodohkan Finance —
+        kepastian verifikasi tetap putusan manusia (prinsip ADVISORY).
+
+        Auth: sesi finance/admin ATAU agen host dengan header X-SUBSIDY-TOKEN
+        (paritas /api/subsidy/import) — supaya cron harian bisa mengeksekusi
+        import + auto-match tanpa sesi browser.
+        """
+        expected = os.environ.get('SUBSIDY_IMPORT_TOKEN', '').strip()
+        header = (request.headers.get('X-SUBSIDY-TOKEN') or '').strip()
+        has_session = bool(session.get('user_role'))
+        role = str(session.get('user_role') or '').lower()
+        if has_session and role not in ('finance', 'admin'):
+            return jsonify({'status': 'error', 'msg': 'Hanya finance/admin'}), 403
+        if not has_session:
+            if not expected or not header or header != expected:
+                return jsonify({'status': 'error', 'msg': 'Token tidak valid'}), 401
+        actor = (session.get('full_name') or session.get('user_name') or 'agen').strip()
+        conn = get_db_connection()
+        if not conn:
+            return jsonify({'status': 'error', 'msg': 'DB error'}), 500
+        cur = conn.cursor(dictionary=True)
+        m = get_master_connection()
+        mcur = None
+        result = {'checked': 0, 'skipped_linked': 0, 'match': 0, 'close': 0,
+                  'mismatch': 0, 'no_record': 0}
+        try:
+            if m:
+                mcur = m.cursor(dictionary=True)
+            cur.execute(
+                "SELECT id, display_id, nopol, liter, nominal, created_at, subsidy_tx_id "
+                "FROM transactions WHERE status NOT IN ('archived', 'rejected')")
+            claims = cur.fetchall() or []
+            for tx in claims:
+                result['checked'] += 1
+                if tx.get('subsidy_tx_id'):
+                    result['skipped_linked'] += 1
+                    continue
+                liter = float(tx.get('liter') or 0)
+                nominal = float(tx.get('nominal') or 0)
+                created = tx.get('created_at')
+                verdict = 'no_record'
+                if mcur and created:
+                    start = created.replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=1)
+                    end = created + timedelta(days=2, hours=6)
+                    mcur.execute(
+                        "SELECT volume, amount FROM subsidy_transactions "
+                        "WHERE nopol_norm=%s AND transaction_date BETWEEN %s AND %s",
+                        (_norm_nopol(tx['nopol']), start, end))
+                    cands = mcur.fetchall() or []
+                    best = 'mismatch' if cands else 'no_record'
+                    for st in cands:
+                        j = _judge(liter, nominal, st.get('volume'), st.get('amount'))
+                        if j == 'match':
+                            best = 'match'
+                            break
+                        if j == 'close':
+                            best = 'close'
+                    verdict = best
+                result.setdefault(verdict, 0)
+                result[verdict] += 1
+                if verdict in ('match', 'close'):
+                    cur.execute("UPDATE transactions SET subsidy_match=%s WHERE id=%s",
+                                (verdict, tx['id']))
+                elif verdict in ('mismatch', 'no_record'):
+                    cur.execute(
+                        "UPDATE transactions SET subsidy_match=%s "
+                        "WHERE id=%s AND subsidy_match IN ('', 'mismatch', 'no_record', NULL)",
+                        (verdict, tx['id']))
+            conn.commit()
+            log_activity_async(0, 'subsidy_auto_match', 'finance', actor,
+                               ip=request.remote_addr, new_data=result)
+            return jsonify({'status': 'success', **result,
+                            'msg': (f"Pencocokan otomatis: {result['match']} match, "
+                                    f"{result['close']} close, {result['no_record']} tanpa catatan, "
+                                    f"{result['skipped_linked']} sudah dijodohkan")})
+        except Exception as e:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+            return jsonify({'status': 'error', 'msg': str(e)[:200]}), 500
+        finally:
+            cur.close()
+            if mcur:
+                mcur.close()
+            try:
+                conn.close()
+            except Exception:
+                pass
+            try:
+                m.close()
+            except Exception:
+                pass
+
     @app.route('/api/subsidy/status')
     @role_required(['finance', 'admin'])
     def api_subsidy_status():
@@ -592,11 +699,37 @@ def register_subsidy_routes(app):
                         "MIN(transaction_date) AS oldest, MAX(transaction_date) AS newest "
                         "FROM subsidy_transactions")
             row = cur.fetchone()
+            # Cakupan klaim BBM cabang ini (v2.68.0): berapa klaim terbuka sudah
+            # tervalidasi data SPBU (link/jodoh + sinyal advisory match/close).
+            coverage = {}
+            b = get_db_connection()
+            bcur = None
+            try:
+                if b:
+                    bcur = b.cursor()
+                    bcur.execute(
+                        "SELECT COALESCE(subsidy_match, 'belum') AS ket, COUNT(*) AS n "
+                        "FROM transactions WHERE status NOT IN ('archived', 'rejected') "
+                        "GROUP BY COALESCE(subsidy_match, 'belum')")
+                    coverage = {r[0]: int(r[1]) for r in (bcur.fetchall() or [])}
+                    bcur.execute("SELECT COUNT(*) FROM transactions "
+                                 "WHERE status NOT IN ('archived', 'rejected')")
+                    coverage['terbuka'] = int(bcur.fetchone()[0])
+            except Exception as ce:
+                print(f"[subsidy] status coverage: {ce}")
+            finally:
+                if bcur:
+                    bcur.close()
+                try:
+                    b.close()
+                except Exception:
+                    pass
             return jsonify({
                 'count': int(row.get('c') or 0),
                 'last_pull': str(row.get('last_pull') or ''),
                 'oldest': str(row.get('oldest') or ''),
                 'newest': str(row.get('newest') or ''),
+                'coverage': coverage,
             })
         except Exception as e:
             return jsonify({'error': str(e)[:200]}), 500

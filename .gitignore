@@ -50,3 +50,12 @@ scripts/.cleanup_done_*
 backup_*.json
 mikrotik-migration/
 backups/
+
+# Agen subsiditepat (runtime/rahasia — jangan commit)
+agent/subsiditepat/.env
+agent/subsiditepat/token.json
+agent/subsiditepat/session.txt
+agent/subsiditepat/profile/
+agent/subsiditepat/data/*
+agent/subsiditepat/artifacts/*
+agent/subsiditepat/node_modules/

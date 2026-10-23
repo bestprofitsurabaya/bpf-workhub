@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { api } from '../../api'
 import StatCard from '../../components/StatCard.vue'
 import PageHeader from '../../components/PageHeader.vue'
@@ -26,9 +26,25 @@ const verifyFor = ref(null)
 const verifyOk = ref(false)
 // Instrumen verifikasi klaim (Detail) — foto bukti + cross-check + Subsidi Tepat
 const detailFor = ref(null)
+const gaDetail = ref(null) // wave-18A: payload detail (status terbaru) untuk tombol PDF
 
 function openDetail(tx) {
   detailFor.value = tx
+  gaDetail.value = null
+}
+
+function onDetailLoaded(payload) {
+  gaDetail.value = payload?.detail || null
+}
+
+// wave-18A: 📄 PDF per transaksi (GA/Finance/Admin diizinkan backend); sembunyikan saat pending
+const showGaPdf = computed(() => {
+  const st = gaDetail.value?.status || detailFor.value?.status
+  return !!st && st !== 'pending'
+})
+function openTxPdf() {
+  const id = gaDetail.value?.id || detailFor.value?.id
+  if (id) window.open('/admin/report/' + id)
 }
 
 async function detailApprove(tx) {
@@ -248,11 +264,12 @@ watch(
 
     <!-- Instrumen verifikasi klaim — turunan ringkas modal Detail Admin (tanpa tab) -->
     <Modal v-if="detailFor" :title="'🔍 Detail ' + (detailFor.display_id || detailFor.id)" @close="detailFor = null">
-      <ClaimVerifyCard ref="cardRef" :tx-id="detailFor.id" />
+      <ClaimVerifyCard ref="cardRef" :tx-id="detailFor.id" @loaded="onDetailLoaded" />
       <p class="muted" style="font-size:11px;margin:10px 0 0;">
         Kandidat Subsidi Tepat hanya baca — penjodohan klaim ↔ SPBU dilakukan oleh Finance.
       </p>
       <div class="row" style="justify-content:flex-end;gap:8px;margin-top:12px;">
+        <button v-if="showGaPdf" class="btn" @click="openTxPdf" title="Unduh PDF laporan transaksi ini">📄 PDF</button>
         <button class="btn" @click="detailFor = null">Tutup</button>
         <button class="btn" :disabled="busy" @click="detailReject(detailFor)">✕ Tolak</button>
         <button v-if="!detailFor.ml_anomaly_flag" class="btn btn-primary" :disabled="busy" @click="detailApprove(detailFor)">✅ Setujui</button>

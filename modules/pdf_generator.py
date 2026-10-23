@@ -11,7 +11,7 @@ from modules.company_identity import get_company_identity, IDENTITY_DEFAULTS  # 
 # ============================================================
 COMPANY_NAME = 'PT BESTPROFIT FUTURES'
 COMPANY_SUBTITLE = 'Kantor Pusat | Jakarta'
-SYSTEM_VERSION = 'BPF WorkHub v2.66.0'
+SYSTEM_VERSION = 'BPF WorkHub v2.68.0'
 LOGO_FILENAMES = ['icon-512.png', 'icon-192.png']
 PHOTO_FIELDS = [
     ('foto_odo_sebelum', 'ODO Sebelum'),
@@ -50,6 +50,8 @@ BORDER = (203, 213, 225)         # garis tabel / kotak
 HEADER_FILL = (241, 245, 249)    # isian header tabel & kotak selesai
 ZEBRA_FILL = (248, 250, 252)     # strip zebra sangat tipis
 RULE = (71, 85, 105)             # garis kop surat / underlining
+GREEN_OK = (21, 110, 55)         # teks status cocok (rekonsiliasi Subsidi Tepat)
+RED_WARN = (185, 28, 28)         # teks selisih / peringatan rekonsiliasi
 
 # ============================================================
 # BASE PDF CLASS
@@ -394,6 +396,7 @@ class PDFReportCompact(BPFBasePDF):
         self._draw_narrative(tx)
         self._draw_cross_check(tx)
         self._draw_approval_bar(tx)
+        self._draw_subsidy_reconciliation(tx)
         self._draw_photos(tx, upload_folder)
 
     # ---- Private Methods ----
@@ -555,6 +558,138 @@ class PDFReportCompact(BPFBasePDF):
             x += bar_w + 4
         self.set_text_color(*INK)
         self.set_y(y + 10.5)
+
+    def _draw_subsidy_reconciliation(self, tx):
+        """Rekonsiliasi klaim BBM ↔ data SPBU Subsidi Tepat (MyPertamina).
+
+        Baris transactions.subsidy_tx_id menunjuk ke subsidy_transactions.id
+        di master DB; data SPBU dibaca live saat PDF dibuat agar dokumen yang
+        di-download Finance selalu menampilkan data Subsidi Tepat terkini.
+        Pola error mengikuti _draw_cross_check: try/except + baris fallback
+        (host tanpa DB master tetap menghasilkan PDF, tidak crash).
+
+        Catatan glyph: judul seksi memakai teks polos — simbol ⛽ (U+26FD)
+        tidak tersedia di DejaVu Sans sehingga akan dirender rusak oleh fpdf2.
+        """
+        self.section_title('REKONSILIASI SUBSIDI TEPAT (MyPertamina)')
+        if not tx.get('subsidy_tx_id'):
+            # Belum dijodohkan (match 'no_record', belum dicek, atau dibuka).
+            self.ln(0.5)
+            self.set_font(self._font(), 'B', 6.8)
+            self.set_text_color(*RED_WARN)
+            self.multi_cell(0, 3.6,
+                '⚠ Belum dijodohkan ke riwayat SPBU Subsidi Tepat — klaim ini '
+                'belum punya dasar MyPertamina. Verifikasi foto & ODO tetap wajib.'
+            )
+            self.set_text_color(*INK)
+            self.ln(2)
+            return
+        try:
+            from modules.config import get_master_connection
+            conn = get_master_connection()
+            if not conn:
+                raise Exception('master DB not available')
+            cur = conn.cursor(dictionary=True)
+            cur.execute(
+                "SELECT transaction_id, transaction_date, product, volume, amount, "
+                "spbu_id, city, witel, verification, pulled_at "
+                "FROM subsidy_transactions WHERE id=%s", (tx['subsidy_tx_id'],))
+            st = cur.fetchone()
+            cur.close()
+            conn.close()
+            if not st:
+                raise Exception('subsidy row missing')
+        except Exception:
+            self.ln(0.5)
+            self.set_font(self._font(), 'I', 6)
+            self.set_text_color(*GRAY_MUTED)
+            self.cell(0, 4, 'Data Subsidi Tepat tidak dapat dibaca (DB master offline)', border=0)
+            self.set_text_color(*INK)
+            self.ln(5)
+            return
+
+        def _dt(v):
+            return v.strftime('%d-%m-%Y %H:%M:%S') if v and hasattr(v, 'strftime') else str(v or '-')
+
+        liter = float(tx.get('liter') or 0)
+        nominal = float(tx.get('nominal') or 0)
+        vol = float(st['volume'] or 0)
+        amount = float(st['amount'] or 0)
+        dvol = liter - vol
+        dnom = nominal - amount
+        selisih_color = RED_WARN if abs(dnom) > 0.004 else GRAY_MUTED
+
+        def row(label, value, x, y, color=None, note='', note_color=GRAY_MUTED):
+            self.set_xy(x, y)
+            self.set_font(self._font(), '', 7.5)
+            self.set_text_color(*GRAY_LABEL)
+            self.cell(36, 4.6, label + ':', align='R')
+            self.set_font(self._font(), 'B', 7.5)
+            self.set_text_color(*(color or INK))
+            self.cell(34, 4.6, str(value) if value is not None and str(value) != '' else '-')
+            if note:
+                self.set_font(self._font(), '', 6.5)
+                self.set_text_color(*note_color)
+                self.cell(0, 4.6, str(note))
+            self.set_text_color(*INK)
+
+        col1_x, col2_x = self.l_margin, self.w / 2 + 5
+        y = self.get_y()
+
+        # 1) Status pencocokan — teks HIJAU (tautan klaim ↔ SPBU sah)
+        by = str(tx.get('subsidy_linked_by') or '-')
+        at = _dt(tx.get('subsidy_linked_at'))
+        self.set_font(self._font(), 'B', 7.5)
+        self.set_text_color(*GREEN_OK)
+        self.set_xy(col1_x, y)
+        self.cell(0, 4.6, f'✓ Terjodohkan — dijodohkan oleh {by} ({at})')
+        self.set_text_color(*INK)
+        y += 5.4
+
+        # 2) Nomor transaksi Pertamina — baris penuh (nilainya panjang)
+        row('No. Transaksi', str(st['transaction_id']), col1_x, y)
+        y += 5.1
+
+        # 3) Info-grid 2 kolom
+        left = [
+            ('Waktu server SPBU', _dt(st['transaction_date']), None, ''),
+            ('Volume SPBU', f'{vol:.2f} L', RED_WARN if abs(dvol) > 0.004 else GRAY_MUTED,
+             f'(klaim {liter:.2f} L, selisih {dvol:+.2f} L)'),
+            ('Nilai', self._fmt_money(amount), selisih_color,
+             f'(klaim {self._fmt_money(nominal)}, selisih {dnom:+,.2f})'),
+        ]
+        right = [
+            ('Produk', str(st['product']), None, ''),
+            ('Verifikasi', str(st['verification'] or '-'), None, ''),
+            ('SPBU', f"{st['spbu_id']} ({st['city']} / {st['witel']})", None, ''),
+        ]
+        for i in range(3):
+            y_row = y + i * 5.1
+            l = left[i]
+            r = right[i]
+            row(l[0], l[1], col1_x, y_row, color=l[2], note=l[3], note_color=l[2] or GRAY_MUTED)
+            row(r[0], r[1], col2_x, y_row, color=r[2], note=r[3], note_color=r[2] or GRAY_MUTED)
+        y += 3 * 5.1
+
+        # 4) Keterangan tarik data (redup)
+        self.set_xy(col1_x, y)
+        self.set_font(self._font(), 'I', 6)
+        self.set_text_color(*GRAY_MUTED)
+        self.cell(0, 3.8, f'Terakhir tarik data master Subsidi Tepat: {_dt(st["pulled_at"])}')
+        self.set_text_color(*INK)
+        y += 4.6
+
+        # 5) Verdict — hijau bila identik, merah bila ada selisih
+        identical = abs(dvol) <= 0.004 and abs(dnom) <= 0.004
+        self.set_font(self._font(), 'B', 6.8)
+        self.set_text_color(*(GREEN_OK if identical else RED_WARN))
+        verdict = ('✓ Volume & nominal klaim identik dengan data SPBU Subsidi Tepat.'
+                   if identical else
+                   '✗ Terdapat selisih terhadap data SPBU Subsidi Tepat — perlu keterangan Finance.')
+        self.set_xy(col1_x, y)
+        self.cell(0, 4.2, verdict)
+        self.set_text_color(*INK)
+        self.ln(4.5)
 
     def _draw_photos(self, tx, upload_folder):
         photos = self.extract_photos(tx)

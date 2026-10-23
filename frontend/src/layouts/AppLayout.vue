@@ -57,7 +57,8 @@ const MENU_GROUPS = [
   {
     label: 'Persetujuan & SDM',
     items: [
-      { label: 'ACC Atasan', path: '/approvals', icon: '✅', roles: ['chief_driver', 'ga', 'finance', 'ga_hr'], badge: 'approvals_pending' },
+      // wave-18A: finance tidak melihat ACC Atasan (tidak berguna untuk pengelolaan klaim BBM) — OB/Security/GA/HR saja
+      { label: 'ACC Atasan', path: '/approvals', icon: '✅', roles: ['chief_driver', 'ga', 'ga_hr'], badge: 'approvals_pending' },
       { label: 'Pelamar Kerja', path: '/receptionist', icon: '🪪', roles: ['receptionist', 'admin'] },
       { label: 'In-Out Karyawan', path: '/inout', icon: '🚪', roles: ['receptionist', 'admin'] },
       { label: 'Rekrutan Saya', path: '/traineer', icon: '🎯', roles: ['traineer'] },

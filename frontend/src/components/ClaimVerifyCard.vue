@@ -9,7 +9,7 @@
  * tidak pernah memanggil endpoint itu sendiri; lewat slot `link` + event
  * `link`/`unlink` yang dipancarkan ke view pemakai.
  */
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { api } from '../api'
 import LoadingState from './LoadingState.vue'
 import ErrorState from './ErrorState.vue'
@@ -73,6 +73,21 @@ const verdictMeta = (v) => VERDICT_META[v || 'no_record'] || { cls: 'badge-gray'
 
 const dVolFmt = (v) => (v > 0 ? '+' : '') + fmtNum(v)
 
+// wave-18A: lightbox foto bukti (CSS murni) — klik thumbnail → foto besar
+const zoom = ref(null)
+
+function zoomOn(e) {
+  zoom.value = e
+  document.addEventListener('keydown', zoomKey)
+}
+function zoomOff() {
+  zoom.value = null
+  document.removeEventListener('keydown', zoomKey)
+}
+function zoomKey(e) { if (e.key === 'Escape') zoomOff() }
+onBeforeUnmount(zoomOff)
+
+
 // kandidat: tandai yang terpilih, maksimal 5 baris
 const candidates = computed(() => (subsidy.value?.candidates || []).slice(0, 5))
 
@@ -95,14 +110,18 @@ onMounted(load)
       <section class="cvc-block">
         <h4 class="cvc-title">📋 Data Klaim</h4>
         <div class="cvc-data">
-          <div class="cvc-photos">
+          <!-- wave-18A: grid thumbnail seluruh foto bukti (5 jenis) — klik untuk lightbox -->
+          <div class="cvc-photos" data-testid="cvc-photos">
             <template v-if="data.photos?.length">
-              <figure v-for="p in data.photos" :key="p.url" class="cvc-photo">
-                <img :src="p.url" :alt="'Foto ' + p.label" loading="lazy" />
+              <figure v-for="(p, i) in data.photos" :key="p.url" class="cvc-photo">
+                <button type="button" class="cvc-photo-btn" :aria-label="'Perbesar foto ' + p.label"
+                        :title="'Perbesar: ' + p.label" @click="zoomOn(p)">
+                  <img :src="p.url" :alt="'Foto ' + p.label" loading="lazy" />
+                </button>
                 <figcaption>{{ p.label }}</figcaption>
               </figure>
             </template>
-            <div v-else class="muted" style="font-size:12px;">Tidak ada foto bukti.</div>
+            <div v-else class="muted cvc-no-photo">Tidak ada foto bukti.</div>
           </div>
           <table class="cvc-tbl">
             <tbody>
@@ -284,6 +303,13 @@ onMounted(load)
         </ul>
       </section>
     </template>
+
+    <!-- wave-18A: lightbox foto bukti — CSS murni (tanpa library); klik di luar / ✕ / Esc = tutup -->
+    <div v-if="zoom" class="cvc-lightbox" data-testid="cvc-lightbox" @click.self="zoomOff">
+      <button type="button" class="cvc-lightbox-close" aria-label="Tutup foto" @click="zoomOff">✕ Tutup</button>
+      <img :src="zoom.url" :alt="'Foto bukti besar — ' + zoom.label" />
+      <span class="cvc-lightbox-label">{{ zoom.label }} · klik di luar gambar untuk menutup</span>
+    </div>
   </div>
 </template>
 
@@ -292,13 +318,46 @@ onMounted(load)
 .cvc-block { border: 1px solid var(--border); border-radius: var(--radius, 12px); background: var(--surface-2, #f8fafc); padding: 10px 12px; }
 .cvc-title { margin: 0 0 8px; font-size: 13px; font-weight: 700; }
 .cvc-data { display: flex; gap: 12px; flex-wrap: wrap; }
-.cvc-photos { display: flex; gap: 10px; flex-wrap: wrap; }
-.cvc-photo { margin: 0; text-align: center; }
+.muted { color: var(--text-3, #64748b); }
+
+/* wave-18A: grid foto bukti penuh (seluruh jenis) */
+.cvc-photos {
+  flex: 0 1 auto; min-width: 150px; max-width: 100%;
+  display: grid; grid-template-columns: repeat(3, minmax(88px, 104px)); gap: 8px;
+}
+.cvc-photo { margin: 0; text-align: center; display: flex; flex-direction: column; gap: 3px; }
+.cvc-photo-btn {
+  padding: 0; margin: 0; border: 0; background: var(--surface, #fff);
+  cursor: zoom-in; display: block; border-radius: var(--radius-sm, 8px);
+}
+.cvc-photo-btn:focus-visible { outline: 2px solid var(--primary, #2563eb); outline-offset: 2px; }
 .cvc-photo img {
-  width: 110px; height: 110px; object-fit: cover; display: block;
+  width: 100%; height: 92px; object-fit: cover; display: block;
   border-radius: var(--radius-sm, 8px); border: 1px solid var(--border); background: var(--surface);
 }
-.cvc-photo figcaption { font-size: 10px; color: var(--text-3); margin-top: 3px; }
+.cvc-photo figcaption { font-size: 9.5px; color: var(--text-3); line-height: 1.2; }
+.cvc-no-photo { font-size: 12px; }
+
+/* wave-18A: lightbox — overlay layar penuh, tanpa library */
+.cvc-lightbox {
+  position: fixed; inset: 0; z-index: 110;
+  background: rgba(2, 6, 23, .84);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 28px; cursor: zoom-out;
+}
+.cvc-lightbox img {
+  max-width: 92vw; max-height: 80vh; object-fit: contain;
+  border-radius: 12px; border: 1px solid rgba(226, 232, 240, .3);
+}
+.cvc-lightbox-label { color: #e2e8f0; font-size: 12px; margin-top: 10px; }
+.cvc-lightbox-close {
+  position: absolute; top: 16px; right: 18px;
+  padding: 8px 14px; font-size: 13px; font-weight: 600;
+  background: rgba(15, 23, 42, .7); color: #e2e8f0;
+  border: 1px solid rgba(226, 232, 240, .3); border-radius: 10px; cursor: pointer;
+}
+.cvc-lightbox-close:hover { background: rgba(15, 23, 42, .92); }
+
 .cvc-tbl { flex: 1; min-width: 240px; border-collapse: collapse; font-size: 12.5px; }
 .cvc-tbl th { text-align: left; padding: 4px 10px 4px 0; color: var(--text-3); font-weight: 600; white-space: nowrap; }
 .cvc-tbl td { padding: 4px 0; }

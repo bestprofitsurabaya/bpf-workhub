@@ -107,3 +107,62 @@ describe('ClaimVerifyCard — ⛓ Rantai Verifikasi', () => {
     expect(rej.text()).toContain('Ditolak — Foto nota buram')
   })
 })
+
+// wave-18A: grid foto bukti penuh (5 jenis) + lightbox CSS murni
+const DETAIL_WITH_PHOTOS = {
+  ...DETAIL_FULL,
+  photos: [
+    { label: 'ODO Sebelum', url: '/uploads/odo_sebelum_1.jpg' },
+    { label: 'Nota + ODO Sesudah', url: '/uploads/nota_1.jpg' },
+    { label: 'Struk', url: '/uploads/struk_1.jpg' },
+  ],
+}
+
+describe('ClaimVerifyCard — 📷 grid foto bukti + lightbox', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockApi(null, DETAIL_WITH_PHOTOS)
+  })
+
+  it('seluruh foto bukti tersaji sebagai thumbnail berlabel', async () => {
+    const w = await mountCard()
+    const grid = w.find('[data-testid="cvc-photos"]')
+    expect(grid.exists()).toBe(true)
+    const thumbs = grid.findAll('.cvc-photo img')
+    expect(thumbs.length).toBe(3)
+    expect(grid.text()).toContain('ODO Sebelum')
+    expect(grid.text()).toContain('Nota + ODO Sesudah')
+    expect(grid.text()).toContain('Struk')
+    expect(thumbs[1].attributes('src')).toBe('/uploads/nota_1.jpg')
+    // bukan teks "tidak ada foto"
+    expect(grid.text()).not.toContain('Tidak ada foto bukti')
+  })
+
+  it('tanpa photos → teks "Tidak ada foto bukti"', async () => {
+    mockApi(null, DETAIL_FULL) // photos: []
+    const w = await mountCard()
+    const grid = w.find('[data-testid="cvc-photos"]')
+    expect(grid.text()).toContain('Tidak ada foto bukti.')
+    expect(grid.findAll('.cvc-photo').length).toBe(0)
+  })
+
+  it('klik thumbnail → lightbox besar; tombol ✕ menutup', async () => {
+    const w = await mountCard()
+    expect(w.find('[data-testid="cvc-lightbox"]').exists()).toBe(false)
+    await w.findAll('.cvc-photo-btn')[2].trigger('click')
+    const lb = w.find('[data-testid="cvc-lightbox"]')
+    expect(lb.exists()).toBe(true)
+    expect(lb.find('img').attributes('src')).toBe('/uploads/struk_1.jpg')
+    expect(lb.text()).toContain('Struk')
+    await lb.find('.cvc-lightbox-close').trigger('click')
+    expect(w.find('[data-testid="cvc-lightbox"]').exists()).toBe(false)
+  })
+
+  it('klik di luar gambar (overlay) menutup lightbox', async () => {
+    const w = await mountCard()
+    await w.findAll('.cvc-photo-btn')[0].trigger('click')
+    expect(w.find('[data-testid="cvc-lightbox"]').exists()).toBe(true)
+    await w.find('[data-testid="cvc-lightbox"]').trigger('click')
+    expect(w.find('[data-testid="cvc-lightbox"]').exists()).toBe(false)
+  })
+})

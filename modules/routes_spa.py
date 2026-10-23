@@ -571,7 +571,9 @@ def register_spa_routes(app):
     # DETAIL TRANSAKSI (JSON) — untuk modal verifikasi mendalam di SPA
     # ================================================================
     @app.route('/api/transactions/detail/<int:tx_id>')
-    @role_required(['ga', 'finance', 'admin'])
+    # wave-18A: chief_driver ditambahkan — kebutuhan foto bukti kendaraan/klaim driver
+    # pada modal konfirmasi tugas di Dashboard Chief Driver
+    @role_required(['ga', 'finance', 'admin', 'chief_driver'])
     def api_tx_detail(tx_id):
         try:
             conn = get_db_connection()

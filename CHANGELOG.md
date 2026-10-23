@@ -7,6 +7,48 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.68.0 — 23 Oktober 2026 (agen subsiditepat disatukan + pencocokan otomatis BBM)
+
+- 🤝 **Subsiditepat masuk ke bpf-workhub** sesuai arahan user: agen tarik riwayat
+  SPBU (MyPertamina Subsidi Tepat) kini hidup di `agent/subsiditepat/` repo ini
+  (login/verify/pull/push + `scripts/daily_sync.sh`); repo mandiri lama jadi
+  arsip. Cron harian **06:15** memasang pull → import → auto-match.
+- ✍️ `/api/subsidy/import` kini menghormati `pulledAt` tingkat payload — status
+  "tarik terakhir" di master tidak lagi NULL.
+- 🤖 **`POST /api/subsidy/auto-match` (ADVISORY)**: sekali klik Finance / dipanggil
+  agen: seluruh klaim BBM terbuka diadu ke master `subsidy_transactions`
+  (nopol + rentang tanggal) dan ditandai match/close/mismatch/no_record;
+  klaim yang sudah dijodohkan dilewati — putusan tetap di tangan Finance di
+  modal Detail. Auth paritas token agen (X-SUBSIDY-TOKEN) atau sesi
+  finance/admin.
+- 📊 `/api/subsidy/status` kini merangkum **coverage klaim** (dijodohkan/match/
+  close/dll) dan UI Dashboard Finance mendapat kartu **⛽ Data SPBU — Subsidi
+  Tepat**: jumlah & rentang data, tarik terakhir agen, chip coverage, dan
+  tombol 🤝 Cocokkan Klaim Otomatis.
+- ✅ tests: pytest `test_subsidy_match.py` (9 test) + vitest FinanceDashboard
+  (widget & pencocokan otomatis). Termasuk juga pendaratan file wave-18
+  (verifikasi finance bertingkat + PDF rekonsiliasi per-transaksi) yang
+  tertahan di working tree dari sesi sebelumnya.
+
+## v2.67.0 — 23 Oktober 2026 (fase-3 gelombang 18: verifikasi finance bertingkat + PDF rekonsiliasi per-transaksi)
+
+- 💳 Verifikasi **bertingkat** di modal Detail Dashboard Finance: chip pipeline
+  1️⃣ Verifikasi GA → 2️⃣ Pencairan (konfirmasi + PIN step-up; anomali tanpa
+  clear GA ditahan 409 oleh backend) → 3️⃣ LPJ/Arsip → 4️⃣ Arsip selesai;
+  langkah aktif menyala sesuai status klaim.
+- 🏠 Landing Dashboard Finance informatif: kartu **⛽ Klaim BBM Menunggu
+  Finance** (Siap Cair / Menunggu LPJ) + tautan Antrean Verifikasi.
+- 🖼 `ClaimVerifyCard`: **grid foto bukti penuh** (ODO sebelum, nota+ODO
+  sesudah, struk, dispenser, MyPertamina) dengan lightbox CSS murni.
+- 📄 Tombol **PDF per transaksi** (`/admin/report/<id>`) di modal GA + Finance.
+- ⛽ `PDFReportCompact` + seksi **REKONSILIASI SUBSIDI TEPAT (MyPertamina)**:
+  konfrontasi klaim ↔ riwayat SPBU (volume/nominal, selisih merah), status
+  penjodohan + aktor, peringatan `no_record`, fallback DB master offline.
+- 🚫 `ACC Atasan` dihapus dari navigasi finance (bertahan: GA/GA HR/chief driver).
+- 🔓 `api_tx_detail` menerima `chief_driver` (entitlement foto bukti; komponen
+  konfirmasi chief driver menyusul).
+- ✔️ 236 vitest (224 + 12), pytest digelar pada build, stamp v2.67.0.
+
 ## v2.66.0 — 23 Oktober 2026 (fase-3 gelombang 17: rantai verifikasi per-peran)
 
 - ⛓ Blok **Rantai Verifikasi** di `ClaimVerifyCard` — jejak per-peran pada

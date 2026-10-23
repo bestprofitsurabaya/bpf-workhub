@@ -6,7 +6,9 @@ import PageHeader from '../../components/PageHeader.vue'
 import Modal from '../../components/Modal.vue'
 import ConfirmDialog from '../../components/ConfirmDialog.vue'
 import ClaimVerifyCard from '../../components/ClaimVerifyCard.vue'
+import { useStepupStore } from '../../stores/stepup'
 
+const stepup = useStepupStore()
 const confirmRef = ref(null)
 const ask = (message, opts) => confirmRef.value?.open(message, opts) ?? Promise.resolve(false)
 
@@ -53,13 +55,115 @@ const cardRef = ref(null)
 const cardSubsidy = ref(null)
 const linkBusy = ref(false)
 
+// ============================================================
+// wave-18A: Verifikasi Finance BERTINGKAT — langkah aktif mengikuti
+// rantai status klaim: verified_ga → Pencairan, os_finance → Arsip (LPJ).
+// ============================================================
+const cardDetail = ref(null)   // payload detail (status terbaru) dari ClaimVerifyCard
+const detailMsg = ref('')      // hasil aksi server — ditampilkan di bawah modal
+const stageBusy = ref(false)
+
+// Urutan pipeline: 1 Verifikasi GA → 2 Pencairan → 3 LPJ/Arsip (+4 selesai)
+const stageOn = computed(() => ({
+  pending: 1, modified: 1, verified_ga: 2, os_finance: 3, archived: 4,
+}[cardDetail.value?.status] || 0))
+
+const detailStatus = computed(() => cardDetail.value?.status || detailFor.value?.status || '')
+
+const STAGE_META = {
+  verified_ga: {
+    label: '2️⃣ Pencairan (Finance)',
+    hint: 'Klaim sudah ACC GA — jodohkan Subsidi Tepat (riwayat SPBU resmi) dulu bila belum, lalu cairkan.',
+  },
+  os_finance: {
+    label: '3️⃣ Arsip (LPJ driver)',
+    hint: 'Dana sudah dicairkan. Catatan LPJ harusnya LENGKAP (pertanggungjawaban Subsidi Tepat) sebelum arsip.',
+  },
+  archived: {
+    label: '4️⃣ Arsip — Selesai',
+    hint: 'Selesai — dokumen tersimpan.',
+  },
+  pending: {
+    label: '1️⃣ Verifikasi GA',
+    hint: 'Klaim masih menunggu verifikasi GA — belum masuk kewenangan Finance.',
+  },
+}
+
+// Tombol 📄 PDF per transaksi — hanya bila status bukan 'pending'
+const showPdf = computed(() => !!detailStatus.value && detailStatus.value !== 'pending')
+
 function openDetail(tx) {
   detailFor.value = tx
   cardSubsidy.value = null
+  cardDetail.value = null
+  detailMsg.value = ''
 }
 
 function onCardLoaded(payload) {
   cardSubsidy.value = payload?.subsidy || null
+  cardDetail.value = payload?.detail || null
+}
+
+// wave-18A: langkah 2 — Disbursement (payout) via ask() + step-up PIN backend
+async function doPayout() {
+  const d = detailFor.value
+  if (!d || stageBusy.value) return
+  const ok = await ask(
+    `Cairkan klaim ${d.display_id || d.id} (${fmtRp(d.nominal)}) untuk ${d.driver_name}? `
+    + 'Klaim ber-flag anomali wajib di-clear GA dulu (sistem menolak bila belum).',
+    {
+      title: 'Disbursement — Pencairan klaim',
+      confirmText: '💰 Cairkan',
+      input: true,
+      required: false,
+      placeholder: 'PIN/Catatan disbursement (opsional)',
+    },
+  )
+  if (ok === null || ok === false) return
+  stageBusy.value = true; detailMsg.value = ''
+  try {
+    const r = await stepup.require(
+      () => api(`/api/queue/payout/${d.id}`, { method: 'POST' }),
+      `pencairan klaim ${d.display_id || d.id}`,
+    )
+    detailMsg.value = '✅ ' + (r.msg || r.message || 'Dana dicairkan — lanjut ke tahap LPJ driver')
+    if (cardRef.value?.reload) await cardRef.value.reload()
+    loadBbm()
+  } catch (e) {
+    // 409: klaim anomali belum di-clear GA (disampaikan backend) / sudah diproses
+    detailMsg.value = '❌ ' + (e.status === 409 ? 'Pencairan ditahan — ' : '') + (e.message || 'Gagal mencairkan.')
+  } finally { stageBusy.value = false }
+}
+
+// wave-18A: langkah 3 — Arsip (LPJ driver), konfirmasi bilingual
+async function doArchive() {
+  const d = detailFor.value
+  if (!d || stageBusy.value) return
+  const ok = await ask(
+    `Arsipkan klaim ${d.display_id || d.id} (${d.driver_name})?\nArchive this claim? (English)\n\n`
+    + '⚠️ Catatan LPJ harusnya LENGKAP (pertanggungjawaban Subsidi Tepat) sebelum arsip — '
+    + 'arsip menutup jejak verifikasi klaim ini.',
+    {
+      title: 'Arsip — LPJ driver',
+      confirmText: '📦 Arsipkan',
+    },
+  )
+  if (ok === null || ok === false) return
+  stageBusy.value = true; detailMsg.value = ''
+  try {
+    const r = await api(`/api/queue/archive/${d.id}`, { method: 'POST' })
+    detailMsg.value = '✅ ' + (r.msg || r.message || 'Klaim diarsipkan — dokumen tersimpan')
+    if (cardRef.value?.reload) await cardRef.value.reload()
+    loadBbm()
+  } catch (e) {
+    detailMsg.value = '❌ ' + (e.status === 409 ? 'Arsip ditahan — ' : '') + (e.message || 'Gagal mengarsipkan.')
+  } finally { stageBusy.value = false }
+}
+
+// wave-18A: 📄 PDF per transaksi (GA/Finance/Admin diizinkan backend)
+function openTxPdf() {
+  const id = cardDetail.value?.id || detailFor.value?.id
+  if (id) window.open('/admin/report/' + id)
 }
 
 async function reloadAfterSubsidy(msg) {
@@ -96,6 +200,37 @@ async function unlinkSubsidy() {
   } catch (e) { bbmMsg.value = '❌ ' + e.message }
   finally { linkBusy.value = false }
 }
+
+// ============================================================
+// v2.68.0 — Data SPBU Subsidi Tepat (agen menarik otomatis harian 06:15);
+// Finance memantau kesiapan data + memicu pencocokan advisory 1 klik.
+// ============================================================
+const subsidy = ref({ count: 0, last_pull: '', oldest: '', newest: '', coverage: {} })
+const subsidyBusy = ref(false)
+const subsidyMsg = ref('')
+
+async function loadSubsidy() {
+  try { subsidy.value = await api('/api/subsidy/status') }
+  catch { subsidy.value = { count: 0, last_pull: '', coverage: {} } }
+}
+
+async function autoMatch() {
+  if (subsidyBusy.value) return
+  subsidyBusy.value = true; subsidyMsg.value = ''
+  try {
+    const r = await api('/api/subsidy/auto-match', { method: 'POST' })
+    subsidyMsg.value = '✅ ' + (r.msg || 'Pencocokan selesai')
+    await Promise.all([loadSubsidy(), loadBbm()])
+  } catch (e) {
+    subsidyMsg.value = '❌ ' + (e.message || 'Gagal pencocokan otomatis')
+  } finally { subsidyBusy.value = false }
+}
+
+const covLabel = { linked: '🔗 Dijodohkan', match: '✅ Match', close: '≈ Hampir', mismatch: '⚠ Selisih', no_record: '∅ Tanpa catatan', belum: '· Belum diproses' }
+const covOrder = ['linked', 'match', 'close', 'mismatch', 'no_record', 'belum']
+const covChips = computed(() =>
+  covOrder.filter((k) => subsidy.value.coverage?.[k])
+    .map((k) => ({ k, label: covLabel[k] || k, n: subsidy.value.coverage[k] })))
 
 // ============================================================
 // Berita Acara Rekonsiliasi — Subsidi Tepat (daftar BA + unduh PDF)
@@ -143,7 +278,7 @@ function statusBadge(s) {
   )
 }
 
-onMounted(() => { load(); loadBbm(); loadAttest() })
+onMounted(() => { load(); loadBbm(); loadAttest(); loadSubsidy() })
 </script>
 
 <template>
@@ -162,18 +297,24 @@ onMounted(() => { load(); loadBbm(); loadAttest() })
 
     <div v-if="loading" class="card card-pad muted skeleton">Memuat…</div>
     <template v-else-if="data">
-      <!-- v2.53.0/v2.54.0: Klaim BBM — pintasan pekerjaan utama Finance -->
+      <!-- v2.53.0/wave-18A: kartu paling atas — Klaim BBM Menunggu Finance (lebih informatif) -->
       <div class="card card-pad attention-card" data-testid="bbm-quick">
         <div class="ac-icon">⛽</div>
         <div class="grow">
-          <div class="ac-title">Klaim BBM menunggu keputusan Anda</div>
+          <div class="ac-title">Klaim BBM Menunggu Finance</div>
+          <div class="row" style="gap:18px;flex-wrap:wrap;margin:6px 0;" data-testid="bbm-quick-figures">
+            <span style="font-size:13px;">💰 Siap Cair <small class="muted">(verified_ga)</small>
+              · <b :style="bbm.ready ? 'color:var(--warning);font-size:17px;' : 'font-size:17px;'">{{ bbm.ready }}</b></span>
+            <span style="font-size:13px;">🧾 Menunggu LPJ driver <small class="muted">(os_finance)</small>
+              · <b style="font-size:17px;">{{ bbm.confirm }}</b></span>
+          </div>
           <div class="ac-sub" style="user-select:text;">
-            <b :style="bbm.ready ? 'color:var(--warning);' : ''">{{ bbm.ready }}</b> klaim terverifikasi GA siap dicairkan
-            <template v-if="bbm.confirm"> · <b>{{ bbm.confirm }}</b> menunggu konfirmasi driver / arsip</template>
-            — verifikasi Subsidi Tepat (riwayat SPBU resmi) langsung dari modal detail.
+            Alur bertingkat: <b>1 Verifikasi GA</b> → <b>2 Pencairan</b> → <b>3 LPJ/Arsip</b>.
+            Klaim anomali wajib di-clear GA dulu sebelum bisa dicairkan. Verifikasi detail + foto bukti
+            driver &amp; penjodohan Subsidi Tepat (riwayat SPBU resmi) langsung dari modal 👁 Detail.
           </div>
         </div>
-        <router-link to="/dashboard" class="btn btn-primary" style="text-decoration:none;">🕐 Buka Antrean Verifikasi</router-link>
+        <router-link to="/dashboard" class="btn btn-primary" style="text-decoration:none;">🕐 Buka Antrean Verifikasi →</router-link>
       </div>
 
       <!-- p2: Antrean klaim BBM + instrumen verifikasi (turunan Admin Dashboard) -->
@@ -204,6 +345,33 @@ onMounted(() => { load(); loadBbm(); loadAttest() })
             <tr v-if="!visibleBbm.length"><td colspan="5" class="muted">Antrean kosong 🎉</td></tr>
           </tbody>
         </table>
+      </div>
+
+      <!-- v2.68.0: kesiapan data SPBU Subsidi Tepat + pencocokan advisory 1 klik -->
+      <div class="card card-pad" style="margin-bottom:16px;" data-testid="subsidy-data-card">
+        <div class="row" style="flex-wrap:wrap;gap:8px;align-items:center;">
+          <h3 style="margin:0;">⛽ Data SPBU — Subsidi Tepat</h3>
+          <span v-if="subsidy.count" class="badge badge-blue" data-testid="subsidy-count">{{ subsidy.count }} transaksi terimpor</span>
+          <span v-else class="badge badge-amber">Belum ada data</span>
+          <div class="spacer"></div>
+          <button class="btn btn-primary" :disabled="subsidyBusy" @click="autoMatch"
+                  title="Bandingkan semua klaim BBM terbuka ke riwayat SPBU (advisory — putusan tetap saat verifikasi detail)">
+            {{ subsidyBusy ? '⏳ Mencocokkan…' : '🤝 Cocokkan Klaim Otomatis' }}
+          </button>
+        </div>
+        <div class="row" style="gap:18px;flex-wrap:wrap;margin:8px 0 4px;font-size:12px;">
+          <span>📅 Rentang data: <b>{{ subsidy.oldest || '—' }}</b> s/d <b>{{ subsidy.newest || '—' }}</b></span>
+          <span>⏱️ Tarik terakhir agen: <b>{{ (subsidy.last_pull || '—').slice(0, 19) }}</b> <span class="muted">(otomatis harian 06:15)</span></span>
+        </div>
+        <div v-if="covChips.length" class="row" style="gap:6px;flex-wrap:wrap;" data-testid="subsidy-coverage">
+          <span v-for="c in covChips" :key="c.k" class="badge badge-gray">{{ c.label }}: <b>{{ c.n }}</b></span>
+        </div>
+        <span v-if="subsidyMsg" class="alert" style="margin-top:8px;font-size:12px;display:inline-block;"
+              :class="subsidyMsg.startsWith('✅') ? 'alert-success' : 'alert-error'">{{ subsidyMsg }}</span>
+        <div class="mini-tips" style="margin-top:8px;">
+          💡 Kandidat kecocokan teperinci (nopol, tanggal, liter) tampil di modal <b>👁 Detail</b> klaim —
+          tautkan di sana agar nomor transaksi resmi Pertamina ikut ke Berita Acara.
+        </div>
       </div>
 
       <!-- Statistik air minum -->
@@ -332,7 +500,39 @@ onMounted(() => { load(); loadBbm(); loadAttest() })
                   @click="linkSubsidy(candidate)">🔗 Jodohkan</button>
         </template>
       </ClaimVerifyCard>
+
+      <!-- wave-18A: verifikasi BERTINGKAT — chip sewarna pipeline, langkah aktif menyala -->
+      <div v-if="stageOn" class="stage-chips" data-testid="bbm-stage-chips">
+        <span class="stage-chip" :class="{ on: stageOn >= 1 }">1️⃣ Verifikasi GA</span>
+        <span class="stage-chip" :class="{ on: stageOn >= 2 }">2️⃣ Pencairan</span>
+        <span class="stage-chip" :class="{ on: stageOn >= 3 }">3️⃣ LPJ/Arsip</span>
+      </div>
+      <p v-if="STAGE_META[detailStatus]" class="stage-active" data-testid="bbm-stage-active">
+        ⛓ Langkah aktif: <b>{{ STAGE_META[detailStatus].label }}</b> — <span class="muted">{{ STAGE_META[detailStatus].hint }}</span>
+      </p>
+
+      <!-- hasil aksi server langsung di bawah modal -->
+      <div v-if="detailMsg" style="margin-top:10px;">
+        <span class="alert" style="font-size:12px;" :class="detailMsg.startsWith('✅') ? 'alert-success' : 'alert-error'">{{ detailMsg }}</span>
+      </div>
+
       <div class="row" style="justify-content:flex-end;gap:8px;margin-top:12px;flex-wrap:wrap;">
+        <!-- langkah aktif: aksi bertingkat berdasarkan detail.status -->
+        <template v-if="detailStatus === 'verified_ga'">
+          <button class="btn btn-primary" :disabled="stageBusy" title="Cairkan dana klaim (Disbursement) — wajib step-up PIN"
+                  @click="doPayout">💰 Disbursement — Cairkan</button>
+        </template>
+        <template v-else-if="detailStatus === 'os_finance'">
+          <button class="btn btn-primary" :disabled="stageBusy" title="Catatan LPJ harusnya LENGKAP sebelum arsip"
+                  @click="doArchive">📦 Arsipkan</button>
+        </template>
+        <template v-else-if="detailStatus === 'archived'">
+          <span class="badge badge-green" data-testid="bbm-archived-chip">4️⃣ Arsip · Selesai — dokumen tersimpan</span>
+        </template>
+
+        <!-- 📄 PDF per transaksi (tampil kecuali status pending) -->
+        <button v-if="showPdf" class="btn" @click="openTxPdf" title="Unduh PDF laporan transaksi ini">📄 PDF</button>
+
         <button v-if="cardSubsidy?.linked" class="btn btn-danger" :disabled="linkBusy" @click="unlinkSubsidy">🔓 Putuskan</button>
         <button class="btn" @click="detailFor = null">Tutup</button>
       </div>
@@ -359,4 +559,20 @@ onMounted(() => { load(); loadBbm(); loadAttest() })
   padding: 8px 10px; background: var(--surface-2, #f8fafc);
 }
 .spacer { flex: 1; }
+
+/* wave-18A: verifikasi bertingkat — chip pipeline (langkah aktif menyala) */
+.stage-chips { display: flex; gap: 7px; flex-wrap: wrap; margin-top: 14px; }
+.stage-chip {
+  font-size: 11px; font-weight: 600; padding: 4px 10px;
+  border: 1px solid var(--border, #e2e8f0); border-radius: 999px;
+  color: var(--text-3, #64748b); background: var(--surface-2, #f8fafc);
+  opacity: .75;
+}
+.stage-chip.on {
+  color: var(--surface, #fff);
+  background: var(--primary, #2563eb);
+  border-color: var(--primary, #2563eb);
+  opacity: 1;
+}
+.stage-active { font-size: 12px; margin: 8px 0 0; }
 </style>
