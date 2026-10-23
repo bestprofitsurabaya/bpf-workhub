@@ -172,7 +172,7 @@ html.dark .skeleton::after { background: linear-gradient(90deg, transparent, rgb
   transition: transform .15s, box-shadow .15s;
 }
 .stat-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
-.stat-card .s-icon { font-size: 22px; margin-bottom: 8px; display: inline-flex; width: 42px; height: 42px; align-items: center; justify-content: center; border-radius: 11px; background: var(--primary-soft); }
+.stat-card .s-icon { font-size: 20px; margin-bottom: 8px; display: inline-flex; width: 40px; height: 40px; align-items: center; justify-content: center; border-radius: 10px; background: var(--primary-soft); }
 .stat-card .s-value { font-size: 24px; font-weight: 800; letter-spacing: -.02em; }
 .stat-card .s-label { font-size: 11px; color: var(--text-2); margin-top: 2px; }
 .stat-card .s-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; }
@@ -182,11 +182,21 @@ html.dark .skeleton::after { background: linear-gradient(90deg, transparent, rgb
   display: inline-flex; align-items: center; gap: 6px;
   padding: 8px 14px; border-radius: 9px; border: 1px solid var(--border);
   background: var(--surface); color: var(--text); font-size: 13px; font-weight: 600;
-  transition: transform .12s, box-shadow .12s, background .12s;
+  transition: transform .12s, background .15s, border-color .15s, box-shadow .15s;
 }
 .btn:hover { transform: translateY(-1px); box-shadow: var(--shadow); }
 .btn:active { transform: translateY(0); }
+/* Ring fokus keyboard: halo 3px warna primary (WCAG 2.4.7), varian lebih terang di dark */
+.btn:focus-visible, .inp:focus-visible, .input:focus-visible, .select:focus-visible, .textarea:focus-visible {
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, .25);
+}
+html.dark .btn:focus-visible, html.dark .inp:focus-visible {
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, .35);
+}
+/* Tombol sekunder: permukaan yang jelas saat hover, tanpa merusak tombol berwarna */
+.btn:not(.btn-primary):not(.btn-danger):not(.btn-success):not(.btn-warning):hover { background: var(--surface-2); }
 .btn-primary { background: var(--primary); border-color: var(--primary); color: #fff; box-shadow: 0 2px 8px rgba(37, 99, 235, .3); }
+.btn-primary:hover { background: var(--primary-dark); border-color: var(--primary-dark); }
 .btn-danger { background: var(--danger); border-color: var(--danger); color: #fff; }
 /* Warna tombol digelapkan agar teks putih ≥4.5:1 (WCAG 2.1.4) */
 .btn-success { background: #047857; border-color: #047857; color: #fff; }
@@ -202,19 +212,22 @@ html.dark .skeleton::after { background: linear-gradient(90deg, transparent, rgb
 .input, .select, .textarea {
   padding: 9px 12px; border: 1.5px solid var(--border); border-radius: 9px;
   background: var(--surface); color: var(--text); font-size: 13px;
-  transition: border-color .15s, box-shadow .15s;
+  transition: background .15s, border-color .15s, box-shadow .15s;
 }
+.inp { transition: background .15s, border-color .15s, box-shadow .15s; }
 .input:focus, .select:focus, .textarea:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(37, 99, 235, .12); }
 
 /* ---------- Tables ---------- */
 .table-wrap { overflow-x: auto; border-radius: var(--radius); border: 1px solid var(--border); }
 table.tbl { width: 100%; border-collapse: collapse; background: var(--surface); font-size: 13px; min-width: 640px; }
 .tbl th {
-  text-align: left; padding: 10px 12px; font-size: 11px; text-transform: uppercase; letter-spacing: .05em;
-  color: var(--text-2); background: var(--surface-2); border-bottom: 1px solid var(--border); white-space: nowrap;
+  text-align: left; padding: 10px 10px; font-size: 11px; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--text-3); background: var(--surface-2); border-bottom: 2px solid var(--border); white-space: nowrap;
 }
-.tbl td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
-.tbl tbody tr:hover { background: var(--surface-2); }
+.tbl td { padding: 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.tbl tbody tr { transition: background .12s ease; }
+.tbl tbody tr:hover { background: rgba(37, 99, 235, .04); }
+html.dark .tbl tbody tr:hover { background: rgba(59, 130, 246, .08); }
 .tbl tbody tr:last-child td { border-bottom: none; }
 
 /* ---------- Badges ---------- */
@@ -300,6 +313,12 @@ html.dark .alert-info { background: #172554; color: #93c5fd; }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes popIn { from { opacity: 0; transform: translateY(8px) scale(.98); } to { opacity: 1; transform: none; } }
 
+/* ---------- Scrollbar halus ---------- */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 6px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-3); }
+
 /* ---------- Misc ---------- */
 .muted { color: var(--text-3); }
 .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
@@ -361,5 +380,6 @@ html.dark .alert-info { background: #172554; color: #93c5fd; }
 .attention-card .ac-title { font-weight: 700; }
 .attention-card .ac-sub { font-size: 12px; color: var(--text-3); }
 
-/* Judul di dalam kartu selalu nempel ke atas (hapus duplikasi inline style) */
-.card-pad h3 { margin-top: 0; }
+/* Judul di dalam kartu selalu nempel ke atas (hapus duplikasi inline style)
+   + header kartu lebih "mewah" (additive, hanya properti) */
+.card-pad h3 { margin-top: 0; font-size: 14.5px; font-weight: 700; letter-spacing: -0.01em; margin-bottom: 10px; }
