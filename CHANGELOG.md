@@ -7,6 +7,15 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.57.0 — 23 Oktober 2026 (fase-2 gelombang 4: view operasional)
+
+- 🚰 WaterView · 👥 UsersView · 📝 LogsView · ✅ ApprovalsView ·
+  ⏰ OvertimeMeView — semuanya kini memakai PageHeader standar
+  (tombol aksi di slot header, teks dipertahankan persis).
+- Skipped yang aman: Trips/Cash/Assignments/AccessReview (tanpa header
+  klasik — akan menyusul pattemplannya di gelombang lanjut).
+- ✔️ 217 vitest hijau.
+
 ## v2.56.0 — 23 Oktober 2026 (fase-2 gelombang 3: Admin + kebersihan hitungan badge)
 
 - 🧭 **AdminDashboard** memakai PageHeader (binding dinamis per role,

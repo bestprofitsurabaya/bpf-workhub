@@ -5,6 +5,7 @@ import LoadingState from '../components/LoadingState.vue'
 import EmptyState from '../components/EmptyState.vue'
 import ErrorState from '../components/ErrorState.vue'
 import Modal from '../components/Modal.vue'
+import PageHeader from '../components/PageHeader.vue'
 import { formatDateTime } from '../utils/format.js'
 
 const logs = ref([])
@@ -121,14 +122,10 @@ onMounted(async () => {
 
 <template>
   <div>
-    <div class="card card-pad" style="margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-      <div class="grow">
-        <h3 style="margin:0;">📝 Audit Log</h3>
-        <p class="muted" style="font-size:11px;">Jejak digital seluruh aktivitas (ISO/IEC 27001 · A.8.15 logging &amp; monitoring) · Khusus Admin</p>
-      </div>
+    <PageHeader icon="📝" title="Audit Log" subtitle="Jejak digital seluruh aktivitas (ISO/IEC 27001 · A.8.15 logging & monitoring) · Khusus Admin">
       <span class="badge badge-blue">📅 Hari ini: {{ todayCount }}</span>
       <span class="badge badge-gray">Total: {{ filtered.length }} / {{ logs.length }}</span>
-    </div>
+    </PageHeader>
 
     <!-- 📄 Laporan pemakaian PDF Kit (v2.47.0) — sumber: activity_logs -->
     <div class="card card-pad" style="margin-bottom:16px;">

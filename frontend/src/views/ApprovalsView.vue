@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { api } from '../api'
 import Modal from '../components/Modal.vue'
 import StatCard from '../components/StatCard.vue'
+import PageHeader from '../components/PageHeader.vue'
 import { formatDateTime } from '../utils/format.js'
 
 // v2.36.0 — Approval Berjenjang: antrean ACC atasan (Chief Driver → GA,
@@ -98,16 +99,10 @@ onMounted(load)
 
 <template>
   <div>
-    <div class="card card-pad" style="margin-bottom:16px;display:flex;align-items:center;flex-wrap:wrap;gap:8px;">
-      <div style="flex:1;min-width:220px;">
-        <h3 style="margin:0;">✅ Approval Berjenjang</h3>
-        <p class="muted" style="margin:4px 0 0;font-size:13px;">
-          Pengajuan menunggu ACC atasan sebelum diproses back-office.
-          Kasbon &amp; Klaim BBM: Chief Driver → GA. Overtime: GA HR → Admin.
-        </p>
-      </div>
+    <PageHeader icon="✅" title="Approval Berjenjang"
+                subtitle="Pengajuan menunggu ACC atasan sebelum diproses back-office. Kasbon & Klaim BBM: Chief Driver → GA. Overtime: GA HR → Admin.">
       <button class="btn" :disabled="loading" @click="load">⟳ Muat ulang</button>
-    </div>
+    </PageHeader>
 
     <div v-if="err" class="card card-pad" style="margin-bottom:16px;border-left:4px solid #d33;">
       ⚠️ {{ err }}

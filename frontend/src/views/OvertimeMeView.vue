@@ -4,6 +4,7 @@ import { api } from '../api'
 import { useAuthStore } from '../stores/auth'
 import { applyWatermark, fileToDataUrl } from '../utils/watermark'
 import { getPosition, detailedLocation } from '../utils/gps'
+import PageHeader from '../components/PageHeader.vue'
 
 /**
  * Form Overtime — user OB & Security (v2.39), dari dalam aplikasi (login).
@@ -204,13 +205,8 @@ async function loadDeadline() {
 
 <template>
   <div class="page">
-    <div class="card card-pad" style="margin-bottom:16px;">
-      <h2 style="margin:0 0 2px;">⏰ Overtime {{ isSecurity ? 'Security' : 'OB' }}</h2>
-      <div class="muted" style="font-size:12px;">
-        Catat lembur Anda — Nama &amp; Posisi otomatis dari akun Anda ({{ auth.user?.full_name || auth.user?.user_name }}),
-        sama seperti kolom di Google Sheet sumber data.
-      </div>
-    </div>
+    <PageHeader icon="⏰" :title="`Overtime ${isSecurity ? 'Security' : 'OB'}`"
+                :subtitle="`Catat lembur Anda — Nama & Posisi otomatis dari akun Anda (${auth.user?.full_name || auth.user?.user_name}), sama seperti kolom di Google Sheet sumber data.`" />
 
     <div class="ot-grid">
       <!-- FORM -->

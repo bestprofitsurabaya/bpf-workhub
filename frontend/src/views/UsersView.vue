@@ -4,6 +4,7 @@ import { api } from '../api'
 import { useAuthStore } from '../stores/auth'
 import Modal from '../components/Modal.vue'
 import StatCard from '../components/StatCard.vue'
+import PageHeader from '../components/PageHeader.vue'
 
 const auth = useAuthStore()
 const users = ref([])
@@ -302,14 +303,10 @@ onMounted(load)
 <template>
   <div>
     <!-- Header -->
-    <div class="card card-pad" style="margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-      <div class="grow">
-        <h3 style="margin:0;">👥 Manajemen User</h3>
-        <p class="muted" style="font-size:11px;">Khusus Admin — pengelolaan akun &amp; hak akses per peran (ISO/IEC 27001 · A.8.2)</p>
-      </div>
+    <PageHeader icon="👥" title="Manajemen User" subtitle="Khusus Admin — pengelolaan akun & hak akses per peran (ISO/IEC 27001 · A.8.2)">
       <button class="btn btn-primary" @click="openForm(null)">➕ Tambah User</button>
       <button class="btn" @click="exportCsv" title="Export ke CSV">📥 Export</button>
-    </div>
+    </PageHeader>
 
     <!-- Statistics -->
     <div class="stat-grid" style="margin-bottom:16px;">

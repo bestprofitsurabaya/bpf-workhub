@@ -5,6 +5,7 @@ import { useAuthStore } from '../stores/auth'
 import { useStepupStore } from '../stores/stepup'
 import Modal from '../components/Modal.vue'
 import ConfirmDialog from '../components/ConfirmDialog.vue'
+import PageHeader from '../components/PageHeader.vue'
 
 const confirmRef = ref(null)
 const ask = (message, opts) => confirmRef.value?.open(message, opts) ?? Promise.resolve(false)
@@ -311,18 +312,13 @@ onMounted(() => { form.value.items.push(newItem()); load() })
     <div v-if="msg" class="alert" :class="msg.startsWith('✅') ? 'alert-success' : 'alert-error'">{{ msg }}</div>
 
     <!-- Header + aksi -->
-    <div class="card card-pad" style="margin-bottom:16px;display:flex;align-items:center;flex-wrap:wrap;gap:8px;">
-      <div class="grow">
-        <h3 style="margin:0;">🚰 Tanda Terima Air Minum</h3>
-        <p class="muted" style="font-size:11px;">
-          {{ isOB ? 'Ajukan pengiriman air minum — Finance akan memverifikasi' : 'Verifikasi pengajuan & kelola merk air minum' }}
-        </p>
-      </div>
+    <PageHeader icon="🚰" title="Tanda Terima Air Minum"
+                :subtitle="isOB ? 'Ajukan pengiriman air minum — Finance akan memverifikasi' : 'Verifikasi pengajuan & kelola merk air minum'">
       <button v-if="isOB" class="btn btn-primary" @click="showForm = true">➕ Ajukan Pengiriman</button>
       <button v-if="isFinance" class="btn" @click="openBrandModal">🏷️ Kelola Merk</button>
       <button v-if="!isOB" class="btn" :disabled="exporting" title="Export sesuai filter aktif" @click="exportReport('pdf')">📄 Export PDF</button>
       <button v-if="!isOB" class="btn" :disabled="exporting" title="Export sesuai filter aktif" @click="exportReport('xlsx')">📊 Export Excel</button>
-    </div>
+    </PageHeader>
 
     <div v-if="loading" class="empty skeleton">⏳ Memuat…</div>
     <div v-else-if="err" class="alert alert-error">{{ err }}</div>
