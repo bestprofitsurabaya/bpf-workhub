@@ -68,17 +68,17 @@ def register_transaction_api(app):
             if not conn: return jsonify({'error': 'DB error'}), 500
             cursor = conn.cursor(dictionary=True)
             cursor.execute("SELECT COUNT(*) as c FROM transactions"); total = cursor.fetchone()['c']
-            cursor.execute("SELECT COUNT(*) as c FROM transactions WHERE status IN ('pending','modified')"); pending = cursor.fetchone()['c']
-            cursor.execute("SELECT COUNT(*) as c FROM transactions WHERE status='verified_ga'"); vga = cursor.fetchone()['c']
-            cursor.execute("SELECT COUNT(*) as c FROM transactions WHERE status='os_finance'"); osf = cursor.fetchone()['c']
-            cursor.execute("SELECT COUNT(*) as c FROM transactions WHERE status='archived'"); arc = cursor.fetchone()['c']
+            cursor.execute("SELECT COUNT(*) as c FROM transactions WHERE status IN ('pending','modified') AND (is_dummy=0 OR is_dummy IS NULL)"); pending = cursor.fetchone()['c']
+            cursor.execute("SELECT COUNT(*) as c FROM transactions WHERE status='verified_ga' AND (is_dummy=0 OR is_dummy IS NULL)"); vga = cursor.fetchone()['c']
+            cursor.execute("SELECT COUNT(*) as c FROM transactions WHERE status='os_finance' AND (is_dummy=0 OR is_dummy IS NULL)"); osf = cursor.fetchone()['c']
+            cursor.execute("SELECT COUNT(*) as c FROM transactions WHERE status='archived' AND (is_dummy=0 OR is_dummy IS NULL)"); arc = cursor.fetchone()['c']
             # Ringkasan hari ini (context bar dashboard)
             cursor.execute("SELECT COUNT(*) as c, COALESCE(SUM(nominal),0) as n FROM transactions WHERE DATE(created_at) = CURDATE()")
             today = cursor.fetchone()
-            cursor.execute("SELECT COUNT(*) as c FROM transactions WHERE DATE(created_at) = CURDATE() AND status IN ('pending','modified')"); tp = cursor.fetchone()['c']
-            cursor.execute("SELECT COUNT(*) as c FROM transactions WHERE DATE(created_at) = CURDATE() AND status='verified_ga'"); tg = cursor.fetchone()['c']
-            cursor.execute("SELECT COUNT(*) as c FROM transactions WHERE DATE(created_at) = CURDATE() AND status='os_finance'"); tos = cursor.fetchone()['c']
-            cursor.execute("SELECT COUNT(*) as c FROM transactions WHERE DATE(created_at) = CURDATE() AND status='archived'"); ta = cursor.fetchone()['c']
+            cursor.execute("SELECT COUNT(*) as c FROM transactions WHERE DATE(created_at) = CURDATE() AND status IN ('pending','modified') AND (is_dummy=0 OR is_dummy IS NULL)"); tp = cursor.fetchone()['c']
+            cursor.execute("SELECT COUNT(*) as c FROM transactions WHERE DATE(created_at) = CURDATE() AND status='verified_ga' AND (is_dummy=0 OR is_dummy IS NULL)"); tg = cursor.fetchone()['c']
+            cursor.execute("SELECT COUNT(*) as c FROM transactions WHERE DATE(created_at) = CURDATE() AND status='os_finance' AND (is_dummy=0 OR is_dummy IS NULL)"); tos = cursor.fetchone()['c']
+            cursor.execute("SELECT COUNT(*) as c FROM transactions WHERE DATE(created_at) = CURDATE() AND status='archived' AND (is_dummy=0 OR is_dummy IS NULL)"); ta = cursor.fetchone()['c']
             cursor.close(); conn.close()
             return jsonify({
                 'total': total, 'pending': pending, 'verified_ga': vga, 'os_finance': osf, 'archived': arc,

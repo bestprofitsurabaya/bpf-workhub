@@ -33,6 +33,8 @@ class FakeCursor:
             self._one = {'c': self.conn.counts[key]}
         elif 'os_finance' in s:
             self._one = {'c': self.conn.counts['finance_pending']}
+        elif 'verified_ga' in s:
+            self._one = {'c': self.conn.counts['bbm_verify_pending']}
         elif 'transactions' in s:
             self._one = {'c': self.conn.counts['ga_pending']}
         else:
@@ -53,6 +55,7 @@ class FakeConn:
         self.counts = {
             'ga_pending': 3, 'finance_pending': 2, 'water_pending': 4,
             'assignments_pending': 1, 'cash_lpj': 1, 'cash_finance': 2,
+            'bbm_verify_pending': 2,
         }
         self.approvals = [{'show': True}, {'show': False}]
         self.queries = []
@@ -96,6 +99,7 @@ class TestNavBadges:
             'assignments_pending': 1,
             'finance_pending': 2,
             'water_pending': 4,
+            'bbm_verify_pending': 2,
             'cash_pending': 3,
         }
         assert not any('approval_requests' in q for q in conn.queries)
@@ -123,6 +127,7 @@ class TestNavBadges:
         assert r.get_json()['badges'] == {
             'finance_pending': 2,
             'water_pending': 4,
+            'bbm_verify_pending': 2,
             'cash_pending': 2,
             'approvals_pending': 1,
         }

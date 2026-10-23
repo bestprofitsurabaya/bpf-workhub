@@ -7,6 +7,16 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.56.0 — 23 Oktober 2026 (fase-2 gelombang 3: Admin + kebersihan hitungan badge)
+
+- 🧭 **AdminDashboard** memakai PageHeader (binding dinamis per role,
+  role-chip di slot aksi) — seluruh halaman Ringkasan kini satu standar.
+- 🧮 **Badge/hitungan anti-corup**: `/api/stats` (8 COUNT kategori klaim) dan
+  3 badge nav (`ga_pending`, `finance_pending`, `bbm_verify_pending`) kini
+  mengecualikan baris `is_dummy=1` — sebelumnya baris demo ter-count padahal
+  tak tampil di antrean (badge "2", antrean kosong).
+- ✅ test `test_nav_badges` diperbarui (4 lulus) + vitest 217 hijau.
+
 ## v2.55.0 — 23 Oktober 2026 (fase-2 gelombang 2: GA · Rekap · Analytics)
 
 - 🧾 **Dashboard GA** — header diberi PageHeader standar

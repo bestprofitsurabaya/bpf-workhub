@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { api, notifyUnauthorized } from '../../api'
 import { useAuthStore } from '../../stores/auth'
 import StatCard from '../../components/StatCard.vue'
+import PageHeader from '../../components/PageHeader.vue'
 import Modal from '../../components/Modal.vue'
 import ConfirmDialog from '../../components/ConfirmDialog.vue'
 import { formatDateTime, formatNumber, formatRupiah, transactionStatusLabel } from '../../utils/format.js'
@@ -479,16 +480,9 @@ watch(queueTab, (tab) => {
 
 <template>
   <div>
-    <div class="card card-pad" style="margin-bottom:16px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
-      <div style="font-size:26px;">{{ auth.meta?.icon }}</div>
-      <div class="grow">
-        <div style="font-weight:800;font-size:16px;">Selamat datang, {{ auth.user?.full_name || auth.user?.user_name }}</div>
-        <div class="muted" style="font-size:12px;">
-          Dashboard {{ auth.meta?.label }} · data transaksi &amp; klaim BBM terkini
-        </div>
-      </div>
+    <PageHeader :icon="auth.meta?.icon || ''" :title="`Selamat datang, ${auth.user?.full_name || auth.user?.user_name}`" :subtitle="`Dashboard ${auth.meta?.label} · data transaksi & klaim BBM terkini`">
       <span class="role-chip" :style="{ background: auth.meta?.color }">{{ auth.meta?.label }}</span>
-    </div>
+    </PageHeader>
 
     <div v-if="loading" class="empty">⏳ Memuat data…</div>
     <div v-else-if="err" class="alert alert-error">{{ err }}</div>
