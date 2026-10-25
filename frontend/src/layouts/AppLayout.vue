@@ -50,6 +50,7 @@ const MENU_GROUPS = [
       { label: 'Kasbon / BBM', path: '/cash', icon: '💵', roles: ['ga', 'finance', 'admin'], badge: 'cash_pending' },
       { label: 'Air Minum', path: '/water', icon: '🚰', roles: ['ob', 'finance', 'admin'], badge: 'water_pending' },
       { label: 'Aset & Pemeliharaan', path: '/assets', icon: '🔧', roles: ['ga', 'admin'] },
+      { label: 'Pengadaan (PO)', path: '/procurement', icon: '🛒', roles: ['ga', 'finance', 'admin'] },
       { label: 'Overtime Saya', path: '/overtime-me', icon: '⏰', roles: ['ob', 'security'] },
       { label: 'Overtime', path: '/ga-hr', icon: '⏰', roles: ['ga_hr', 'admin'] },
     ],

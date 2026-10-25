@@ -7,6 +7,22 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.70.0 — 25 Oktober 2026 (modul Pengadaan: supplier + Purchase Order + penerimaan bertahap)
+
+- 🛒 **Modul Pengadaan (fondasi ERP)** — dokumen pembelian kini terkontrol di
+  dalam BPF WorkHub: master **Supplier** (nama, kategori, PIC, telepon,
+  alamat) dikelola Finance/Admin; **Purchase Order** rinci per item
+  (deskripsi, qty, satuan, harga/unit) dengan nomor `PO-SBY-…` dari
+  doc_sequences; **penerimaan barang bertahap** (partial → closed) per item
+  yang tidak boleh melebihi sisa. Pembatalan PO wajib alasan + step-up PIN,
+  dan semua aksi tercatat di audit log.
+- 🗂️ Tabel baru per-cabang: `suppliers`, `purchase_orders`, `po_items`,
+  `po_receipts` (ensure idempoten di master + tiap DB cabang, pola modul lain).
+- 🔁 Realtime `po_new`/`po_received`/`po_cancelled` + kartu statistik
+  (open/partial/closed beserta nilai rupiahnya).
+- ✅ Vitest `ProcurementView` + pytest `test_procurement` (normalisasi item,
+  rekonsiliasi status, dan kebijakan 4 role).
+
 ## v2.69.0 — 23 Oktober 2026 (login ulang agen Subsidi Tepat via OTP, langsung dari dashboard Finance)
 
 - 🔑 Panel **Login ulang agen** di kartu ⛽ Data SPBU: Finance klik
