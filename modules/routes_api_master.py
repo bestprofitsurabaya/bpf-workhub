@@ -2,8 +2,7 @@
 from flask import request, jsonify, session
 from mysql.connector import IntegrityError
 from modules.config import get_db_connection, get_master_connection
-from modules.helpers import (finalize_pin, log_activity_async, resolve_user_pin, role_required,
-                             pin_rate_check, pin_fail, pin_success, client_ip)
+from modules.helpers import finalize_pin, log_activity_async, resolve_user_pin, role_required
 from modules.admin_scope import is_ho_admin  # v2.37.0: admin per-cabang
 
 # ================================================================
@@ -452,44 +451,6 @@ def register_master_api(app):
         except Exception as e:
             return jsonify({'status': 'error', 'msg': str(e)}), 500
 
-    @app.route('/api/verify-pin', methods=['POST'])
-    def verify_pin():
-        """Verifikasi PIN user (endpoint legacy v1.0).
-
-        v2.47.1 (hardening): HANYA untuk sesi yang sudah login. Dulu endpoint
-        ini terbuka untuk publik → celah brute-force PIN 6 digit + enumerasi
-        user (mengembalikan role & nama). Login resmi aplikasi tetap
-        `/api/auth/login`; kasus internal (memverifikasi PIN orang lain)
-        kini wajib login dulu.
-        """
-        if not session.get('user_role'):
-            return jsonify({'status': 'error',
-                            'msg': 'Login wajib untuk verifikasi PIN'}), 401
-        try:
-            ip = client_ip()
-            allowed, retry_after = pin_rate_check(ip)
-            if not allowed:
-                return jsonify({'status': 'error', 'msg': f'Terlalu banyak percobaan. Coba lagi dalam {retry_after // 60} menit.'}), 429
-            data = request.get_json()
-            username = data.get('username', '').strip(); pin = data.get('pin', '').strip()
-            if not username or not pin: return jsonify({'status': 'error', 'msg': 'Username dan PIN wajib'}), 400
-            conn = get_master_connection(); cursor = conn.cursor(dictionary=True)
-            # NOTE: PIN is currently stored in plaintext — hashing migration
-            # TODO: hash PINs with bcrypt/sha256 and compare server-side.
-            cursor.execute("SELECT * FROM users WHERE username=%s AND pin=%s AND is_active=TRUE", (username, pin))
-            user = cursor.fetchone()
-            if user:
-                pin_success(ip)
-                cursor.execute("UPDATE users SET last_login=NOW() WHERE id=%s", (user['id'],))
-                conn.commit(); cursor.close(); conn.close()
-                return jsonify({'status': 'success', 'user': {'username': user['username'], 'full_name': user['full_name'], 'role': user['role']}})
-            cursor.close(); conn.close()
-            pin_fail(ip)
-            return jsonify({'status': 'error', 'msg': 'PIN salah'}), 401
-        except Exception as e:
-            print(f'[api-master] verify_pin error: {e}')
-            return jsonify({'status': 'error', 'msg': 'Terjadi kesalahan server'}), 500
-
     @app.route('/api/vehicles/with-nopol')
     def api_vehicles_with_nopol():
         try:
@@ -517,18 +478,6 @@ def register_master_api(app):
             return jsonify({'status': 'success', 'msg': f'Kendaraan {nopol} ({vehicle_type}) ditambahkan'})
         except Exception as e:
             return jsonify({'status': 'error', 'msg': str(e)}), 500
-
-    @app.route('/api/vehicle_bbm/<vehicle_type>')
-    def api_vehicle_bbm(vehicle_type):
-        try:
-            conn = get_db_connection()
-            if not conn: return jsonify({'error': 'DB error'}), 500
-            cursor = conn.cursor(dictionary=True)
-            cursor.execute("""SELECT vba.bbm_type, vba.min_km_per_liter, vba.max_km_per_liter, vba.warning_km_per_liter, vba.good_km_per_liter, vba.is_default, bt.price_per_liter FROM vehicle_bbm_allowed vba JOIN bbm_types bt ON vba.bbm_type=bt.name WHERE vba.vehicle_type=%s AND bt.is_active=TRUE ORDER BY vba.is_default DESC""", (vehicle_type,))
-            data = cursor.fetchall(); cursor.close(); conn.close()
-            return jsonify(data)
-        except Exception as e:
-            return jsonify({'error': str(e)}), 500
 
     @app.route('/api/vehicle-allowed-bbm/<vehicle_type>')
     def api_vehicle_allowed_bbm(vehicle_type):

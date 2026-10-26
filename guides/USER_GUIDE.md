@@ -1,4 +1,4 @@
-# 📖 Panduan Pengguna BPF WorkHub v2.72.0
+# 📖 Panduan Pengguna BPF WorkHub v2.73.0
 
 > **Siapa pun kamu — sopir, OB, admin, atau pimpinan — panduan ini ditulis untuk kamu.**
 > Tidak perlu paham teknis. Cukup ikuti langkah-langkah sesuai bagianmu.
@@ -174,7 +174,11 @@ di sidebar untuk mencatat lembur sendiri:
 
 ### 4.1 Halaman Driver
 
-Buka halaman Driver (bisa dipasang di HP). **Login dengan Username & PIN** yang diberikan Admin. Ada 4 tab: **⛽ BBM**, **💰 Kasbon**, **🗺️ Trip**, **📊 Rapor**.
+Buka halaman Driver (bisa dipasang di HP). **Login dengan Username & PIN** yang diberikan Admin. Ada 5 tab: **⛽ BBM**, **💰 Kasbon**, **🗺️ Trip**, **⏰ OT**, **📊 Rapor**.
+
+> 🚛 **Serah terima kendaraan (v2.73.0)** — begitu kendaraan baru ditugaskan
+> ke kamu, muncul banner **"Serah Terima Kendaraan"** di atas: cek dulu
+> kondisi kendaraannya, lalu tekan **✅ Konfirmasi Serah Terima**.
 
 ### 4.2 Melaporkan Pembelian BBM (Bayar Dulu, Klaim Belakangan)
 
@@ -264,9 +268,25 @@ Lihat [Bagian 10](#10-kasbon-alur-lengkap-dari-a-sampai-z) — peranmu ada di la
 ### 5.6 Menu Lain yang Bisa Kamu Akses
 
 - **Log Perjalanan** — meninjau laporan trip driver.
-- **Assignments** — menugaskan/menukar kendaraan antar driver.
+- **Assignments** — menugaskan/menukar kendaraan antar driver (lihat 5.6a).
 - **Kasbon / BBM** — melihat semua pengajuan.
 - **Analytics** — memantau performa armada.
+
+### 5.6a Penugasan: Serah Terima, Tukar Driver, Riwayat 🔄 (sejak v2.73.0)
+
+Halaman **🚗 Penugasan Driver** kini lengkap:
+
+- **Assign & lepas** seperti biasa — plus alasan dilepas tercatat atas nama GA
+  yang login (tidak perlu mengisi nama lagi).
+- **✍️ Catatan** — catatan per kendaraan (kondisi, rencana perbaikan); catatan
+  ini dibaca laporan PDF cross-check.
+- **🔄 Tukar Driver** — pilih kendaraan aktif, driver baru, kategori
+  (permintaan driver / masalah kendaraan / mutasi / lainnya) + alasan wajib.
+  Driver lama-baru otomatis dapat notifikasi; semua tercatat di audit log.
+- **Tab Riwayat Tukar Driver** — 100 tukar terakhir (waktu, GA, alasan).
+- **⏳ Status serah terima** — kolom "Serah Terima" menampilkan driver yang
+  belum mengonfirmasi (⏳) — cocok dengan badge di menu; driver konfirmasi
+  sendiri dari aplikasi Driver-nya (banner "Serah Terima Kendaraan").
 
 ---
 

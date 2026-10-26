@@ -4,6 +4,56 @@ from modules.config import get_db_connection
 from modules.helpers import log_activity_async, role_required, resolve_driver_scope
 from modules.notifications import push_driver_notification
 
+
+def ensure_assignment_tables(conn=None):
+    """Migrasi tabel riwayat tukar driver (idempoten) — dipanggil app.py di startup.
+
+    assignment_swaps dulu hanya di init.sql (DB baru), sehingga DB lama yang
+    sudah hidup sebelum fitur swap memunculkan ERROR 1146 begitu endpoint
+    swap/riwayat dipakai dari UI. Pola mengikuti ensure_procurement_schema:
+    conn opsional; bila diberikan dipakai langsung dan tidak ditutup di sini.
+    """
+    own = conn is None
+    try:
+        if conn is None:
+            conn = get_db_connection()
+        if not conn:
+            print('[assignment-schema] DB unavailable, skip ensure')
+            return False
+        cur = conn.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS assignment_swaps (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                nopol VARCHAR(20) DEFAULT NULL,
+                old_driver VARCHAR(100) DEFAULT NULL,
+                new_driver VARCHAR(100) DEFAULT NULL,
+                category VARCHAR(30) DEFAULT NULL,
+                reason TEXT DEFAULT NULL,
+                ga_name VARCHAR(100) DEFAULT NULL,
+                created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_swap_created (created_at),
+                INDEX idx_swap_nopol (nopol)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        """)
+
+        try:
+            conn.commit()
+        except Exception:
+            pass
+        cur.close()
+        print("✔ Assignment swaps schema ready")
+        return True
+    except Exception as e:
+        print(f"[assignment-schema] error: {e}")
+        return False
+    finally:
+        if own and conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+
 def register_assignment_api(app):
 
     @app.route('/api/assignments/active')

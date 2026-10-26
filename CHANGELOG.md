@@ -7,6 +7,37 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.73.0 — 26 Oktober 2026 (Assignment Konfirmasi & Swap — hidupkan fitur terbenam)
+
+- 🔄 **Tukar Driver di UI** — tombol "Tukar Driver" di halaman Penugasan
+  (`/app/assignments`): pilih kendaraan aktif + driver baru + kategori
+  (permintaan driver / masalah kendaraan / mutasi / lainnya) + alasan wajib.
+  Endpoint `/api/assignments/swap` kini benar-benar dipakai; identitas GA
+  diambil dari sesi, semua perubahan tercatat di audit log dan notification
+  driver lama-baru terkirim otomatis.
+- 📜 **Tab Riwayat Tukar Driver** — 100 tukar terakhir dari
+  `/api/assignments/swap-history` (nama GA, kategori, alasan, waktu).
+- ✅ **Serah terima kendaraan oleh driver** — banner + tombol "Konfirmasi
+  Serah Terima" di aplikasi Driver bila ada penugasan yang belum
+  dikonfirmasi; identitas dari sesi (v2.47.1) — kolom `confirmed_by_driver`
+  akhirnya terisi dari UI, konsisten dengan badge nav
+  `assignments_pending` (GA melihat siapa yang belum pegang mobil).
+- ✍️ **Catatan GA per kendaraan** — modal "Catatan" (driver_notes) via
+  `/api/assignment-remark`; catatan ini dibaca laporan PDF cross-check.
+- 🧱 **Tabel `assignment_swaps` dijamin ada** — `ensure_assignment_tables`
+  (idempoten) dipanggil di startup untuk master + seluruh DB cabang; dulu
+  tabel baru dibuat oleh init.sql sehingga DB lama error 1146 begitu
+  swap/riwayat dipakai. Tertutup test baru `tests/test_assignment_swap_v273.py`.
+- 🧹 **Cleanup endpoint legacy (temuan audit fitur terbenam)** —
+  `POST /api/verify-pin` (punya pengganti `/api/step-up`) dan
+  `GET /api/vehicle_bbm/<t>` (duplikat `/api/vehicle-allowed-bbm/<t>`)
+  dihapus; uji hardening diperbarui: 404 & penggantinya hidup.
+- 📄 Dokumen: `guides/USER_GUIDE.md` 5.x GA & seksi Catatan kendaraan
+  diperbarui; `docs/internal/AUDIT_FITUR_TERBENAM_20261026.md` ditandai
+  selesai untuk temuan #1–#5 + #B.
+
+---
+
 ## v2.72.0 — 26 Oktober 2026 (restorasi fitur rekap BBM yang tenggelam)
 
 - 🛢️ **Rekap BBM PDF** (`/admin/rekap/pdf`) — hasil engine `get_rekap_data`

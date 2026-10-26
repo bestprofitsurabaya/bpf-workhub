@@ -1,6 +1,12 @@
 # Audit Fitur Terbenam — Backend yang Tidak Dimunculkan / Tidak Terdokumentasi
 Tanggal: 2026-10-26 · Basis: v2.72.0 (commit `0dc7097`)
 
+> **Status pemenuhan (v2.73.0, 26 Okt):** temuan #1–#5 (subsystem assignment
+> swap/konfirmasi/remark) **SUDAH DIHIDUPKAN di UI** dan dibersihkan legacy
+> #B (`/api/verify-pin`, `/api/vehicle_bbm/<t>` dihapus). Tabel
+> `assignment_swaps` kini dijamin ada di master + semua DB cabang. Sisa
+> item (#6–#9) tetap backlog — lihat tabel di bawah.
+
 Metode: inventaris 253 route server (`@*.route`) × pemanggil di frontend src/SPA
 dist/static, mobile, lalu grep manual per kandidat (dengan alias underscore/hyphen)
 + cekspa dokumentasi `guides/USER_GUIDE.md` (17 entri keyword).

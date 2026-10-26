@@ -78,6 +78,10 @@ def test_columns_used_by_endpoints_exist_in_init_sql():
                          'gps_provinsi', 'gps_kode_pos'],
         'vehicle_assignments': ['driver_notes', 'cancel_reason', 'cancelled_by',
                                 'confirmed_by_driver', 'confirmed_at'],
+        # v2.73.0: tabel riwayat tukar driver — sebelumnya hanya di DB baru,
+        # DB lama tanpa tabel ini memunculkan 1146 saat swap/riwayat dipakai.
+        'assignment_swaps': ['nopol', 'old_driver', 'new_driver', 'category',
+                             'reason', 'ga_name', 'created_at'],
     }
     blocks = dict(_table_blocks())
     missing = []

@@ -1138,9 +1138,10 @@ def login_success(ip, username=''):
 
 
 # ============================================================
-# Rate limiting /api/verify-pin (ISO/IEC 27001 A.8.5 · anti brute-force PIN)
-# Terpisah dari login agar lockout satu jalur tidak mengunci jalur lain.
-# 8x gagal / 5 menit per IP → lockout 10 menit.
+# Rate limiting verifikasi PIN (ISO/IEC 27001 A.8.5 · anti brute-force).
+# v2.73.0: /api/verify-pin (legacy v1.0) dihapus — penghitung ini kini
+# dipakai jalur /api/step-up. Terpisah dari login agar lockout satu jalur
+# tidak mengunci jalur lain. 8x gagal / 5 menit per IP → lockout 10 menit.
 # ============================================================
 _PIN_MAX_FAILS = 8
 _PIN_WINDOW = 300

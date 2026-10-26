@@ -13,6 +13,7 @@ import OvertimeDriverTab from './OvertimeDriverTab.vue'
 import HelpCenter from '../../components/HelpCenter.vue'
 import OnboardingTour from '../../components/OnboardingTour.vue'
 import { onboardingSteps } from '../../content/help.js'
+import { api } from '../../api'
 
 const auth = useAuthStore()
 const store = useDriverStore()
@@ -46,6 +47,40 @@ const TABS = [
   { key: 'overtime', label: 'OT', icon: '⏰' },
   { key: 'rapor', label: 'Rapor', icon: '📊' },
 ]
+
+// v2.73.0 — konfirmasi serah terima kendaraan (confirmed_by_driver).
+// Import identitas dari sesi di backend; body hanya kirim nopol.
+const pendingTask = ref(null) // { nopol, vehicle_type, ... }
+const confirming = ref(false)
+
+async function loadPendingTask() {
+  try {
+    const rows = await api('/api/assignments/pending')
+    if (!Array.isArray(rows)) return
+    pendingTask.value = rows.find((r) => (r.driver_name || '').toUpperCase() === store.driverName) || null
+  } catch { /* offline / error — banner skip */ }
+}
+
+async function confirmTask() {
+  if (!pendingTask.value?.nopol) return
+  confirming.value = true
+  try {
+    const r = await api('/api/assignments/confirm', { method: 'POST', body: { nopol: pendingTask.value.nopol } })
+    if (r?.status === 'success') {
+      toast(`✅ ${r.msg || 'Konfirmasi berhasil'}`, 'success')
+      pendingTask.value = null
+    } else {
+      toast('❌ ' + (r?.msg || 'Konfirmasi gagal'), 'error')
+      pendingTask.value = null
+    }
+  } catch (e) {
+    const t = e.message || 'Konfirmasi gagal'
+    toast('❌ ' + t, 'error')
+    if (t.toLowerCase().includes('pending')) pendingTask.value = null
+  } finally {
+    confirming.value = false
+  }
+}
 
 let socket = null
 let syncTimer = null
@@ -106,6 +141,7 @@ async function init() {
     store.loadNotifications()
     connectSocket()
     store.locate().catch(() => { /* GPS opsional */ })
+    loadPendingTask() // v2.73.0 — cek serah terima yang belum dikonfirmasi
   }
   // Sinkronisasi: saat online kembali + interval 30 detik
   onOnline = () => {
@@ -168,6 +204,19 @@ onBeforeUnmount(() => {
     </div>
 
     <template v-else>
+      <!-- Serah terima kendaraan: konfirmasi tugas baru (v2.73.0) -->
+      <div v-if="pendingTask" class="d-handover" role="status">
+        <div class="d-handover-text">
+          <b>🚛 Serah Terima Kendaraan</b>
+          <span class="muted" style="font-size:11px;">
+            {{ pendingTask.nopol }} · {{ pendingTask.vehicle_type }} — pastikan kondisi kendaraan sudah dicek, lalu konfirmasi.
+          </span>
+        </div>
+        <button class="btn btn-primary" :disabled="confirming" @click="confirmTask">
+          {{ confirming ? '⏳ Menyimpan…' : '✅ Konfirmasi Serah Terima' }}
+        </button>
+      </div>
+
       <!-- Konten tab -->
       <main class="d-content">
         <BBMTab v-show="tab === 'bbm'" @toast="toast" />
@@ -216,6 +265,13 @@ onBeforeUnmount(() => {
 .d-status.off { background: var(--bg-2, #fef3c7); color: var(--warning); }
 .d-queue { background: var(--danger); color: #fff; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 10px; }
 .d-error { padding: 30px 20px; text-align: center; }
+.d-handover {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin: 10px 14px 0; padding: 10px 12px; border-radius: 12px;
+  background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af;
+}
+html.dark .driver-app .d-handover { background: rgba(37, 99, 235, .15); border-color: rgba(37, 99, 235, .4); }
+.d-handover-text { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 150px; }
 .d-content { flex: 1; padding: 12px 14px 90px; }
 .d-nav {
   position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 640px;

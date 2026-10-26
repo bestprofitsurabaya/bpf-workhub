@@ -4,7 +4,10 @@
   menandai konfirmasi assignment atas nama driver mana pun) & dikecualikan
   CSRF. Kini identitas diambil dari sesi (resolve_driver_scope).
 - POST /api/verify-pin          : dulu publik -> brute-force PIN 6 digit +
-  enumerasi user. Kini wajib login.
+  enumerasi user; v2.47.1 wajib login; v2.73.0 DIHAPUS (cleanup fitur
+  terbenam — penggantinya /api/step-up). Uji memastikan 404.
+- GET  /api/vehicle_bbm/<t>     : duplikat /api/vehicle-allowed-bbm/<t>
+  tanpa pemanggil — v2.73.0 DIHAPUS; uji memastikan 404 & penggantinya hidup.
 - GET  /admin/backup            : mysqldump hilang/gagal -> 503 + log stderr
   (bukan 500 tanpa keterangan).
 """
@@ -130,10 +133,11 @@ class TestAssignmentConfirmAuth:
 
 
 # ---------------------------------------------------------------------------
-# /api/verify-pin
+# /api/verify-pin & /api/vehicle_bbm — DIHAPUS v2.73.0 (cleanup fitur terbenam)
 # ---------------------------------------------------------------------------
-class TestVerifyPinAuth:
-    def test_tanpa_sesi_ditolak_401(self):
+class TestLegacyEndpointsRemoved:
+    def test_verify_pin_dihapus_404(self):
+        """Endpoint legacy v1.0 tinggal 404; jalurnya kini /api/step-up."""
         app = Flask(__name__)
         app.secret_key = 'test'
         ram.register_master_api(app)
@@ -141,26 +145,27 @@ class TestVerifyPinAuth:
         r = c.post('/api/verify-pin',
                    data=json.dumps({'username': 'admin', 'pin': '123456'}),
                    content_type='application/json')
-        assert r.status_code == 401
-        assert 'Login' in r.get_json()['msg']
+        assert r.status_code == 404
 
-    def test_login_masih_berfungsi_dengan_db(self, monkeypatch):
+    def test_vehicle_bbm_alias_dihapus_404(self):
+        """Duplikat alias tanpa pemanggil tinggal 404."""
         app = Flask(__name__)
         app.secret_key = 'test'
         ram.register_master_api(app)
-        row = {'id': 1, 'username': 'admin', 'full_name': 'Admin',
-               'role': 'admin', 'pin': '123456'}
-        conn = FakeConn(rows_for=lambda sql: [row] if 'FROM users' in sql else [],
-                        rowcount=0)
-        monkeypatch.setattr(ram, 'get_master_connection', lambda: conn)
         c = app.test_client()
-        with c.session_transaction() as s:
-            s['user_role'] = 'admin'; s['user_name'] = 'admin'
-        r = c.post('/api/verify-pin',
-                   data=json.dumps({'username': 'admin', 'pin': '123456'}),
+        assert c.get('/api/vehicle_bbm/AVANZA').status_code == 404
+
+    def test_step_up_masih_terdaftar(self):
+        """Pengganti verify-pin tetap hidup & tetap butuh sesi."""
+        app = Flask(__name__)
+        app.secret_key = 'test'
+        from modules.stepup import register_stepup_routes
+        register_stepup_routes(app)
+        c = app.test_client()
+        r = c.post('/api/step-up',
+                   data=json.dumps({'pin': '123456'}),
                    content_type='application/json')
-        assert r.status_code == 200
-        assert r.get_json()['user']['role'] == 'admin'
+        assert r.status_code in (401, 403)
 
 
 # ---------------------------------------------------------------------------

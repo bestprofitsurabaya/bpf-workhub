@@ -188,6 +188,42 @@ try:
 except Exception as _be:
     print(f'[approvals] branch ensure error: {_be}')
 
+# Penugasan v2.73.0: tabel riwayat tukar driver (assignment_swaps) ikut
+# dijamin di master + tiap DB cabang (idempoten) — pola blok approvals di atas.
+from modules.routes_api_assignments import ensure_assignment_tables
+for _attempt in range(5):
+    _aconn = _ret_master()
+    if _aconn:
+        try:
+            if ensure_assignment_tables(_aconn):
+                break
+        except Exception as _ae:
+            print(f'[assignments] master ensure error: {_ae}')
+        finally:
+            try:
+                _aconn.close()
+            except Exception:
+                pass
+    _time.sleep(3)
+try:
+    for _b in bm.list_branches():
+        if _b.get('is_active') and _b.get('db_name') and _b['db_name'] != os.environ.get('DB_NAME', 'bpf_asset_system'):
+            _bp = _ret_pool(_b['db_name'])
+            if _bp:
+                try:
+                    _bc = _bp.get_connection()
+                    try:
+                        ensure_assignment_tables(_bc)
+                    finally:
+                        try:
+                            _bc.close()
+                        except Exception:
+                            pass
+                except Exception as _ae:
+                    print(f'[assignments] {_b["code"]} ensure error: {_ae}')
+except Exception as _be:
+    print(f'[assignments] branch ensure error: {_be}')
+
 # Retensi v2.34.0 (Tahap 5/6): tabel arsip audit + register tindakan retensi
 # dibuat di master & setiap DB cabang (activity_logs tersebar per-cabang).
 from modules.routes_retention import ensure_retention_tables

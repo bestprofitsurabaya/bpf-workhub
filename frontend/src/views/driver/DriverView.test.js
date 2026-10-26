@@ -22,12 +22,16 @@ vi.mock('../../utils/gps', () => ({
   locateWithAddress: vi.fn(() => Promise.resolve({ lat: -7.25, lon: 112.75, addr: 'Jl. Raya, Surabaya', spbu: '' })),
 }))
 
+let pendingRows = [] // v2.73.0 — assignment yang belum dikonfirmasi (default kosong)
+
 function mockApi() {
-  apiMock.mockImplementation((path) => {
+  apiMock.mockImplementation((path, opts = {}) => {
     if (path === '/api/driver/me') return Promise.resolve({ name: 'RIVAN', nopol: 'L 1 AB', vehicle_type: 'AVANZA', bbm_type: 'PERTALITE', is_active: true })
     if (path === '/api/cash/daily-code') return Promise.resolve({ code: 300, manual_mode: false })
     if (path === '/api/notifications') return Promise.resolve({ notifications: [], unread: 0 })
     if (path === '/api/cash/history' || path === '/api/cash/pending-lpj') return Promise.resolve([])
+    if (path === '/api/assignments/pending') return Promise.resolve(pendingRows)
+    if (path === '/api/assignments/confirm') return Promise.resolve({ status: 'success', msg: 'Konfirmasi L 1 AB berhasil! ✅' })
     if (path.includes('/api/appointments/driver-today')) return Promise.resolve([])
     if (path.includes('/api/vehicle-allowed-bbm/')) return Promise.resolve([])
     return Promise.resolve({})
@@ -47,7 +51,7 @@ async function mountView() {
 }
 
 describe('DriverView', () => {
-  beforeEach(() => { vi.clearAllMocks(); localStorage.setItem('bpf_onboarded:rivan', '1') })
+  beforeEach(() => { vi.clearAllMocks(); pendingRows = []; localStorage.setItem('bpf_onboarded:rivan', '1') })
   afterEach(() => { vi.unstubAllGlobals() })
 
   it('menampilkan shell PWA driver dengan 4 tab navigasi', async () => {
@@ -85,6 +89,40 @@ describe('DriverView', () => {
     await flushPromises()
     expect(w.text()).toContain('Ajukan Kasbon')
     expect(w.text()).toContain('Sinkron')
+    w.unmount()
+  })
+})
+
+describe('Konfirmasi serah terima kendaraan (v2.73.0)', () => {
+  beforeEach(() => { vi.clearAllMocks(); pendingRows = []; localStorage.setItem('bpf_onboarded:rivan', '1') })
+  afterEach(() => { vi.unstubAllGlobals() })
+
+  it('banner serah terima tampil bila ada assignment yang belum dikonfirmasi', async () => {
+    pendingRows = [{ id: 9, driver_name: 'RIVAN', nopol: 'L 1 AB', vehicle_type: 'AVANZA' }]
+    const w = await mountView()
+    await flushPromises()
+    expect(w.text()).toContain('Serah Terima Kendaraan')
+    expect(w.text()).toContain('Konfirmasi Serah Terima')
+    w.unmount()
+  })
+
+  it('tanpa assignment pending banner tidak tampil', async () => {
+    const w = await mountView()
+    await flushPromises()
+    expect(w.text()).not.toContain('Serah Terima Kendaraan')
+    w.unmount()
+  })
+
+  it('tombol konfirmasi kirim POST /api/assignments/confirm hanya dengan nopol (identitas dari sesi)', async () => {
+    pendingRows = [{ id: 9, driver_name: 'RIVAN', nopol: 'L 1 AB', vehicle_type: 'AVANZA' }]
+    const w = await mountView()
+    await flushPromises()
+    const btn = w.findAll('button').find((b) => b.text().includes('Konfirmasi Serah Terima'))
+    await btn.trigger('click')
+    await flushPromises()
+    expect(apiMock).toHaveBeenCalledWith('/api/assignments/confirm', { method: 'POST', body: { nopol: 'L 1 AB' } })
+    // setelah sukses banner hilang
+    expect(w.text()).not.toContain('Serah Terima Kendaraan')
     w.unmount()
   })
 })
