@@ -11,7 +11,7 @@ from modules.company_identity import get_company_identity, IDENTITY_DEFAULTS  # 
 # ============================================================
 COMPANY_NAME = 'PT BESTPROFIT FUTURES'
 COMPANY_SUBTITLE = 'Kantor Pusat | Jakarta'
-SYSTEM_VERSION = 'BPF WorkHub v2.71.0'
+SYSTEM_VERSION = 'BPF WorkHub v2.72.0'
 LOGO_FILENAMES = ['icon-512.png', 'icon-192.png']
 PHOTO_FIELDS = [
     ('foto_odo_sebelum', 'ODO Sebelum'),
@@ -52,6 +52,7 @@ ZEBRA_FILL = (248, 250, 252)     # strip zebra sangat tipis
 RULE = (71, 85, 105)             # garis kop surat / underlining
 GREEN_OK = (21, 110, 55)         # teks status cocok (rekonsiliasi Subsidi Tepat)
 RED_WARN = (185, 28, 28)         # teks selisih / peringatan rekonsiliasi
+AMBER_WARN = (180, 83, 9)        # marker pengisian beruntun (multifill) di rekap
 
 # ============================================================
 # BASE PDF CLASS
@@ -243,12 +244,19 @@ class BPFBasePDF(FPDF):
         self.set_font(self._font(), '', font_size)
         self.set_text_color(*INK)
 
-    def _table_row(self, values, widths, aligns=None, row_h=6, fill=False):
-        """Satu baris data dengan zebra ultra-tipis (fill dipakai bergantian)."""
+    def _table_row(self, values, widths, aligns=None, row_h=6, fill=False, colors=None):
+        """Satu baris data dengan zebra ultra-tipis (fill dipakai bergantian).
+
+        v2.72.0: colors[i] (tuple RGB) menandai sel teks tertentu — dipakai
+        status DITOLAK (merah) dan marker multifill (amber); None = INK.
+        """
         aligns = aligns or ['L'] * len(values)
         self.set_fill_color(*(ZEBRA_FILL if fill else (255, 255, 255)))
         for i, v in enumerate(values):
+            color = colors[i] if colors and i < len(colors) and colors[i] else INK
+            self.set_text_color(*color)
             self.cell(widths[i], row_h, self.clean_text(str(v)), border=1, fill=True, align=aligns[i])
+            self.set_text_color(*INK)
         self.ln()
 
     def _signature_block(self, generated_by, role_label='Administrator', role=None):
@@ -470,6 +478,12 @@ class PDFReportCompact(BPFBasePDF):
         self.ln(1.5)
 
     def _draw_cross_check(self, tx):
+        """Cross-check verifikasi: health score KM/L, ODO pengisian sebelumnya,
+        dan catatan GA dari vehicle_assignments.
+
+        v2.72.0: blok 'Budget Bulanan' dihapus — angkanya tidak dipakai lagi
+        (dan sebelumnya salah hitung: SUM MONTH(...) tanpa pembanding YEAR).
+        """
         self.section_title('CROSS-CHECK VERIFIKASI')
         try:
             from modules.config import get_db_connection
@@ -481,8 +495,6 @@ class PDFReportCompact(BPFBasePDF):
             prev = cur.fetchone()
             cur.execute("SELECT ROUND(AVG(NULLIF(km_per_liter,0)),2) as avg_kml, COUNT(*) as cnt FROM transactions WHERE nopol=%s AND status='archived' AND km_per_liter>0", (tx['nopol'],))
             health = cur.fetchone()
-            cur.execute("SELECT COALESCE(SUM(nominal),0) as total FROM transactions WHERE driver_name=%s AND MONTH(created_at)=MONTH(CURDATE())", (tx['driver_name'],))
-            monthly = cur.fetchone()
             cur.execute("SELECT driver_notes FROM vehicle_assignments WHERE nopol=%s ORDER BY id DESC LIMIT 1", (tx['nopol'],))
             notes = cur.fetchone()
             cur.close(); conn.close()
@@ -503,19 +515,13 @@ class PDFReportCompact(BPFBasePDF):
                 self.set_xy(self.l_margin, y + 8.4)
                 self.set_font(self._font(), '', 6)
                 self.cell(col_w, 4, f'ODO Sebelumnya: {int(prev["odo_km"]):,} km (selisih {odo_diff:+d} km)')
-            self.set_xy(self.l_margin + col_w, y)
-            self.set_font(self._font(), 'B', 7)
-            self.set_text_color(*INK)
-            self.cell(col_w, 5, 'Budget Bulanan')
-            self.set_xy(self.l_margin + col_w, y + 4.4)
-            self.set_font(self._font(), '', 6)
-            self.set_text_color(*GRAY_LABEL)
-            self.cell(col_w, 4, f'Rp {float(monthly["total"]):,.0f}' if monthly else 'N/A')
+            # v2.72.0: kolom kanan kini Catatan GA (pemakaian kendaraan) —
+            # menggantikan slot 'Budget Bulanan' yang dihapus.
             if notes and notes['driver_notes']:
-                self.set_xy(self.l_margin, y + 12.4)
+                self.set_xy(self.l_margin + col_w, y + 4.4)
                 self.set_font(self._font(), 'I', 6)
                 self.set_text_color(*INK_SOFT)
-                self.cell(0, 4, 'Catatan GA: ' + notes['driver_notes'])
+                self.multi_cell(col_w, 3.6, 'Catatan GA: ' + notes['driver_notes'])
             self.set_text_color(*INK_SOFT)
             self.ln(15)
         except Exception:
@@ -951,9 +957,23 @@ class BBMReportPDF(BPFBasePDF):
             self.set_font(self._font(), 'I', 12)
             self.cell(0, 10, "Tidak ada data", align="C")
             return
-        headers = ['NO', 'TANGGAL', 'NO POLISI', 'DRIVER', 'AMOUNT', 'LITER', 'KM ISI BBM', 'KM/L', 'TIPE', 'HEALTH']
-        widths = [8, 22, 22, 30, 24, 14, 20, 14, 14, 14]
-        aligns = ['C', 'C', 'C', 'L', 'R', 'C', 'C', 'C', 'C', 'C']
+        # v2.72.0: fitur engine get_rekap_data kembali tampil — kolom KM ISI,
+        # KM AKHIR, JARAK, KM/L memakai hasil deteksi multifill (km_awal,
+        # km_akhir, total_km, rata_rata, is_multifill) yang sebelumnya tenggelam
+        # oleh perombakan template. STATUS ditampilkan jelas: klaim yang
+        # DITOLAK tetap masuk rekap berwarna merah — reject adalah keputusan
+        # sah Finance, bukan data sampah; pembaca harus tahu tak ada dana cair.
+        # TIPE memakai teks polos (emoji 💰 tidak pernah ter-render — dilucuti
+        # bersih oleh clean_text yang hanya menerima ASCII).
+        headers = ['NO', 'TANGGAL', 'NO POLISI', 'DRIVER', 'STATUS',
+                   'AMOUNT', 'LITER', 'KM ISI', 'KM AKHIR', 'JARAK KM',
+                   'KM/L', 'M-FILL', 'TIPE', 'HEALTH']
+        widths = [8, 21, 22, 26, 18, 24, 13, 16, 16, 15, 13, 13, 14, 14]
+        aligns = ['C', 'C', 'C', 'L', 'C', 'R', 'C', 'R', 'R', 'R', 'C', 'C', 'C', 'C']
+        status_map = {
+            'pending': 'PENDING', 'verified': 'VERIF', 'verified_ga': 'VERIF GA',
+            'os_finance': 'OS FINANCE', 'archived': 'ARSIP', 'rejected': 'DITOLAK',
+        }
         self._table_header(headers, widths)
         fill = False
         for idx, tx in enumerate(data, 1):
@@ -963,22 +983,55 @@ class BBMReportPDF(BPFBasePDF):
                 if kml > 0:
                     health = str(min(100, int((kml / HEALTH_BENCHMARK) * 100)))
             except Exception:
-                kml = 0
-            tx_type = tx.get('transaction_type', 'CLAIM')
+                pass
+            # Hasil engine get_rekap_data jika ada; kalau baris mentah
+            # (mis. pemanggilan dari kode lain) tampakkan data DB apa adanya,
+            # tidak mengarang jarak/emisinya.
+            if 'km_awal' in tx or 'total_km' in tx:
+                km_awal = int(tx.get('km_awal', 0) or 0)
+                km_akhir = int(tx.get('km_akhir', 0) or 0)
+                total_km = int(tx.get('total_km', 0) or 0)
+                avg = float(tx.get('rata_rata', 0) or 0)
+            else:
+                odo = int(tx.get('odo_km', 0) or 0)
+                km_awal = km_akhir = odo
+                total_km = 0
+                avg = kml  # fallback: KM/L mentah dari DB
+            is_mf = bool(tx.get('is_multifill'))
+            tipe = 'KASBON' if tx.get('transaction_type', 'CLAIM') == 'CASH_LPJ' else 'KLAIM'
+            status = status_map.get(str(tx.get('status', '') or ''), '-')
+            colors = [None] * len(headers)
+            if status == 'DITOLAK':
+                colors[4] = RED_WARN
+            if is_mf:
+                colors[11] = AMBER_WARN
             self._table_row([
                 idx,
                 tx['created_at'].strftime('%d/%m/%y %H:%M') if tx.get('created_at') else '-',
                 tx['nopol'],
                 str(tx.get('driver_name', '-')).upper(),
+                status,
                 f"Rp {float(tx['nominal']):,.0f}" if tx.get('nominal') else 'Rp 0',
                 f"{float(tx.get('liter', 0)):.1f}L",
-                f"{int(tx.get('odo_km', 0)):,}",
-                f"{kml:.1f}" if tx.get('km_per_liter') else '-',
-                '💰 Kasbon' if tx_type == 'CASH_LPJ' else '-',
+                f"{km_awal:,}",
+                f"{km_akhir:,}",
+                f"{total_km:,}",
+                f"{avg:.1f}" if avg > 0 else '-',
+                'YA' if is_mf else '-',
+                tipe,
                 health,
-            ], widths, aligns=aligns, fill=fill)
+            ], widths, aligns=aligns, fill=fill, colors=colors)
             fill = not fill
-        self.ln(4)
+        self.ln(2)
+        self.set_font(self._font(), 'I', 6)
+        self.set_text_color(*GRAY_LABEL)
+        self.multi_cell(0, 4,
+            'M-FILL = pengisian beruntun (jarak antar isi di bawah threshold multifill; '
+            'KM/L dihitung kumulatif hingga pengisian penuh oleh get_rekap_data). '
+            'STATUS DITOLAK = klaim ditolak Finance, dana tidak cair. '
+            'KM ISI/AKHIR/JARAK mengikuti pengukuran ODO per nopol.',
+            align='L')
+        self.set_text_color(*INK)
 
 
 # ============================================================

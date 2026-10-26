@@ -7,6 +7,33 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.72.0 — 26 Oktober 2026 (restorasi fitur rekap BBM yang tenggelam)
+
+- 🛢️ **Rekap BBM PDF** (`/admin/rekap/pdf`) — hasil engine `get_rekap_data`
+  kembali ditampilkan setelah sebelumnya tenggelam oleh perombakan template:
+  kolom **KM ISI / KM AKHIR / JARAK KM / KM/L** kini memakai hasil deteksi
+  multifill engine (`km_awal`, `km_akhir`, `total_km`, `rata_rata`,
+  `is_multifill`, threshold `multifill_km_threshold`), bukan saja ODO mentah.
+  Kolom **M-FILL** menandai pengisian beruntun (amber) dan ada keterangan
+  cara baca di kaki tabel.
+- 🚫 **STATUS keputusan Finance tampil** — kolom status ditambahkan;
+  klaim yang **DITOLAK** tetap masuk rekap berwarna merah (reject adalah
+  kewenangan sah Finance, bukan data sampah yang wajib hilang dari rekap),
+  sehingga pembaca tahu dana tidak cair atas baris tersebut.
+- 🔤 **TIPE teks polos** — `'💰 Kasbon'` diganti `'KASBON'`: emoji tidak pernah
+  ter-render karena `clean_text` hanya meluluskan ASCII (terbukti unit test,
+  `'💰 Kasbon' → 'Kasbon'`). Sekarang KLAIM juga tampil eksplisit, bukan `-`.
+- 🧹 **Filter `?type=` hidup** — sebelumnya parameter dead: route tidak
+  membacanya dan `get_rekap_data(tx_type=...)` menerimanya tanpa pernah
+  memakainya. Sekarang ditulis sebagai `AND t.transaction_type = %s`
+  (semantik `CLAIM` vs `CASH_LPJ`, sama dengan `/api/transactions/archive`).
+- 🗑️ **Budget Bulanan dihapus** dari cross-check PDF per-transaksi — angka
+  tidak dipakai lagi; sisa slot dipakai Catatan GA. Penghapusan sekaligus
+  buang bug salah hitung (SUM per MONTH tanpa pembanding YEAR).
+- ✅ Test baru `tests/test_pdf_rekap_bbm.py` (13 kasus: header/kolom
+  multifill, pewarnaan DITOLAK, mapping status, fallback non-engine, filter
+  type, penghapusan budget) + test PDF lain tetap lulus (17 passed).
+
 ## v2.71.0 — 26 Oktober 2026 (wave-20: Rekap Pengeluaran lintas modul)
 
 - 📊 **Halaman Rekap Pengeluaran** (`/app/expenses`, Finance/Admin) — gabungan

@@ -51,11 +51,13 @@ def register_report_routes(app):
     def rekap_pdf():
         try:
             filters = {'start_date': request.args.get('start_date','').strip(), 'end_date': request.args.get('end_date','').strip(),
-                       'nopol': request.args.get('nopol','').strip(), 'driver': request.args.get('driver','').strip()}
+                       'nopol': request.args.get('nopol','').strip(), 'driver': request.args.get('driver','').strip(),
+                       'type': request.args.get('type','').strip()}  # v2.72.0: type benar-benar diteruskan ke engine
             data = get_rekap_data(start_date=filters['start_date'] if filters['start_date'] else None,
                                   end_date=filters['end_date'] if filters['end_date'] else None,
-                                  nopol=filters['nopol'] if filters['nopol'] else None, tx_type=filters['type'] if filters.get('type') else None,
-                                  driver=filters['driver'] if filters['driver'] else None)
+                                  nopol=filters['nopol'] if filters['nopol'] else None,
+                                  driver=filters['driver'] if filters['driver'] else None,
+                                  tx_type=filters['type'] if filters['type'] else None)
             if not data:
                 flash('Tidak ada data', 'warning')
                 return redirect(url_for('admin_rekap'))

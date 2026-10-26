@@ -110,6 +110,12 @@ def get_rekap_data(start_date=None, end_date=None, nopol=None, driver=None, tx_t
             query += " AND t.nopol LIKE %s"; params.append(f"%{nopol}%")
         if driver:
             query += " AND t.driver_name LIKE %s"; params.append(f"%{driver}%")
+        # v2.72.0: filter tx_type benar-benar diterapkan — sebelumnya parameter
+        # ini diterima tapi tidak pernah dipakai (dead code yang diam-diam
+        # mengabaikan ?type=...). Semantik mengikuti /api/transactions/archive:
+        # CLAIM vs CASH_LPJ.
+        if tx_type in ('CLAIM', 'CASH_LPJ'):
+            query += " AND t.transaction_type = %s"; params.append(tx_type)
         query += " ORDER BY t.created_at ASC"
 
         cursor.execute(query, params)

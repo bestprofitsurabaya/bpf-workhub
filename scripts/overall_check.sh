@@ -61,7 +61,7 @@ step "Vitest penuh (frontend/)" \
   "cd $ROOT/frontend && npx vitest run 2>&1 | tail -3"
 
 # 6. Smoke E2E — salin skrip terbaru dari repo ke container dulu
-cp_smokes="docker cp $ROOT/scripts/smoke_procurement.py $WEB:/tmp/ && docker cp $ROOT/scripts/smoke_expenses.py $WEB:/tmp/"
+cp_smokes="docker cp $ROOT/scripts/smoke_procurement.py $WEB:/tmp/ && docker cp $ROOT/scripts/smoke_expenses.py $WEB:/tmp/ && docker cp $ROOT/scripts/smoke_pdf_bbm.py $WEB:/tmp/"
 step "Siapkan skrip smoke di container" "$cp_smokes"
 
 step "Smoke Pengadaan (24 uji)" \
@@ -69,6 +69,10 @@ step "Smoke Pengadaan (24 uji)" \
 
 step "Smoke Rekap Pengeluaran (13 uji)" \
   "docker exec -w /app $WEB python3 /tmp/smoke_expenses.py"
+
+# v2.72.0: kedua PDF yang menyentuh transaksi BBM (per-tx + rekap + filter type)
+step "Smoke Generator PDF BBM (19 uji)" \
+  "docker exec -w /app $WEB python3 /tmp/smoke_pdf_bbm.py"
 
 # ---- verdict ----
 echo ""

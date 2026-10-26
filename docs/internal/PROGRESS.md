@@ -4,18 +4,18 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 **Terakhir diperbarui:** 2026-10-26  
 **Branch:** `main`  
-**Versi terbaru:** v2.71.0 (26 Okt — wave-20 Rekap Pengeluaran lintas modul) · v2.70.0 (25 Okt — wave-19 modul Pengadaan/ERP) · v2.69.0 (23 Okt — agen Subsidi Tepat login OTP dari dashboard Finance)
+**Versi terbaru:** v2.72.0 (26 Okt — restorasi fitur rekap BBM yang tenggelam + STATUS/penolakan & filter tipe) · v2.71.0 (26 Okt — wave-20 Pengeluaran Rekap lintas modul) · v2.70.0 (25 Okt — wave-19 modul Pengadaan/ERP) · v2.69.0 (23 Okt — agen Subsidi Tepat login OTP dari dashboard Finance)
 
 ---
 
 ## 🔁 Handoff sesi berikutnya (26 Okt 2026 — baca ini dulu!)
 
-- **Kondisi live:** v2.71.0 LIVE & tervalidasi penuh di NAS (commit `735a4a1` + `d478fd8`, sudah push GitHub).
-  Cek menyeluruh terakhir: pytest **970 passed/0 gagal**, vitest **251 passed**, smoke Pengadaan **24/24** + Rekap Pengeluaran **13/13**, stamp 7 titik ✅, skema 12/12 DB, container healthy.
-- **Cek sehat berulang:** `cd ~/bpf-workhub && bash scripts/overall_check.sh` (±6 mnt, verdict satu baris) — jangan panik bila lambat: pytest penuh hampir 5 menit.
-- **Riwayat dua wave terakhir:** Wave-19 Pengadaan (supplier + PO + penerimaan bertahap, smoke 24/24) & Wave-20 Rekap Pengeluaran (agregasi PO diterima + kasbon BBM, angka = SQL manual). Konvensi: pola modul air minum, step-up PIN untuk aksi berisiko, smoke via test_client (`scripts/smoke_*.py`).
-- **Langkah ERP tersisa:** 1) integrasi barang PO diterima → `vehicle_components`/aset (hati-hati anti-ganda!), 2) badge antrean PO di sidebar, 3) kolom nominal air minum & overtime agar ikut Rekap Pengeluaran, 4) export PDF/Excel rekap.
-- **⚠️ INFRA — jangan lupa:** record DuckDNS saat ini menunjuk IP privat `192.168.2.31` → akses dari LUAR kantor ke aplikasi/SSH bermasalah sampai record diperbarui ke IP publik + port-forward 2211. Sementara: dalam jaringan pakai `ssh -p 22 it-ef@192.168.2.31`. Kredensial & catatan lengkap: `/root/.nas_credentials` (mesin agent).
+- **Kondisi live:** v2.72.0 LIVE & tervalidasi di NAS — container rebuild sehat, pytest penuh **983 passed** (2 flake transcoder yang lulus saat dijalankan sendiri 36/36), vitest penuh OK, stamp 7 titik + DB cabang otomatis v2.72.0 ✅, `/api/health` 200, overall_check verdict SEHAT. Catatan sesi ini: NAS sempat unreachable (sshd mati ±1 jam, web+db ikut restart — kemungkinan host reboot); jalur LAN `192.168.2.31:22` masih **refused** dan jalur publik kini hidup via **`182.253.62.46:2211`**; record DuckDNS bergejolak antara IP publik ↔ IP LAN (memo di `/root/.nas_credentials`).
+- **Wave terbaru (audit PDF BBM):** generator PDF diperiksa untuk transaksi BBM → diketahui dua PDF menyentuhnya (`/admin/report/<id>` & `/admin/rekap/pdf`). Pembaruan v2.72.0: fitur deteksi multifill engine yang tenggelam kembali ditampilkan (kolom KM ISI/KM AKHIR/JARAK/KM-L/M-FILL), STATUS DITOLAK (kewenangan sah Finance) tampil merah, TIPE teks polos KASBON/KLAIM (emoji terbukti tidak pernah ter-render oleh clean_text), filter `?type=` dihidupkan (`AND t.transaction_type=%s`), blok Budget Bulanan dihapus (tidak dipakai lagi — slot diisi Catatan GA). Test baru `tests/test_pdf_rekap_bbm.py` (13 kasus) + `scripts/smoke_pdf_bbm.py` (19 uji) + masuk `overall_check.sh`; audit lengkap di `docs/internal/AUDIT_PDF_BBM_20261026.md`.
+- **Cek sehat berulang:** `cd ~/bpf-workhub && bash scripts/overall_check.sh` (±7 mnt, 9 langkah, verdict satu baris) — jangan panik bila lambat: pytest penuh hampir 6 menit; test transcoder kadang flake di bawah beban penuh (idempoten — danai ulang sendiri, bukan masalah v2.72.0).
+- **Riwayat dua wave terakhir:** Wave-19 Pengadaan (supplier + PO + penerimaan bertahap, smoke 24/24) & Wave-20 Rekap Pengeluaran (agregasi PO diterima + kasbon BBM, angka = SQL manual). Konvensi: pola modul air minum, langkah step-up PIN untuk aksi berisiko, smoke melalui test_client (`scripts/smoke_*.py`).
+- **Langkah ERP tersisa:** 1) integrasi barang PO diterima → `vehicle_components`/aset (hati-hati anti-ganda!), 2) badge antrean PO di sidebar, 3) kolom nominal air minum & lembur agar ikut Rekap Pengeluaran, 4) export PDF/Excel rekap Pengeluaran (bebannya berbeda dari rekap BBM yang sudah ada).
+- **⚠️ INFRA — jangan lupa:** record DuckDNS bergejolak (publik `182.253.62.46` ↔ LAN `192.168.2.31`); jalur LAN port 22 SERING menolak sementara forward publik 2211 jalan. SSH dari mesin agen: `sshpass -p '…' ssh -p 2211 -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=/tmp/opencode/known_hosts_mux it-ef@182.253.62.46` (hanya `-o` ini yang stabil; default known_hosts rc=6 "Host key verification failed"). Sesi berikutnya cek dua jalur ping/ssh dulu sebelum menyatakan NAS mati.
 
 ---
 
