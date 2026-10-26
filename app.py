@@ -331,6 +331,7 @@ from modules.routes_retention import register_retention_routes
 from modules.routes_documents import register_document_routes
 from modules.routes_subsidy import register_subsidy_routes  # v2.50.0
 from modules.routes_procurement import register_procurement_routes          # v2.70.0
+from modules.routes_expense import register_expense_routes                    # v2.71.0
 from modules.approvals import register_approval_routes
 from modules.transcoder import register_transcoder_routes
 from modules.pdfkit import register_pdfkit_routes
@@ -338,6 +339,7 @@ from modules.pdfkit import register_pdfkit_routes
 register_driver_routes(app, socketio)
 register_auth_routes(app)
 register_procurement_routes(app)
+register_expense_routes(app)
 register_master_api(app)
 register_transaction_api(app)
 register_assignment_api(app)

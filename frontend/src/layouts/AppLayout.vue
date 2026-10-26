@@ -69,6 +69,7 @@ const MENU_GROUPS = [
     label: 'Laporan & Analisis',
     items: [
       { label: 'Rekap', path: '/rekap', icon: '📋', roles: ['finance', 'admin'] },
+      { label: 'Rekap Pengeluaran', path: '/expenses', icon: '📊', roles: ['finance', 'admin'] },
       { label: 'Analytics', path: '/analytics', icon: '📈', roles: ['ga', 'finance', 'admin'] },
     ],
   },

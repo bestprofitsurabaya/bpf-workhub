@@ -7,6 +7,25 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.71.0 — 26 Oktober 2026 (wave-20: Rekap Pengeluaran lintas modul)
+
+- 📊 **Halaman Rekap Pengeluaran** (`/app/expenses`, Finance/Admin) — gabungan
+  biaya TERUKUR per bulan/cabang: **Pembelian Barang** (Σ qty diterima × harga
+  item PO) dan **Kasbon BBM** (Σ total_amount kasbon yang sudah COMPLETED,
+  bulan mengikuti penyerahan dana). Tanpa DDL baru — murni agregasi atas tabel
+  yang sudah dijamin schema ensure modul lain (PO + kasbon), di seluruh DB
+  cabang aktif; kegagalan koneksi satu cabang dilaporkan per-cabang tanpa
+  merusak cabang lain (kartu peringatan di halaman).
+- 🧮 Sumber yang sengaja DI LUAR cakupan (didokumentasikan eksplisit): air
+  minum (water_purchases tidak menyimpan harga) dan overtime (tanpa nominal)
+  — akan diikuti begitu kolom nominal tersedia; tidak ada angka yang dikarang.
+- 🔎 Detail tampilan: kartu total kategori + grand total, tabel
+  12 bulan dengan baris total tahun, ringkasan per cabang saat scope Semua
+  Cabang, filter tahun & cabang (admin default Semua, finance default
+  cabangnya).
+- ✅ pytest test_expenses (vektor 12 bulan, role gate, bentuk response,
+  gabungan lintas cabang) + vitest ExpensesView; smoke E2E di container.
+
 ## v2.70.0 — 25 Oktober 2026 (modul Pengadaan: supplier + Purchase Order + penerimaan bertahap)
 
 - 🛒 **Modul Pengadaan (fondasi ERP)** — dokumen pembelian kini terkontrol di
