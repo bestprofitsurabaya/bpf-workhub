@@ -8,6 +8,17 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 ---
 
+## 🔁 Handoff sesi berikutnya (26 Okt 2026 — baca ini dulu!)
+
+- **Kondisi live:** v2.71.0 LIVE & tervalidasi penuh di NAS (commit `735a4a1` + `d478fd8`, sudah push GitHub).
+  Cek menyeluruh terakhir: pytest **970 passed/0 gagal**, vitest **251 passed**, smoke Pengadaan **24/24** + Rekap Pengeluaran **13/13**, stamp 7 titik ✅, skema 12/12 DB, container healthy.
+- **Cek sehat berulang:** `cd ~/bpf-workhub && bash scripts/overall_check.sh` (±6 mnt, verdict satu baris) — jangan panik bila lambat: pytest penuh hampir 5 menit.
+- **Riwayat dua wave terakhir:** Wave-19 Pengadaan (supplier + PO + penerimaan bertahap, smoke 24/24) & Wave-20 Rekap Pengeluaran (agregasi PO diterima + kasbon BBM, angka = SQL manual). Konvensi: pola modul air minum, step-up PIN untuk aksi berisiko, smoke via test_client (`scripts/smoke_*.py`).
+- **Langkah ERP tersisa:** 1) integrasi barang PO diterima → `vehicle_components`/aset (hati-hati anti-ganda!), 2) badge antrean PO di sidebar, 3) kolom nominal air minum & overtime agar ikut Rekap Pengeluaran, 4) export PDF/Excel rekap.
+- **⚠️ INFRA — jangan lupa:** record DuckDNS saat ini menunjuk IP privat `192.168.2.31` → akses dari LUAR kantor ke aplikasi/SSH bermasalah sampai record diperbarui ke IP publik + port-forward 2211. Sementara: dalam jaringan pakai `ssh -p 22 it-ef@192.168.2.31`. Kredensial & catatan lengkap: `/root/.nas_credentials` (mesin agent).
+
+---
+
 ## 📌 Status Terakhir
 
 | Aspek | Status |
