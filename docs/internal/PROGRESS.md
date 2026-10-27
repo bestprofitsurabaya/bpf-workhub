@@ -2,13 +2,26 @@
 
 File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks saat sesi baru dimulai.
 
-**Terakhir diperbarui:** 2026-10-26  
+**Terakhir diperbarui:** 2026-10-27  
 **Branch:** `main`  
-**Versi terbaru:** v2.73.0 (26 Okt — Assignment Konfirmasi & Swap: hidupkan fitur terbenam + cleanup legacy) · v2.72.0 (26 Okt — restorasi fitur rekap BBM yang tenggelam + STATUS/penolakan & filter tipe) · v2.71.0 (26 Okt — wave-20 Pengeluaran Rekap lintas modul) · v2.70.0 (25 Okt — wave-19 modul Pengadaan/ERP) · v2.69.0 (23 Okt — agen Subsidi Tepat login OTP dari dashboard Finance)
+**Versi terbaru:** v2.74.0 (27 Okt — Pentest Hardening: endpoint penugasan/master ditutup, PIN di-hash PBKDF2 + lazy-upgrade, anti-SSRF PDF, CSRF compare_digest + HSTS) · v2.73.0 (26 Okt — Assignment Konfirmasi & Swap: hidupkan fitur terbenam + cleanup legacy) · v2.72.0 (26 Okt — restorasi fitur rekap BBM yang tenggelam + STATUS/penolakan & filter tipe) · v2.71.0 (26 Okt — wave-20 Pengeluaran Rekap lintas modul) · v2.70.0 (25 Okt — wave-19 modul Pengadaan/ERP) · v2.69.0 (23 Okt — agen Subsidi Tepat login OTP dari dashboard Finance)
 
 ---
 
-## 🔁 Handoff sesi berikutnya (26 Okt 2026 — baca ini dulu!)
+## 🔁 Handoff sesi berikutnya (27 Okt 2026 — baca ini dulu!)
+
+- **Kondisi live:** v2.74.0 (pentest hardening) — LIHAT status deploy di bawah; v2.73.0 LIVE terdokumentasi penuh.
+- **Wave terbaru (v2.74.0 — PENTEST HARDENING):** penetration test sistem sendiri (probe live + scan statis) menemukan & memperbaiki:
+  - Endpoint **penugasan & master data yang terbuka tanpa login** (`/api/assignments/*` 5 rute, `/api/vehicles`, `/api/bbm_types`, `/api/vehicles/with-nopol`, `/api/vehicle-allowed-bbm`) → `@role_required`; driver kini hanya melihat *pending miliknya* (filter `driver_name` dari sesi).
+  - **PIN plaintext → hash PBKDF2** (`modules/pin_security.py`): semua titik tulis PIN di-hash; login & step-up verifikasi Python + lazy-upgrade akun lama (tanpa reset massal). ⚠️ Test lain yang bikin fake user tanpa kolom `pin` / menagih pin plaintext harus tetap kompatibel (test yang disentuh: test_stepup, test_users_sync, test_db_resilience, test_branches, test_bulk_accounts_manual_route).
+  - **Anti-SSRF** `pdf_generator._load_photo_image`: URL wajib me-resolve IP global (`_url_target_is_public`), `allow_redirects=False`, file lokal kini WAJIB di bawah `uploads/` (realpath guard). Foto di DB adalah URL Google Drive (publik) → tidak mematahkan alur.
+  - CSRF `hmac.compare_digest` + HSTS via `X-Forwarded-Proto` di `app.py`.
+  - Laporan & checklist: `docs/internal/AUDIT_PENTEST_20261026.md` (temuan, severity, yang diterima sebagai risiko, verifikasi live pasca-deploy dengan curl).
+- **⚠️ Infra note:** SSH sering tersendat menit-menitan (docker exec kadang telat menjawab; `import app` di dalam pytest kadang menunggu DB jauh lebih lama) — solusi: jalankan bertahap dengan `timeout`, jangan panik; kebanyakan lulus di percobaan berikutnya. Jangan menulis test unit yang men-trigger `import app` penuh — verifikasi header via live probe.
+
+---
+
+## 🔁 Handoff 26 Okt 2026 (v2.73.0)
 
 - **Kondisi live:** v2.73.0 LIVE & tervalidasi di NAS — container rebuild sehat, pytest penuh lulus, vitest penuh OK, stamp 7 titik + DB cabang, `/api/health` 200, overall_check verdict SEHAT. Catatan infrastruktur: NAS sempat unreachable (sshd mati ±1 jam, web+db ikut restart — kemungkinan host reboot); jalur LAN `192.168.2.31:22` masih **refused** dan jalur publik kini hidup via **`182.253.62.46:2211`** (jalur LAN poling 2 jam tetap down); record DuckDNS bergejolak antara IP publik ↔ IP LAN (memo di `/root/.nas_credentials`).
 - **Wave terbaru (v2.73.0 — Assignment Konfirmasi & Swap):** semua temuan #1–#5 + legacy dari audit fitur terbenam **beres**:

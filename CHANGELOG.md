@@ -7,6 +7,55 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.74.0 — 27 Oktober 2026 (Pentest Hardening — temuan penetration test diperbaiki semua)
+
+Hasil penetration test sistem sendiri (2026-10-26/27; laporan lengkap
+`docs/internal/AUDIT_PENTEST_20261026.md`):
+
+- 🔒 **Endpoint penugasan tidak lagi publik [HIGH]** — selama ini
+  `/api/assignments/{active,pending,history,unassigned,swap-history}` bisa
+  dibaca TANPA login (nama driver, nopol, catatan, riwayat tukar bocor).
+  Kini wajib sesi: back-office (ga/finance/admin) melihat semua, role driver
+  hanya melihat **assignment pending miliknya sendiri** (identitas dari
+  sesi via `resolve_driver_scope` — tidak bisa dimanipulasi via query).
+- 🔒 **Master data tidak lagi publik [MED]** — `/api/vehicles`,
+  `/api/bbm_types`, `/api/vehicles/with-nopol` wajib ga/finance/admin;
+  `/api/vehicle-allowed-bbm` dibuka untuk driver + back-office (dipakai
+  form BBM driver); `/api/get-feedback` kini melayani driver juga
+  (mobile legacy tetap hidup karena login-nya tetap via `/api/auth/login`).
+- 🔒 **PIN tidak lagi plaintext [HIGH]** — kolom `users.pin` selama ini
+  menyimpan PIN 6-digit polos (TODO lama). Kini semua penulisan PIN
+  (reset-pin, bulk-create, reset PIN massal driver, users/sync)
+  menyimpan **hash PBKDF2** (`modules/pin_security.py`); login & step-up
+  memverifikasi hash di Python (konstan-waktu) dengan **lazy-upgrade**:
+  akun lama PIN plaintext otomatis di-hash saat login/step-up pertama
+  kali sukses — tanpa reset massal, tanpa mematahkan siapa pun.
+- 🔒 **Anti-SSRF di generator PDF [HIGH]** — `_load_photo_image` dulu
+  mem-fetch URL foto apa pun server-side dari data sheet-migrasi (bisa
+  dipakai menodong endpoint internal/metadata). Kini: host yang
+  me-resolve ke IP privat/loopback/link-local ditolak (semua hasil
+  resolve wajib global), redirect dimatikan, dan file lokal hanya
+  diterima dari dalam folder `uploads/` (traversal/jalur arbitrer ditolak).
+- 🔒 **CSRF token dibandingkan konstan-waktu** (`hmac.compare_digest`) dan
+  **HSTS** ikut terkirim saat HTTPS termasuk lewat reverse proxy
+  (`X-Forwarded-Proto`) — menambah lapisan di atas CSP/X-Frame yang
+  sudah ada.
+- ✅ Yang sudah baik sejak awal (tetap, hanya didokumentasikan): CSP ketat,
+  cookie `HTTPOnly`+`Secure`+`SameSite`, rate-limit login & step-up,
+  webhook secret `compare_digest`, guard traversal `/uploads`, seed-demo/
+  activate `ho_only`, subsidy token guard, whitelist CSRF kecil.
+- 🧪 **29 test baru** (`tests/test_pentest_hardening_v274.py`): unaut 401
+  di 10 endpoint, driver hanya pending sendiri (SQL ter-filter), PIN
+  roundtrip/lazy-upgrade/reset/bulk hash, anti-SSRF (DNS privat/publik/
+  gagal-resolve aman + jalur lokal di luar `uploads/` ditolak), test
+  terdampak v247/v273/users-sync/db-resilience/branches/bulk diperbarui.
+- 🔎 Yang dipilih TIDAK diubah: `/api/health` (payload per-cabang sudah
+  terkunci admin), daftar pengecualian CSRF (hanya GET & `/socket.io`),
+  IP-driver session-binding (kebijakan jaringan mobile — dicatat sebagai
+  risiko diterima).
+
+---
+
 ## v2.73.0 — 26 Oktober 2026 (Assignment Konfirmasi & Swap — hidupkan fitur terbenam)
 
 - 🔄 **Tukar Driver di UI** — tombol "Tukar Driver" di halaman Penugasan

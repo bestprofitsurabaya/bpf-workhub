@@ -11,7 +11,7 @@ from modules.company_identity import get_company_identity, IDENTITY_DEFAULTS  # 
 # ============================================================
 COMPANY_NAME = 'PT BESTPROFIT FUTURES'
 COMPANY_SUBTITLE = 'Kantor Pusat | Jakarta'
-SYSTEM_VERSION = 'BPF WorkHub v2.73.0'
+SYSTEM_VERSION = 'BPF WorkHub v2.74.0'
 LOGO_FILENAMES = ['icon-512.png', 'icon-192.png']
 PHOTO_FIELDS = [
     ('foto_odo_sebelum', 'ODO Sebelum'),
@@ -1794,6 +1794,32 @@ def _generate_overtime_detail_csv(rows, driver_name='', driver_role='DRIVER', da
     return buf
 
 
+def _url_target_is_public(url):
+    """True bila host URL me-resolve ke IP publik (anti-SSRF, v2.74.0).
+
+    Semua hasil resolve WAJIB global — satu saja IP private/loopback/link-local
+    (mis. 10.x, 192.168.x, 169.254.x, 127.x) → tolak. Gagal resolve/parse
+    dianggap tidak aman (False).
+    """
+    import socket
+    import ipaddress
+    from urllib.parse import urlsplit
+    try:
+        host = urlsplit(url).hostname
+        if not host:
+            return False
+        info = socket.getaddrinfo(host, None)
+        if not info:
+            return False
+        for item in info:
+            ip = ipaddress.ip_address(item[4][0])
+            if not ip.is_global:
+                return False
+        return True
+    except Exception:
+        return False
+
+
 class OvertimeFormPDF(BPFBasePDF):
     """Formulir Permohonan Overtime — dicetak oleh GA HR.
 
@@ -2084,15 +2110,30 @@ class OvertimeFormPDF(BPFBasePDF):
         try:
             data = None
             if ref.startswith('/') and not ref.startswith('//'):
+                # v2.74.0 (pentest hardening): hanya file di bawah folder
+                # uploads/ yang boleh dibaca dari disk — jalur arbitrer
+                # (mis. /etc/passwd, konfigurasi, traversal `../`) ditolak.
                 base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-                path = os.path.join(base, ref.lstrip('/'))
+                uploads_root = os.path.realpath(os.path.join(base, 'uploads'))
+                path = os.path.realpath(os.path.join(base, ref.lstrip('/')))
+                if not path.startswith(uploads_root + os.sep):
+                    return None
                 if not os.path.exists(path):
                     return None
                 with open(path, 'rb') as f:
                     data = f.read()
             elif ref.startswith('http://') or ref.startswith('https://'):
                 import requests as _requests
-                resp = _requests.get(ref, timeout=15, headers={'User-Agent': 'Mozilla/5.0'})
+                # v2.74.0 (pentest hardening anti-SSRF): URL foto bisa berasal
+                # dari data yang diketik orang (sheet/migrasi) — server tidak
+                # boleh menjadi proksi ke jaringan internal. Host yang me-resolve
+                # ke IP private/loopback/link-local ditolak, redirect dimatikan
+                # supaya host publik tidak dimanfaatkan untuk banting halaman
+                # internal (mis. metadata cloud / endpoint tanpa auth).
+                if not _url_target_is_public(ref):
+                    return None
+                resp = _requests.get(ref, timeout=15, headers={'User-Agent': 'Mozilla/5.0'},
+                                     allow_redirects=False)
                 if resp.status_code != 200:
                     return None
                 ctype = (resp.headers.get('Content-Type') or '').lower()

@@ -1,4 +1,4 @@
-# 📖 Panduan Pengguna BPF WorkHub v2.73.0
+# 📖 Panduan Pengguna BPF WorkHub v2.74.0
 
 > **Siapa pun kamu — sopir, OB, admin, atau pimpinan — panduan ini ditulis untuk kamu.**
 > Tidak perlu paham teknis. Cukup ikuti langkah-langkah sesuai bagianmu.
@@ -726,6 +726,10 @@ Halaman ini kini punya **peta seksi** di atas (sticky) — klik untuk lompat:
 🎨 Identitas · 🧪 Lainnya.
 
 - **Manajemen Driver** — tambah/hapus data driver.
+- **🔐 PIN tersimpan aman (sejak v2.74.0)** — PIN di database kini disimpan
+  sebagai hash PBKDF2 (bukan teks polos). Akun lama otomatis dimigrasi saat
+  login pertama kali berikutnya — PIN yang dipakai tidak berubah, cukup
+  login seperti biasa.
 - **Manajemen Armada** — tambah kendaraan (nopol, jenis, dll).
 - **Nama untuk Tanda Terima Air Minum** — set **nama Finance** (yang menyerahkan) & **nama GA** (yang menerima). Nama ini otomatis tercetak di PDF tanda terima air minum.
 - **✏️ Edit & Hapus Transaksi Air Minum (sejak v2.37.0)** — toggle per cabang.

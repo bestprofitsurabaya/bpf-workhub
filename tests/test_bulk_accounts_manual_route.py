@@ -162,7 +162,9 @@ class TestBulkCreateAccounts:
         inserts = [(sql, params) for sql, params in _all_log(conn) if 'INSERT INTO users' in sql]
         assert len(inserts) == 3
         pins = [params[3] for _, params in inserts]
-        assert pins == ['123456'] * 3
+        # v2.74.0: PIN tersimpan sebagai hash PBKDF2 (semua hash dari PIN sama).
+        from modules.pin_security import verify_pin
+        assert all(verify_pin(p, '123456') for p in pins), 'PIN hash semua akun harus memverifikasi PIN asal'
         roles = [params[2] for _, params in inserts]
         assert sorted(roles) == ['driver', 'driver', 'marketing']
         # full_name memakai title-case

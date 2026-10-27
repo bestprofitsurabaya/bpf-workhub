@@ -142,7 +142,9 @@ class TestUsersSync:
         })
         assert r.status_code == 200, r.get_json()
         updates = [(sql, params) for sql, params in _all_log(conn) if sql.lstrip().upper().startswith('UPDATE')]
-        assert updates[0][1][3] == '777333'
+        from modules.pin_security import verify_pin
+        # v2.74.0: PIN legacy lama ikut ditulis ulang sebagai hash — nilai sama.
+        assert verify_pin(updates[0][1][3], '777333')
 
     def test_toggle_tanpa_branch_dan_pin_mempertahankan_keduanya(self, monkeypatch):
         """Toggle nonaktif (tanpa id/branch/pin) → INSERT upsert memakai
@@ -161,7 +163,9 @@ class TestUsersSync:
         assert 'branch_code' in sql
         # (username, full_name, role, pin, team, branch_code, manager,
         #  is_active) — v2.36.0 menambahkan manager_username.
-        assert params[3] == '555111'   # PIN dipertahankan
+        from modules.pin_security import verify_pin
+        # v2.74.0: PIN dipertahankan (legacy plaintext lama ikut di-hash).
+        assert verify_pin(params[3], '555111')   # PIN dipertahankan
         assert params[4] == 'Tim A'    # team dipertahankan
         assert params[5] == 'MDN'      # branch_code dipertahankan
         assert params[6] is None       # atasan tidak dikirim → tetap NULL

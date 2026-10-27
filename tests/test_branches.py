@@ -108,11 +108,11 @@ def _db():
     return {
         'users': {
             'admin': {'username': 'admin', 'full_name': 'Administrator', 'role': 'admin',
-                      'branch_code': 'SBY', 'is_active': 1},
+                      'branch_code': 'SBY', 'is_active': 1, 'pin': '123456'},
             'wicak': {'username': 'wicak', 'full_name': 'Wicak', 'role': 'driver',
-                      'branch_code': 'SBY', 'is_active': 1},
+                      'branch_code': 'SBY', 'is_active': 1, 'pin': '123456'},
             'eko': {'username': 'eko', 'full_name': 'Eko', 'role': 'driver',
-                    'branch_code': 'MLG', 'is_active': 1},
+                    'branch_code': 'MLG', 'is_active': 1, 'pin': '123456'},
         },
         'branches': {
             'SBY': {'code': 'SBY', 'name': 'Cabang Surabaya', 'db_name': 'bpf_asset_system',
@@ -289,7 +289,7 @@ class TestLoginBranchScope:
     def test_login_tanpa_branch_kode_pakai_default(self, monkeypatch):
         db = _db()
         db['users']['wicak'] = {'username': 'wicak', 'full_name': 'Wicak', 'role': 'driver',
-                                'branch_code': None, 'is_active': 1}
+                                'branch_code': None, 'is_active': 1, 'pin': '123456'}
         client = self._register(monkeypatch, db)
         r = client.post('/api/auth/login', json={'username': 'wicak', 'pin': '123456'})
         assert r.status_code == 200

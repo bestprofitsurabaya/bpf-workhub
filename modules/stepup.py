@@ -29,6 +29,7 @@ from flask import jsonify, request, session
 from modules.config import get_master_connection
 from modules.helpers import (client_ip, log_activity_async, pin_fail,
                              pin_rate_check, pin_success)
+from modules.pin_security import verify_pin, is_pin_hash, hash_pin  # v2.74.0 pentest hardening
 
 # Masa berlaku grant step-up (detik). Minimum 60 detik — nilai di bawah itu
 # tidak masuk akal untuk kerja nyata dan hanya menambah gesekan.
@@ -108,10 +109,21 @@ def register_stepup_routes(app):
             return jsonify({'status': 'error', 'msg': 'Database tidak tersedia'}), 500
         try:
             cursor = conn.cursor(dictionary=True)
-            # PIN dibandingkan untuk username SESI — bukan sembarang username.
-            cursor.execute("SELECT id FROM users WHERE username=%s AND pin=%s AND is_active=TRUE",
-                           (username, pin))
+            # v2.74.0 (pentest hardening): PIN diverifikasi di Python (hash
+            # PBKDF2 baru / plaintext legacy + lazy-upgrade) — bukan lagi
+            # dibandingkan langsung di SQL. Username tetap milik SESI.
+            cursor.execute("SELECT id, pin FROM users WHERE username=%s AND is_active=TRUE",
+                           (username,))
             user = cursor.fetchone()
+            if user and not verify_pin(user.get('pin'), pin):
+                user = None
+            if user and not is_pin_hash(user.get('pin')):
+                try:
+                    cursor.execute("UPDATE users SET pin=%s WHERE id=%s",
+                                   (hash_pin(pin), user['id']))
+                    conn.commit()
+                except Exception as _e:
+                    print(f'[stepup] lazy pin rehash gagal: {username}: {_e}')
             cursor.close()
             conn.close()
         except Exception as e:

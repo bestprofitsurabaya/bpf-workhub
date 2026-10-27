@@ -327,7 +327,7 @@ def register_transaction_api(app):
             return jsonify({"error": 'Terjadi kesalahan server'}), 500
 
     @app.route('/api/get-feedback/<nopol>')
-    @role_required(['ga', 'finance', 'admin'])
+    @role_required(['driver', 'ga', 'finance', 'admin'])
     def get_vehicle_feedback(nopol):
         try:
             conn = get_db_connection(); cursor = conn.cursor(dictionary=True)

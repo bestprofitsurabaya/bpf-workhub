@@ -82,6 +82,10 @@ class TestSwapHistory:
         app.secret_key = 'test'
         raa.register_assignment_api(app)
         c = app.test_client()
+        # v2.74.0 (pentest hardening): riwayat swap wajib sesi back-office.
+        with c.session_transaction() as s:
+            s['user_role'] = 'ga'
+            s['user_name'] = 'ga_sby'
         rows = [{'id': 1, 'nopol': 'L 1 AB', 'old_driver': 'BUDI',
                  'new_driver': 'RIVAN', 'category': 'driver_request',
                  'reason': 'cuti panjang', 'ga_name': 'GA Officer',

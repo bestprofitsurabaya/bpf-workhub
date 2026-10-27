@@ -41,6 +41,7 @@ import warnings
 import secrets
 import json
 import time
+import hmac
 warnings.filterwarnings('ignore')
 
 # Init Flask
@@ -465,7 +466,9 @@ def csrf_protect():
         if request.path.startswith(p):
             return None
     token = request.headers.get('X-CSRF-Token') or request.form.get('csrf_token')
-    if not token or not session.get('csrf_token') or token != session.get('csrf_token'):
+    session_token = session.get('csrf_token')
+    # v2.74.0 (pentest hardening): perbandingan konstan-waktu (anti timing attack)
+    if not token or not session_token or not hmac.compare_digest(str(token), str(session_token)):
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.path.startswith('/api/'):
             return jsonify({'status': 'error', 'msg': 'CSRF token tidak valid. Muat ulang halaman dan coba lagi.'}), 400
         flash('Sesi tidak valid. Silakan muat ulang halaman dan coba lagi.', 'error')
@@ -510,8 +513,10 @@ def add_security_headers(response):
     response.headers.setdefault('Permissions-Policy',
                                 'camera=(self), geolocation=(self), microphone=(), '
                                 'payment=(), usb=(), display-capture=()')
-    # HSTS: paksa HTTPS di browser (hanya aktif saat HTTPS)
-    if request.is_secure:
+    # HSTS: paksa HTTPS di browser (aktif saat HTTPS — langsung maupun via
+    # proxy reverse yang meneruskan X-Forwarded-Proto, v2.74.0).
+    forwarded_proto = (request.headers.get('X-Forwarded-Proto') or '').lower()
+    if request.is_secure or forwarded_proto == 'https':
         response.headers.setdefault('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
 
     if response.headers.get('Content-Type', '').startswith('text/html'):

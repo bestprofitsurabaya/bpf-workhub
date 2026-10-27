@@ -13,6 +13,7 @@ from modules.helpers import role_required, log_activity_async, home_for_role, lo
 from modules.config import get_db_connection, get_master_connection
 from modules.stepup import stepup_required
 from modules.approvals import gate_approval  # v2.36.0
+from modules.pin_security import verify_pin, is_pin_hash, hash_pin  # v2.74.0 pentest hardening
 
 SPA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'static', 'app')
 # v2.48.0: PWA mobile (Driver/OB/Security) — folder terpisah agar tidak ikut bundle SPA
@@ -108,8 +109,22 @@ def register_spa_routes(app):
             return jsonify({'status': 'error', 'msg': 'Database tidak tersedia'}), 500
         try:
             cursor = conn.cursor(dictionary=True)
-            cursor.execute("SELECT * FROM users WHERE username=%s AND pin=%s AND is_active=TRUE", (username, pin))
+            # v2.74.0 (pentest hardening): PIN tidak lagi dibandingkan di SQL
+            # (plaintext legacy bocor via dump/backup/log). Akun diambil by
+            # username, PIN diverifikasi di Python — hash PBKDF2 baru atau
+            # plaintext lama — dan PIN plaintext yang cocok langsung
+            # lazy-upgrade ke hash saat login sukses (migrasi tanpa reset).
+            cursor.execute("SELECT * FROM users WHERE username=%s AND is_active=TRUE", (username,))
             user = cursor.fetchone()
+            if user and not verify_pin(user.get('pin'), pin):
+                user = None
+            if user and not is_pin_hash(user.get('pin')):
+                try:
+                    cursor.execute("UPDATE users SET pin=%s WHERE id=%s",
+                                   (hash_pin(pin), user['id']))
+                    conn.commit()
+                except Exception as _e:
+                    print(f'[auth] lazy pin rehash gagal: {username}: {_e}')
             if user:
                 # v2.47: catat login terakhir untuk audit (kolom lama kosong —
                 # tidak pernah diisi kode). Gagal audit tidak memblokir login.

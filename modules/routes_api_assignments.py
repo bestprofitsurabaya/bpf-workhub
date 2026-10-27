@@ -1,5 +1,5 @@
 """API Routes - Vehicle Assignments"""
-from flask import request, jsonify
+from flask import request, jsonify, session
 from modules.config import get_db_connection
 from modules.helpers import log_activity_async, role_required, resolve_driver_scope
 from modules.notifications import push_driver_notification
@@ -57,6 +57,7 @@ def ensure_assignment_tables(conn=None):
 def register_assignment_api(app):
 
     @app.route('/api/assignments/active')
+    @role_required(['ga', 'finance', 'admin'])
     def api_active_assignments():
         try:
             conn = get_db_connection()
@@ -69,6 +70,7 @@ def register_assignment_api(app):
             return jsonify({'error': str(e)}), 500
 
     @app.route('/api/assignments/history')
+    @role_required(['ga', 'finance', 'admin'])
     def api_assignment_history():
         try:
             conn = get_db_connection()
@@ -81,18 +83,34 @@ def register_assignment_api(app):
             return jsonify({'error': str(e)}), 500
 
     @app.route('/api/assignments/pending')
+    @role_required(['driver', 'ga', 'finance', 'admin'])
     def api_pending_assignments():
+        """Daftar assignment menunggu konfirmasi driver (v2.74.0 hardening).
+
+        Dulu endpoint ini TANPA autentikasi — daftar penugasan (nama driver,
+        nopol, catatan) bocor ke siapa pun. Kini wajib sesi; role driver hanya
+        melihat baris miliknya sendiri (identitas dari sesi via
+        `resolve_driver_scope`, bukan dari query string).
+        """
         try:
             conn = get_db_connection()
             if not conn: return jsonify({'error': 'DB error'}), 500
             cursor = conn.cursor(dictionary=True)
-            cursor.execute("SELECT * FROM vehicle_assignments WHERE is_current = 1 AND confirmed_by_driver = 0 ORDER BY assigned_date DESC")
+            if session.get('user_role') == 'driver':
+                me = resolve_driver_scope('')
+                if not me:
+                    cursor.close(); conn.close()
+                    return jsonify({'error': 'Login driver diperlukan'}), 401
+                cursor.execute("SELECT * FROM vehicle_assignments WHERE is_current = 1 AND confirmed_by_driver = 0 AND driver_name = %s ORDER BY assigned_date DESC", (me,))
+            else:
+                cursor.execute("SELECT * FROM vehicle_assignments WHERE is_current = 1 AND confirmed_by_driver = 0 ORDER BY assigned_date DESC")
             pending = cursor.fetchall(); cursor.close(); conn.close()
             return jsonify(pending)
         except Exception as e:
             return jsonify({'error': str(e)}), 500
 
     @app.route('/api/assignments/unassigned')
+    @role_required(['ga', 'finance', 'admin'])
     def api_unassigned_vehicles():
         try:
             conn = get_db_connection()
@@ -105,6 +123,7 @@ def register_assignment_api(app):
             return jsonify({'error': str(e)}), 500
 
     @app.route('/api/assignments/swap-history')
+    @role_required(['ga', 'finance', 'admin'])
     def api_swap_history():
         try:
             conn = get_db_connection()

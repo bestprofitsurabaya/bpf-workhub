@@ -3,6 +3,7 @@ from flask import request, jsonify, session
 from mysql.connector import IntegrityError
 from modules.config import get_db_connection, get_master_connection
 from modules.helpers import finalize_pin, log_activity_async, resolve_user_pin, role_required
+from modules.pin_security import stored_pin  # v2.74.0 pentest hardening
 from modules.admin_scope import is_ho_admin  # v2.37.0: admin per-cabang
 
 # ================================================================
@@ -65,6 +66,7 @@ def _username_exists(conn, username, role):
 def register_master_api(app):
 
     @app.route('/api/vehicles')
+    @role_required(['ga', 'finance', 'admin'])
     def api_vehicles():
         try:
             conn = get_db_connection()
@@ -78,6 +80,7 @@ def register_master_api(app):
             return jsonify({'error': str(e)}), 500
 
     @app.route('/api/bbm_types')
+    @role_required(['ga', 'finance', 'admin'])
     def api_bbm_types():
         try:
             conn = get_db_connection()
@@ -176,7 +179,8 @@ def register_master_api(app):
             # Jumlah total akun driver (untuk laporan), lalu setel PIN semuanya.
             cursor.execute("SELECT COUNT(*) FROM users WHERE role='driver'")
             total = cursor.fetchone()[0]
-            cursor.execute("UPDATE users SET pin=%s WHERE role='driver'", (new_pin,))
+            # v2.74.0: PIN baru disimpan sebagai hash PBKDF2 (bukan plaintext).
+            cursor.execute("UPDATE users SET pin=%s WHERE role='driver'", (stored_pin(new_pin),))
             affected = cursor.rowcount
             conn.commit()
             cursor.close(); conn.close()
@@ -311,6 +315,9 @@ def register_master_api(app):
             # Edit user lama dipakai id (bila dikirim) supaya username juga bisa
             # diganti — username adalah kunci login, bukan primary key. Update
             # by-id ini juga menyimpan branch_code yang dipilih Admin.
+            # v2.74.0 (pentest hardening): nilai PIN apapun (baru dari Admin
+            # ataupun pin legacy yang dipertahankan) ditulis sebagai hash.
+            pin = stored_pin(pin)
             uid = data.get('id')
             if uid is not None:
                 try:
@@ -358,6 +365,9 @@ def register_master_api(app):
                 return jsonify({'status': 'error', 'msg': 'Scope tidak valid (driver/marketing/all)'}), 400
             if not new_pin.isdigit() or len(new_pin) != 6:
                 return jsonify({'status': 'error', 'msg': 'PIN harus 6 digit angka'}), 400
+            # v2.74.0 (pentest hardening): PIN disimpan sebagai hash —
+            # di-hash SEKALI di luar loop (pbkdf2 mahal, dibuat massal).
+            new_pin_hash = stored_pin(new_pin)
 
             # Data driver/marketing dibaca dari DB cabang aktif (sesi);
             # akun users ditulis ke DB master dengan branch_code cabang aktif.
@@ -398,7 +408,7 @@ def register_master_api(app):
                 mcur.execute(
                     "INSERT INTO users (username, full_name, role, pin, team_name, branch_code, is_active) "
                     "VALUES (%s, %s, %s, %s, %s, %s, 1)",
-                    (username, full_name[:100], role, new_pin, (team or '')[:100], branch_code))
+                    (username, full_name[:100], role, new_pin_hash, (team or '')[:100], branch_code))
                 created.append({'username': username, 'role': role, 'team': team or '', 'branch_code': branch_code})
 
             if scope in ('driver', 'all'):
@@ -442,7 +452,8 @@ def register_master_api(app):
             if not username or not new_pin or len(new_pin) != 6:
                 return jsonify({'status': 'error', 'msg': 'Username dan PIN 6-digit wajib'}), 400
             conn = get_master_connection(); cursor = conn.cursor()
-            cursor.execute("UPDATE users SET pin = %s WHERE username = %s", (new_pin, username))
+            # v2.74.0 (pentest hardening): PIN reset disimpan sebagai hash.
+            cursor.execute("UPDATE users SET pin = %s WHERE username = %s", (stored_pin(new_pin), username))
             affected = cursor.rowcount; conn.commit(); cursor.close(); conn.close()
             if affected > 0:
                 log_activity_async(0, 'user_reset_pin', 'admin', 'Admin', new_data={'username': username})
@@ -452,6 +463,7 @@ def register_master_api(app):
             return jsonify({'status': 'error', 'msg': str(e)}), 500
 
     @app.route('/api/vehicles/with-nopol')
+    @role_required(['ga', 'finance', 'admin'])
     def api_vehicles_with_nopol():
         try:
             conn = get_db_connection()
@@ -480,6 +492,7 @@ def register_master_api(app):
             return jsonify({'status': 'error', 'msg': str(e)}), 500
 
     @app.route('/api/vehicle-allowed-bbm/<vehicle_type>')
+    @role_required(['driver', 'ga', 'finance', 'admin'])
     def api_vehicle_allowed_bbm(vehicle_type):
         try:
             conn = get_db_connection()

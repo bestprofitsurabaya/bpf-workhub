@@ -55,9 +55,11 @@ class FakeCursor:
     def execute(self, query, params=None):
         self.calls.append((query, params))
         self._row = None
+        # v2.74.0: PIN diverifikasi di Python — fake hanya kandidat by username;
+        # route yang memverifikasi `pin` terhadap row (hash/plaintext).
         if self._user and params and params[0] == self._user['username'] \
-                and params[1] == self._user['pin'] and self._user['is_active']:
-            self._row = {'id': self._user['id']}
+                and self._user['is_active']:
+            self._row = {'id': self._user['id'], 'pin': self._user['pin']}
 
     def fetchone(self):
         return self._row
@@ -69,6 +71,11 @@ class FakeCursor:
 class FakeConn:
     def __init__(self, user):
         self.cursor_obj = FakeCursor(user)
+        self.commits = getattr(self, 'commits', 0)
+
+    def commit(self):
+        # v2.74.0: lazy-upgrade PIN plaintext → hash memanggil commit.
+        self.commits += 1
 
     def cursor(self, dictionary=True):
         return self.cursor_obj
@@ -123,10 +130,11 @@ class TestStepUpEndpoint:
         assert r.status_code == 401
         assert 'PIN salah' in r.get_json()['msg']
         assert len(fails) == 1
-        # Query memakai username SESI, bukan dari body
+        # Query memakai username SESI, bukan dari body (v2.74.0: PIN
+        # diverifikasi di Python — query hanya membawa username).
         query, params = cur.calls[-1]
-        assert params[0] == 'ga_sby'
-        assert params[1] == '999999'
+        assert params == ('ga_sby',)
+        assert 'username=%s' in query and 'is_active=TRUE' in query
 
     def test_pin_benar_menerbitkan_grant(self, app, client, monkeypatch):
         """PIN benar → 200, grant tersimpan di sesi, aksi berisiko lolos."""
@@ -160,8 +168,11 @@ class TestStepUpEndpoint:
         # Body membawa 'admin' + pin admin — tetap harus diverifikasi utk ga_sby
         r = client.post('/api/step-up', json={'username': 'admin', 'pin': '123456'})
         assert r.status_code == 200
-        query, params = cur.calls[-1]
-        assert params[0] == 'ga_sby'  # username sesi, bukan 'admin'
+        # v2.74.0: call pertama = SELECT by username sesi; call berikut
+        # (lazy rehash UPDATE users SET pin) memakai id, bukan username body.
+        query, params = cur.calls[0]
+        assert params == ('ga_sby',)  # username sesi, bukan 'admin'
+        assert 'username=%s' in query
 
     def test_user_nonaktif_ditolak(self, app, client, monkeypatch):
         """Akun nonaktif → PIN ditolak (is_active=FALSE)."""

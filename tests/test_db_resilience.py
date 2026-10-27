@@ -214,6 +214,7 @@ def test_e2e_login_tetap_berhasil_saat_pool_habis(monkeypatch):
         def cursor(self, dictionary=True):
             return _fake_user_cursor([{
                 'role': 'admin', 'username': 'admin', 'full_name': 'Admin Utama',
+                'id': 1, 'pin': '123456',
             }])
         def commit(self):
             pass  # dipakai log_activity_async (thread async)
