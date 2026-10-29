@@ -118,14 +118,14 @@ const PAGE_HELP = [
   },
   {
     paths: ['/cash'],
-    title: 'Kasbon / BBM',
-    summary: 'Kelola pengajuan kasbon, LPJ, dan klaim BBM dalam satu tempat.',
+    title: 'BBM, Kasbon & SPBU',
+    summary: 'Klaim BBM, kasbon/LPJ driver, lampiran MyPertamina, dan Data SPBU dalam satu halaman.',
     steps: [
-      'Tab Kasbon: setujui/tolak pengajuan dana sebelum dipakai.',
-      'Tab LPJ: periksa bukti pemakaian sebelum menyetujui pertanggungjawaban.',
-      'Aksi uang meminta PIN ulang (step-up) dan tercatat di Audit Log.',
+      'Klaim BBM: tinjau klaim masuk, cairkan yang sudah ACC GA, lalu unduh PDF per transaksi.',
+      'Kasbon: setujui/tolak pengajuan dana dan periksa bukti LPJ driver (termasuk kode harian).',
+      'Data SPBU: cocokkan klaim ke riwayat SPBU Subsidi Tepat dan pantau Berita Acara.',
     ],
-    terms: ['Kasbon', 'LPJ', 'Klaim BBM', 'Step-up PIN'],
+    terms: ['Kasbon', 'LPJ', 'Klaim BBM', 'Subsidi Tepat', 'Step-up PIN'],
   },
   {
     paths: ['/water'],

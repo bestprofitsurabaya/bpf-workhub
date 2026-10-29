@@ -44,7 +44,7 @@ const MENU_GROUPS = [
     items: [
       { label: 'Log Perjalanan', path: '/trips', icon: '🗺️', roles: ['ga', 'admin'] },
       { label: 'Penugasan Driver', path: '/assignments', icon: '🚗', roles: ['ga', 'admin'], badge: 'assignments_pending' },
-      { label: 'Kasbon / BBM', path: '/cash', icon: '💵', roles: ['ga', 'finance', 'admin'], badge: 'cash_pending' },
+      { label: 'BBM, Kasbon & SPBU', path: '/cash', icon: '💵', roles: ['ga', 'finance', 'admin'], badge: 'cash_pending' },
       { label: 'Air Minum', path: '/water', icon: '🚰', roles: ['ob', 'finance', 'admin'], badge: 'water_pending' },
       { label: 'Aset & Pemeliharaan', path: '/assets', icon: '🔧', roles: ['ga', 'admin'] },
       { label: 'Pengadaan (PO)', path: '/procurement', icon: '🛒', roles: ['ga', 'admin'] },

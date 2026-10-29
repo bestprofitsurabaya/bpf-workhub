@@ -7,6 +7,7 @@ import Modal from '../components/Modal.vue'
 import LoadingState from '../components/LoadingState.vue'
 import ErrorState from '../components/ErrorState.vue'
 import PageHeader from '../components/PageHeader.vue'
+import BbmKasbonPanel from '../components/BbmKasbonPanel.vue'
 import { formatDateTime } from '../utils/format.js'
 
 const stepup = useStepupStore()
@@ -200,7 +201,8 @@ onMounted(load)
 
 <template>
   <div>
-    <PageHeader icon="💵" title="Kasbon / BBM" subtitle="Alur pengajuan & pertanggungjawaban (LPJ) kasbon driver" />
+    <PageHeader icon="💵" title="BBM, Kasbon & Subsidi Tepat"
+                subtitle="Klaim BBM, kasbon/LPJ driver, dan Data SPBU — satu halaman operasional" />
     <div class="card card-pad" style="margin-bottom:16px;">
       <div class="row">
         <div class="grow">
@@ -274,6 +276,9 @@ onMounted(load)
         </div>
       </div>
     </template>
+
+    <!-- Operasional BBM: klaim masuk/siap dicairkan/riwayat + Data SPBU (Subsidi Tepat) -->
+    <BbmKasbonPanel />
 
     <!-- Cash Detail Modal -->
     <Modal v-if="detailItem" :title="'📋 Detail ' + detailItem.display_id" @close="detailItem = null; detailData = null">

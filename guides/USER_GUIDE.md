@@ -269,7 +269,7 @@ Lihat [Bagian 10](#10-kasbon-alur-lengkap-dari-a-sampai-z) — peranmu ada di la
 
 - **Log Perjalanan** — meninjau laporan trip driver.
 - **Assignments** — menugaskan/menukar kendaraan antar driver (lihat 5.6a).
-- **Kasbon / BBM** — melihat semua pengajuan.
+- **BBM, Kasbon & SPBU** — melihat semua pengajuan BBM/kasbon dan Data SPBU Subsidi Tepat.
 - **Analytics** — memantau performa armada.
 
 ### 5.6a Penugasan: Serah Terima, Tukar Driver, Riwayat 🔄 (sejak v2.73.0)
@@ -368,7 +368,7 @@ kecil; jangan untuk mengubah riwayat secara luas.
 ### 6.7 Menu Lain
 
 - **Rekap** — mencetak rekap & laporan (PDF).
-- **Kasbon / BBM**, **Analytics**, **Log Perjalanan**.
+- **BBM, Kasbon & SPBU**, **Analytics**, **Log Perjalanan**.
 
 ---
 

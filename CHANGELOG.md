@@ -69,6 +69,24 @@ backend ↔ `@role_required` ↔ wiring step-up. Laporan:
   role `finance_sby` — termasuk unggah bukti → tampil di Detail → PDF
   200 `%PDF`, dan tab history tetap terbaca setelah restart.
 
+### Operasional BBM satu halaman (29 Okt)
+
+- 🧩 **BBM & Kasbon + Data SPBU—Subsidi Tepat dipindah dari Dashboard
+  Finance ke halaman Operasional** `/cash` (`BbmKasbonPanel`): klaim
+  masuk/siap dicairkan/LPJ/riwayat, lampiran MyPertamina, Data SPBU,
+  login ulang agen (OTP), dan Berita Acara kini satu tempat dengan
+  kasbon. Menu sidebar menjadi **BBM, Kasbon & SPBU**.
+- 🔢 **Kode Harian kasbon dipertahankan** di atas halaman (kode unik
+  pengajuan kasbon hari ini, editable finance saat mode manual) —
+  tidak berubah oleh penggabungan.
+- 🏠 **Dashboard Finance** sekarang ringkasan air minum + kartu
+  pintasan ke halaman operasional BBM; blok BBM dan SPBU tidak lagi
+  dirender ganda di sana.
+- 🧪 Test: 267 vitest (panel BBM `BbmKasbonPanel.test.js` 16 uji,
+  `CashView.test.js` memastikan panel + kode harian, dashboard 6 uji);
+  live `finance_sby` setelah deploy: `/app/cash` memuat panel & kode
+  harian, daily-code 200 (nilai 2000), finance/bbm + subsidy + water 200.
+
 
 ---
 

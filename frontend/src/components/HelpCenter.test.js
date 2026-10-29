@@ -8,8 +8,8 @@ describe('HelpCenter', () => {
   it('menampilkan panduan sesuai halaman aktif', () => {
     const w = mount(HelpCenter, { props: { open: true, path: '/cash' } })
     expect(w.text()).toContain('Bantuan & Glosarium')
-    expect(w.text()).toContain('Kasbon / BBM')
-    expect(w.text()).toContain('Tab Kasbon')
+    expect(w.text()).toContain('BBM, Kasbon & SPBU')
+    expect(w.text()).toContain('Klaim BBM')
     expect(w.text()).toContain('LPJ')
   })
 

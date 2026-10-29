@@ -69,7 +69,7 @@ describe('AppLayout — P1 navigasi', () => {
     const { w } = await mountLayout({ role: 'finance', userName: 'finance_sby', isHo: false, path: '/cash' })
     const nav = w.find('.side-nav').text()
     expect(nav).toContain('Dashboard Finance')
-    expect(nav).toContain('Kasbon / BBM')
+    expect(nav).toContain('BBM, Kasbon & SPBU')
     expect(nav).toContain('Air Minum')
     for (const hidden of ['Dashboard GA', 'Log Perjalanan', 'Pengadaan (PO)', 'Rekap Pengeluaran', 'Analytics', 'ACC Atasan']) {
       expect(nav).not.toContain(hidden)
@@ -111,7 +111,7 @@ describe('AppLayout — P1 navigasi', () => {
     expect(input.exists()).toBe(true)
     await input.setValue('kasbon')
     expect(w.findAll('.search-item').length).toBe(1)
-    expect(w.find('.search-item').text()).toContain('Kasbon / BBM')
+    expect(w.find('.search-item').text()).toContain('BBM, Kasbon & SPBU')
     await input.trigger('keydown', { key: 'Enter' })
     await flushPromises()
     expect(router.currentRoute.value.path).toBe('/cash')

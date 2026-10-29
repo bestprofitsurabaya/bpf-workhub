@@ -137,7 +137,7 @@ Sistem mendukung **11 peran inti** (peran `it` dipecah per cabang pada daftar di
 - 🗺️ Log Perjalanan
 - 🚗 Assignments
 - 📋 Rekap
-- 💵 Kasbon / BBM
+- 💵 BBM, Kasbon & SPBU
 - 📈 Analytics
 - 🚛 Chief Driver
 - 👥 Manajemen User
@@ -174,7 +174,7 @@ Sistem mendukung **11 peran inti** (peran `it` dipecah per cabang pada daftar di
 - 🧾 Dashboard GA
 - 🗺️ Log Perjalanan
 - 🚗 Assignments
-- 💵 Kasbon / BBM
+- 💵 BBM, Kasbon & SPBU
 - 📈 Analytics
 - 🚛 Chief Driver
 - 🔧 Aset & Pemeliharaan
@@ -218,7 +218,7 @@ Sistem mendukung **11 peran inti** (peran `it` dipecah per cabang pada daftar di
 - 💰 Dashboard Finance
 - 🗺️ Log Perjalanan
 - 📋 Rekap
-- 💵 Kasbon / BBM
+- 💵 BBM, Kasbon & SPBU
 - 📈 Analytics
 - 🚰 Air Minum
 
@@ -425,7 +425,7 @@ membuat akun.
 | Log Perjalanan | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
 | Assignments | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
 | Rekap | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| Kasbon / BBM | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| BBM, Kasbon & SPBU | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
 | Analytics | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
 | Marketing Hub | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
 | Chief Driver | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |

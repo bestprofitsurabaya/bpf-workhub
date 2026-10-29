@@ -20,6 +20,11 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 - **Catatan desain (tidak diubah):** ACC Atasan tetap disembunyikan dari
   sidebar finance (BE & router mengizinkan — URL langsung dibaca);
   `/api/branches/stats` tetap admin-only dengan fallback kosong di FE.
+- **Operasional satu halaman (29 Okt):** blok BBM & Kasbon + Data SPBU
+  Subsidi Tepat dipindah dari Dashboard Finance ke `/cash` sebagai
+  `BbmKasbonPanel` (menu **BBM, Kasbon & SPBU**); kode harian kasbon
+  tetap di halaman yang sama; dashboard finance kini ringkasan air
+  minum + kartu pintasan.
 - **Workspace Finance (29 Okt):** menu finance = BBM/kasbon + Air Minum;
   `/api/finance/bbm` (incoming/ready/history) + `POST
   /api/finance/bbm/<id>/subsidy-evidence` untuk lampiran MyPertamina
