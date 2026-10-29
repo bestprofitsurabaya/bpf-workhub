@@ -59,7 +59,7 @@ Telp: 031-5349888
 | # | Langkah | Hasil yang Diharapkan |
 |---|---------|----------------------|
 | 1 | Login `ga_sby` / PIN `123456` | Langsung masuk Dashboard GA |
-| 2 | Lihat antrean klaim | Klaim demo (BPF-DEMO-…) tampil |
+| 2 | Lihat antrean klaim | Antrean klaim BBM tampil (buat 1 klaim dari akun driver bila kosong) |
 | 3 | Klik **✅ Approve** satu klaim | Klaim pindah status (ke Finance) |
 | 4 | Klik **✕ Tolak** tanpa alasan | Tombol terkunci — alasan wajib |
 | 5 | Lihat kasbon menunggu approve | Kasbon DRAFT tampil dengan nominal |
@@ -79,7 +79,7 @@ Telp: 031-5349888
 |---|---------|----------------------|
 | 1 | Login `finance_sby` / PIN `123456` | Langsung masuk Dashboard Finance |
 | 2 | Lihat Rekap Air Minum | Kartu statistik + ringkasan per OB terisi |
-| 3 | Buka antrean verifikasi | Pengajuan pending (WTR-DEMO-01) tampil |
+| 3 | Buka antrean verifikasi | Pengajuan pending dari OB tampil (ajukan dulu lewat akun OB bila kosong) |
 | 4 | Klik **✅ Verifikasi** → isi remark | Status jadi Terverifikasi |
 | 5 | Klik 📄 PDF pada yang terverifikasi | PDF tanda terima terbuka |
 | 6 | Klik ⬇ Export CSV | File Excel terunduh |
@@ -93,7 +93,7 @@ Telp: 031-5349888
 |---|---------|----------------------|
 | 1 | Login akun Marketing (`marketing_yusie_sby`) | Masuk Marketing Hub |
 | 2 | Buat appointment baru (tanggal, sesi, jam kunjungan, alamat) | Tersimpan, muncul di papan |
-| 3 | Lihat jadwal hari ini | Appointment demo tampil |
+| 3 | Lihat jadwal hari ini | Appointment yang baru dibuat tampil |
 | 4 | (Opsional) edit/batal | Status berubah, notifikasi keluar |
 
 ---
@@ -174,12 +174,12 @@ Telp: 031-5349888
 
 ## 11. Daftar Periksa Sebelum Demo
 
-- [ ] Data demo masih ada (cek: antrean GA ada klaim, rekap finance ada air minum)
+- [ ] Data latihan siap: buat 1 klaim BBM lewat akun driver + 1 pengajuan air minum lewat akun OB (baris contoh `BPF-DEMO-*`/`WTR-DEMO-*` sudah dihapus permanen dari produksi 29 Okt 2026)
 - [ ] 2–3 tab browser siap (GA, Finance, OB) untuk demo realtime
 - [ ] Foto contoh siap di perangkat (air minum sebelum/sesudah, struk BBM)
 - [ ] Akun & PIN terverifikasi (semua role)
 - [ ] PDF slide deck & PPTX siap dibagikan (`presentasi/`)
-- [ ] Bersihkan data demo setelah selesai: `ROOT_PW=$(grep -E '^MYSQL_ROOT_PASSWORD=' .env | cut -d= -f2-); docker exec -i bpf-workhub-db mariadb -uroot -p"$ROOT_PW" bpf_asset_system < scripts/demo_cleanup.sql`
+- [ ] Hapus data latihan setelah selesai (klaim BBM & pengajuan air minum uji yang tadi dibuat) supaya rekap finance tetap bersih
 
 > 💡 Panduan lengkap & narasi demo ada di **PRESENTASI.md** — slide interaktif **presentasi/index.html**.
 
