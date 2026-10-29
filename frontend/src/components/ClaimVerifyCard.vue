@@ -112,13 +112,28 @@ onMounted(load)
         <div class="cvc-data">
           <!-- wave-18A: grid thumbnail seluruh foto bukti (5 jenis) — klik untuk lightbox -->
           <div class="cvc-photos" data-testid="cvc-photos">
-            <template v-if="data.photos?.length">
+            <template v-if="data.photos?.length || data.foto_mypertamina_admin">
               <figure v-for="(p, i) in data.photos" :key="p.url" class="cvc-photo">
-                <button type="button" class="cvc-photo-btn" :aria-label="'Perbesar foto ' + p.label"
+                <a v-if="p.url.toLowerCase().split('?')[0].endsWith('.pdf')" class="cvc-photo-btn"
+                   :href="p.url" target="_blank" rel="noopener" :aria-label="'Buka PDF ' + p.label">
+                  <span class="cvc-pdf-link">📄 Buka PDF sumber</span>
+                </a>
+                <button v-else type="button" class="cvc-photo-btn" :aria-label="'Perbesar foto ' + p.label"
                         :title="'Perbesar: ' + p.label" @click="zoomOn(p)">
                   <img :src="p.url" :alt="'Foto ' + p.label" loading="lazy" />
                 </button>
                 <figcaption>{{ p.label }}</figcaption>
+              </figure>
+              <figure v-if="data.foto_mypertamina_admin && !data.photos?.some((p) => p.url === '/uploads/' + data.foto_mypertamina_admin)"
+                      class="cvc-photo" data-testid="finance-subsidy-evidence">
+                <a class="cvc-photo-btn" :href="'/uploads/' + encodeURIComponent(data.foto_mypertamina_admin)"
+                   target="_blank" rel="noopener" :aria-label="'Buka bukti MyPertamina Finance'">
+                  <img v-if="!data.foto_mypertamina_admin.toLowerCase().endsWith('.pdf')"
+                       :src="'/uploads/' + encodeURIComponent(data.foto_mypertamina_admin)"
+                       alt="Bukti MyPertamina dari Finance" loading="lazy" />
+                  <span v-else class="cvc-pdf-link">📄 Buka PDF sumber</span>
+                </a>
+                <figcaption>MyPertamina (Finance)</figcaption>
               </figure>
             </template>
             <div v-else class="muted cvc-no-photo">Tidak ada foto bukti.</div>

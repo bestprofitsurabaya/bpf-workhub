@@ -65,6 +65,18 @@ describe('AppLayout — P1 navigasi', () => {
     w.unmount()
   })
 
+  it('menu finance hanya memuat BBM/Finance, kasbon, dan air minum', async () => {
+    const { w } = await mountLayout({ role: 'finance', userName: 'finance_sby', isHo: false, path: '/cash' })
+    const nav = w.find('.side-nav').text()
+    expect(nav).toContain('Dashboard Finance')
+    expect(nav).toContain('Kasbon / BBM')
+    expect(nav).toContain('Air Minum')
+    for (const hidden of ['Dashboard GA', 'Log Perjalanan', 'Pengadaan (PO)', 'Rekap Pengeluaran', 'Analytics', 'ACC Atasan']) {
+      expect(nav).not.toContain(hidden)
+    }
+    w.unmount()
+  })
+
   it('badge antrean tampil di menu yang relevan', async () => {
     const { w } = await mountLayout({ role: 'admin', userName: 'admin', isHo: true })
     const ga = w.findAll('.side-nav a').find((a) => a.text().includes('Dashboard GA'))

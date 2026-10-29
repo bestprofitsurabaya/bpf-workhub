@@ -1,8 +1,9 @@
 """API Routes - Transactions, Cross-Check, Analytics, Stats"""
 import json
+import os
 from flask import request, jsonify, session
 from modules.config import get_db_connection
-from modules.helpers import log_activity_async, role_required
+from modules.helpers import log_activity_async, role_required, save_file
 from modules.engine import generate_human_insight
 from modules.admin_scope import is_ho_admin
 from datetime import datetime, timedelta
@@ -24,7 +25,8 @@ def register_transaction_api(app):
             if not conn: return jsonify({'error': 'DB error'}), 500
             cursor = conn.cursor(dictionary=True)
 
-            where = ["status = 'archived'"]
+            # v2.75.0: data DEMO tidak boleh muncul di daftar/rekap Finance.
+            where = ["status = 'archived'", "(is_dummy=0 OR is_dummy IS NULL)"]
             params = []
             if not start_date:
                 where.append("created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)")
@@ -58,6 +60,100 @@ def register_transaction_api(app):
             })
         except Exception as e:
             print(f'[ERROR] api_archive_transactions: {e}')
+            return jsonify({'error': 'Terjadi kesalahan server'}), 500
+
+    # Finance workspace: incoming submissions, claims ready to pay, and
+    # persistent completed/history rows (PDFs remain available without archiving).
+    @app.route('/api/finance/bbm')
+    @role_required(['finance', 'admin'])
+    def api_finance_bbm():
+        try:
+            tab = request.args.get('tab', 'incoming')
+            page = max(1, request.args.get('page', 1, type=int))
+            limit = min(100, max(1, request.args.get('limit', 50, type=int)))
+            search = request.args.get('search', '').strip()[:100]
+            if tab == 'incoming':
+                where = ["status IN ('pending','modified')", "COALESCE(transaction_type,'CLAIM') = 'CLAIM'", '(is_dummy=0 OR is_dummy IS NULL)']
+            elif tab == 'ready':
+                where = ["status='verified_ga'", "COALESCE(transaction_type,'CLAIM') = 'CLAIM'", '(is_dummy=0 OR is_dummy IS NULL)']
+            elif tab == 'history':
+                # Payment is the durable Finance handoff; archived is retained
+                # for legacy records and does not require an extra UI action.
+                where = ["((status IN ('os_finance','archived') AND COALESCE(transaction_type,'CLAIM')='CLAIM') OR (status IN ('verified_ga','archived') AND transaction_type='CASH_LPJ'))", '(is_dummy=0 OR is_dummy IS NULL)']
+            else:
+                return jsonify({'error': 'Tab BBM tidak dikenal'}), 400
+            params = []
+            if search:
+                where.append('(display_id LIKE %s OR driver_name LIKE %s OR nopol LIKE %s)')
+                params.extend([f'%{search}%'] * 3)
+            clause = ' AND '.join(where)
+            conn = get_db_connection()
+            if not conn:
+                return jsonify({'error': 'DB error'}), 500
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute(f'SELECT COUNT(*) AS total FROM transactions WHERE {clause}', params)
+            total = int(cursor.fetchone()['total'])
+            cursor.execute(
+                f"SELECT id, display_id, COALESCE(transaction_type,'CLAIM') AS transaction_type, cash_request_id, "
+                f"driver_name, nopol, vehicle_type, bbm_type, nominal, liter, odo_km, ml_anomaly_flag, status, created_at, "
+                f"foto_mypertamina_admin, subsidy_tx_id "
+                f"FROM transactions WHERE {clause} ORDER BY created_at DESC LIMIT %s OFFSET %s",
+                params + [limit, (page - 1) * limit])
+            rows = cursor.fetchall()
+            for row in rows:
+                for key in ('nominal', 'liter', 'odo_km'):
+                    if row.get(key) is not None:
+                        row[key] = float(row[key])
+            cursor.close(); conn.close()
+            return jsonify({'data': rows, 'total': total, 'page': page, 'limit': limit,
+                            'total_pages': max(1, (total + limit - 1) // limit)})
+        except Exception as e:
+            print(f'[ERROR] api_finance_bbm: {e}')
+            return jsonify({'error': 'Terjadi kesalahan server'}), 500
+
+    # Finance can save/replace MyPertamina source evidence per transaction.
+    # This does not alter the transaction's verification/payment status.
+    @app.route('/api/finance/bbm/<int:tx_id>/subsidy-evidence', methods=['POST'])
+    @role_required(['finance', 'admin'])
+    def api_finance_bbm_subsidy_evidence(tx_id):
+        conn = None
+        saved = None
+        try:
+            uploaded = request.files.get('file')
+            if not uploaded or not uploaded.filename:
+                return jsonify({'status': 'error', 'msg': 'Pilih screenshot atau PDF MyPertamina terlebih dahulu.'}), 400
+            conn = get_db_connection()
+            if not conn:
+                return jsonify({'error': 'DB error'}), 500
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute('SELECT transaction_type, nopol FROM transactions WHERE id=%s', (tx_id,))
+            tx = cursor.fetchone()
+            if not tx:
+                cursor.close(); conn.close(); conn = None
+                return jsonify({'status': 'error', 'msg': 'Transaksi tidak ditemukan.'}), 404
+            if tx.get('transaction_type') not in (None, '', 'CLAIM', 'CASH_LPJ'):
+                cursor.close(); conn.close(); conn = None
+                return jsonify({'status': 'error', 'msg': 'Lampiran ini hanya untuk transaksi BBM.'}), 400
+            saved = save_file(uploaded, 'ADMIN_MYPTM', tx.get('nopol') or '', app.config['UPLOAD_FOLDER'])
+            if not saved:
+                cursor.close(); conn.close(); conn = None
+                return jsonify({'status': 'error', 'msg': 'Format lampiran tidak didukung. Gunakan JPG, PNG, WEBP, GIF, atau PDF.'}), 400
+            cursor.execute('UPDATE transactions SET foto_mypertamina_admin=%s, updated_at=CURRENT_TIMESTAMP WHERE id=%s', (saved, tx_id))
+            conn.commit()
+            cursor.close(); conn.close(); conn = None
+            actor = (session.get('full_name') or session.get('user_name') or 'Finance').strip()
+            log_activity_async(tx_id, 'finance_subsidy_evidence', 'finance', actor,
+                               new_data={'filename': saved}, ip=request.remote_addr)
+            return jsonify({'status': 'success', 'msg': 'Lampiran MyPertamina tersimpan pada transaksi.',
+                            'photo': {'label': 'MyPertamina (Finance)', 'url': '/uploads/' + saved}})
+        except Exception as e:
+            if conn:
+                try: conn.close()
+                except Exception: pass
+            if saved:
+                try: os.remove(os.path.join(app.config['UPLOAD_FOLDER'], saved))
+                except OSError: pass
+            print(f'[ERROR] api_finance_bbm_subsidy_evidence: {e}')
             return jsonify({'error': 'Terjadi kesalahan server'}), 500
 
     @app.route('/api/stats')
@@ -296,7 +392,7 @@ def register_transaction_api(app):
             conn = get_db_connection()
             if not conn: return jsonify({'error': 'DB error'}), 500
             cursor = conn.cursor(dictionary=True)
-            cursor.execute("""SELECT t.nopol, t.vehicle_type, COUNT(t.id) as total_tx, ROUND(AVG(NULLIF(t.km_per_liter,0)), 2) as avg_kml, MAX(t.created_at) as last_activity, SUM(t.nominal) as total_nominal, COALESCE(SUM(t.jumlah_appointment),0) as total_appt, (SELECT va.driver_name FROM vehicle_assignments va WHERE va.nopol = t.nopol AND va.is_current = 1 ORDER BY va.id DESC LIMIT 1) as current_driver FROM transactions t WHERE t.status = 'archived' GROUP BY t.nopol, t.vehicle_type ORDER BY avg_kml DESC""")
+            cursor.execute("""SELECT t.nopol, t.vehicle_type, COUNT(t.id) as total_tx, ROUND(AVG(NULLIF(t.km_per_liter,0)), 2) as avg_kml, MAX(t.created_at) as last_activity, SUM(t.nominal) as total_nominal, COALESCE(SUM(t.jumlah_appointment),0) as total_appt, (SELECT va.driver_name FROM vehicle_assignments va WHERE va.nopol = t.nopol AND va.is_current = 1 ORDER BY va.id DESC LIMIT 1) as current_driver FROM transactions t WHERE t.status = 'archived' AND (t.is_dummy=0 OR t.is_dummy IS NULL) GROUP BY t.nopol, t.vehicle_type ORDER BY avg_kml DESC""")
             units = cursor.fetchall()
             for unit in units:
                 kml = unit['avg_kml'] if unit['avg_kml'] else 10
@@ -316,7 +412,7 @@ def register_transaction_api(app):
     def get_performance(plat_nomor):
         try:
             conn = get_db_connection(); cursor = conn.cursor(dictionary=True)
-            cursor.execute("SELECT km_per_liter, jumlah_appointment FROM transactions WHERE nopol=%s AND status IN ('verified','archived','os_finance','verified_ga','rejected') AND km_per_liter>0 AND created_at>=DATE_SUB(NOW(), INTERVAL 1 MONTH)", (plat_nomor,))
+            cursor.execute("SELECT km_per_liter, jumlah_appointment FROM transactions WHERE nopol=%s AND status IN ('verified','archived','os_finance','verified_ga','rejected') AND (is_dummy=0 OR is_dummy IS NULL) AND km_per_liter>0 AND created_at>=DATE_SUB(NOW(), INTERVAL 1 MONTH)", (plat_nomor,))
             data = cursor.fetchall(); cursor.close(); conn.close()
             if not data: return jsonify({"nopol": plat_nomor, "status": "BELUM CUKUP DATA", "avg_kml": 0})
             avg_kml = sum([d['km_per_liter'] for d in data if d['km_per_liter']]) / len(data)
@@ -331,7 +427,7 @@ def register_transaction_api(app):
     def get_vehicle_feedback(nopol):
         try:
             conn = get_db_connection(); cursor = conn.cursor(dictionary=True)
-            cursor.execute("SELECT km_per_liter, jumlah_appointment FROM transactions WHERE nopol=%s AND status IN ('verified','archived','os_finance','verified_ga','rejected') AND km_per_liter>0 ORDER BY created_at DESC LIMIT 10", (nopol,))
+            cursor.execute("SELECT km_per_liter, jumlah_appointment FROM transactions WHERE nopol=%s AND status IN ('verified','archived','os_finance','verified_ga','rejected') AND (is_dummy=0 OR is_dummy IS NULL) AND km_per_liter>0 ORDER BY created_at DESC LIMIT 10", (nopol,))
             data = cursor.fetchall(); cursor.close(); conn.close()
             if not data: return jsonify({"status": "info", "msg": f"Belum ada data untuk {nopol}."})
             km_values = [d['km_per_liter'] for d in data if d['km_per_liter'] and d['km_per_liter']>0]
@@ -361,7 +457,8 @@ def register_transaction_api(app):
                 end_date = datetime.now().strftime('%Y-%m-%d')
 
             # Build WHERE clause
-            where = ["status='archived'", "DATE(created_at) >= %s", "DATE(created_at) <= %s"]
+            where = ["status='archived'", "(is_dummy=0 OR is_dummy IS NULL)",
+                     "DATE(created_at) >= %s", "DATE(created_at) <= %s"]
             params = [start_date, end_date]
             if driver:
                 where.append("driver_name = %s")
@@ -388,7 +485,7 @@ def register_transaction_api(app):
             cursor.execute(f"SELECT driver_name, COUNT(*) as c FROM transactions WHERE {wc} GROUP BY driver_name ORDER BY c DESC LIMIT 1", params)
             top_driver_row = cursor.fetchone()
             cursor.execute(f"SELECT COUNT(*) as c FROM transactions WHERE {wc}", params); total_claims = cursor.fetchone()['c']
-            cursor.execute("SELECT nopol, ROUND(AVG(NULLIF(km_per_liter,0)),2) as avg_kml FROM transactions WHERE status='archived' AND km_per_liter > 0 GROUP BY nopol ORDER BY avg_kml DESC")
+            cursor.execute("SELECT nopol, ROUND(AVG(NULLIF(km_per_liter,0)),2) as avg_kml FROM transactions WHERE status='archived' AND (is_dummy=0 OR is_dummy IS NULL) AND km_per_liter > 0 GROUP BY nopol ORDER BY avg_kml DESC")
             eff = cursor.fetchall()
             cash_total = 0; cash_amount = 0
             if not tx_type or tx_type == 'CASH_LPJ':

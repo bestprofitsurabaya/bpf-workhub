@@ -622,6 +622,8 @@ def register_spa_routes(app):
                 'price_per_liter': float(tx.get('price_per_liter') or 0),
                 'odo_km': float(tx['odo_km'] or 0), 'km_per_liter': float(tx.get('km_per_liter') or 0),
                 'spbu_type': tx.get('spbu_type'), 'status': tx['status'],
+                'transaction_type': tx.get('transaction_type') or 'CLAIM',
+                'cash_request_id': tx.get('cash_request_id'),
                 'ml_anomaly_flag': bool(tx.get('ml_anomaly_flag')),
                 'is_mypertamina_error': bool(tx.get('is_mypertamina_error')),
                 'rejection_reason': tx.get('rejection_reason'),
@@ -639,6 +641,9 @@ def register_spa_routes(app):
                 'modified_by': _mod_by,
                 'modification_note': _mod_note,
                 'photos': photos,
+                # Explicit field for viewing finance-uploaded PDF source files;
+                # raster proof remains part of photos/PDF grid.
+                'foto_mypertamina_admin': tx.get('foto_mypertamina_admin'),
             })
         except Exception as e:
             return jsonify({'error': str(e)}), 500

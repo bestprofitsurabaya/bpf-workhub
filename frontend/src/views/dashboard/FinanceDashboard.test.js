@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { mount, flushPromises } from '@vue/test-utils'
+import { mount, flushPromises, config } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import FinanceDashboard from './FinanceDashboard.vue'
 
@@ -30,8 +30,14 @@ describe('FinanceDashboard', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     setActivePinia(createPinia())
+    config.global.stubs = {
+      'router-link': { props: ['to'], template: '<a :href="to"><slot /></a>' },
+    }
   })
-  afterEach(() => vi.unstubAllGlobals())
+  afterEach(() => {
+    config.global.stubs = {}
+    vi.unstubAllGlobals()
+  })
 
   async function mountView(mountOpts = {}) {
     const pinia = createPinia()
@@ -84,7 +90,7 @@ describe('FinanceDashboard', () => {
 
   it('filter tanggal diteruskan ke /api/water/recap', async () => {
     const w = await mountView()
-    const inputs = w.findAll('input')
+    const inputs = w.findAll('input[type="date"]')
     await inputs[0].setValue('2026-08-01')
     await inputs[1].setValue('2026-08-31')
     await w.findAll('button').find((b) => b.text().includes('Terapkan')).trigger('click')
@@ -106,14 +112,30 @@ describe('FinanceDashboard', () => {
 
   const financeImpl = (path, opts = {}) => {
     if (path === '/api/water/recap') return Promise.resolve(RECAP)
+    if (path === '/api/finance/bbm') {
+      const tab = opts?.params?.tab
+      const data = tab === 'ready' ? BBM_QUEUE
+        : tab === 'history' ? [{ ...BBM_QUEUE[0], status: 'archived', foto_mypertamina_admin: 'myptm.png' }]
+          : []
+      return Promise.resolve({ data, total: data.length, total_pages: 1 })
+    }
     if (path === '/api/queue/payout/7') return Promise.resolve({ status: 'success', msg: 'Dana #7 dicairkan!' })
-    if (path === '/api/queue/archive/7') return Promise.resolve({ status: 'success', msg: 'Transaksi #7 diarsipkan!' })
     if (path.startsWith('/api/queue')) return Promise.resolve(opts?.params?.tab === 'driver_confirm' ? [] : BBM_QUEUE)
     if (path === '/api/subsidy/attest') return Promise.resolve({ attestations: ATTESTS })
     if (path === '/api/transactions/detail/7') return Promise.resolve(TX_DETAIL)
     if (path.startsWith('/api/cross-check')) return Promise.resolve(TX_CROSS)
     if (path.startsWith('/api/subsidy/match')) return Promise.resolve(SUBSIDY_MATCH)
     return Promise.resolve(RECAP)
+  }
+
+  async function openReadyClaim(w) {
+    await w.findAll('button').find((b) => b.text().includes('Siap dicairkan')).trigger('click')
+    await flushPromises()
+    const row = w.findAll('tbody tr').find((r) => r.text().includes('BBM-007'))
+    if (!row) throw new Error('ready BBM row BBM-007 was not rendered')
+    await row.findAll('button').find((b) => b.text().includes('Detail')).trigger('click')
+    await flushPromises()
+    return row
   }
 
   it('menampilkan Berita Acara Subsidi Tepat (periode, dibuat oleh, unduh PDF)', async () => {
@@ -133,9 +155,7 @@ describe('FinanceDashboard', () => {
     apiMock.mockImplementation(financeImpl)
     const w = mount(FinanceDashboard)
     await flushPromises()
-    const row = w.findAll('tbody tr').find((r) => r.text().includes('BBM-007'))
-    await row.findAll('button').find((b) => b.text().includes('Detail')).trigger('click')
-    await flushPromises()
+    await openReadyClaim(w)
 
     expect(apiMock).toHaveBeenCalledWith('/api/transactions/detail/7')
     expect(apiMock).toHaveBeenCalledWith('/api/subsidy/match/7')
@@ -276,22 +296,69 @@ describe('FinanceDashboard', () => {
     vi.useRealTimers()
   })
 
-  it('kartu atas: angka verified_ga (Siap Cair) & os_finance (Menunggu LPJ) + link antrean', async () => {
+  it('riwayat pencairan: PDF transaksi, bukti MyPertamina, dan halaman riwayat dapat dibuka', async () => {
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue(null)
     apiMock.mockImplementation(financeImpl)
     const w = mount(FinanceDashboard)
     await flushPromises()
     const card = w.find('[data-testid="bbm-quick"]')
-    expect(card.text()).toContain('Klaim BBM Menunggu Finance')
-    expect(card.text()).toContain('Siap Cair')
-    expect(card.text()).toContain('(verified_ga)')
-    expect(card.text()).toContain('Menunggu LPJ driver')
-    expect(card.text()).toContain('(os_finance)')
-    expect(card.text()).toContain('1 Verifikasi GA → 2 Pencairan → 3 LPJ/Arsip')
-    // antrean finance: 1 verified_ga, driver_confirm: 0 os_finance
-    const figs = card.find('[data-testid="bbm-quick-figures"]').text()
-    expect(figs).toContain('1')
-    expect(figs).toContain('0')
-    expect(card.text()).toContain('Buka Antrean Verifikasi')
+    await card.findAll('button').find((b) => b.text().includes('Sudah diproses')).trigger('click')
+    await flushPromises()
+    const row = card.findAll('tbody tr').find((tr) => tr.text().includes('BBM-007'))
+    expect(row).toBeTruthy()
+    expect(row.text()).toContain('Bukti MyPertamina tersimpan')
+    await row.findAll('button').find((b) => b.text().includes('📄 PDF')).trigger('click')
+    await row.findAll('button').find((b) => b.text().includes('Buka bukti')).trigger('click')
+    expect(openSpy).toHaveBeenCalledWith('/admin/report/7', '_blank')
+    expect(openSpy).toHaveBeenCalledWith('/uploads/myptm.png', '_blank', 'noopener')
+  })
+
+  it('BBM Finance menampilkan klaim masuk, siap dicairkan, serta riwayat selesai', async () => {
+    apiMock.mockImplementation(financeImpl)
+    const w = mount(FinanceDashboard)
+    await flushPromises()
+    const card = w.find('[data-testid="bbm-quick"]')
+    expect(card.text()).toContain('BBM & Kasbon')
+    expect(card.text()).toContain('Masuk')
+    expect(card.text()).toContain('Siap dicairkan')
+    expect(card.text()).toContain('Sudah diproses')
+    expect(card.text()).toContain('Kelola kasbon')
+    await card.findAll('button').find((b) => b.text().includes('Siap dicairkan')).trigger('click')
+    await flushPromises()
+    expect(card.text()).toContain('BBM-007')
+  })
+
+  it('lampiran Subsidi Tepat dapat diunggah dari Detail per transaksi', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ status: 'success', msg: 'Lampiran MyPertamina tersimpan pada transaksi.' }),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    apiMock.mockImplementation(financeImpl)
+    const w = mount(FinanceDashboard)
+    await flushPromises()
+    const card = w.find('[data-testid="bbm-quick"]')
+    await card.findAll('button').find((b) => b.text().includes('Siap dicairkan')).trigger('click')
+    await flushPromises()
+    const row = card.findAll('tbody tr').find((r) => r.text().includes('BBM-007'))
+    await row.findAll('button').find((b) => b.text().includes('Detail')).trigger('click')
+    await flushPromises()
+    await w.findAll('button').find((b) => b.text().includes('Lampirkan bukti MyPertamina')).trigger('click')
+    await flushPromises()
+    const uploadModal = w.findAll('.modal-box').find((m) => m.text().includes('Screenshot atau PDF MyPertamina'))
+    const file = new File(['evidence'], 'mypertamina.png', { type: 'image/png' })
+    Object.defineProperty(uploadModal.find('input[type="file"]').element, 'files', { value: [file] })
+    await uploadModal.find('input[type="file"]').trigger('change')
+    await uploadModal.findAll('button').find((b) => b.text().includes('Simpan lampiran')).trigger('click')
+    await flushPromises()
+    expect(fetchMock).toHaveBeenCalledOnce()
+    const [url, options] = fetchMock.mock.calls[0]
+    expect(url).toBe('/api/finance/bbm/7/subsidy-evidence')
+    expect(options.method).toBe('POST')
+    const uploadedFile = options.body.get('file')
+    expect(uploadedFile.name).toBe(file.name)
+    expect(uploadedFile.type).toBe(file.type)
+    expect(w.text()).toContain('✅ Lampiran MyPertamina tersimpan pada transaksi.')
   })
 
   it('kartu atas: angka os_finance mengikuti isi antrean driver_confirm', async () => {
@@ -311,9 +378,7 @@ describe('FinanceDashboard', () => {
     apiMock.mockImplementation(financeImpl)
     const w = mount(FinanceDashboard)
     await flushPromises()
-    const row = w.findAll('tbody tr').find((r) => r.text().includes('BBM-007'))
-    await row.findAll('button').find((b) => b.text().includes('Detail')).trigger('click')
-    await flushPromises()
+    await openReadyClaim(w)
 
     const chips = w.find('[data-testid="bbm-stage-chips"]').findAll('.stage-chip')
     expect(chips.length).toBe(3)
@@ -330,16 +395,14 @@ describe('FinanceDashboard', () => {
     const openSpy = vi.spyOn(window, 'open').mockReturnValue(null)
     await w.findAll('button').filter((b) => b.text() === '📄 PDF').pop().trigger('click')
     await flushPromises()
-    expect(openSpy).toHaveBeenCalledWith('/admin/report/7')
+    expect(openSpy).toHaveBeenCalledWith('/admin/report/7', '_blank')
   })
 
   it('💰 Disbursement — Cairkan: ask() + PIN/catatan opsional → POST /api/queue/payout + reload kartu', async () => {
     apiMock.mockImplementation(financeImpl)
     const w = mount(FinanceDashboard)
     await flushPromises()
-    const row = w.findAll('tbody tr').find((r) => r.text().includes('BBM-007'))
-    await row.findAll('button').find((b) => b.text().includes('Detail')).trigger('click')
-    await flushPromises()
+    await openReadyClaim(w)
 
     const detailCallsBefore = apiMock.mock.calls.filter(([p]) => p === '/api/transactions/detail/7').length
     await modalBtn(w, '💰 Disbursement — Cairkan').trigger('click')
@@ -363,30 +426,45 @@ describe('FinanceDashboard', () => {
     expect(w.text()).toContain('✅ Dana #7 dicairkan!')
   })
 
-  it('📦 Arsipkan (status os_finance): konfirmasi bilingual + hint LPJ → POST /api/queue/archive', async () => {
+  it('os_finance: LPJ diteruskan ke Kasbon tanpa aksi Arsipkan', async () => {
     apiMock.mockImplementation((path, opts = {}) => {
       if (path === '/api/transactions/detail/7') return Promise.resolve(TX_DETAIL_OS)
       return financeImpl(path, opts)
     })
     const w = mount(FinanceDashboard)
     await flushPromises()
-    const row = w.findAll('tbody tr').find((r) => r.text().includes('BBM-007'))
+    await openReadyClaim(w)
+
+    expect(w.text()).toContain('Dana sudah cair · lanjutkan LPJ di Kasbon / BBM')
+    expect(w.text()).not.toContain('Arsipkan')
+    expect(w.findAll('a').some((a) => a.text().includes('Buka kasbon / LPJ'))).toBe(true)
+  })
+
+  it('LPJ kasbon verified_ga tampil selesai dan tidak menawarkan pencairan kedua', async () => {
+    apiMock.mockImplementation((path, opts = {}) => {
+      if (path === '/api/finance/bbm') {
+        const data = opts?.params?.tab === 'history'
+          ? [{ ...BBM_QUEUE[0], transaction_type: 'CASH_LPJ', status: 'verified_ga', cash_request_id: 13 }]
+          : []
+        return Promise.resolve({ data, total: data.length, total_pages: 1 })
+      }
+      if (path === '/api/transactions/detail/7') {
+        return Promise.resolve({ ...TX_DETAIL, transaction_type: 'CASH_LPJ', status: 'verified_ga' })
+      }
+      return financeImpl(path, opts)
+    })
+    const w = mount(FinanceDashboard)
+    await flushPromises()
+    const card = w.find('[data-testid="bbm-quick"]')
+    await card.findAll('button').find((b) => b.text().includes('Sudah diproses')).trigger('click')
+    await flushPromises()
+    const row = card.findAll('tbody tr').find((r) => r.text().includes('BBM-007'))
+    expect(row.text()).toContain('Kasbon · LPJ')
     await row.findAll('button').find((b) => b.text().includes('Detail')).trigger('click')
     await flushPromises()
-
-    const chips = w.find('[data-testid="bbm-stage-chips"]').findAll('.stage-chip')
-    expect(chips[2].classes()).toContain('on') // 3 LPJ/Arsip ← langkah aktif
-    expect(modalBtn(w, '📦 Arsipkan')).toBeTruthy()
-    expect(modalBtn(w, '💰 Disbursement — Cairkan')).toBeFalsy()
-
-    await modalBtn(w, '📦 Arsipkan').trigger('click')
-    await flushPromises()
-    expect(w.text()).toContain('Archive this claim?') // pesan bilingual
-    expect(w.text()).toContain('Catatan LPJ harusnya LENGKAP')
-    await modalBtn(w, '📦 Arsipkan').trigger('click')
-    await flushPromises()
-    expect(apiMock).toHaveBeenCalledWith('/api/queue/archive/7', { method: 'POST' })
-    expect(w.text()).toContain('✅ Transaksi #7 diarsipkan!')
+    expect(w.text()).toContain('LPJ kasbon disetujui')
+    expect(w.text()).not.toContain('Disbursement — Cairkan')
+    expect(btnByText(w, '📄 PDF')).toBeTruthy()
   })
 
   it('status archived → chip 4️⃣ "Selesai — dokumen tersimpan", tanpa aksi payout/arsip', async () => {
@@ -396,12 +474,10 @@ describe('FinanceDashboard', () => {
     })
     const w = mount(FinanceDashboard)
     await flushPromises()
-    const row = w.findAll('tbody tr').find((r) => r.text().includes('BBM-007'))
-    await row.findAll('button').find((b) => b.text().includes('Detail')).trigger('click')
-    await flushPromises()
+    await openReadyClaim(w)
 
     expect(w.find('[data-testid="bbm-archived-chip"]').exists()).toBe(true)
-    expect(w.text()).toContain('Selesai — dokumen tersimpan')
+    expect(w.text()).toContain('Selesai — dokumen tetap tersimpan')
     expect(btnByText(w, '💰 Disbursement — Cairkan')).toBeFalsy()
     expect(btnByText(w, '📦 Arsipkan')).toBeFalsy()
   })
@@ -417,9 +493,7 @@ describe('FinanceDashboard', () => {
     })
     const w = mount(FinanceDashboard)
     await flushPromises()
-    const row = w.findAll('tbody tr').find((r) => r.text().includes('BBM-007'))
-    await row.findAll('button').find((b) => b.text().includes('Detail')).trigger('click')
-    await flushPromises()
+    await openReadyClaim(w)
     await btnByText(w, '💰 Disbursement — Cairkan').trigger('click')
     await flushPromises()
     await btnByText(w, '💰 Cairkan').trigger('click')

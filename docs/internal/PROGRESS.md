@@ -2,16 +2,32 @@
 
 File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks saat sesi baru dimulai.
 
-**Terakhir diperbarui:** 2026-10-27  
+**Terakhir diperbarui:** 2026-10-28  
 **Branch:** `main`  
-**Versi terbaru:** v2.74.0 (27 Okt — Pentest Hardening: endpoint penugasan/master ditutup, PIN di-hash PBKDF2 + lazy-upgrade, anti-SSRF PDF, CSRF compare_digest + HSTS) · v2.73.0 (26 Okt — Assignment Konfirmasi & Swap: hidupkan fitur terbenam + cleanup legacy) · v2.72.0 (26 Okt — restorasi fitur rekap BBM yang tenggelam + STATUS/penolakan & filter tipe) · v2.71.0 (26 Okt — wave-20 Pengeluaran Rekap lintas modul) · v2.70.0 (25 Okt — wave-19 modul Pengadaan/ERP) · v2.69.0 (23 Okt — agen Subsidi Tepat login OTP dari dashboard Finance)
+**Versi terbaru:** v2.75.0 (28 Okt — Audit UI role Finance: read-walk 25 endpoint selaras, guard tulis step-up teruji 428, 1 fix kecil daily-code wajib sesi) · v2.74.0 (27 Okt — Pentest Hardening: endpoint penugasan/master ditutup, PIN di-hash PBKDF2 + lazy-upgrade, anti-SSRF PDF, CSRF compare_digest + HSTS) · v2.73.0 (26 Okt — Assignment Konfirmasi & Swap: hidupkan fitur terbenam + cleanup legacy) · v2.72.0 (26 Okt — restorasi fitur rekap BBM yang tenggelam + STATUS/penolakan & filter tipe) · v2.71.0 (26 Okt — wave-20 Pengeluaran Rekap lintas modul) · v2.70.0 (25 Okt — wave-19 modul Pengadaan/ERP) · v2.69.0 (23 Okt — agen Subsidi Tepat login OTP dari dashboard Finance)
 
 ---
 
-## 🔁 Handoff sesi berikutnya (27 Okt 2026 — baca ini dulu!)
+## 🔁 Handoff sesi berikutnya (28 Okt 2026 — baca ini dulu!)
 
-- **Kondisi live:** v2.74.0 (pentest hardening) — LIHAT status deploy di bawah; v2.73.0 LIVE terdokumentasi penuh.
-- **Wave terbaru (v2.74.0 — PENTEST HARDENING):** penetration test sistem sendiri (probe live + scan statis) menemukan & memperbaiki:
+- **Kondisi live:** v2.75.0 — lihat status deploy di bawah; v2.74.0 LIVE terdokumentasi penuh.
+- **Wave terbaru (v2.75.0 — AUDIT UI FINANCE):** audit keselarasan FE↔BE
+  untuk role finance (bukan audit fitur terbenam — melainkan "pastikan
+  fungsi"): semuanya SELARAS; 1 fix kecil: `GET /api/cash/daily-code`
+  kini wajib sesi (dulu anonim bisa baca mode + tulis get-or-create).
+  Smoke baru `scripts/smoke_finance_ui.py` (37 uji) — jalankan manual
+  seperti smoke lain. Laporan: `docs/internal/AUDIT_UI_FINANCE_20261028.md`.
+- **Catatan desain (tidak diubah):** ACC Atasan tetap disembunyikan dari
+  sidebar finance (BE & router mengizinkan — URL langsung dibaca);
+  `/api/branches/stats` tetap admin-only dengan fallback kosong di FE.
+- **Workspace Finance (29 Okt):** menu finance = BBM/kasbon + Air Minum;
+  `/api/finance/bbm` (incoming/ready/history) + `POST
+  /api/finance/bbm/<id>/subsidy-evidence` untuk lampiran MyPertamina
+  per transaksi (status tidak berubah); PDF per transaksi tetap
+  `/admin/report/<id>`; data `is_dummy` disembunyikan dari arsip,
+  rekap PDF, analytics, vehicle-health. Image LIVE sudah di-build dari
+  working tree ini (belum di-commit saat deploy).
+- **Wave sebelumnya (v2.74.0 — PENTEST HARDENING):** penetration test sistem sendiri (probe live + scan statis) menemukan & memperbaiki:
   - Endpoint **penugasan & master data yang terbuka tanpa login** (`/api/assignments/*` 5 rute, `/api/vehicles`, `/api/bbm_types`, `/api/vehicles/with-nopol`, `/api/vehicle-allowed-bbm`) → `@role_required`; driver kini hanya melihat *pending miliknya* (filter `driver_name` dari sesi).
   - **PIN plaintext → hash PBKDF2** (`modules/pin_security.py`): semua titik tulis PIN di-hash; login & step-up verifikasi Python + lazy-upgrade akun lama (tanpa reset massal). ⚠️ Test lain yang bikin fake user tanpa kolom `pin` / menagih pin plaintext harus tetap kompatibel (test yang disentuh: test_stepup, test_users_sync, test_db_resilience, test_branches, test_bulk_accounts_manual_route).
   - **Anti-SSRF** `pdf_generator._load_photo_image`: URL wajib me-resolve IP global (`_url_target_is_public`), `allow_redirects=False`, file lokal kini WAJIB di bawah `uploads/` (realpath guard). Foto di DB adalah URL Google Drive (publik) → tidak mematahkan alur.

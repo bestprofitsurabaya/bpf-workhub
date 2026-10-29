@@ -7,6 +7,71 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.75.0 — 28 Oktober 2026 (Audit UI role Finance — keselarasan FE↔BE dipastikan fungsi)
+
+Audit menyeluruh akses UI role **finance**: semua halaman SPA yang bisa
+dibuka finance (Antrean Verifikasi, Dashboard Finance, Trips, Rekap,
+Kasbon BBM, Analytics, ACC, Air Minum, Pengadaan, Rekap Pengeluaran)
+di-cross-check satu per satu — panggilan `api()` di tiap view ↔ rute
+backend ↔ `@role_required` ↔ wiring step-up. Laporan:
+`docs/internal/AUDIT_UI_FINANCE_20261028.md`.
+
+- ✅ **Read-walk 25 endpoint finance lulus** terhadap DB live cabang:
+  semuanya dapat 200 (bukan 401/403/500) — tidak ada halaman finance yang
+  putus backend.
+- ✅ **Write-flow terlindungi konsisten**: payout klaim & ACC finance
+  kasbon & verifikasi air minum membalikkan **428 STEPUP_REQUIRED** tanpa
+  grant PIN (modal PIN di FE sudah wired); tombol yang bukan urusan
+  finance (Setujui/Edit/Tolak GA) memang disembunyikan FE dan
+  ditolak 403 di BE — dua lapis.
+- 🔒 **1 celah kecil ditutup [LOW]**: `GET /api/cash/daily-code` dulu
+  bisa dipanggil **tanpa sesi sama sekali** (baca mode manual + tulis
+  get-or-create kode harian oleh anonim). Kini wajib sesi login (driver
+  maupun back-office); POST sudah lama hanya finance/admin.
+- 📝 Terverifikasi juga: `approvals` memang mengizinkan finance (ACC
+  Atasan hanya disembunyikan dari sidebar sejak wave-18A, URL langsung
+  tetap dibaca modul — desain tetap, dicatat); `/api/branches/stats`
+  admin-only dengan fallback `catch` di FE (status kosong, tanpa error).
+- 🧪 **Smoke baru** `scripts/smoke_finance_ui.py` (37 uji): read-walk +
+  guard negatif tanpa mutasi data uang + siklus tulis merk air minum
+  yang dibersihkan sendiri. Ditambah 3 test unit
+  (`tests/test_finance_ui_audit_v275.py`) untuk guard baru daily-code.
+
+### Workspace Finance BBM/kasbon + Air Minum (29 Okt)
+
+- 🧭 **Menu Finance dirapikan** ke pekerjaan nyata: Dashboard Finance
+  (klaim BBM + kasbon), Kasbon/BBM, Air Minum, dan Arsip/Rekap BBM.
+  Menu di luar lingkup itu tidak lagi ditampilkan untuk role finance.
+- 📋 **Dashboard Finance jadi satu meja kerja BBM**: tab *Klaim masuk*
+  (pipeline driver/GA — tampil read-only), *Siap dicairkan*, *LPJ
+  kasbon*, dan *Sudah diproses*. Data dibaca dari `/api/finance/bbm`
+  (tab incoming/ready/history, pencarian + paginasi) dengan filter
+  `is_dummy` agar data demo tidak pernah ikut.
+- 🗂️ **Transaksi selesai tidak perlu diarsipkan dulu**: riwayat
+  pembayaran tetap tercari dan tiap baris punya tombol **Detail** dan
+  **📄 PDF** (`/admin/report/<id>`); LPJ kasbon yang disetujui ikut
+  muncul sebagai selesai (tidak menawarkan pencairan ulang).
+- ⛽ **Lampiran verifikasi Subsidi Tepat per transaksi**:
+  `POST /api/finance/bbm/<id>/subsidy-evidence` menerima
+  JPG/PNG/WEBP/GIF/PDF, menolak tipe lain, mencatat aktivitas
+  `finance_subsidy_evidence`, dan **tidak mengubah status** transaksi.
+  Tombol *Lampirkan/Ganti bukti* ada di baris daftar maupun modal
+  Detail; gambar tampil sebagai thumbnail dan ikut tercetak di PDF
+  transaksi, berkas PDF sumber dibuka lewat tautan. Status lampiran
+  terlihat di daftar sehingga finance tahu mana yang belum ada buktinya.
+- 🚫 **Data DEMO (`BPF-DEMO-*`) disembunyikan** dari seluruh daftar
+  finance: arsip/rekap (`/api/transactions/archive`), PDF rekap
+  (`get_rekap_data`), analytics, vehicle-health, dan performa nopol —
+  semua memakai filter `is_dummy=0 OR is_dummy IS NULL`. Purge manual
+  tetap tersedia di `scripts/demo_cleanup.sql`.
+- 🧪 Verifikasi: 264 test frontend, test API finance (workspace +
+  lampiran), smoke `scripts/smoke_finance_ui.py` (37 uji) dan uji live
+  role `finance_sby` — termasuk unggah bukti → tampil di Detail → PDF
+  200 `%PDF`, dan tab history tetap terbaca setelah restart.
+
+
+---
+
 ## v2.74.0 — 27 Oktober 2026 (Pentest Hardening — temuan penetration test diperbaiki semua)
 
 Hasil penetration test sistem sendiri (2026-10-26/27; laporan lengkap

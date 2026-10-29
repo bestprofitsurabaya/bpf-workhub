@@ -146,6 +146,35 @@ describe('ClaimVerifyCard — 📷 grid foto bukti + lightbox', () => {
     expect(grid.findAll('.cvc-photo').length).toBe(0)
   })
 
+  it('bukti MyPertamina finance tampil sekali meski detail memberi URL foto dan field', async () => {
+    const filename = 'ADMIN_MYPTM_L_1_20261028_test.jpg'
+    mockApi(null, {
+      ...DETAIL_FULL,
+      foto_mypertamina_admin: filename,
+      photos: [{ label: 'MyPertamina (Admin)', url: `/uploads/${filename}` }],
+    })
+    const w = await mountCard()
+    const grid = w.find('[data-testid="cvc-photos"]')
+    expect(grid.findAll('.cvc-photo').length).toBe(1)
+    expect(grid.findAll('a[href="/uploads/' + filename + '"]').length).toBe(0)
+    expect(grid.find('img').attributes('src')).toBe(`/uploads/${filename}`)
+  })
+
+  it('bukti MyPertamina PDF dari daftar photos tampil sebagai tautan, bukan gambar rusak', async () => {
+    const filename = 'ADMIN_MYPTM_L_1_20261028_test.pdf'
+    mockApi(null, {
+      ...DETAIL_FULL,
+      foto_mypertamina_admin: filename,
+      photos: [{ label: 'MyPertamina (Admin)', url: `/uploads/${filename}` }],
+    })
+    const w = await mountCard()
+    const grid = w.find('[data-testid="cvc-photos"]')
+    expect(grid.text()).toContain('Buka PDF sumber')
+    expect(grid.find('a').attributes('href')).toBe(`/uploads/${filename}`)
+    expect(grid.find('img').exists()).toBe(false)
+    expect(grid.findAll('.cvc-photo').length).toBe(1)
+  })
+
   it('klik thumbnail → lightbox besar; tombol ✕ menutup', async () => {
     const w = await mountCard()
     expect(w.find('[data-testid="cvc-lightbox"]').exists()).toBe(false)

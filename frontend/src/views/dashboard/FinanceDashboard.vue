@@ -21,32 +21,105 @@ const fmtRp = (n) => 'Rp ' + (Number(n) || 0).toLocaleString('id-ID')
 const fmtNum = (n) => (Number(n) || 0).toLocaleString('id-ID')
 
 // v2.53.0: Klaim BBM — pintasan pekerjaan utama Finance (restrukturisasi UI)
-const bbm = ref({ ready: 0, confirm: 0, readyList: [], confirmList: [] })
+const bbm = ref({ incoming: 0, ready: 0, confirm: 0, history: 0, incomingPages: 1, readyPages: 1, historyPages: 1, incomingList: [], readyList: [], confirmList: [], historyList: [] })
+const bbmSearch = ref('')
+const bbmPage = ref(1)
+const bbmTab = ref('incoming')
+const bbmBusy = ref(false)
+const bbmUpload = ref(null)
+const bbmUploadFile = ref(null)
+const bbmUploadBusy = ref(false)
+let bbmRefreshTimer = null
 const arrLen = (v) => (Array.isArray(v) ? v.length : 0)
 async function loadBbm() {
+  bbmBusy.value = true
   try {
-    const [finQ, drvQ] = await Promise.all([
-      api('/api/queue', { params: { tab: 'finance' } }).catch(() => null),
-      api('/api/queue', { params: { tab: 'driver_confirm' } }).catch(() => null),
-    ])
+    const params = { search: bbmSearch.value, limit: 50, page: bbmPage.value }
+    const [incoming, ready, history] = await Promise.all(
+      ['incoming', 'ready', 'history'].map((tab) => api('/api/finance/bbm', { params: { ...params, tab } }))
+    )
+    const counts = await api('/api/queue', { params: { tab: 'driver_confirm' } }).catch(() => [])
     bbm.value = {
-      ready: arrLen(finQ), confirm: arrLen(drvQ),
-      readyList: Array.isArray(finQ) ? finQ : [], confirmList: Array.isArray(drvQ) ? drvQ : [],
+      incoming: incoming.total || 0, ready: ready.total || 0,
+      confirm: arrLen(counts), history: history.total || 0,
+      incomingPages: incoming.total_pages || 1, readyPages: ready.total_pages || 1, historyPages: history.total_pages || 1,
+      incomingList: incoming.data || [], readyList: ready.data || [],
+      confirmList: Array.isArray(counts) ? counts : [], historyList: history.data || [],
     }
-  } catch { bbm.value = { ready: 0, confirm: 0, readyList: [], confirmList: [] } }
+  } catch {
+    bbm.value = { incoming: 0, ready: 0, confirm: 0, history: 0, incomingPages: 1, readyPages: 1, historyPages: 1, incomingList: [], readyList: [], confirmList: [], historyList: [] }
+  } finally { bbmBusy.value = false }
 }
 
 // ============================================================
-// Antrean Klaim BBM + instrumen verifikasi (Detail/Subsidi Tepat)
+// Unified BBM workspace: incoming → ready → paid/completed history.
 // ============================================================
-const bbmTab = ref('ready')
 const bbmMsg = ref('')
 
-const visibleBbm = computed(() => (bbmTab.value === 'ready' ? bbm.value.readyList : bbm.value.confirmList))
+const visibleBbm = computed(() => ({
+  incoming: bbm.value.incomingList,
+  ready: bbm.value.readyList,
+  confirm: bbm.value.confirmList,
+  history: bbm.value.historyList,
+}[bbmTab.value] || []))
 
 async function switchBbmTab(tab) {
+  bbmPage.value = 1
   bbmTab.value = tab
   await loadBbm()
+}
+
+const bbmPageCount = computed(() => ({
+  incoming: bbm.value.incomingPages, ready: bbm.value.readyPages,
+  history: bbm.value.historyPages, confirm: 1,
+}[bbmTab.value] || 1))
+
+async function changeBbmPage(delta) {
+  const next = bbmPage.value + delta
+  if (next < 1 || next > bbmPageCount.value) return
+  bbmPage.value = next
+  await loadBbm()
+}
+
+function openTxPdf(tx) {
+  // Vue passes the click event to handlers without arguments; use the selected
+  // transaction in the detail modal in that case.
+  const target = tx && typeof tx === 'object' && 'id' in tx ? tx : detailFor.value
+  if (target?.id) window.open('/admin/report/' + target.id, '_blank')
+}
+
+function openMyPertaminaEvidence(tx) {
+  if (tx?.foto_mypertamina_admin) window.open('/uploads/' + encodeURIComponent(tx.foto_mypertamina_admin), '_blank', 'noopener')
+}
+
+function openSubsidyUpload(tx) {
+  bbmUpload.value = tx
+  bbmUploadFile.value = null
+}
+
+async function saveSubsidyEvidence() {
+  const tx = bbmUpload.value
+  if (!tx || !bbmUploadFile.value || bbmUploadBusy.value) return
+  bbmUploadBusy.value = true
+  bbmMsg.value = ''
+  try {
+    const form = new FormData()
+    form.append('file', bbmUploadFile.value)
+    const csrf = localStorage.getItem('bpf_csrf') || sessionStorage.getItem('bpf_csrf')
+    const response = await fetch(`/api/finance/bbm/${tx.id}/subsidy-evidence`, {
+      method: 'POST', body: form,
+      headers: csrf ? { 'X-CSRF-Token': csrf } : {},
+    })
+    const result = await response.json().catch(() => null)
+    if (!response.ok) throw new Error(result?.msg || result?.error || `HTTP ${response.status}`)
+    bbmMsg.value = '✅ ' + (result?.msg || 'Lampiran tersimpan')
+    bbmUpload.value = null
+    bbmUploadFile.value = null
+    await loadBbm()
+    openDetail(tx)
+  } catch (e) {
+    bbmMsg.value = '❌ ' + (e.message || 'Gagal menyimpan lampiran')
+  } finally { bbmUploadBusy.value = false }
 }
 
 // Modal instrumen Detail — ClaimVerifyCard + jodohkan (link) / putuskan (unlink)
@@ -69,6 +142,8 @@ const stageOn = computed(() => ({
 }[cardDetail.value?.status] || 0))
 
 const detailStatus = computed(() => cardDetail.value?.status || detailFor.value?.status || '')
+const detailIsCashLpj = computed(() =>
+  (cardDetail.value?.transaction_type || detailFor.value?.transaction_type) === 'CASH_LPJ')
 
 const STAGE_META = {
   verified_ga: {
@@ -76,18 +151,28 @@ const STAGE_META = {
     hint: 'Klaim sudah ACC GA — jodohkan Subsidi Tepat (riwayat SPBU resmi) dulu bila belum, lalu cairkan.',
   },
   os_finance: {
-    label: '3️⃣ Arsip (LPJ driver)',
-    hint: 'Dana sudah dicairkan. Catatan LPJ harusnya LENGKAP (pertanggungjawaban Subsidi Tepat) sebelum arsip.',
+    label: '3️⃣ Menunggu LPJ',
+    hint: 'Dana sudah dicairkan. Kasbon dan LPJ driver dikelola pada menu Kasbon / BBM.',
   },
   archived: {
-    label: '4️⃣ Arsip — Selesai',
-    hint: 'Selesai — dokumen tersimpan.',
+    label: '✅ Selesai',
+    hint: 'Transaksi selesai; tetap tersedia di daftar Sudah diproses dan PDF dapat diunduh.',
   },
   pending: {
     label: '1️⃣ Verifikasi GA',
     hint: 'Klaim masih menunggu verifikasi GA — belum masuk kewenangan Finance.',
   },
 }
+
+const activeStageMeta = computed(() => {
+  if (detailIsCashLpj.value && detailStatus.value === 'verified_ga') {
+    return {
+      label: '✅ LPJ disetujui',
+      hint: 'LPJ kasbon sudah disetujui GA dan kasbon ditandai selesai. Ini bukan pencairan klaim baru.',
+    }
+  }
+  return STAGE_META[detailStatus.value] || null
+})
 
 // Tombol 📄 PDF per transaksi — hanya bila status bukan 'pending'
 const showPdf = computed(() => !!detailStatus.value && detailStatus.value !== 'pending')
@@ -102,6 +187,45 @@ function openDetail(tx) {
 function onCardLoaded(payload) {
   cardSubsidy.value = payload?.subsidy || null
   cardDetail.value = payload?.detail || null
+}
+
+async function reloadAfterSubsidy(message) {
+  bbmMsg.value = message
+  if (cardRef.value?.reload) await cardRef.value.reload()
+  await loadBbm()
+}
+
+async function linkSubsidy(candidate) {
+  if (!detailFor.value || !candidate || linkBusy.value) return
+  const ok = await ask(
+    `Tautkan bukti ini ke transaksi SPBU ${candidate.transaction_id} (${fmtNum(candidate.volume)} L, ${fmtRp(candidate.amount)})?`,
+    { title: 'Verifikasi Subsidi Tepat', confirmText: 'Jodohkan' },
+  )
+  if (!ok) return
+  linkBusy.value = true
+  try {
+    const result = await api(`/api/subsidy/link/${detailFor.value.id}`, {
+      method: 'POST', body: { subsidy_transaction_id: candidate.id },
+    })
+    await reloadAfterSubsidy('✅ ' + (result?.msg || 'Transaksi Subsidi Tepat tertaut'))
+  } catch (e) {
+    bbmMsg.value = '❌ ' + (e.message || 'Gagal menautkan bukti Subsidi Tepat')
+  } finally { linkBusy.value = false }
+}
+
+async function unlinkSubsidy() {
+  if (!detailFor.value || linkBusy.value) return
+  const ok = await ask('Lepas tautan data SPBU Subsidi Tepat dari transaksi ini?', {
+    title: 'Verifikasi Subsidi Tepat', confirmText: 'Lepas tautan', danger: true,
+  })
+  if (!ok) return
+  linkBusy.value = true
+  try {
+    await api(`/api/subsidy/unlink/${detailFor.value.id}`, { method: 'POST' })
+    await reloadAfterSubsidy('✅ Tautan Subsidi Tepat dilepas')
+  } catch (e) {
+    bbmMsg.value = '❌ ' + (e.message || 'Gagal melepas tautan Subsidi Tepat')
+  } finally { linkBusy.value = false }
 }
 
 // wave-18A: langkah 2 — Disbursement (payout) via ask() + step-up PIN backend
@@ -133,72 +257,6 @@ async function doPayout() {
     // 409: klaim anomali belum di-clear GA (disampaikan backend) / sudah diproses
     detailMsg.value = '❌ ' + (e.status === 409 ? 'Pencairan ditahan — ' : '') + (e.message || 'Gagal mencairkan.')
   } finally { stageBusy.value = false }
-}
-
-// wave-18A: langkah 3 — Arsip (LPJ driver), konfirmasi bilingual
-async function doArchive() {
-  const d = detailFor.value
-  if (!d || stageBusy.value) return
-  const ok = await ask(
-    `Arsipkan klaim ${d.display_id || d.id} (${d.driver_name})?\nArchive this claim? (English)\n\n`
-    + '⚠️ Catatan LPJ harusnya LENGKAP (pertanggungjawaban Subsidi Tepat) sebelum arsip — '
-    + 'arsip menutup jejak verifikasi klaim ini.',
-    {
-      title: 'Arsip — LPJ driver',
-      confirmText: '📦 Arsipkan',
-    },
-  )
-  if (ok === null || ok === false) return
-  stageBusy.value = true; detailMsg.value = ''
-  try {
-    const r = await api(`/api/queue/archive/${d.id}`, { method: 'POST' })
-    detailMsg.value = '✅ ' + (r.msg || r.message || 'Klaim diarsipkan — dokumen tersimpan')
-    if (cardRef.value?.reload) await cardRef.value.reload()
-    loadBbm()
-  } catch (e) {
-    detailMsg.value = '❌ ' + (e.status === 409 ? 'Arsip ditahan — ' : '') + (e.message || 'Gagal mengarsipkan.')
-  } finally { stageBusy.value = false }
-}
-
-// wave-18A: 📄 PDF per transaksi (GA/Finance/Admin diizinkan backend)
-function openTxPdf() {
-  const id = cardDetail.value?.id || detailFor.value?.id
-  if (id) window.open('/admin/report/' + id)
-}
-
-async function reloadAfterSubsidy(msg) {
-  bbmMsg.value = msg
-  if (cardRef.value?.reload) await cardRef.value.reload()
-  loadBbm()
-}
-
-async function linkSubsidy(st) {
-  if (!detailFor.value || !st || linkBusy.value) return
-  const ok = await ask(`Jodohkan klaim ini ke transaksi SPBU ${st.transaction_id} (${st.volume} L, ${st.spbu_id} ${st.witel || st.city}, ${st.transaction_date})?`, {
-    title: 'Subsidi Tepat — Penjodohan',
-    confirmText: 'Jodohkan',
-  })
-  if (!ok) return
-  linkBusy.value = true
-  try {
-    const r = await api(`/api/subsidy/link/${detailFor.value.id}`, { method: 'POST', body: { subsidy_transaction_id: st.id } })
-    await reloadAfterSubsidy('✅ ' + (r.msg || 'Tertaut ke SPBU resmi'))
-  } catch (e) { bbmMsg.value = '❌ ' + e.message }
-  finally { linkBusy.value = false }
-}
-
-async function unlinkSubsidy() {
-  if (!detailFor.value || linkBusy.value) return
-  const ok = await ask('Lepas penjodohan (tautan) verifikasi Subsidi Tepat klaim ini?', {
-    title: 'Subsidi Tepat — Putuskan', confirmText: 'Putuskan', danger: true,
-  })
-  if (!ok) return
-  linkBusy.value = true
-  try {
-    await api(`/api/subsidy/unlink/${detailFor.value.id}`, { method: 'POST' })
-    await reloadAfterSubsidy('✅ Tautan dilepas')
-  } catch (e) { bbmMsg.value = '❌ ' + e.message }
-  finally { linkBusy.value = false }
 }
 
 // ============================================================
@@ -305,7 +363,6 @@ async function otpSubmit() {
 }
 
 onMounted(loadOtpStatus)
-onBeforeUnmount(otpPollStop)
 
 // ============================================================
 // Berita Acara Rekonsiliasi — Subsidi Tepat (daftar BA + unduh PDF)
@@ -323,6 +380,11 @@ async function loadAttest() {
 function downloadAttest(a) {
   window.open(`/api/subsidy/attest/${a.id}/pdf`, '_blank')
 }
+
+onBeforeUnmount(() => {
+  otpPollStop()
+  if (bbmRefreshTimer) clearInterval(bbmRefreshTimer)
+})
 
 function buildQuery() {
   const q = new URLSearchParams()
@@ -353,75 +415,70 @@ function statusBadge(s) {
   )
 }
 
-onMounted(() => { load(); loadBbm(); loadAttest(); loadSubsidy() })
+onMounted(() => {
+  load(); loadBbm(); loadAttest(); loadSubsidy()
+  bbmRefreshTimer = setInterval(loadBbm, 30_000)
+})
 </script>
 
 <template>
   <div class="page">
     <!-- Header + filter (v2.54.0: PageHeader standar) -->
-    <PageHeader icon="💰" title="Dashboard Finance" subtitle="Rekap air minum & pekerjaan yang menunggu Anda">
-      <label class="ph-filter">Dari
-        <input v-model="from" type="date" class="inp" />
-      </label>
-      <label class="ph-filter">Sampai
-        <input v-model="to" type="date" class="inp" />
-      </label>
-      <button class="btn btn-primary" @click="load">🔍 Terapkan</button>
-      <button class="btn" @click="exportCsv" title="Unduh rekap sebagai CSV">⬇️ Export CSV</button>
-    </PageHeader>
+    <PageHeader icon="💰" title="Dashboard Finance" subtitle="Transaksi BBM, kasbon driver, dan air minum" />
+
+      <!-- BBM: all incoming, ready, and processed claims stay findable here -->
+      <section class="card card-pad" style="margin-bottom:16px;" data-testid="bbm-quick">
+        <div class="row" style="align-items:center;gap:12px;flex-wrap:wrap;">
+          <div class="ac-icon">⛽</div>
+          <div class="grow"><h2 style="margin:0;">BBM &amp; Kasbon</h2>
+            <p class="muted" style="margin:4px 0 0;">Klaim masuk otomatis, transaksi tetap bisa dicari setelah dibayar, tanpa arsip terpisah.</p>
+          </div>
+          <button class="btn" :disabled="bbmBusy" @click="loadBbm">{{ bbmBusy ? '⏳ Memuat…' : '🔄 Segarkan' }}</button>
+        </div>
+        <div class="row" style="gap:8px;align-items:center;flex-wrap:wrap;margin:14px 0;" data-testid="bbm-quick-figures">
+          <button class="btn btn-sm" :class="bbmTab === 'incoming' ? 'btn-primary' : ''" @click="switchBbmTab('incoming')">📥 Masuk <b>{{ bbm.incoming }}</b></button>
+          <button class="btn btn-sm" :class="bbmTab === 'ready' ? 'btn-primary' : ''" @click="switchBbmTab('ready')">💰 Siap dicairkan <b>{{ bbm.ready }}</b></button>
+          <button class="btn btn-sm" :class="bbmTab === 'confirm' ? 'btn-primary' : ''" @click="switchBbmTab('confirm')">🤝 Konfirmasi LPJ <b>{{ bbm.confirm }}</b></button>
+          <button class="btn btn-sm" :class="bbmTab === 'history' ? 'btn-primary' : ''" @click="switchBbmTab('history')">✅ Sudah diproses <b>{{ bbm.history }}</b></button>
+          <input v-model="bbmSearch" class="inp" type="search" placeholder="Cari nomor, driver, atau nopol" @keyup.enter="bbmPage = 1; loadBbm()" />
+          <button class="btn btn-sm" @click="bbmPage = 1; loadBbm()">Cari</button>
+          <router-link to="/cash" class="btn btn-sm" style="text-decoration:none;">💵 Kelola kasbon</router-link>
+        </div>
+        <p v-if="bbmMsg" class="alert" :class="bbmMsg.startsWith('✅') ? 'alert-success' : 'alert-error'">{{ bbmMsg }}</p>
+        <div class="table-wrap" style="margin-top:8px;">
+          <table class="table">
+            <thead><tr><th>Nomor / Tanggal</th><th>Jenis</th><th>Driver / Nopol</th><th>BBM</th><th>Nominal</th><th>Status</th><th>Aksi</th></tr></thead>
+            <tbody>
+              <tr v-for="t in visibleBbm" :key="t.id">
+                <td><b>{{ t.display_id }}</b><div class="muted" style="font-size:10px;">{{ t.created_at }}</div></td>
+                <td>{{ t.transaction_type === 'CASH_LPJ' ? 'Kasbon · LPJ' : 'Klaim BBM' }}</td>
+                <td>{{ t.driver_name }}<div class="muted" style="font-size:10px;">{{ t.nopol }}</div></td>
+                <td>{{ t.bbm_type }} · {{ fmtNum(t.liter) }} L</td>
+                <td>{{ fmtRp(t.nominal) }}</td>
+                <td><span v-if="t.ml_anomaly_flag" class="badge badge-amber">⚠️ Anomali</span> <span class="badge badge-blue">{{ t.transaction_type === 'CASH_LPJ' && t.status === 'verified_ga' ? 'Kasbon · LPJ selesai' : t.status === 'os_finance' ? 'Dibayar · menunggu LPJ' : t.status === 'archived' ? 'Selesai' : t.status === 'verified_ga' ? 'Disetujui GA' : t.status }}</span><div v-if="t.foto_mypertamina_admin" class="muted" style="font-size:10px;">⛽ Bukti MyPertamina tersimpan</div></td>
+                <td class="row" style="gap:5px;">
+                  <button class="btn btn-sm" @click="openDetail(t)">👁 Detail</button>
+                  <button v-if="t.status !== 'pending' && t.status !== 'modified'" class="btn btn-sm" @click="openTxPdf(t)">📄 PDF</button>
+                  <button v-if="t.foto_mypertamina_admin" class="btn btn-sm" @click="openMyPertaminaEvidence(t)">🔎 Buka bukti</button>
+                  <button class="btn btn-sm" @click="openSubsidyUpload(t)">{{ t.foto_mypertamina_admin ? 'Ganti bukti' : '⛽ Lampirkan bukti' }}</button>
+                  <button v-if="bbmTab === 'ready'" class="btn btn-sm btn-primary" @click="openDetail(t)">💰 Tinjau / cairkan</button>
+                  <button v-if="bbmTab === 'confirm'" class="btn btn-sm" @click="openDetail(t)">📋 Periksa LPJ</button>
+                </td>
+              </tr>
+              <tr v-if="!visibleBbm.length"><td colspan="7" class="muted">{{ bbmBusy ? 'Memuat transaksi…' : 'Belum ada transaksi pada daftar ini.' }}</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div v-if="bbmPageCount > 1" class="row" style="justify-content:center;align-items:center;gap:10px;margin:10px 0;">
+          <button class="btn btn-sm" :disabled="bbmPage <= 1 || bbmBusy" @click="changeBbmPage(-1)">← Sebelumnya</button>
+          <span class="muted" style="font-size:12px;">Halaman {{ bbmPage }} / {{ bbmPageCount }}</span>
+          <button class="btn btn-sm" :disabled="bbmPage >= bbmPageCount || bbmBusy" @click="changeBbmPage(1)">Berikutnya →</button>
+        </div>
+        <p class="muted" style="font-size:11px;margin-bottom:0;">Klaim baru terlihat di sini (read-only) sambil menunggu GA. Setelah dicairkan, transaksi tetap ada di ‘Sudah diproses’; tidak perlu aksi arsip tambahan.</p>
+      </section>
 
     <div v-if="loading" class="card card-pad muted skeleton">Memuat…</div>
     <template v-else-if="data">
-      <!-- v2.53.0/wave-18A: kartu paling atas — Klaim BBM Menunggu Finance (lebih informatif) -->
-      <div class="card card-pad attention-card" data-testid="bbm-quick">
-        <div class="ac-icon">⛽</div>
-        <div class="grow">
-          <div class="ac-title">Klaim BBM Menunggu Finance</div>
-          <div class="row" style="gap:18px;flex-wrap:wrap;margin:6px 0;" data-testid="bbm-quick-figures">
-            <span style="font-size:13px;">💰 Siap Cair <small class="muted">(verified_ga)</small>
-              · <b :style="bbm.ready ? 'color:var(--warning);font-size:17px;' : 'font-size:17px;'">{{ bbm.ready }}</b></span>
-            <span style="font-size:13px;">🧾 Menunggu LPJ driver <small class="muted">(os_finance)</small>
-              · <b style="font-size:17px;">{{ bbm.confirm }}</b></span>
-          </div>
-          <div class="ac-sub" style="user-select:text;">
-            Alur bertingkat: <b>1 Verifikasi GA</b> → <b>2 Pencairan</b> → <b>3 LPJ/Arsip</b>.
-            Klaim anomali wajib di-clear GA dulu sebelum bisa dicairkan. Verifikasi detail + foto bukti
-            driver &amp; penjodohan Subsidi Tepat (riwayat SPBU resmi) langsung dari modal 👁 Detail.
-          </div>
-        </div>
-        <router-link to="/dashboard" class="btn btn-primary" style="text-decoration:none;">🕐 Buka Antrean Verifikasi →</router-link>
-      </div>
-
-      <!-- p2: Antrean klaim BBM + instrumen verifikasi (turunan Admin Dashboard) -->
-      <div class="card card-pad" style="margin-bottom:16px;" data-testid="bbm-verify-card">
-        <div class="row" style="flex-wrap:wrap;gap:8px;align-items:center;">
-          <h3 style="margin:0;">⛽ Antrean Klaim BBM</h3>
-          <button class="btn btn-sm" :class="bbmTab === 'ready' ? 'btn-primary' : ''" @click="switchBbmTab('ready')">💰 Siap Dicairkan</button>
-          <button class="btn btn-sm" :class="bbmTab === 'driver_confirm' ? 'btn-primary' : ''" @click="switchBbmTab('driver_confirm')">🤝 Konfirmasi Driver</button>
-          <span v-if="bbmMsg" class="alert" style="margin:0;font-size:12px;" :class="bbmMsg.startsWith('✅') ? 'alert-success' : 'alert-error'">{{ bbmMsg }}</span>
-        </div>
-        <p class="muted" style="font-size:11px;margin:8px 0 0;">
-          Klik <b>👁 Detail</b> untuk instrumen verifikasi: foto bukti, cross-check otomatis (ODO/budget/sinyal foto)
-          dan penjodohan Subsidi Tepat (riwayat SPBU resmi akun perseroan).
-        </p>
-        <table class="table" style="margin-top:8px;">
-          <thead><tr><th>Nomor</th><th>Driver / Nopol</th><th>Nominal</th><th>Status</th><th></th></tr></thead>
-          <tbody>
-            <tr v-for="t in visibleBbm" :key="t.id">
-              <td><b>{{ t.display_id }}</b></td>
-              <td>{{ t.driver_name }}<div class="muted" style="font-size:10px;">{{ t.nopol }}</div></td>
-              <td>{{ fmtRp(t.nominal) }}</td>
-              <td>
-                <span v-if="t.ml_anomaly_flag" class="badge badge-amber">⚠️ Anomali ML</span>
-                <span v-else class="badge badge-blue">{{ t.status === 'verified_ga' ? 'Siap Cair' : t.status }}</span>
-              </td>
-              <td><button class="btn btn-sm" :title="'Instrumen verifikasi ' + t.display_id" @click="openDetail(t)">👁 Detail</button></td>
-            </tr>
-            <tr v-if="!visibleBbm.length"><td colspan="5" class="muted">Antrean kosong 🎉</td></tr>
-          </tbody>
-        </table>
-      </div>
-
       <!-- v2.68.0: kesiapan data SPBU Subsidi Tepat + pencocokan advisory 1 klik -->
       <div class="card card-pad" style="margin-bottom:16px;" data-testid="subsidy-data-card">
         <div class="row" style="flex-wrap:wrap;gap:8px;align-items:center;">
@@ -473,6 +530,17 @@ onMounted(() => { load(); loadBbm(); loadAttest(); loadSubsidy() })
         </div>
       </div>
 
+      <div class="card card-pad" style="margin-bottom:12px;" data-testid="water-section-heading">
+        <div class="row" style="align-items:center;gap:8px;flex-wrap:wrap;">
+          <h2 style="margin:0;">🚰 Air Minum</h2>
+          <span class="muted" style="font-size:12px;">Pengajuan OB, verifikasi, dan riwayat transaksi</span>
+          <div class="spacer"></div>
+          <label class="ph-filter">Dari <input v-model="from" type="date" class="inp" /></label>
+          <label class="ph-filter">Sampai <input v-model="to" type="date" class="inp" /></label>
+          <button class="btn btn-primary" @click="load">🔍 Terapkan</button>
+          <button class="btn" @click="exportCsv" title="Unduh rekap air minum sebagai CSV">⬇️ Export CSV</button>
+        </div>
+      </div>
       <!-- Statistik air minum -->
       <div class="stat-grid" style="margin-bottom:16px;">
         <StatCard icon="📄" label="Total Pengajuan" :value="fmtNum(data.summary.total)" color="#2563eb" />
@@ -583,9 +651,8 @@ onMounted(() => { load(); loadBbm(); loadAttest(); loadSubsidy() })
           </tbody>
         </table>
         <div class="mini-tips">
-          💡 <b>Tips:</b> BA diterbitkan per periode bulanan dari Antrean Verifikasi (menu 💰 Finance di
-          halaman Dashboard Admin/GA → <i>🖨 Berita Acara SPBU</i>) — pilih periode lalu <i>Terbitkan</i>.
-          Pastikan semua klaim periode itu sudah dijodohkan (Subsidi Tepat) di modal 👁 Detail sebelum menerbitkan BA.
+          💡 <b>Tips:</b> Setiap baris BBM menyediakan lampiran bukti dan pencocokan Subsidi Tepat dari Detail.
+          Berita Acara per periode hanya diperlukan bila kantor pusat meminta dokumen konsolidasi.
         </div>
       </div>
     </template>
@@ -604,10 +671,10 @@ onMounted(() => { load(); loadBbm(); loadAttest(); loadSubsidy() })
       <div v-if="stageOn" class="stage-chips" data-testid="bbm-stage-chips">
         <span class="stage-chip" :class="{ on: stageOn >= 1 }">1️⃣ Verifikasi GA</span>
         <span class="stage-chip" :class="{ on: stageOn >= 2 }">2️⃣ Pencairan</span>
-        <span class="stage-chip" :class="{ on: stageOn >= 3 }">3️⃣ LPJ/Arsip</span>
+        <span class="stage-chip" :class="{ on: stageOn >= 3 }">3️⃣ LPJ</span>
       </div>
-      <p v-if="STAGE_META[detailStatus]" class="stage-active" data-testid="bbm-stage-active">
-        ⛓ Langkah aktif: <b>{{ STAGE_META[detailStatus].label }}</b> — <span class="muted">{{ STAGE_META[detailStatus].hint }}</span>
+      <p v-if="activeStageMeta" class="stage-active" data-testid="bbm-stage-active">
+        ⛓ Langkah aktif: <b>{{ activeStageMeta.label }}</b> — <span class="muted">{{ activeStageMeta.hint }}</span>
       </p>
 
       <!-- hasil aksi server langsung di bawah modal -->
@@ -616,17 +683,23 @@ onMounted(() => { load(); loadBbm(); loadAttest(); loadSubsidy() })
       </div>
 
       <div class="row" style="justify-content:flex-end;gap:8px;margin-top:12px;flex-wrap:wrap;">
+        <button class="btn" @click="openSubsidyUpload({ ...detailFor, ...(cardDetail || {}) })">{{ cardDetail?.foto_mypertamina_admin ? '⛽ Ganti lampiran MyPertamina' : '⛽ Lampirkan bukti MyPertamina' }}</button>
+        <button v-if="cardDetail?.foto_mypertamina_admin" class="btn" @click="openMyPertaminaEvidence(cardDetail)">🔎 Buka bukti MyPertamina</button>
         <!-- langkah aktif: aksi bertingkat berdasarkan detail.status -->
-        <template v-if="detailStatus === 'verified_ga'">
+        <template v-if="detailStatus === 'verified_ga' && !detailIsCashLpj">
           <button class="btn btn-primary" :disabled="stageBusy" title="Cairkan dana klaim (Disbursement) — wajib step-up PIN"
                   @click="doPayout">💰 Disbursement — Cairkan</button>
         </template>
+        <template v-else-if="detailStatus === 'verified_ga' && detailIsCashLpj">
+          <span class="badge badge-green">✅ LPJ kasbon disetujui · tidak ada pencairan tambahan</span>
+          <router-link to="/cash" class="btn" style="text-decoration:none;">Lihat kasbon</router-link>
+        </template>
         <template v-else-if="detailStatus === 'os_finance'">
-          <button class="btn btn-primary" :disabled="stageBusy" title="Catatan LPJ harusnya LENGKAP sebelum arsip"
-                  @click="doArchive">📦 Arsipkan</button>
+          <span class="badge badge-amber">💰 Dana sudah cair · lanjutkan LPJ di Kasbon / BBM</span>
+          <router-link to="/cash" class="btn" style="text-decoration:none;">Buka kasbon / LPJ</router-link>
         </template>
         <template v-else-if="detailStatus === 'archived'">
-          <span class="badge badge-green" data-testid="bbm-archived-chip">4️⃣ Arsip · Selesai — dokumen tersimpan</span>
+          <span class="badge badge-green" data-testid="bbm-archived-chip">✅ Selesai — dokumen tetap tersimpan</span>
         </template>
 
         <!-- 📄 PDF per transaksi (tampil kecuali status pending) -->
@@ -634,6 +707,18 @@ onMounted(() => { load(); loadBbm(); loadAttest(); loadSubsidy() })
 
         <button v-if="cardSubsidy?.linked" class="btn btn-danger" :disabled="linkBusy" @click="unlinkSubsidy">🔓 Putuskan</button>
         <button class="btn" @click="detailFor = null">Tutup</button>
+      </div>
+    </Modal>
+
+    <Modal v-if="bbmUpload" :title="'⛽ Lampiran MyPertamina · ' + (bbmUpload.display_id || bbmUpload.id)" @close="bbmUpload = null">
+      <p class="muted">Unggah bukti verifikasi dari MyPertamina untuk transaksi BBM ini. Screenshot gambar ikut tercetak di PDF transaksi; berkas PDF sumber bisa dibuka dari tombol <b>🔎 Buka bukti</b>. Data transaksi SPBU resmi juga bisa dicocokkan dari Detail.</p>
+      <p v-if="bbmUpload.foto_mypertamina_admin" class="alert alert-info" style="font-size:12px;">Bukti saat ini sudah tersimpan. Unggah file baru hanya jika ingin menggantinya.</p>
+      <div class="field"><label>Screenshot atau PDF MyPertamina</label>
+        <input type="file" accept="image/*,.pdf,application/pdf" @change="bbmUploadFile = $event.target.files?.[0] || null" />
+      </div>
+      <div class="row" style="justify-content:flex-end;gap:8px;">
+        <button class="btn" @click="bbmUpload = null">Batal</button>
+        <button class="btn btn-primary" :disabled="bbmUploadBusy || !bbmUploadFile" @click="saveSubsidyEvidence">{{ bbmUploadBusy ? '⏳ Menyimpan…' : 'Simpan lampiran' }}</button>
       </div>
     </Modal>
 

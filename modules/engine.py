@@ -100,6 +100,7 @@ def get_rekap_data(start_date=None, end_date=None, nopol=None, driver=None, tx_t
             SELECT t.*, d.vehicle_type as master_vehicle, d.bbm_type as master_bbm
             FROM transactions t LEFT JOIN drivers d ON t.driver_name = d.name
             WHERE t.status IN ('verified', 'archived', 'os_finance', 'verified_ga', 'rejected')
+              AND (t.is_dummy = 0 OR t.is_dummy IS NULL)
         """
         params = []
         if start_date:

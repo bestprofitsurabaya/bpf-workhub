@@ -11,7 +11,7 @@ from modules.company_identity import get_company_identity, IDENTITY_DEFAULTS  # 
 # ============================================================
 COMPANY_NAME = 'PT BESTPROFIT FUTURES'
 COMPANY_SUBTITLE = 'Kantor Pusat | Jakarta'
-SYSTEM_VERSION = 'BPF WorkHub v2.74.0'
+SYSTEM_VERSION = 'BPF WorkHub v2.75.0'
 LOGO_FILENAMES = ['icon-512.png', 'icon-192.png']
 PHOTO_FIELDS = [
     ('foto_odo_sebelum', 'ODO Sebelum'),
@@ -365,7 +365,13 @@ class BPFBasePDF(FPDF):
 
     @staticmethod
     def extract_photos(tx):
-        return [{'path': tx[f], 'label': l} for f, l in PHOTO_FIELDS if tx.get(f)]
+        photos = [{'path': tx[field], 'label': label} for field, label in PHOTO_FIELDS if tx.get(field)]
+        subsidy_evidence = tx.get('foto_mypertamina_admin')
+        # The evidence grid embeds image files. PDF sources are preserved and
+        # linked from the transaction detail but cannot be embedded as images.
+        if subsidy_evidence and os.path.splitext(str(subsidy_evidence))[1].lower() != '.pdf':
+            photos.append({'path': subsidy_evidence, 'label': 'MyPertamina (Finance)'})
+        return photos
 
     @staticmethod
     def clean_text(text):

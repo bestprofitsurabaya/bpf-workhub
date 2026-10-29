@@ -35,9 +35,6 @@ const MENU_GROUPS = [
       { label: 'Dashboard', path: '/dashboard', icon: '📊', roles: ['admin'] },
       { label: 'Dashboard GA', path: '/ga', icon: '🧾', roles: ['ga', 'admin'], badge: 'ga_pending' },
       { label: 'Dashboard Finance', path: '/finance', icon: '💰', roles: ['finance', 'admin'], badge: 'finance_pending' },
-      // v2.53.0: antrean klaim BBM (AdminDashboard) dibuka untuk finance —
-      // payout/Subsidi Tepat/Berita Acara ada di sini (audit akses UI finance).
-      { label: 'Antrean Verifikasi', path: '/dashboard', icon: '🕐', roles: ['finance'], badge: 'bbm_verify_pending' },
       { label: 'Marketing Hub', path: '/marketing', icon: '📣', roles: ['marketing'] },
       { label: 'Chief Driver', path: '/chief-driver', icon: '🚛', roles: ['chief_driver', 'ga', 'admin'] },
     ],
@@ -45,12 +42,12 @@ const MENU_GROUPS = [
   {
     label: 'Operasional',
     items: [
-      { label: 'Log Perjalanan', path: '/trips', icon: '🗺️', roles: ['ga', 'finance', 'admin'] },
+      { label: 'Log Perjalanan', path: '/trips', icon: '🗺️', roles: ['ga', 'admin'] },
       { label: 'Penugasan Driver', path: '/assignments', icon: '🚗', roles: ['ga', 'admin'], badge: 'assignments_pending' },
       { label: 'Kasbon / BBM', path: '/cash', icon: '💵', roles: ['ga', 'finance', 'admin'], badge: 'cash_pending' },
       { label: 'Air Minum', path: '/water', icon: '🚰', roles: ['ob', 'finance', 'admin'], badge: 'water_pending' },
       { label: 'Aset & Pemeliharaan', path: '/assets', icon: '🔧', roles: ['ga', 'admin'] },
-      { label: 'Pengadaan (PO)', path: '/procurement', icon: '🛒', roles: ['ga', 'finance', 'admin'] },
+      { label: 'Pengadaan (PO)', path: '/procurement', icon: '🛒', roles: ['ga', 'admin'] },
       { label: 'Overtime Saya', path: '/overtime-me', icon: '⏰', roles: ['ob', 'security'] },
       { label: 'Overtime', path: '/ga-hr', icon: '⏰', roles: ['ga_hr', 'admin'] },
     ],
@@ -68,9 +65,9 @@ const MENU_GROUPS = [
   {
     label: 'Laporan & Analisis',
     items: [
-      { label: 'Rekap', path: '/rekap', icon: '📋', roles: ['finance', 'admin'] },
-      { label: 'Rekap Pengeluaran', path: '/expenses', icon: '📊', roles: ['finance', 'admin'] },
-      { label: 'Analytics', path: '/analytics', icon: '📈', roles: ['ga', 'finance', 'admin'] },
+      { label: 'Rekap', path: '/rekap', icon: '📋', roles: ['admin'] },
+      { label: 'Rekap Pengeluaran', path: '/expenses', icon: '📊', roles: ['admin'] },
+      { label: 'Analytics', path: '/analytics', icon: '📈', roles: ['ga', 'admin'] },
     ],
   },
   {

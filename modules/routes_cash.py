@@ -35,6 +35,11 @@ def register_cash_routes(app):
     # ================================================================
     @app.route('/api/cash/daily-code', methods=['GET', 'POST'])
     def api_daily_code():
+        # v2.75.0 (audit UI finance): kode harian bukan data publik — wajib
+        # sesi (driver maupun back-office; semuanya login PIN). GET anonim
+        # yang dulu bisa dipanggil tanpa login kini ditolak.
+        if not session.get('user_role') and not session_driver_name():
+            return jsonify({'error': 'Login wajib'}), 401
         # Check mode
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
