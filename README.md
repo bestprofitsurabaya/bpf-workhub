@@ -2,7 +2,7 @@
 
 **Sistem Manajemen Armada untuk PT. Bestprofit Futures — Kantor Pusat Jakarta**
 
-> 📅 Versi 2.49.1 · Oktober 2026 — **UI/UX admin cabang P0–P5** (scoping data, dashboard tindakan, modal konfirmasi, onboarding & panduan in-app) · **PWA mobile Driver/OB/Security di `/m/`** (BBM, trip, overtime, kasbon, offline queue) · **Resepsionis penuh** (pelamar & in-out karyawan dari aplikasi) · **PDF Kit** kompres PDF untuk IT · **Transcoder** YouTube → audio/video · Approval Berjenjang · Admin per-cabang (`admin_<kode>`) · Program 6 tahap ISO 27001 selesai · Kantor Pusat Jakarta (Equity Tower)
+> 📅 Versi **2.77.0** · November 2026 — **Menu bar tab seragam** untuk modul Finance (`Dashboard` `Ringkasan | Air Minum`, `/cash` `BBM | Kasbon & LPJ | SubsidiTepat`, `/water` `Pengajuan | Master Merk`) · **SubsidiTepat end-to-end** (login OTP dari dashboard → verifikasi → pull riwayat SPBU → auto-match · fix v2.77.0: anti request ganda, supervisor jujur status, cooldown resend) · **UI/UX admin cabang P0–P5** (scoping data, dashboard tindakan, modal konfirmasi, onboarding & panduan in-app) · **PWA mobile Driver/OB/Security di `/m/`** (BBM, trip, overtime, kasbon, offline queue) · **Resepsionis penuh** (pelamar & in-out karyawan dari aplikasi) · **PDF Kit** kompres PDF untuk IT · **Transcoder** YouTube → audio/video · Approval Berjenjang · Admin per-cabang (`admin_<kode>`) · Program 6 tahap ISO 27001 selesai · Kantor Pusat Jakarta (Equity Tower)
 
 ---
 
@@ -61,6 +61,18 @@ BPF WorkHub adalah aplikasi web yang membantu tim operasional PT Bestprofit Futu
 - Konvensi `{divisi}_{cabang}` berlaku untuk admin: `admin` = Admin Pusat (semua cabang), `admin_sby`/`admin_bdg`/… = Admin cabang (terkunci ke cabangnya)
 - Aksi lintas cabang (ganti cabang, reset nomor dokumen, arsip audit, access review) khusus Admin Pusat
 - 1 admin untuk 2 cabang? isi `users.managed_branches` (mis. `SBY,BDG`); promosi ke pusat via `users.admin_all_branches = 1`
+
+### ⛽ SubsidiTepat (MyPertamina) — BBM resmi via agen
+- **Data SPBU**: riwayat transaksi resmi MyPertamina ditarik otomatis oleh agen
+  (`agent/subsiditepat`, cron harian 06:15 WIB) → diimpor ke `subsidy_transactions`.
+- **Akses OTP (v2.69–v2.77)**: finance minta login baru lewat dashboard → agen host
+  (Chrome headful di Xvfb) login ke portal → OTP email dikirim ke akun
+  SubsidiTepat (`bbm.sby@bestprofit-futures.co.id`) → finance masukkan 6 digit →
+  token baru disimpan → pull + import + auto-match berjalan otomatis.
+- **Fix v2.77.0**: anti request ganda OTP (backend + frontend), supervisor agen kini
+  memvalidasi status (`OTP_SENT`/rate-limit) sebelum menulis `waiting_otp`, & cooldown
+  resend 180 detik (`timeToResend`) dihormati.
+- **Berita Acara**: klaim yang dijodohkan ke nomor transaksi SPBU diikat per periode (root hash SHA-256).
 
 ---
 
