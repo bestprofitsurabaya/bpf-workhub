@@ -24,7 +24,8 @@ tidak sampai ke email, dan pengamanan request ganda:
 
 Verifikasi: siklus OTP end-to-end berjalan — OTP diterima email
 (`bbm.sby@bestprofit-futures.co.id`), kode diverifikasi, token baru
-disimpan, riwayat SPBU ditarik (150 transaksi) & diimpor.
+disimpan, riwayat SPBU ditarik (150 transaksi baru → status akhir 192
+transaksi terimpor) & diimpor.
 
 ---
 

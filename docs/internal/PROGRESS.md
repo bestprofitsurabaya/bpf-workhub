@@ -10,7 +10,7 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 ## 🔁 Handoff sesi berikutnya (3 Nov 2026 — baca ini dulu!)
 
-- **Wave terbaru (v2.77.0 — OTP SubsidiTepat anti-double & supervisor jujur status):** backend sekarang menolak minta login baru saat agen `starting`/`waiting_otp` + cooldown resend 180 s; supervisor memvalidasi `STATUS: OTP_SENT`/rate-limit sebelum menulis `waiting_otp`; request ganda tidak membunuh sesi OTP aktif. Siklus OTP selesai: kode diverifikasi → token baru → 150 transaksi SPBU ditarik & diimpor.
+- **Wave terbaru (v2.77.0 — OTP SubsidiTepat anti-double & supervisor jujur status):** backend sekarang menolak minta login baru saat agen `starting`/`waiting_otp` + cooldown resend 180 s; supervisor memvalidasi `STATUS: OTP_SENT`/rate-limit sebelum menulis `waiting_otp`; request ganda tidak membunuh sesi OTP aktif. Siklus OTP selesai: kode diverifikasi → token baru → 150 transaksi SPBU ditarik & diimpor (status akhir: 192 transaksi terimpor).
 
 - **Wave terbaru (v2.76.0 — MENU BAR SERAGAM):** tiga halaman finance kini
   memakai `.workspace-tabs` global: Dashboard Finance `Ringkasan | Air
