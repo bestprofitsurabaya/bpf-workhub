@@ -60,6 +60,15 @@ function sessionWs() {
   try { return fs.readFileSync(path.join(ROOT, 'session.txt'), 'utf8').trim(); }
   catch { return ''; }
 }
+function logTail(n = 900) {
+  try {
+    const p = path.join(ROOT, 'artifacts/otp_login.log');
+    const t = fs.readFileSync(p, 'utf8');
+    const i = t.lastIndexOf('Browser TETAP hidup');
+    const seg = i >= 0 ? t.slice(i) : t;
+    return seg.slice(-n);
+  } catch { return ''; }
+}
 
 let jobRunning = false;
 
@@ -67,8 +76,18 @@ let jobRunning = false;
 async function startLogin(req) {
   jobRunning = true;
   try {
+    const stNow = readJson('agent_state.json', {}) || {};
+    // v2.77 — sesi OTP yang menunggu sedang hidup: abaikan permintaan
+    // ganda (mis. klik berulang) supaya browser aktif tidak dibunuh & OTP
+    // yang sudah terkirim tidak diblokir/dianggap ulang.
+    if (stNow.state === 'waiting_otp' && aliveLogin() && sessionWs()) {
+      try { fs.unlinkSync(gpath('otp_request.json')); } catch {}
+      writeState({ state: 'waiting_otp', msg: 'OTP sedang menunggu dari email akun Subsidi Tepat.' });
+      jobRunning = false;
+      return;
+    }
     writeState({ state: 'starting', msg: 'Menyiapkan browser login…', requested_by: req?.by || '?' });
-    // Xvfb khusus agen (:98, TANPA -auth) — :99 kadang milik xvfb-run
+    // Xvfb khusus agen (:98, TANPA -auth) — :99 kadang milang xvfb-run
     // lama dengan Xauthority, koneksi tanpa XAUTHORITY ditolak
     // ("Missing X server" dari puppeteer). Display ini dijamin bebas.
     const xv = spawnSync('pgrep', ['-f', '^Xvfb :98'], { encoding: 'utf8' });
@@ -91,12 +110,32 @@ async function startLogin(req) {
     for (let i = 0; i < 45; i++) {          // ≤ ~3 menit
       await sleep(TICK_MS);
       if (sessionWs()) {
-        writeState({
-          state: 'waiting_otp',
-          msg: 'OTP dikirim ke email akun Subsidi Tepat — masukkan 6 digitnya di dashboard.',
-        });
-        jobRunning = false;
-        return;
+        const tail = logTail();
+        if (/STATUS:\s*OTP_SENT/.test(tail)) {
+          writeState({
+            state: 'waiting_otp',
+            msg: 'OTP dikirim ke email akun Subsidi Tepat — masukkan 6 digitnya di dashboard.',
+          });
+          jobRunning = false;
+          return;
+        }
+        const co = /Please wait (\d+) seconds/.exec(tail);
+        if (co) {
+          writeState({
+            state: 'error',
+            msg: `Portal menolak kirim ulang OTP (rate limit) — tunggu ${co[1]} detik sebelum minta OTP baru.`,
+          });
+          jobRunning = false;
+          return;
+        }
+        if (/STATUS:\s*INDUKSI_MANUAL|STATUS:\s*CRED_ABNORMAL|FATAL|Login gagal|Timeout menunggu/i.test(tail)) {
+          writeState({
+            state: 'error',
+            msg: 'Login berhenti sebelum OTP terkirim — cek artifacts/otp_login.log: ' + tail.slice(-300),
+          });
+          jobRunning = false;
+          return;
+        }
       }
       if (!aliveLogin()) {
         const out = fs.existsSync(path.join(ROOT, 'artifacts/otp_login.log'))

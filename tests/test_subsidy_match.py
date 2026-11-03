@@ -278,6 +278,29 @@ def test_otp_request_tolak_saat_proses_409(env, gate):
     assert r.status_code == 409
 
 
+def test_otp_request_tolak_saat_starting_409(env, gate):
+    client, *rest = env
+    _login(client)
+    (gate / 'agent_state.json').write_text('{"state": "starting"}')
+    r = client.post('/api/subsidy/otp/request')
+    assert r.status_code == 409
+    # permintaan ganda selama agen menunggu OTP juga ditolak
+    (gate / 'agent_state.json').write_text(
+        '{"state": "waiting_otp", "updated_at": "2026-11-03T12:20:00.000Z"}')
+    r = client.post('/api/subsidy/otp/request')
+    assert r.status_code == 409
+
+
+def test_otp_request_minta_ulang_mengizinkan_cooldown_lewat(env, gate):
+    client, *rest = env
+    _login(client)
+    # cooldown resend portal (180 s) sudah terlewat → boleh minta login baru
+    (gate / 'agent_state.json').write_text(
+        '{"state": "waiting_otp", "updated_at": "2026-11-01T05:00:00.000Z"}')
+    d = client.post('/api/subsidy/otp/request').get_json()
+    assert d['status'] == 'success' and d['state'] == 'starting'
+
+
 def test_otp_status_baca_agent_state(env, gate):
     client, *rest = env
     _login(client)

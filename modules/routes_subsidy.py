@@ -20,7 +20,7 @@ import json
 import os
 import re
 import threading
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from flask import jsonify, request, session, make_response, send_from_directory
 
@@ -121,6 +121,19 @@ def _gate_write(name, payload):
         print(f"[subsidy-otp] gate write {name}: {e}")
         return False
 
+
+_OTP_RESEND_MS = 180_000  # timeToResend portal saat OTP/kirim ulang
+
+def _agent_state_dt(st):
+    """Parse timestamp ISO agent_state (mis. '2026-11-03T05:36:21.250Z') → aware UTC."""
+    u = str((st or {}).get('updated_at') or '')
+    try:
+        d = datetime.fromisoformat(u.replace('Z', '+00:00'))
+        if d.tzinfo is None:
+            d = d.replace(tzinfo=timezone.utc)
+        return d
+    except ValueError:
+        return None
 
 def _agent_state():
     st = _gate_read('agent_state.json')
@@ -812,10 +825,24 @@ def register_subsidy_routes(app):
     def api_subsidy_otp_request():
         """Finance meminta login baru: agen host menjalankan login.mjs
         (headful, Xvfb) → OTP dikirim MyPertamina ke email akun."""
-        st = _agent_state().get('state')
+        st_full = _agent_state()
+        st = st_full.get('state')
         if st in ('verifying', 'syncing'):
             return jsonify({'status': 'error',
                             'msg': 'Agen sedang memproses OTP sebelumnya — tunggu sebentar.'}), 409
+        if st == 'starting':
+            return jsonify({'status': 'error',
+                            'msg': 'Browser login agen sedang berjalan — tunggu hingga status selesai.'}), 409
+        if st == 'waiting_otp':
+            # cooldown portal: jangan minta OTP lagi < 180 detik (timeToResend).
+            # Bisa cek inbox/spam, tapi permintaan login baru ditolak dulu.
+            ts = _agent_state_dt(st_full)
+            waited = (datetime.now(timezone.utc) - ts).total_seconds() if ts else 99999
+            if waited < _OTP_RESEND_MS / 1000:
+                left = max(0, int((_OTP_RESEND_MS / 1000) - waited))
+                return jsonify({'status': 'error',
+                                'state': 'waiting_otp',
+                                'msg': f'OTP baru saja dikirim ke email — tunggu {left} detik (atau cek folder spam) sebelum minta kirim ulang.'}), 409
         actor = session.get('user_name') or 'finance'
         ok = _gate_write('otp_request.json', {
             'requested_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),

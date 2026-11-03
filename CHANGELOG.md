@@ -7,6 +7,27 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.77.0 — 3 November 2026 (OTP SubsidiTepat: kirim ulang & verifikasi terpercaya)
+
+Perbaikan alur OTP login agen SubsidiTepat setelah user melaporkan OTP
+tidak sampai ke email, dan pengamanan request ganda:
+
+- 🔁 **Anti request ganda OTP** — backend menolak minta login baru saat
+  agen masih `starting`/`waiting_otp` (dan saat OTP < 180 s sejak kirim —
+  cooldown `timeToResend` portal MyPertamina). Frontend menonaktifkan
+  tombol “Minta OTP Email” selama agen memproses.
+- 🛡️ **Supervisor agen jujur status** — `otp_supervisor.mjs` kini
+  memvalidasi status dari log login (`STATUS: OTP_SENT`, rate-limit
+  `Please wait N seconds`, `INDUKSI_MANUAL`/`CRED_ABNORMAL`/`FATAL`) sebelum
+  menulis `waiting_otp`; sesi OTP yang valid tidak dibunuh oleh permintaan
+  ganda.
+
+Verifikasi: siklus OTP end-to-end berjalan — OTP diterima email
+(`bbm.sby@bestprofit-futures.co.id`), kode diverifikasi, token baru
+disimpan, riwayat SPBU ditarik (150 transaksi) & diimpor.
+
+---
+
 ## v2.76.0 — 3 November 2026 (Menu bar seragam + pemulihan Data SPBU/BA/OTP)
 
 Merombak navigasi tiga halaman kerja Finance menjadi **menu bar tab** dengan

@@ -289,6 +289,11 @@ const otpInputShown = computed(() => ['starting', 'waiting_otp'].includes(otp.va
 const otpReady = computed(() => /^\d{6}$/.test(otpCode.value))
 const otpTone = computed(() => (otp.value?.state === 'done' ? 'alert-success'
   : otp.value?.state === 'error' ? 'alert-error' : ''))
+// v2.77 — jangan minta OTP lagi sementara agen memproses (starting/verifying/
+// syncing) atau menunggu. Resend hanya via backend (cooldown 180s) bila state
+// masih waiting_otp — backend menolak cepat & mengingatkan inbox/spam.
+const otpInProgress = computed(() => ['starting', 'verifying', 'syncing'].includes(otp.value?.state))
+const otpRequestDisabled = computed(() => otpBusy.value || otpInProgress.value)
 
 function otpPollStop() { if (otpTimer) { clearInterval(otpTimer); otpTimer = null } }
 
@@ -310,7 +315,7 @@ async function loadOtpStatus() {
 }
 
 async function otpRequest() {
-  if (otpBusy.value) return
+  if (otpBusy.value || otpInProgress.value) return
   otpBusy.value = true
   try {
     const r = await api('/api/subsidy/otp/request', { method: 'POST' })
@@ -513,7 +518,7 @@ onMounted(() => {
                 minta OTP untuk menarik data terbaru sebelum mencocokkan klaim.
               </div>
             </div>
-            <button class="btn btn-sm btn-primary" :disabled="otpBusy" data-testid="subsidy-stale-otp"
+            <button class="btn btn-sm btn-primary" :disabled="otpRequestDisabled" data-testid="subsidy-stale-otp"
                     @click="requestOtpFromBanner">✉ Minta OTP Email</button>
           </div>
         </div>
@@ -569,8 +574,12 @@ onMounted(() => {
             </div>
             <span class="badge" :class="otp.state === 'done' ? 'badge-green' : otp.state === 'error' ? 'badge-red' : 'badge-gray'"
                   data-testid="otp-state">{{ otpLabel }}</span>
-            <button class="btn btn-sm" data-testid="otp-request" :disabled="otpBusy"
-                    :title="'Browser login agen dijalankan — OTP dikirim ke email akun Subsidi Tepat'"
+            <button class="btn btn-sm" data-testid="otp-request" :disabled="otpRequestDisabled"
+                    :title="otpRequestDisabled
+                      ? 'Browser login agen sedang diproses'
+                      : (otp.value?.state === 'waiting_otp'
+                        ? 'Cek inbox + spam email akun Subsidi Tepat — kode berlaku singkat'
+                        : 'Browser login agen dijalankan — OTP dikirim ke email akun Subsidi Tepat')"
                     @click="otpRequest">✉ Minta OTP Email</button>
           </div>
           <div v-if="otpInputShown" class="row" style="gap:6px;margin-top:10px;align-items:center;flex-wrap:wrap;"
@@ -580,7 +589,7 @@ onMounted(() => {
                    @keyup.enter="otpSubmit" />
             <button class="btn btn-sm btn-primary" data-testid="otp-submit"
                     :disabled="otpBusy || !otpReady" @click="otpSubmit">✔ Kirim OTP</button>
-            <span class="muted" style="font-size:11px;">Cek email akun Subsidi Tepat — kode berlaku singkat.</span>
+            <span class="muted" style="font-size:11px;">Cek email akun Subsidi Tepat (cek juga folder spam) — kode berlaku singkat.</span>
           </div>
           <div v-if="otp.msg" class="alert" style="margin-top:8px;font-size:12px;display:inline-block;"
                :class="otpTone" data-testid="otp-msg">{{ otp.msg }}</div>

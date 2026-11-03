@@ -4,23 +4,28 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 **Terakhir diperbarui:** 2026-11-03<br>
 **Branch:** `main`<br>
-**Versi terbaru:** v2.76.0 (3 Nov — Menu bar seragam: Dashboard Finance `Ringkasan|Air Minum`, `/cash` `BBM|Kasbon & LPJ|SubsidiTepat`, `/water` `Pengajuan|Master Merk`; Data SPBU/BA/OTP dipulihkan + banner basi) · v2.75.0 (28 Okt — Audit UI role Finance: read-walk 25 endpoint selaras, guard tulis step-up teruji 428, 1 fix kecil daily-code wajib sesi) · v2.74.0 (27 Okt — Pentest Hardening: endpoint penugasan/master ditutup, PIN di-hash PBKDF2 + lazy-upgrade, anti-SSRF PDF, CSRF compare_digest + HSTS) · v2.73.0 (26 Okt — Assignment Konfirmasi & Swap: hidupkan fitur terbenam + cleanup legacy) · v2.72.0 (26 Okt — restorasi fitur rekap BBM yang tenggelam + STATUS/penolakan & filter tipe) · v2.71.0 (26 Okt — wave-20 Pengeluaran Rekap lintas modul) · v2.70.0 (25 Okt — wave-19 modul Pengadaan/ERP) · v2.69.0 (23 Okt — agen Subsidi Tepat login OTP dari dashboard Finance)
+**Versi terbaru:** v2.77.0 (3 Nov — OTP SubsidiTepat: anti request ganda, supervisor verifikasi status, cooldown resend; siklus OTP end-to-end OK, 150 transaksi SPBU terimpor) · v2.76.0 (3 Nov — Menu bar seragam: Dashboard Finance `Ringkasan|Air Minum`, `/cash` `BBM|Kasbon & LPJ|SubsidiTepat`, `/water` `Pengajuan|Master Merk`; Data SPBU/BA/OTP dipulihkan + banner basi) · v2.75.0 (28 Okt — Audit UI role Finance: read-walk 25 endpoint selaras, guard tulis step-up teruji 428, 1 fix kecil daily-code wajib sesi) · v2.74.0 (27 Okt — Pentest Hardening: endpoint penugasan/master ditutup, PIN di-hash PBKDF2 + lazy-upgrade, anti-SSRF PDF, CSRF compare_digest + HSTS) · v2.73.0 (26 Okt — Assignment Konfirmasi & Swap: hidupkan fitur terbenam + cleanup legacy) · v2.72.0 (26 Okt — restorasi fitur rekap BBM yang tenggelam + STATUS/penolakan & filter tipe) · v2.71.0 (26 Okt — wave-20 Pengeluaran Rekap lintas modul) · v2.70.0 (25 Okt — wave-19 modul Pengadaan/ERP) · v2.69.0 (23 Okt — agen Subsidi Tepat login OTP dari dashboard Finance)
 
 ---
 
 ## 🔁 Handoff sesi berikutnya (3 Nov 2026 — baca ini dulu!)
+
+- **Wave terbaru (v2.77.0 — OTP SubsidiTepat anti-double & supervisor jujur status):** backend sekarang menolak minta login baru saat agen `starting`/`waiting_otp` + cooldown resend 180 s; supervisor memvalidasi `STATUS: OTP_SENT`/rate-limit sebelum menulis `waiting_otp`; request ganda tidak membunuh sesi OTP aktif. Siklus OTP selesai: kode diverifikasi → token baru → 150 transaksi SPBU ditarik & diimpor.
 
 - **Wave terbaru (v2.76.0 — MENU BAR SERAGAM):** tiga halaman finance kini
   memakai `.workspace-tabs` global: Dashboard Finance `Ringkasan | Air
   Minum`; `/cash` `BBM | Kasbon & LPJ | SubsidiTepat`; `/water`
   `Pengajuan | Master Merk`. Tab SubsidiTepat memulihkan **Data SPBU +
   Berita Acara + OTP** yang sempat hilang saat refactor, dengan badge
-  kesegaran, chip cakupan, dan banner “data basi >2 hari” + tombol OTP.
+  keseguran, chip cakupan, dan banner “data basi >2 hari” + tombol OTP.
   Normalisasi tanggal air minum (ISO/GMT), fallback foto hilang, dan pesan
   `no_record` sadar cakupan (`data_range` dari `/api/subsidy/match`).
   Gate: **270 Vitest + 1024 pytest/6 skip** hijau. Arsip final Ahmad
   (`BPF-SBY-20261022-*`) tidak disentuh.
-- **Kondisi live:** v2.75.0 — lihat status deploy di bawah; v2.74.0 LIVE terdokumentasi penuh.
+- **Kondisi live:** v2.77.0 — deploy image baru (backend guard OTP + frontend
+  anti-double + supervisor jujur status) sedang ditegakkan; siklus OTP selesai
+  end-to-end (kode 287706 diverifikasi → token baru → 150 transaksi SPBU
+  ditarik & diimpor).
 - **Wave terbaru (v2.75.0 — AUDIT UI FINANCE):** audit keselarasan FE↔BE
   untuk role finance (bukan audit fitur terbenam — melainkan "pastikan
   fungsi"): semuanya SELARAS; 1 fix kecil: `GET /api/cash/daily-code`
