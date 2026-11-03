@@ -1,337 +1,136 @@
 # 🏢 BPF WorkHub
 
-**Sistem Manajemen Armada untuk PT. Bestprofit Futures — Kantor Pusat Jakarta**
+Sistem operasional digital untuk **PT Bestprofit Futures** — Kantor Pusat Jakarta, dipakai oleh kantor pusat dan cabang-cabangnya di Indonesia.
 
-> 📅 Versi **2.77.0** · November 2026 — **Menu bar tab seragam** untuk modul Finance (`Dashboard` `Ringkasan | Air Minum`, `/cash` `BBM | Kasbon & LPJ | SubsidiTepat`, `/water` `Pengajuan | Master Merk`) · **SubsidiTepat end-to-end** (login OTP dari dashboard → verifikasi → pull riwayat SPBU → auto-match · fix v2.77.0: anti request ganda, supervisor jujur status, cooldown resend) · **UI/UX admin cabang P0–P5** (scoping data, dashboard tindakan, modal konfirmasi, onboarding & panduan in-app) · **PWA mobile Driver/OB/Security di `/m/`** (BBM, trip, overtime, kasbon, offline queue) · **Resepsionis penuh** (pelamar & in-out karyawan dari aplikasi) · **PDF Kit** kompres PDF untuk IT · **Transcoder** YouTube → audio/video · Approval Berjenjang · Admin per-cabang (`admin_<kode>`) · Program 6 tahap ISO 27001 selesai · Kantor Pusat Jakarta (Equity Tower)
+> **Versi 2.77.0 · November 2026** — riwayat lengkap: [CHANGELOG.md](CHANGELOG.md)
 
----
+BPF WorkHub lahir dari masalah yang sudah bertahun-tahun jadi kebiasaan: pengeluaran BBM driver, kasbon, lembur, dan pembelian air minum tercatat di kertas dan Google Sheet — lampiran foto sukar dilacak, rekap sering tidak sinkron, dan dokumen penting terselip di mana-mana. Aplikasi ini menggantikannya dengan satu tempat: yang di lapangan mengirim lewat HP, yang memverifikasi bekerja lewat dashboard, dan semuanya tercatat penuh dengan audit trail.
 
-## 🎯 Apa itu BPF WorkHub?
+## 🧭 Cara kerjanya
 
-BPF WorkHub adalah aplikasi web yang membantu tim operasional PT Bestprofit Futures mengelola aktivitas harian armada — mulai dari pencatatan pengeluaran BBM (bensin), pengajuan kasbon (uang muka), log perjalanan driver, hingga manajemen appointment nasabah.
+1. **Yang di lapangan** (driver, OB, security) mengirim pengajuan lewat PWA di HP — foto nota dan odometer, formulir lembur, belanja air minum. Koneksi lemah pun aman karena ada antrean offline.
+2. **Yang memverifikasi** (Chief Driver, GA, Finance, GA HR) memeriksa lewat dashboard, memberi ACC berjenjang, lalu mencairkan dana.
+3. **Sistem berjaga di tengahnya**: AI mendeteksi anomali konsumsi BBM, klaim dijodohkan otomatis dengan transaksi SPBU resmi MyPertamina, setiap PDF resmi diberi sidik jari SHA-256, dan setiap tindakan tercatat di log audit.
 
-**Cara kerjanya sederhana:**
-1. 🚗 **Driver** mengisi data BBM dan perjalanan lewat HP (PWA)
-2. 👤 **GA/Finance** memverifikasi dan mencairkan dana
-3. 📊 **Admin** memantau semua aktivitas dari dashboard
-4. 📱 Semua data tersinkron real-time via WebSocket
+## 👥 Siapa pakai apa
 
----
+| Peran | Mengerjakan | Masuk ke |
+|-------|-------------|-----------|
+| **Admin** — pusat: `admin`; cabang: `admin_<kode>` | Akun, cabang, pengaturan, log, Access Review | `/app/dashboard` |
+| **Driver** | Klaim BBM, kasbon, log perjalanan, rapor kendaraan | PWA `/m/` |
+| **Chief Driver** | ACC pengajuan driver, assign appointment | `/app/chief-driver` |
+| **GA Officer** | Verifikasi klaim & kasbon, perjalanan, penugasan, procurement, aset | `/app/ga` |
+| **Finance** | Pencairan dana, verifikasi air minum & SubsidiTepat, Berita Acara | `/app/finance` |
+| **GA HR** | Kelola data lembur (rekap, PDF resmi, formulir permohonan) | `/app/ga-hr` |
+| **Marketing** | Jadwal & pantau appointment nasabah | `/app/marketing` |
+| **OB / Security** | Belanja air minum, pencatatan lembur | PWA `/m/` · `/app/overtime-me` |
+| **Receptionist** | Pelamar & in-out karyawan (sinkron dari aplikasi + Google Sheet) | `/app/receptionist` |
+| **Traineer** | Pembinaan trainee | `/app/traineer` |
+| **IT per cabang** (`it_<kode>`) | Berita perusahaan (scraper), Transcoder, PDF Kit | `/app/it` |
 
-## ✨ Fitur Utama
+Konvensi akun — **satu orang per divisi di satu cabang** → `{divisi}_{cabang}` (mis. `finance_sby`); lebih dari satu → `{divisi}_{nama}_{cabang}` (mis. `ob_faisol_sby`); Driver memakai nama orang; divisi IT memakai role `it_<kode>` per cabang. Backend memvalidasi pembeda divisi ini, jadi nama seperti `uang` untuk Finance akan ditolak. Semua login memakai **PIN**.
 
-### 💰 Klaim BBM & Kasbon
-- Driver submit foto bukti BBM (odomenter, nota, struk)
-- Sistem otomatis hitung konsumsi BBM per kilometer
-- AI mendeteksi anomali penggunaan BBM
-- Kasbon dengan kode unik harian untuk verifikasi cash
-- **Approval berjenjang (v2.36.0)**: kasbon & klaim BBM wajib ACC Chief Driver dulu sebelum diproses GA (gate 409 + antrean "ACC Atasan")
+## ✨ Modul-modul
 
-### ✅ ACC Berjenjang
-- Semua pengajuan melewati atasan dulu: kasbon/klaim BBM → Chief Driver lalu GA; overtime → GA HR lalu Admin
-- Atasan override per user (`manager_username` di Manajemen User); Admin melihat seluruh antrean ACC
-- Tolak harus menyertakan alasan — tercatat di jurnal ACC + audit log
+| Modul | Inti kegiatan |
+|-------|---------------|
+| 💰 **Klaim BBM & Kasbon** | Foto nota + odometer, hitung konsumsi per km otomatis, deteksi anomali AI, kode kasbon harian unik, LPJ |
+| ✅ **ACC Berjenjang** | Pengajuan wajib lewat atasan dulu (jurnal ACC + alasan tolak tercatat); penunjukan atasan bisa diatur per user |
+| 🗺 **Perjalanan & Appointments** | Trip multi-tujuan dengan GPS, auto-complete appointment saat trip selesai, notifikasi realtime ke marketing |
+| ⏰ **Overtime** | Dua sumber data (Driver dan OB/Security) via Apps Script bridge dari Google Sheet private; auto-refresh; tiga format PDF resmi berlogo BPF |
+| 💧 **Air Minum** | Pengajuan galon/botol/gelas dengan foto bukti sebelum–sesudah, verifikasi Finance, PDF tanda terima; koreksi/hapus opsional dengan step-up PIN |
+| ⛽ **SubsidiTepat** | Riwayat transaksi resmi SPBU dari portal MyPertamina di-import agen → auto-match ke klaim → Berita Acara Rekonsiliasi (PDF + root-hash antar periode) |
+| 🔄 **Penugasan driver** | Serah terima, tukar driver, riwayat per trip |
+| 📋 **Procurement · Asset · Expense** | Pengadaan, inventaris aset, dan pencatatan pengeluaran |
+| 🪪 **Receptionist** | Pipeline pelamar (daftar hadir otomatis) dan in-out karyawan, sinkron otomatis dari aplikasi dan Google Sheet |
+| 🎯 **Traineer** | Pembinaan trainee per cabang |
+| 📰 **News Scraper** | Berita tentang BPF dikumpulkan dari portal berita → publish ke WordPress tiap cabang (cron 06/10/14/18 WIB, hanya artikel berumur ≤ 1 hari) |
+| 🎬 **Transcoder** | YouTube → audio/video untuk materi internal (ffmpeg + yt-dlp) |
+| 📄 **PDF Kit** | Kompres PDF dua mesin: lossy Ghostscript + lossless qpdf — sadar dokumen bertanda tangan |
+| 🔐 **Keamanan & tata kelola** | Step-up PIN untuk aksi uang, Access Review triwulanan, retensi & arsip audit, integritas dokumen (hash SHA-256), program ISO 27001 |
 
-### 🗺️ Log Perjalanan
-- Multi-destination trip tracking
-- Integrasi dengan Google Maps (GPS tracking)
-- Auto-complete appointment saat driver submit trip
-- Real-time notifikasi ke marketing
+## 🏗️ Arsitektur
 
-### 📅 Appointment
-- Marketing buat jadwal kunjungan nasabah
-- Chief Driver assign ke driver
-- Driver konfirmasi kunjungan via trip
-- Status tracking real-time
+Semuanya hidup di satu NAS (Debian + Docker Compose); HTTPS dilayani oleh proxy Nextcloud nginx yang berjalan di server yang sama. Data terpisah per cabang: satu DB master + satu DB tiap cabang **lain** — cabang default (Surabaya) sengaja berbagi DB master, dan konvensi ini dijaga guard di CI.
 
-### ⏰ Overtime (Lembur)
-- **Dua sumber data**: Driver & OB/Security, masing-masing disinkronkan dari Google Sheet private lewat **Apps Script Web App** (tanpa membuka akses sheet)
-- **Waktu sesuai sheet (v2.39.0)**: bridge Apps Script mengirim tanggal/jam sesuai tampilan sheet (zona spreadsheet) — jam di aplikasi = jam di sheet, di zona apa pun; feed script lama (ISO UTC → WIB) tetap didukung
-- **Form publik** untuk OB/Security (tanpa login) + **form dalam aplikasi** untuk user OB & Security (`/app/overtime-me`, identitas terkunci dari sesi login)
-- **Auto-refresh** di background saat GA HR/Admin login/logout (debounce 30 dtk) + tombol Refresh manual
-- Riwayat **8.675 sesi Driver** (2020–2026) & **599 sesi OB/Security** tersimpan; tanggal terbaru selalu di posisi teratas
-- 3 format PDF resmi berlogo BPF: laporan rekap, detail per karyawan (PDF/Excel), & Formulir Permohonan (foto tersemat, blok TTD 5 kolom)
-
-### 💧 Air Minum
-- OB mengajukan pengiriman air minum (galon/botol/gelas) + **foto bukti sebelum & sesudah diisi**
-- Finance memverifikasi → **PDF Tanda Terima** (Informasi Pengiriman → Rincian Barang → Lampiran Foto → Tanda Tangan Finance & GA) — foto bukti ditampilkan besar (mengikuti ruang kosong di bawah blok TTD)
-- **Edit & hapus transaksi (v2.37.0, fitur opsional)**: Admin mengaktifkan per cabang di Pengaturan → Finance bisa mengoreksi tanggal/item/remark pengajuan Menunggu/Terverifikasi dan menghapus permanen (selalu step-up PIN + snapshot lengkap di audit log)
-
-### 🛡️ Admin per-cabang (v2.37.0)
-- Konvensi `{divisi}_{cabang}` berlaku untuk admin: `admin` = Admin Pusat (semua cabang), `admin_sby`/`admin_bdg`/… = Admin cabang (terkunci ke cabangnya)
-- Aksi lintas cabang (ganti cabang, reset nomor dokumen, arsip audit, access review) khusus Admin Pusat
-- 1 admin untuk 2 cabang? isi `users.managed_branches` (mis. `SBY,BDG`); promosi ke pusat via `users.admin_all_branches = 1`
-
-### ⛽ SubsidiTepat (MyPertamina) — BBM resmi via agen
-- **Data SPBU**: riwayat transaksi resmi MyPertamina ditarik otomatis oleh agen
-  (`agent/subsiditepat`, cron harian 06:15 WIB) → diimpor ke `subsidy_transactions`.
-- **Akses OTP (v2.69–v2.77)**: finance minta login baru lewat dashboard → agen host
-  (Chrome headful di Xvfb) login ke portal → OTP email dikirim ke akun
-  SubsidiTepat (`bbm.sby@bestprofit-futures.co.id`) → finance masukkan 6 digit →
-  token baru disimpan → pull + import + auto-match berjalan otomatis.
-- **Fix v2.77.0**: anti request ganda OTP (backend + frontend), supervisor agen kini
-  memvalidasi status (`OTP_SENT`/rate-limit) sebelum menulis `waiting_otp`, & cooldown
-  resend 180 detik (`timeToResend`) dihormati.
-- **Berita Acara**: klaim yang dijodohkan ke nomor transaksi SPBU diikat per periode (root hash SHA-256).
-
----
-
-## 👥 Siapa yang Pakai?
-
-| Role | Kegunaan | Contoh |
-|------|----------|--------|
-| **Admin** | Kelola semua data dan user | Manajer IT |
-| **Driver** | Submit BBM, kasbon, trip | AKHAD, BUDI |
-| **GA** | Verifikasi klaim BBM & kasbon | Staff GA |
-| **Finance** | Pencairan dana | Staff Keuangan |
-| **GA HR** | Kelola data lembur | Staff HRD |
-| **Marketing** | Buat & pantau appointment | Marketing |
-| **Chief Driver** | Assign driver ke appointment | Supervisor |
-| **OB/Security** | Submit lembur (form dalam aplikasi + form publik) | OB, Security |
-
----
-
-## 🚀 Cara Mulai
-
-### Akses Online
-🌐 **https://nasbpfsby.duckdns.org:5000**
-
-### Akses Lokal (Development)
-```bash
-# Clone repository
-git clone https://github.com/bestprofitsurabaya/bpf-workhub.git
-cd bpf-workhub
-
-# Jalankan dengan Docker (port host sudah localhost-only sejak v2.29.1)
-docker compose up -d --build
-
-# Akses dari mesin yang sama / SSH tunnel:
-#   ssh -L 5001:127.0.0.1:5001 user@server
-# Buka browser → http://localhost:5001
-#
-# Catatan: port 5001 (web) & 3307 (DB) sengaja di-bind ke 127.0.0.1 —
-# produksi dilayani lewat nextcloud_nginx (HTTPS), bukan port host.
+```txt
+   Browser (SPA /app/) & PWA driver (/m/)
+        │   HTTPS  nasbpfsby.duckdns.org:5000
+        ▼
+ nextcloud_nginx (SSL termination, cache assets, WebSocket)
+        │   proxy_pass → jaringan docker bersama
+        ▼
+┌──────────────────────────── bpf-workhub (Docker Compose) ─────────────────────┐
+│  web     Flask + SocketIO · gunicorn gevent 1 worker · SPA & PWA dalam image   │
+│  db      MariaDB 10.11 — 1 DB master (dipakai SBY) + 11 DB cabang              │
+│  redis   Redis 7 (cache, rate-limit, realtime bus)                             │
+│  backup  dump harian 03:00 + drill restore mingguan + heartbeat Uptime Kuma    │
+└────────────────────────────────────────────────────────────────────────────────┘
+        ▲
+        │ file gate (bind mount)
+ agen di host: login-OTP SubsidiTepat (Chrome dalam Xvfb) + sinkronisasi 06:15 WIB
 ```
 
-### Akun Demo (PIN-based)
+Teknologi utama: **Python 3.11 / Flask 3 / gevent / Socket.IO**, **Vue 3 + Vite**, **MariaDB**, **Redis**. Dockerfile multi-stage: build SPA di stage Node, runtime Python slim + mysql-client + ffmpeg/poppler/ghostscript/qpdf (untuk PDF Kit, transcoder, kompres foto).
 
-Akun seed yang dibuat otomatis saat inisialisasi database (terverifikasi login):
+## 📁 Peta repo
 
-| Login | PIN | Role |
-|-------|-----|------|
-| `admin` | `123456` | Admin |
-| `ga_sby` | `123456` | GA Officer |
-| `finance_sby` | `123456` | Finance Officer |
-
-> ⚠️ User per-cabang (`ga_sby`, `finance_sby`, `ob_faisol_sby`, `it_sby`, dst.)
-> **bukan akun demo publik** — dibuat oleh Admin saat onboarding dan PIN-nya
-> dikelola Admin (ganti setelah login pertama). Jangan andalkan PIN `123456`
-> untuk akun tersebut.
->
-> 🔑 **Server produksi:** akun seed `admin` telah di-rename menjadi
-> **`admin_master`** (Admin Pusat, 7 Sep 2026) dan semua PIN bawaan sudah
-> diganti — lihat [Daftar User & Role](docs/internal/USER_LIST.md). Tabel
-> di atas hanya berlaku untuk fresh deploy dari `init.sql`.
-
-### ✍️ Konvensi Username (sejak v2.29.7)
-
-Username dibuat agar **langsung terbaca divisi & cabang pemiliknya**:
-
-- Satu orang per divisi di cabang → `{divisi}_{cabang}` — contoh: `finance_sby`,
-  `ga_sby`, `gahr_sby`, `receptionist_sby`, `it_bdg`, `security_sby`.
-- Lebih dari satu orang per divisi di cabang yang sama → `{divisi}_{nama}_{cabang}`
-  — contoh: `ob_faisol_sby`, `ob_febri_sby` (bukan `ob1`/`ob2`), `security_budi_sby`, `marketing_yusie_sby`.
-- Khusus **Driver** username tetap nama orang (`akhad`, `wicak`, …) karena
-  dipakai login PWA di HP (form pendek) & dibuat otomatis dari tabel `drivers`.
-- Divisi `it` memakai cabang sebagai role (`it_sby` … `it_lpg`) — pola lama yang
-  dipertahankan; divisi lain cukup 1 role + kolom `branch_code`.
-- **Divalidasi backend sejak v2.29.9**: role back-office WAJIB diawali divisi
-  (`finance_`, `ob_`, `security_`, …) — username `uang` utk Finance ditolak sistem.
-  Pengecualian: Driver (nama orang), Admin, `it_*`; akun lama yang sudah ada
-  tetap bisa disimpan tanpa rename.
->
-> Semua login memakai **PIN**, bukan password. Endpoint login: `POST /api/auth/login`
-> (JSON `{username, pin}` + header `X-CSRF-Token` dari `GET /api/auth/me`).
-
----
-
-## 🛠️ Teknologi yang Dipakai
-
-| Komponen | Teknologi | Fungsi |
-|----------|-----------|--------|
-| Backend | Python Flask | Server & API |
-| Runtime | Gunicorn (gevent) | WSGI production (gevent sejak v2.38.0) |
-| Frontend | Vue 3 + Vite | Tampilan SPA (di-build ke dalam image) |
-| Database | MariaDB | Penyimpanan data |
-| Cache | Redis | Session & real-time |
-| Realtime | Socket.IO | Notifikasi langsung |
-| Container | Docker | Deployment |
-
----
-
-## 📁 Struktur Project
-
-```
+```text
 bpf-workhub/
-├── app.py                  # File utama Flask
-├── modules/                # Modul backend
-│   ├── routes_driver.py    # Endpoint driver
-│   ├── routes_cash.py      # Endpoint kasbon
-│   ├── routes_overtime.py  # Endpoint lembur
-│   ├── news_scraper/       # Scraper & upload berita
-│   ├── transcoder/         # Konversi media (YouTube)
-│   ├── pdfkit/             # Kompres PDF
-│   └── ...
-├── frontend/               # SPA Vue 3
-│   ├── src/views/          # Halaman-halaman
-│   └── src/stores/         # State management
-├── tests/                  # Unit tests
-├── docker-compose.yml      # Konfigurasi Docker
-└── .env                    # Environment variables
+├── app.py               # entry Flask: wiring modul, middleware keamanan, ensure-schema startup
+├── modules/             # backend: route API tiap modul, DB pool, generator PDF, guard keamanan
+├── frontend/            # SPA Vue 3 (views per peran, router + guard, vitest)
+├── mobile/              # PWA shell driver/OB/security (bind mount — bedah cepat tanpa rebuild)
+├── agent/subsiditepat/  # agen host: login MyPertamina, pull/push riwayat SPBU, OTP supervisor
+├── scripts/             # migrasi DB, smoke test, backup/restore, Appscript bridge, cek stamp versi
+├── tests/               # pytest backend (75 file)
+├── docs/                # dokumentasi — mulai dari INDEX.md
+├── guides/              # panduan pengguna per peran
+├── init.sql             # seed schema, cabang, akun demo
+└── docker-compose.yml   # web · db · redis · backup (dokumen kaya komentar per keputusan desain)
 ```
 
----
+Data yang harus bertahan antar restart tersimpan di tiga volume `bpf-workhub_*` (DB, redis, backup) plus bind `/srv/bpf-workhub/` (uploads user, hasil transcoder, arsip Berita Acara — dokumen resmi, jangan pernah dihapus). Kredensial tinggal di `.env` (template: `.env.example`, tidak pernah di-commit).
 
-## ⚙️ Variabel Environment (`.env`)
-
-Template lengkap: `.env.example`. Selalu salin dulu: `cp .env.example .env && chmod 600 .env`.
-`.env` **tidak pernah di-commit** (sudah di `.gitignore`; permission 600).
-
-| Variabel | Wajib | Fungsi | Default |
-|---|---|---|---|
-| `SECRET_KEY` | ✅ | Kunci sesi Flask — generate `openssl rand -hex 32` | — (ditolak di produksi) |
-| `SESSION_COOKIE_SECURE` | | `true` bila akses via HTTPS produksi; `false` hanya dev http LAN | `true` |
-| `MYSQL_ROOT_PASSWORD` | ✅ | Password root DB (backup service & restore manual) | — |
-| `MYSQL_PASSWORD` | ✅ | Password user aplikasi `bpf_user` (web + healthcheck) | — |
-| `MYSQL_DATABASE` / `MYSQL_USER` | | Nama DB & user awal (berlaku saat volume DB pertama dibuat) | `bpf_asset_system` / `bpf_user` |
-| `DB_NAME` / `DB_USER` | | Kredensial yang dipakai aplikasi web | sama di atas |
-| `DB_POOL_SIZE` / `BRANCH_POOL_SIZE` | | Ukuran pool koneksi master / per-cabang | `25` / `5` |
-| `SESSION_HOURS` | | Masa aktif sesi login (jam) | `12` |
-| `MIKROTIK_HOST` / `MIKROTIK_USER` / `MIKROTIK_PASSWORD` | | Kredensial RouterOS Mikrotik — **cadangan integrasi hotspot (belum dipakai kode saat ini)**; simpan di `.env`, jangan hardcode & jangan commit | kosong |
-| `STEPUP_TTL_SECONDS` | | Masa grant PIN ulang aksi keuangan (min 60) | `600` |
-| `STALE_ACCOUNT_DAYS` | | Ambang akun basi Access Review (min 30) | `90` |
-| `RETENTION_DAYS_AUDIT_LOGS` | | Retensi log audit (hari) | `1825` |
-| `SCRAPER_LOG_LEVEL` | | Level log scraper | `INFO` |
-
-> ⚠️ Rotasi kredensial DB yang sudah jalan **tidak** lewat `.env` saja (env MySQL hanya
-> dipakai saat volume pertama kali dibuat) — gunakan
-> `scripts/rotate-db-credentials.sh`, lalu update `.env` agar backup container tetap cocok.
-
----
-
-## 🧪 Menjalankan Test di Host
-
-CI selalu hijau — ia menyediakan `SECRET_KEY` & DB sendiri. Di host (tanpa env),
-2 file test (`test_security_headers.py`, `test_scraper_wp_status.py`) akan error
-karena butuh kredensial DB. Gunakan script ini:
+## 🚦 Mulai cepat (fresh deploy)
 
 ```bash
-# Mode aman (default) — skipp 2 file butuh-DB, cocok untuk loop harian:
-./scripts/run-tests.sh
-
-# Semua test, termasuk 2 file di atas — kredensial dibaca dari .env
-# (host MariaDB 127.0.0.1:3307; import app hanya mengeksekusi ensure-schema
-#  "IF EXISTS", tapi tetap: hindari saat DB produksi sedang sibuk):
-./scripts/run-tests.sh --db
-
-# File/filter spesifik:
-./scripts/run-tests.sh --db tests/test_security_headers.py -q
+cp .env.example .env && chmod 600 .env   # isi SECRET_KEY + MYSQL_*; generator di header template
+docker compose up -d --build             # DB di-seed init.sql saat volume pertama dibuat
+curl http://127.0.0.1:5001/api/health    # harap 'database': 'ok'
 ```
 
----
+Akun demo khusus **fresh install** (PIN awal `123456` — wajib diganti):
 
-## 🔒 Keamanan
+| Login | Peran |
+|---|---|
+| `admin` | Admin Pusat |
+| `ga_sby` | GA Surabaya |
+| `finance_sby` | Finance Surabaya |
 
-- 🔐 Login PIN dengan brute-force protection
-- 🛡️ CSRF protection di semua form
-- 🔒 HTTPS dengan sertifikat Let's Encrypt
-- 📝 Audit log untuk semua aktivitas
-- 🚫 Rate limiting untuk mencegah spam
-- 🔑 Role-based access control (RBAC)
-- 🧬 **Step-up auth (v2.31, Tahap 2/6 ISO 27001)** — aksi approve/pay berisiko
-  (approve kasbon, serah terima dana, payout klaim BBM, verifikasi air minum)
-  wajib konfirmasi PIN ulang user yang sedang login (modal PIN, grant 10 menit,
-  hilang saat logout)
-- 🛂 **Access Review (v2.32, Tahap 3/6 ISO 27001)** — halaman admin untuk
-  review hak akses triwulanan: klasifikasi akun otomatis (OK / Basi >90 hari /
-  Belum Login / Nonaktif), export CSV arsip, dan pencatatan review selesai
-  (A.5.15 · A.8.2 · A.8.3)
-- 🛡️ **Vulnerability Management (v2.33, Tahap 4/6 ISO 27001)** — audit
-  kerentanan dependensi otomatis di CI (`pip-audit` + `npm audit` + Trivy
-  scan image, A.8.8) + Dependabot mingguan + **Runbook Tanggap Insiden**
-  (A.5.24–28, lihat `docs/internal/INCIDENT_RUNBOOK.md`); semua dependensi di-patch ke
-  versi aman, image runtime dibersihkan dari tooling build
-- 🗄️ **Retensi & Arsip (v2.34, Tahap 5/6 ISO 27001)** — kebijakan retensi
-  per kelas dokumen (lihat `docs/internal/RETENTION_POLICY.md`), inventaris live lintas
-  cabang, dan arsip audit trail ke tabel arsip (ISO 15489 · UU PDP)
-- 🔏 **Integritas Dokumen (v2.35, Tahap 6/6 ISO 27001)** — setiap PDF resmi
-  dicatat hash SHA-256 + penandatangan + waktu terbit; verifikasi keaslian
-  dengan mengunggah PDF (A.8.2 · keaslian dokumen)
+> Di server produksi, akun seed `admin` sudah di-rename menjadi `admin_master` dan PIN bawaan telah diganti. Daftar akun per cabang: [docs/internal/USER_LIST.md](docs/internal/USER_LIST.md).
 
----
-
-## 🧪 Pengujian
+## 🧪 Uji & rilis
 
 ```bash
-# Backend tests
-python -m pytest tests/ -v
-
-# Frontend tests
-cd frontend && npm test
+./scripts/run-tests.sh          # pytest aman (lewati 2 file butuh DB)
+./scripts/run-tests.sh --db     # lengkap; kredensial dari .env, hindari saat produksi sibuk
+cd frontend && npx vitest run   # unit SPA
 ```
 
-**Status:** seluruh pytest & vitest lulus + audit dependensi bersih (CI GitHub Actions: Backend pytest + pip-audit, Frontend unit test/build + npm audit, Image scan Trivy; hijau di tiap push)
+CI GitHub Actions menjaga standar tiap push: build SPA + vitest + `npm audit`, pytest + `pip-audit` + cek stamp versi + cek peta cabang→DB, dan scan image **Trivy** (CVE HIGH/CRITICAL membuat build gagal). Rilis baru: bump versi di 7 titik stamp (rinciannya di [docs/DEVELOPER.md](docs/DEVELOPER.md)), isi [CHANGELOG.md](CHANGELOG.md), perbarui panduan, lalu `docker compose build web && docker compose up -d web`.
 
----
+## 🗺️ Peta dokumentasi
 
-## 🗺️ Peta Dokumentasi
+Indeks lengkap semua dokumen + statusnya: **[docs/INDEX.md](docs/INDEX.md)**. Ringkasnya:
 
-Dokumentasi BPF WorkHub tersusun seperti rak buku — pilih lorong sesuai kebutuhanmu.
-
-> **Baru di sini?** Mulai dari [Ringkasan Satu Halaman](docs/public/ONEPAGER.md) untuk gambaran
-> besarnya, lalu buka [Panduan Pengguna](guides/USER_GUIDE.md) langsung ke bagian peranmu.
-
-### 📖 Untuk Pengguna — belajar memakai sistem
-
-| Dokumen | Isinya |
-|---------|--------|
-| [📖 Panduan Pengguna](guides/USER_GUIDE.md) | Langkah demi langkah tiap peran — ditulis tanpa istilah teknis |
-| [🎯 Lembar Latihan per Peran](docs/public/PELATIHAN.md) | Latihan mandiri 5–10 menit per peran, cocok sebelum demo |
-| [📋 Daftar User & Role](docs/internal/USER_LIST.md) | Semua role yang didukung + konvensi nama akun per cabang |
-
-### 🎤 Untuk Presenter — memperkenalkan sistem
-
-| Dokumen | Isinya |
-|---------|--------|
-| [🎤 Materi Presentasi](docs/public/PRESENTASI.md) | Skenario demo lengkap: poin bicara, tampilan layar, kalimat kunci |
-| [📄 Ringkasan Satu Halaman](docs/public/ONEPAGER.md) | Ikhtisar sistem untuk dibagikan — pas di satu halaman |
-
-### 🚀 Untuk IT — menjalankan sistem
-
-| Dokumen | Isinya |
-|---------|--------|
-| [📘 Panduan Deployment](docs/internal/DEPLOYMENT.md) | Pasang, update, backup, HTTPS, troubleshooting |
-| [🌱 Deploy dari Nol](docs/internal/DEPLOY_FRESH.md) | Panduan server kosong → aplikasi jalan |
-| [🛡️ Keamanan & Standar](docs/internal/SECURITY.md) | Program ISO 27001 · ISO 9001: klausul & penerapannya |
-| [🗄️ Kebijakan Retensi](docs/internal/RETENTION_POLICY.md) | Masa simpan & pemusnahan tiap kelas dokumen |
-| [🚨 Runbook Tanggap Insiden](docs/internal/INCIDENT_RUNBOOK.md) | Langkah darurat saat kejadian keamanan |
-
-### 🧭 Untuk Tim Pengembang — melacak perjalanan
-
-| Dokumen | Isinya |
-|---------|--------|
-| [📋 Changelog](CHANGELOG.md) | Riwayat perubahan per versi — ditulis untuk manusia |
-| [📈 Progress Tracker](docs/internal/PROGRESS.md) | Status roadmap, catatan sesi, rekomendasi berikutnya |
-| [🤖 Komunikasi Ox Alpha](docs/internal/arsip_2025Q4/OXALPHA_COMMUNICATION.md) | Catatan integrasi LLM (OpenRouter) untuk asisten IT |
-
----
+- 📖 Belajar pakai: [Panduan Pengguna](guides/USER_GUIDE.md) · [Lembar Latihan](docs/public/PELATIHAN.md) · [Materi Presentasi](docs/public/PRESENTASI.md) · [One-pager](docs/public/ONEPAGER.md)
+- 🚀 Menjalankan sistem: [Panduan Deployment](docs/internal/DEPLOYMENT.md) · [Deploy dari Nol](docs/internal/DEPLOY_FRESH.md) · [Keamanan & Standar ISO](docs/internal/SECURITY.md) · [Runbook Insiden](docs/internal/INCIDENT_RUNBOOK.md)
+- 🧭 Pengembangan: [DEVELOPER.md](docs/DEVELOPER.md) · [Changelog](CHANGELOG.md) · [Progress Tracker](docs/internal/PROGRESS.md) · [Daftar User & Role](docs/internal/USER_LIST.md)
 
 ## 📞 Kontak
 
 **PT. Bestprofit Futures — Kantor Pusat Jakarta**
-Equity Tower, SCBD Lot 9, Jl. Jend. Sudirman Kav. 52-53, Jakarta Selatan 12190
-📞 031-5349888
+Equity Tower, SCBD Lot 9, Jl. Jend. Sudirman Kav. 52-53, Jakarta Selatan 12190 · 031-5349888
 
----
-
-*Dikembangkan dengan ❤️ oleh Tim IT BPF*
+*Dikembangkan oleh tim IT BPF — dengan cinta (dan sedikit pytest).*
