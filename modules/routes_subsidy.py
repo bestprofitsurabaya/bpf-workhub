@@ -349,9 +349,19 @@ def register_subsidy_routes(app):
 
             m = get_master_connection()
             mcur = None
+            data_range = None
             if m:
                 try:
                     mcur = m.cursor(dictionary=True)
+                    mcur.execute(
+                        "SELECT COUNT(*) AS total, MIN(transaction_date) AS oldest, "
+                        "MAX(transaction_date) AS newest FROM subsidy_transactions")
+                    rng = mcur.fetchone() or {}
+                    data_range = {
+                        'total': int(rng.get('total') or 0),
+                        'oldest': str(rng.get('oldest') or ''),
+                        'newest': str(rng.get('newest') or ''),
+                    }
                     if tx.get('subsidy_tx_id'):
                         mcur.execute("SELECT * FROM subsidy_transactions WHERE id=%s",
                                      (tx['subsidy_tx_id'],))
@@ -406,6 +416,7 @@ def register_subsidy_routes(app):
             return jsonify({
                 'verdict': verdict, 'nopol_norm': _norm_nopol(tx['nopol']),
                 'liter': liter, 'nominal': nominal, 'candidates': cands,
+                'data_range': data_range,
                 'linked': {
                     'id': linked['id'], 'transaction_id': linked['transaction_id'],
                     'transaction_date': str(linked['transaction_date']),

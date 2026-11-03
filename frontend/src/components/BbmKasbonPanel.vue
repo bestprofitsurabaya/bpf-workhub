@@ -1,19 +1,36 @@
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { api } from '../api'
 import Modal from './Modal.vue'
 import ConfirmDialog from './ConfirmDialog.vue'
 import ClaimVerifyCard from './ClaimVerifyCard.vue'
 import { useStepupStore } from '../stores/stepup'
+import { formatDateTime } from '../utils/format.js'
 
 // Panel operasional BBM + Data SPBU (Subsidi Tepat). Dipakai halaman
 // Kasbon / BBM supaya semua pekerjaan BBM Finance ada dalam satu tempat.
+const props = defineProps({ activeSection: { type: String, default: 'bbm' } })
+
 const stepup = useStepupStore()
 const confirmRef = ref(null)
 const ask = (message, opts) => confirmRef.value?.open(message, opts) ?? Promise.resolve(false)
 
 const fmtRp = (n) => 'Rp ' + (Number(n) || 0).toLocaleString('id-ID')
 const fmtNum = (n) => (Number(n) || 0).toLocaleString('id-ID')
+
+const TX_STATUS_LABEL = {
+  pending: 'Menunggu GA', modified: 'Perlu review', verified_ga: 'Disetujui GA',
+  os_finance: 'Dibayar · menunggu LPJ', archived: 'Selesai', rejected: 'Ditolak',
+}
+const TX_STATUS_BADGE = {
+  pending: 'badge-gray', modified: 'badge-amber', verified_ga: 'badge-blue',
+  os_finance: 'badge-amber', archived: 'badge-green', rejected: 'badge-red',
+}
+const txStatusLabel = (t) => (
+  t.transaction_type === 'CASH_LPJ' && t.status === 'verified_ga'
+    ? 'Kasbon · LPJ selesai'
+    : TX_STATUS_LABEL[t.status] || t.status
+)
 
 const bbm = ref({ incoming: 0, ready: 0, confirm: 0, history: 0, incomingPages: 1, readyPages: 1, historyPages: 1, incomingList: [], readyList: [], confirmList: [], historyList: [] })
 const bbmSearch = ref('')
@@ -253,37 +270,6 @@ async function doPayout() {
   } finally { stageBusy.value = false }
 }
 
-// ============================================================
-// v2.68.0 — Data SPBU Subsidi Tepat (agen menarik otomatis harian 06:15);
-// Finance memantau kesiapan data + memicu pencocokan advisory 1 klik.
-// ============================================================
-const subsidy = ref({ count: 0, last_pull: '', oldest: '', newest: '', coverage: {} })
-const subsidyBusy = ref(false)
-const subsidyMsg = ref('')
-
-async function loadSubsidy() {
-  try { subsidy.value = await api('/api/subsidy/status') }
-  catch { subsidy.value = { count: 0, last_pull: '', coverage: {} } }
-}
-
-async function autoMatch() {
-  if (subsidyBusy.value) return
-  subsidyBusy.value = true; subsidyMsg.value = ''
-  try {
-    const r = await api('/api/subsidy/auto-match', { method: 'POST' })
-    subsidyMsg.value = '✅ ' + (r.msg || 'Pencocokan selesai')
-    await Promise.all([loadSubsidy(), loadBbm()])
-  } catch (e) {
-    subsidyMsg.value = '❌ ' + (e.message || 'Gagal pencocokan otomatis')
-  } finally { subsidyBusy.value = false }
-}
-
-const covLabel = { linked: '🔗 Dijodohkan', match: '✅ Match', close: '≈ Hampir', mismatch: '⚠ Selisih', no_record: '∅ Tanpa catatan', belum: '· Belum diproses' }
-const covOrder = ['linked', 'match', 'close', 'mismatch', 'no_record', 'belum']
-const covChips = computed(() =>
-  covOrder.filter((k) => subsidy.value.coverage?.[k])
-    .map((k) => ({ k, label: covLabel[k] || k, n: subsidy.value.coverage[k] })))
-
 // ------------------------------------------------------------
 // v2.69.0 — Login ulang agen Subsidi Tepat langsung dari dashboard:
 // Finance minta OTP (email akun) → agen host login → ketik OTP di sini →
@@ -356,11 +342,69 @@ async function otpSubmit() {
   } finally { otpBusy.value = false }
 }
 
-onMounted(loadOtpStatus)
+// ============================================================
+// Data SPBU SubsidiTepat — agen menarik otomatis harian 06:15.
+// Finance memantau kesegaran data, mencocokkan klaim (advisory), dan
+// meminta OTP bila sesi agen kedaluwarsa.
+// ============================================================
+const subsidy = ref({ count: 0, last_pull: '', oldest: '', newest: '', coverage: {} })
+const subsidyBusy = ref(false)
+const subsidyMsg = ref('')
 
-// ============================================================
+function parseDateTime(value) {
+  if (!value) return null
+  const d = new Date(String(value).replace(' ', 'T'))
+  return Number.isNaN(d.getTime()) ? null : d
+}
+
+const subsidyStaleDays = computed(() => {
+  const d = parseDateTime(subsidy.value?.last_pull)
+  if (!d) return null
+  return Math.max(0, Math.floor((Date.now() - d.getTime()) / 86_400_000))
+})
+const subsidyStale = computed(() => subsidyStaleDays.value !== null && subsidyStaleDays.value > 2)
+const subsidyFreshness = computed(() => {
+  if (!subsidy.value?.count) return 'Belum ada data'
+  if (subsidyStaleDays.value === null) return 'Waktu tarik tidak diketahui'
+  return subsidyStaleDays.value <= 2 ? 'Data segar' : `Basi ${subsidyStaleDays.value} hari`
+})
+const subsidyLastPullLabel = computed(() => (
+  subsidy.value?.last_pull ? formatDateTime(subsidy.value.last_pull) : '—'
+))
+
+async function loadSubsidy() {
+  try { subsidy.value = await api('/api/subsidy/status') }
+  catch { subsidy.value = { count: 0, last_pull: '', oldest: '', newest: '', coverage: {} } }
+}
+
+async function autoMatch() {
+  if (subsidyBusy.value) return
+  subsidyBusy.value = true; subsidyMsg.value = ''
+  try {
+    const r = await api('/api/subsidy/auto-match', { method: 'POST' })
+    subsidyMsg.value = '✅ ' + (r.msg || 'Pencocokan selesai')
+    await Promise.all([loadSubsidy(), loadBbm()])
+  } catch (e) {
+    subsidyMsg.value = '❌ ' + (e.message || 'Gagal pencocokan otomatis')
+  } finally { subsidyBusy.value = false }
+}
+
+const covLabel = { linked: '🔗 Dijodohkan', match: '✅ Match', close: '≈ Hampir', mismatch: '⚠ Selisih', no_record: '∅ Tanpa catatan', belum: '· Belum diproses' }
+const covOrder = ['linked', 'match', 'close', 'mismatch', 'no_record', 'belum']
+const covChips = computed(() =>
+  covOrder.filter((k) => subsidy.value.coverage?.[k])
+    .map((k) => ({ k, label: covLabel[k] || k, n: subsidy.value.coverage[k] })))
+
+const otpCardRef = ref(null)
+async function requestOtpFromBanner() {
+  await otpRequest()
+  await nextTick()
+  otpCardRef.value?.scrollIntoView?.({ behavior: 'smooth', block: 'center' })
+}
+
+// ------------------------------------------------------------
 // Berita Acara Rekonsiliasi — Subsidi Tepat (daftar BA + unduh PDF)
-// ============================================================
+// ------------------------------------------------------------
 const attestList = ref([])
 const attestLoading = ref(false)
 
@@ -374,21 +418,42 @@ async function loadAttest() {
 function downloadAttest(a) {
   window.open(`/api/subsidy/attest/${a.id}/pdf`, '_blank')
 }
+
+watch(() => props.activeSection, (section) => {
+  if (section === 'subsidy') {
+    otpPollStop()
+    loadSubsidy()
+    loadAttest()
+    loadOtpStatus()
+  } else if (section === 'bbm') {
+    otpPollStop()
+    loadBbm()
+  }
+})
+
 onBeforeUnmount(() => {
   otpPollStop()
   if (bbmRefreshTimer) clearInterval(bbmRefreshTimer)
 })
 
 onMounted(() => {
-  loadBbm(); loadAttest(); loadSubsidy()
-  bbmRefreshTimer = setInterval(loadBbm, 30_000)
+  if (props.activeSection === 'subsidy') {
+    loadSubsidy()
+    loadAttest()
+    loadOtpStatus()
+  } else {
+    loadBbm()
+  }
+  bbmRefreshTimer = setInterval(() => {
+    if (props.activeSection === 'bbm') loadBbm()
+  }, 30_000)
 })
 </script>
 
 <template>
   <div>
       <!-- BBM: all incoming, ready, and processed claims stay findable here -->
-      <section class="card card-pad" style="margin-bottom:16px;" data-testid="bbm-quick">
+      <section v-if="props.activeSection === 'bbm'" class="card card-pad" style="margin-bottom:16px;" data-testid="bbm-quick">
         <div class="row" style="align-items:center;gap:12px;flex-wrap:wrap;">
           <div class="ac-icon">⛽</div>
           <div class="grow"><h2 style="margin:0;">BBM &amp; Kasbon</h2>
@@ -410,12 +475,12 @@ onMounted(() => {
             <thead><tr><th>Nomor / Tanggal</th><th>Jenis</th><th>Driver / Nopol</th><th>BBM</th><th>Nominal</th><th>Status</th><th>Aksi</th></tr></thead>
             <tbody>
               <tr v-for="t in visibleBbm" :key="t.id">
-                <td><b>{{ t.display_id }}</b><div class="muted" style="font-size:10px;">{{ t.created_at }}</div></td>
+                <td><b>{{ t.display_id }}</b><div class="muted" style="font-size:10px;">{{ formatDateTime(t.created_at) }}</div></td>
                 <td>{{ t.transaction_type === 'CASH_LPJ' ? 'Kasbon · LPJ' : 'Klaim BBM' }}</td>
                 <td>{{ t.driver_name }}<div class="muted" style="font-size:10px;">{{ t.nopol }}</div></td>
                 <td>{{ t.bbm_type }} · {{ fmtNum(t.liter) }} L</td>
                 <td>{{ fmtRp(t.nominal) }}</td>
-                <td><span v-if="t.ml_anomaly_flag" class="badge badge-amber">⚠️ Anomali</span> <span class="badge badge-blue">{{ t.transaction_type === 'CASH_LPJ' && t.status === 'verified_ga' ? 'Kasbon · LPJ selesai' : t.status === 'os_finance' ? 'Dibayar · menunggu LPJ' : t.status === 'archived' ? 'Selesai' : t.status === 'verified_ga' ? 'Disetujui GA' : t.status }}</span><div v-if="t.foto_mypertamina_admin" class="muted" style="font-size:10px;">⛽ Bukti MyPertamina tersimpan</div></td>
+                <td><span v-if="t.ml_anomaly_flag" class="badge badge-amber">⚠️ Anomali</span> <span class="badge" :class="TX_STATUS_BADGE[t.status] || 'badge-gray'">{{ txStatusLabel(t) }}</span><div v-if="t.foto_mypertamina_admin" class="muted" style="font-size:10px;">⛽ Bukti MyPertamina tersimpan</div></td>
                 <td class="row" style="gap:5px;">
                   <button class="btn btn-sm" @click="openDetail(t)">👁 Detail</button>
                   <button v-if="t.status !== 'pending' && t.status !== 'modified'" class="btn btn-sm" @click="openTxPdf(t)">📄 PDF</button>
@@ -437,44 +502,78 @@ onMounted(() => {
         <p class="muted" style="font-size:11px;margin-bottom:0;">Klaim baru terlihat di sini (read-only) sambil menunggu GA. Setelah dicairkan, transaksi tetap ada di ‘Sudah diproses’; tidak perlu aksi arsip tambahan.</p>
       </section>
 
-      <!-- v2.68.0: kesiapan data SPBU Subsidi Tepat + pencocokan advisory 1 klik -->
-      <div class="card card-pad" style="margin-bottom:16px;" data-testid="subsidy-data-card">
-        <div class="row" style="flex-wrap:wrap;gap:8px;align-items:center;">
-          <h3 style="margin:0;">⛽ Data SPBU — Subsidi Tepat</h3>
-          <span v-if="subsidy.count" class="badge badge-blue" data-testid="subsidy-count">{{ subsidy.count }} transaksi terimpor</span>
-          <span v-else class="badge badge-amber">Belum ada data</span>
-          <div class="spacer"></div>
-          <button class="btn btn-primary" :disabled="subsidyBusy" @click="autoMatch"
-                  title="Bandingkan semua klaim BBM terbuka ke riwayat SPBU (advisory — putusan tetap saat verifikasi detail)">
-            {{ subsidyBusy ? '⏳ Mencocokkan…' : '🤝 Cocokkan Klaim Otomatis' }}
-          </button>
+      <!-- Tab SubsidiTepat: kesiapan data SPBU, pencocokan advisory, OTP, dan Berita Acara. -->
+      <section v-if="props.activeSection === 'subsidy'" class="workspace-section" aria-label="Data SPBU dan OTP SubsidiTepat">
+        <div v-if="subsidyStale" class="alert alert-error subsidy-alert" data-testid="subsidy-stale-banner">
+          <div class="row" style="align-items:center;gap:10px;">
+            <div class="grow">
+              <b>⚠️ Data SPBU belum diperbarui {{ subsidyStaleDays }} hari.</b>
+              <div style="font-size:12px;margin-top:2px;">
+                Tarikan terakhir {{ subsidyLastPullLabel }}. Sesi agen kemungkinan kedaluwarsa —
+                minta OTP untuk menarik data terbaru sebelum mencocokkan klaim.
+              </div>
+            </div>
+            <button class="btn btn-sm btn-primary" :disabled="otpBusy" data-testid="subsidy-stale-otp"
+                    @click="requestOtpFromBanner">✉ Minta OTP Email</button>
+          </div>
         </div>
-        <div class="row" style="gap:18px;flex-wrap:wrap;margin:8px 0 4px;font-size:12px;">
-          <span>📅 Rentang data: <b>{{ subsidy.oldest || '—' }}</b> s/d <b>{{ subsidy.newest || '—' }}</b></span>
-          <span>⏱️ Tarik terakhir agen: <b>{{ (subsidy.last_pull || '—').slice(0, 19) }}</b> <span class="muted">(otomatis harian 06:15)</span></span>
-        </div>
-        <div v-if="covChips.length" class="row" style="gap:6px;flex-wrap:wrap;" data-testid="subsidy-coverage">
-          <span v-for="c in covChips" :key="c.k" class="badge badge-gray">{{ c.label }}: <b>{{ c.n }}</b></span>
-        </div>
-        <span v-if="subsidyMsg" class="alert" style="margin-top:8px;font-size:12px;display:inline-block;"
-              :class="subsidyMsg.startsWith('✅') ? 'alert-success' : 'alert-error'">{{ subsidyMsg }}</span>
-        <div class="mini-tips" style="margin-top:8px;">
-          💡 Kandidat kecocokan teperinci (nopol, tanggal, liter) tampil di modal <b>👁 Detail</b> klaim —
-          tautkan di sana agar nomor transaksi resmi Pertamina ikut ke Berita Acara.
+        <div v-else-if="!subsidy.count" class="alert alert-info subsidy-alert" data-testid="subsidy-empty-banner">
+          <b>Belum ada data SPBU terimpor.</b>
+          <span style="font-size:12px;"> Jalankan login agen lewat OTP di bawah, lalu tarik data.</span>
         </div>
 
-        <!-- v2.69.0: login ulang agen (OTP) langsung dari Finance -->
-        <div style="margin-top:10px;border-top:1px dashed var(--border, #e2e8f0);padding-top:10px;"
-             data-testid="subsidy-otp">
-          <div class="row" style="gap:8px;align-items:center;flex-wrap:wrap;">
-            <b style="font-size:13px;">🔑 Login ulang agen</b>
-            <span style="font-size:12px;">status: <b data-testid="otp-state">{{ otpLabel }}</b></span>
-            <div class="spacer"></div>
+        <div class="card card-pad subsidy-card" data-testid="subsidy-data-card">
+          <div class="row subsidy-card-head">
+            <div class="workspace-tab-icon" aria-hidden="true">⛽</div>
+            <div class="grow">
+              <h3 style="margin:0;">Data SPBU — SubsidiTepat</h3>
+              <p class="muted" style="margin:3px 0 0;font-size:12px;">
+                Riwayat transaksi resmi MyPertamina untuk mencocokkan klaim BBM.
+              </p>
+            </div>
+            <span v-if="subsidy.count" class="badge badge-blue" data-testid="subsidy-count">{{ subsidy.count }} transaksi</span>
+            <span v-else class="badge badge-amber">Belum ada data</span>
+            <span class="badge" :class="subsidyStale ? 'badge-red' : 'badge-green'" data-testid="subsidy-freshness">
+              {{ subsidyFreshness }}
+            </span>
+            <button class="btn btn-sm" :disabled="subsidyBusy" title="Muat ulang status data SPBU" @click="loadSubsidy">🔄</button>
+            <button class="btn btn-primary" :disabled="subsidyBusy" @click="autoMatch"
+                    title="Bandingkan semua klaim BBM terbuka ke riwayat SPBU (advisory — putusan tetap saat verifikasi detail)">
+              {{ subsidyBusy ? '⏳ Mencocokkan…' : '🤝 Cocokkan Klaim Otomatis' }}
+            </button>
+          </div>
+          <div class="subsidy-meta">
+            <span>📅 Rentang data: <b>{{ subsidy.oldest || '—' }}</b> s/d <b>{{ subsidy.newest || '—' }}</b></span>
+            <span>⏱️ Tarik terakhir: <b>{{ subsidyLastPullLabel }}</b> <span class="muted">(otomatis harian 06:15)</span></span>
+          </div>
+          <div v-if="covChips.length" class="row" style="gap:6px;flex-wrap:wrap;margin-top:10px;" data-testid="subsidy-coverage">
+            <span v-for="c in covChips" :key="c.k" class="badge badge-gray">{{ c.label }}: <b>{{ c.n }}</b></span>
+          </div>
+          <span v-if="subsidyMsg" class="alert" style="margin-top:10px;font-size:12px;display:inline-block;"
+                :class="subsidyMsg.startsWith('✅') ? 'alert-success' : 'alert-error'">{{ subsidyMsg }}</span>
+          <div class="mini-tips" style="margin-top:10px;">
+            💡 Kandidat kecocokan teperinci (nopol, tanggal, liter) tampil di modal <b>👁 Detail</b> klaim —
+            tautkan di sana agar nomor transaksi resmi Pertamina ikut ke Berita Acara.
+          </div>
+        </div>
+
+        <div ref="otpCardRef" class="card card-pad" data-testid="subsidy-otp-panel">
+          <div data-testid="subsidy-otp">
+          <div class="row subsidy-card-head">
+            <div class="workspace-tab-icon" aria-hidden="true">🔑</div>
+            <div class="grow">
+              <h3 style="margin:0;">Akses OTP SubsidiTepat</h3>
+              <p class="muted" style="margin:3px 0 0;font-size:12px;">
+                Login ulang hanya diperlukan bila sesi agen perlu diperbarui. Klaim dan kasbon tetap dikelola di tab BBM.
+              </p>
+            </div>
+            <span class="badge" :class="otp.state === 'done' ? 'badge-green' : otp.state === 'error' ? 'badge-red' : 'badge-gray'"
+                  data-testid="otp-state">{{ otpLabel }}</span>
             <button class="btn btn-sm" data-testid="otp-request" :disabled="otpBusy"
                     :title="'Browser login agen dijalankan — OTP dikirim ke email akun Subsidi Tepat'"
                     @click="otpRequest">✉ Minta OTP Email</button>
           </div>
-          <div v-if="otpInputShown" class="row" style="gap:6px;margin-top:7px;align-items:center;flex-wrap:wrap;"
+          <div v-if="otpInputShown" class="row" style="gap:6px;margin-top:10px;align-items:center;flex-wrap:wrap;"
                data-testid="otp-input">
             <input v-model="otpCode" class="inp" data-testid="otp-code" inputmode="numeric"
                    maxlength="6" placeholder="6 digit OTP dari email" style="width:190px;"
@@ -483,45 +582,47 @@ onMounted(() => {
                     :disabled="otpBusy || !otpReady" @click="otpSubmit">✔ Kirim OTP</button>
             <span class="muted" style="font-size:11px;">Cek email akun Subsidi Tepat — kode berlaku singkat.</span>
           </div>
-          <div v-if="otp.msg" class="alert" style="margin-top:6px;font-size:12px;display:inline-block;"
+          <div v-if="otp.msg" class="alert" style="margin-top:8px;font-size:12px;display:inline-block;"
                :class="otpTone" data-testid="otp-msg">{{ otp.msg }}</div>
+          </div>
         </div>
-      </div>
 
-      <!-- m2: Berita Acara Rekonsiliasi — Subsidi Tepat (arsip server) -->
-      <div class="card card-pad" style="margin-bottom:16px;" data-testid="attest-card">
-        <div class="row" style="flex-wrap:wrap;gap:8px;align-items:center;">
-          <h3 style="margin:0;">🖨 Berita Acara Rekonsiliasi — Subsidi Tepat</h3>
-          <div class="spacer"></div>
-          <button class="btn btn-sm" @click="loadAttest" title="Muat ulang daftar BA">🔄</button>
+        <div class="card card-pad" data-testid="attest-card">
+          <div class="row subsidy-card-head">
+            <div class="workspace-tab-icon" aria-hidden="true">🖨</div>
+            <div class="grow">
+              <h3 style="margin:0;">Berita Acara Rekonsiliasi</h3>
+              <p class="muted" style="margin:3px 0 0;font-size:12px;">
+                Klaim yang dijodohkan ke nomor transaksi resmi SPBU diikat per periode (root hash SHA-256).
+              </p>
+            </div>
+            <button class="btn btn-sm" @click="loadAttest" title="Muat ulang daftar BA">🔄</button>
+          </div>
+          <div v-if="attestLoading" class="muted" style="font-size:12px;margin-top:10px;">⏳ Memuat daftar BA…</div>
+          <div v-else class="table-wrap" style="margin-top:10px;">
+            <table class="table">
+              <thead><tr><th>BA</th><th>Periode</th><th>Klaim</th><th>Dibuat oleh</th><th>Waktu</th><th></th></tr></thead>
+              <tbody>
+                <tr v-for="a in attestList" :key="a.id">
+                  <td><b>#{{ a.id }}</b></td>
+                  <td>{{ a.period_start }} s/d {{ a.period_end }}</td>
+                  <td>{{ a.record_count }}</td>
+                  <td>{{ a.generated_by }}</td>
+                  <td class="muted" style="font-size:11px;">{{ formatDateTime(a.generated_at) }}</td>
+                  <td><button class="btn btn-sm" :title="'Unduh PDF BA #' + a.id" @click="downloadAttest(a)">📄 PDF</button></td>
+                </tr>
+                <tr v-if="!attestList.length"><td colspan="6" class="muted">Belum ada BA diterbitkan.</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="mini-tips">
+            💡 Berita Acara per periode hanya diperlukan bila kantor pusat meminta dokumen konsolidasi.
+          </div>
         </div>
-        <p class="muted" style="font-size:11px;margin:6px 0 8px;">
-          Kepastian hukum pencairan subsidi: klaim yang dijodohkan ke nomor transaksi resmi SPBU diikat per
-          periode (root hash SHA-256) untuk kantor pusat/reguler.
-        </p>
-        <div v-if="attestLoading" class="muted" style="font-size:12px;">⏳ Memuat daftar BA…</div>
-        <table v-else class="table">
-          <thead><tr><th>BA</th><th>Periode</th><th>Klaim</th><th>Dibuat oleh</th><th>Waktu</th><th></th></tr></thead>
-          <tbody>
-            <tr v-for="a in attestList" :key="a.id">
-              <td><b>#{{ a.id }}</b></td>
-              <td>{{ a.period_start }} s/d {{ a.period_end }}</td>
-              <td>{{ a.record_count }}</td>
-              <td>{{ a.generated_by }}</td>
-              <td class="muted" style="font-size:11px;">{{ (a.generated_at || '').slice(0, 19) }}</td>
-              <td><button class="btn btn-sm" :title="'Unduh PDF BA #' + a.id" @click="downloadAttest(a)">📄 PDF</button></td>
-            </tr>
-            <tr v-if="!attestList.length"><td colspan="6" class="muted">Belum ada BA diterbitkan.</td></tr>
-          </tbody>
-        </table>
-        <div class="mini-tips">
-          💡 <b>Tips:</b> Setiap baris BBM menyediakan lampiran bukti dan pencocokan Subsidi Tepat dari Detail.
-          Berita Acara per periode hanya diperlukan bila kantor pusat meminta dokumen konsolidasi.
-        </div>
-      </div>
+      </section>
 
     <!-- Modal instrumen Detail klaim — ClaimVerifyCard + penjodohan Subsidi Tepat -->
-    <Modal v-if="detailFor" :title="'⛽ ' + (detailFor.display_id || detailFor.id)" @close="detailFor = null">
+    <Modal v-if="props.activeSection === 'bbm' && detailFor" :title="'⛽ ' + (detailFor.display_id || detailFor.id)" @close="detailFor = null">
       <ClaimVerifyCard ref="cardRef" :tx-id="detailFor.id" can-link @loaded="onCardLoaded">
         <template #link="{ candidate }">
           <button class="btn btn-sm btn-primary" :disabled="linkBusy" :title="'Jodohkan ke SPBU ' + candidate.spbu_id"
@@ -570,7 +671,7 @@ onMounted(() => {
       </div>
     </Modal>
 
-    <Modal v-if="bbmUpload" :title="'⛽ Lampiran MyPertamina · ' + (bbmUpload.display_id || bbmUpload.id)" @close="bbmUpload = null">
+    <Modal v-if="props.activeSection === 'bbm' && bbmUpload" :title="'⛽ Lampiran MyPertamina · ' + (bbmUpload.display_id || bbmUpload.id)" @close="bbmUpload = null">
       <p class="muted">Unggah bukti verifikasi dari MyPertamina untuk transaksi BBM ini. Screenshot gambar ikut tercetak di PDF transaksi; berkas PDF sumber bisa dibuka dari tombol <b>🔎 Buka bukti</b>. Data transaksi SPBU resmi juga bisa dicocokkan dari Detail.</p>
       <p v-if="bbmUpload.foto_mypertamina_admin" class="alert alert-info" style="font-size:12px;">Bukti saat ini sudah tersimpan. Unggah file baru hanya jika ingin menggantinya.</p>
       <div class="field"><label>Screenshot atau PDF MyPertamina</label>
@@ -598,6 +699,11 @@ onMounted(() => {
   border: 1px dashed var(--border, #e2e8f0); border-radius: var(--radius-sm, 8px);
   padding: 8px 10px; background: var(--surface-2, #f8fafc);
 }
+.subsidy-alert { margin-bottom: 14px; }
+.subsidy-card { margin-bottom: 16px; }
+.subsidy-card-head { gap: 8px; }
+.subsidy-card-head .workspace-tab-icon { background: var(--primary-soft); }
+.subsidy-meta { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 10px; font-size: 12px; }
 .spacer { flex: 1; }
 .stage-chips { display: flex; gap: 7px; flex-wrap: wrap; margin-top: 14px; }
 .stage-chip {

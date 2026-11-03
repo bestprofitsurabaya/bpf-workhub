@@ -18,7 +18,6 @@ const loading = ref(true)
 const err = ref('')
 const daily = ref({ code: '', manual_mode: false })
 const dailyMsg = ref('')
-const pendingLpj = ref([])
 const busy = ref(false)
 
 const action = ref(null) // { kind, id }
@@ -31,16 +30,39 @@ const isGa = ['ga', 'admin'].includes(auth.role)
 const isFinance = ['finance', 'admin'].includes(auth.role)
 const canEditDaily = isFinance
 
+// Menu bar modul: BBM | Kasbon & LPJ | SubsidiTepat (SPBU + OTP).
+// Deep link ?tab=kasbon dipakai kartu prioritas Dashboard Finance.
+const _requestedTab = new URLSearchParams(window.location.search).get('tab')
+const _validTabs = ['bbm', 'kasbon', 'subsidy']
+const activeSection = ref(
+  _validTabs.includes(_requestedTab) && (_requestedTab !== 'subsidy' || isFinance) ? _requestedTab : 'bbm',
+)
+
 const STEPS = ['DRAFT', 'GA_APPROVED', 'FINANCE_APPROVED', 'FUNDS_WITH_DRIVER', 'LPJ_SUBMITTED', 'COMPLETED']
 const STEP_ICONS = ['📝', '✅', '💰', '🤝', '📋', '🎉']
-const STATUS_COLOR = {
-  DRAFT: '#94a3b8', GA_APPROVED: '#0891b2', FINANCE_APPROVED: '#d97706',
-  FUNDS_WITH_DRIVER: '#059669', LPJ_SUBMITTED: '#2563eb', COMPLETED: '#059669', REJECTED: '#dc2626',
-}
 const STATUS_BADGE = {
   DRAFT: 'badge-gray', GA_APPROVED: 'badge-blue', FINANCE_APPROVED: 'badge-amber',
   FUNDS_WITH_DRIVER: 'badge-green', LPJ_SUBMITTED: 'badge-blue', COMPLETED: 'badge-green', REJECTED: 'badge-red',
 }
+const STATUS_LABEL = {
+  DRAFT: 'Menunggu persetujuan GA',
+  GA_APPROVED: 'Menunggu persetujuan Finance',
+  FINANCE_APPROVED: 'Siap diserahkan ke driver',
+  FUNDS_WITH_DRIVER: 'Dana di driver · menunggu LPJ',
+  LPJ_SUBMITTED: 'LPJ menunggu verifikasi GA',
+  COMPLETED: 'Selesai',
+  REJECTED: 'Ditolak',
+}
+const queueBadges = ref({})
+const kasbonSummary = computed(() => {
+  const count = (statuses) => cash.value.filter((c) => statuses.includes(c.status)).length
+  return [
+    { label: 'Menunggu GA', n: count(['DRAFT']), tone: 'badge-gray' },
+    { label: 'Menunggu Finance', n: count(['GA_APPROVED']), tone: 'badge-blue' },
+    { label: 'Dana di driver', n: count(['FINANCE_APPROVED', 'FUNDS_WITH_DRIVER']), tone: 'badge-amber' },
+    { label: 'LPJ menunggu', n: count(['LPJ_SUBMITTED']), tone: 'badge-purple' },
+  ]
+})
 const stepOf = (s) => { const i = STEPS.indexOf(s); return i < 0 ? 0 : i }
 const pctOf = (s) => (s === 'COMPLETED' ? 100 : Math.round((stepOf(s) / (STEPS.length - 1)) * 100))
 const fmtRp = (n) => 'Rp ' + Number(n || 0).toLocaleString('id-ID')
@@ -77,15 +99,15 @@ const canAct = computed(() => {
 async function load() {
   loading.value = true; err.value = ''
   try {
-    const d = await api('/api/cash/history')
-    cash.value = Array.isArray(d) ? d : []
-    const dc = await api('/api/cash/daily-code')
+    const [history, dc, nav] = await Promise.all([
+      api('/api/cash/history'),
+      api('/api/cash/daily-code'),
+      api('/api/nav/badges').catch(() => null),
+    ])
+    cash.value = Array.isArray(history) ? history : []
     daily.value = { code: dc.code, manual_mode: !!dc.manual_mode }
+    queueBadges.value = nav?.badges || {}
     dailyMsg.value = ''
-    try {
-      const pl = await api('/api/cash/pending-lpj')
-      pendingLpj.value = Array.isArray(pl) ? pl : []
-    } catch { pendingLpj.value = [] }
   } catch (e) { err.value = e.message }
   finally { loading.value = false }
 }
@@ -201,84 +223,103 @@ onMounted(load)
 
 <template>
   <div>
-    <PageHeader icon="💵" title="BBM, Kasbon & Subsidi Tepat"
-                subtitle="Klaim BBM, kasbon/LPJ driver, dan Data SPBU — satu halaman operasional" />
-    <div class="card card-pad" style="margin-bottom:16px;">
-      <div class="row">
-        <div class="grow">
-          <b>🔢 Kode Harian</b>
-          <div class="muted" style="font-size:12px;">Kode unik pengajuan kasbon hari ini</div>
-        </div>
-        <input class="input" style="width:130px;text-align:center;font-weight:700;" v-model="daily.code"
-               :readonly="!canEditDaily || !daily.manual_mode" :maxlength="4" />
-        <button class="btn btn-primary" v-if="canEditDaily && daily.manual_mode" :disabled="busy" @click="setDailyCode">Simpan</button>
-        <span class="muted" style="font-size:12px;">{{ dailyMsg }}</span>
-      </div>
-    </div>
+    <PageHeader icon="⛽" title="BBM, Kasbon &amp; SPBU"
+                subtitle="Satu pusat kerja klaim BBM, kasbon/LPJ, dan data SPBU SubsidiTepat" />
 
-    <div v-if="loading"><LoadingState :rows="4" label="Memuat data kasbon…" /></div>
-    <div v-else-if="err"><ErrorState :message="err" @retry="load" /></div>
-    <template v-else>
-      <div class="card" style="margin-bottom:16px;">
-        <div class="card-pad row" style="border-bottom:1px solid var(--border);">
-          <b>💰 Pengajuan Kasbon</b>
-          <span class="badge badge-blue">{{ cash.length }} pengajuan</span>
-        </div>
-        <div v-if="!cash.length" class="empty">Tidak ada pengajuan kasbon.</div>
-        <div v-for="c in cash" :key="c.id" class="cash-item">
-          <div class="row" style="align-items:center;">
-            <div class="grow">
-              <div class="row" style="gap:8px;align-items:center;">
-                <b>{{ c.display_id }}</b>
-                <span class="badge" :class="STATUS_BADGE[c.status] || 'badge-gray'">{{ (c.status || '').replace(/_/g, ' ') }}</span>
-              </div>
-              <div class="muted" style="font-size:12px;margin-top:4px;">
-                👤 {{ c.driver_name }} · 🚗 {{ c.nopol || '—' }} · ⛽ {{ c.bbm_type }}
-              </div>
-              <div style="margin-top:6px;font-weight:700;color:var(--accent);">
-                {{ fmtRp(c.total_amount) }} <small class="muted">(kode: {{ c.daily_code }})</small>
-              </div>
-            </div>
-            <div style="text-align:right;">
-              <div class="step-track">
-                <span v-for="(ic, i) in STEP_ICONS" :key="i" class="step-ic"
-                      :style="{ color: i <= stepOf(c.status) ? (c.status === 'COMPLETED' ? '#059669' : '#2563eb') : '#cbd5e1' }">{{ ic }}</span>
-              </div>
-              <div class="progress"><div class="progress-bar" :style="{ width: pctOf(c.status) + '%', background: c.status === 'COMPLETED' ? '#059669' : '#2563eb' }"></div></div>
-            </div>
+    <nav class="workspace-tabs" role="tablist" aria-label="Menu BBM, Kasbon, dan SPBU">
+      <button type="button" role="tab" :aria-selected="activeSection === 'bbm'" :class="{ active: activeSection === 'bbm' }"
+              data-testid="workspace-tab-bbm" @click="activeSection = 'bbm'">
+        <span class="workspace-tab-icon" aria-hidden="true">⛽</span>
+        <span class="workspace-tab-text">BBM<small>Klaim &amp; pencairan</small></span>
+        <span class="workspace-tab-count" aria-label="klaim menunggu">{{ queueBadges.bbm_verify_pending || 0 }} klaim</span>
+      </button>
+      <button type="button" role="tab" :aria-selected="activeSection === 'kasbon'" :class="{ active: activeSection === 'kasbon' }"
+              data-testid="workspace-tab-kasbon" @click="activeSection = 'kasbon'">
+        <span class="workspace-tab-icon" aria-hidden="true">🧾</span>
+        <span class="workspace-tab-text">Kasbon &amp; LPJ<small>Kode harian &amp; LPJ driver</small></span>
+        <span class="workspace-tab-count" aria-label="kasbon menunggu">{{ queueBadges.cash_pending || 0 }} kasbon</span>
+      </button>
+      <button v-if="isFinance" type="button" role="tab" :aria-selected="activeSection === 'subsidy'" :class="{ active: activeSection === 'subsidy' }"
+              data-testid="workspace-tab-subsidy" @click="activeSection = 'subsidy'">
+        <span class="workspace-tab-icon" aria-hidden="true">🛡️</span>
+        <span class="workspace-tab-text">SubsidiTepat<small>Data SPBU &amp; akses OTP</small></span>
+      </button>
+    </nav>
+
+    <!-- Tab 1 — klaim BBM: masuk → siap dicairkan → konfirmasi LPJ → riwayat. -->
+    <section v-if="activeSection === 'bbm'" class="workspace-section" aria-label="Transaksi BBM">
+      <BbmKasbonPanel active-section="bbm" />
+    </section>
+
+    <!-- Tab 2 — kasbon & LPJ: kode harian + seluruh pengajuan kasbon. -->
+    <section v-else-if="activeSection === 'kasbon'" class="workspace-section" aria-label="Kasbon dan LPJ">
+      <div class="card card-pad kasbon-code">
+        <div class="row">
+          <div class="workspace-tab-icon" aria-hidden="true">🔢</div>
+          <div class="grow">
+            <b>Kode Harian</b>
+            <div class="muted" style="font-size:12px;">Kode unik pengajuan kasbon hari ini</div>
           </div>
-          <div class="row" style="margin-top:10px;flex-wrap:wrap;gap:6px;">
-            <button class="btn btn-sm" @click="openDetail(c)">👁 Detail</button>
-            <template v-if="ACTIONS[c.status]">
-              <button v-for="a in ACTIONS[c.status].filter(x => x.show())" :key="a.kind"
-                      class="btn btn-sm" :class="a.cls" @click="openAction(a.kind, c)">{{ a.label }}</button>
-            </template>
-            <span v-if="c.status === 'FUNDS_WITH_DRIVER'" class="muted" style="font-size:12px;">✅ Dana di Driver — menunggu LPJ</span>
-            <span v-if="c.status === 'COMPLETED' && !isFinance" class="muted" style="font-size:12px;">🎉 Selesai</span>
-          </div>
+          <input class="input" style="width:130px;text-align:center;font-weight:700;" v-model="daily.code"
+                 :readonly="!canEditDaily || !daily.manual_mode" :maxlength="4" />
+          <button class="btn btn-primary" v-if="canEditDaily && daily.manual_mode" :disabled="busy" @click="setDailyCode">Simpan</button>
+          <span class="muted" style="font-size:12px;">{{ dailyMsg }}</span>
         </div>
       </div>
 
-      <div class="card">
-        <div class="card-pad row" style="border-bottom:1px solid var(--border);">
-          <b>📋 Menunggu LPJ</b>
-          <span class="badge badge-amber">{{ pendingLpj.length }}</span>
-        </div>
-        <div v-if="!pendingLpj.length" class="empty">Tidak ada kasbon menunggu LPJ.</div>
-        <div v-for="c in pendingLpj" :key="c.id" class="cash-item">
-          <div class="row">
-            <div class="grow">
-              <b>{{ c.display_id }}</b> <span class="badge badge-amber">FUNDS WITH DRIVER</span>
-              <div class="muted" style="font-size:12px;">👤 {{ c.driver_name }} · 🚗 {{ c.nopol || '—' }} · {{ fmtRp(c.total_amount) }}</div>
+      <div v-if="loading"><LoadingState :rows="4" label="Memuat data kasbon…" /></div>
+      <div v-else-if="err"><ErrorState :message="err" @retry="load" /></div>
+      <template v-else>
+        <div class="card">
+          <div class="card-pad row kasbon-head">
+            <b>🧾 Kasbon &amp; LPJ</b>
+            <span class="badge badge-blue">{{ cash.length }} pengajuan</span>
+            <div class="grow"></div>
+            <span v-for="s in kasbonSummary" :key="s.label" class="badge" :class="s.tone">
+              {{ s.label }} <b>{{ s.n }}</b>
+            </span>
+          </div>
+          <div v-if="!cash.length" class="empty">Tidak ada pengajuan kasbon.</div>
+          <div v-for="c in cash" :key="c.id" class="cash-item">
+            <div class="row" style="align-items:center;">
+              <div class="grow">
+                <div class="row" style="gap:8px;align-items:center;">
+                  <b>{{ c.display_id }}</b>
+                  <span class="badge" :class="STATUS_BADGE[c.status] || 'badge-gray'">{{ STATUS_LABEL[c.status] || c.status }}</span>
+                </div>
+                <div class="muted" style="font-size:12px;margin-top:4px;">
+                  👤 {{ c.driver_name }} · 🚗 {{ c.nopol || '—' }} · ⛽ {{ c.bbm_type }}
+                </div>
+                <div style="margin-top:6px;font-weight:700;color:var(--accent);">
+                  {{ fmtRp(c.total_amount) }} <small class="muted">(kode: {{ c.daily_code }})</small>
+                </div>
+              </div>
+              <div style="text-align:right;">
+                <div class="step-track">
+                  <span v-for="(ic, i) in STEP_ICONS" :key="i" class="step-ic"
+                        :style="{ color: i <= stepOf(c.status) ? (c.status === 'COMPLETED' ? '#059669' : '#2563eb') : '#cbd5e1' }">{{ ic }}</span>
+                </div>
+                <div class="progress"><div class="progress-bar" :style="{ width: pctOf(c.status) + '%', background: c.status === 'COMPLETED' ? '#059669' : '#2563eb' }"></div></div>
+              </div>
             </div>
-            <span class="muted" style="font-size:11px;">{{ formatDateTime(c.created_at) }}</span>
+            <div class="row" style="margin-top:10px;flex-wrap:wrap;gap:6px;">
+              <button class="btn btn-sm" @click="openDetail(c)">👁 Detail</button>
+              <template v-if="ACTIONS[c.status]">
+                <button v-for="a in ACTIONS[c.status].filter(x => x.show())" :key="a.kind"
+                        class="btn btn-sm" :class="a.cls" @click="openAction(a.kind, c)">{{ a.label }}</button>
+              </template>
+
+              <span v-if="c.status === 'COMPLETED' && !isFinance" class="muted" style="font-size:12px;">🎉 Selesai</span>
+            </div>
           </div>
         </div>
-      </div>
-    </template>
+      </template>
+    </section>
 
-    <!-- Operasional BBM: klaim masuk/siap dicairkan/riwayat + Data SPBU (Subsidi Tepat) -->
-    <BbmKasbonPanel />
+    <!-- Tab 3 — SubsidiTepat: Data SPBU, Berita Acara, dan login ulang agen (OTP). -->
+    <section v-else class="workspace-section" aria-label="Data SPBU SubsidiTepat">
+      <BbmKasbonPanel active-section="subsidy" />
+    </section>
 
     <!-- Cash Detail Modal -->
     <Modal v-if="detailItem" :title="'📋 Detail ' + detailItem.display_id" @close="detailItem = null; detailData = null">
@@ -334,10 +375,17 @@ onMounted(load)
 </template>
 
 <style scoped>
+.kasbon-code { margin-bottom: 16px; }
+.kasbon-code .workspace-tab-icon { background: var(--primary-soft); }
+.kasbon-head { border-bottom: 1px solid var(--border); gap: 8px; }
 .cash-item { padding: 14px; border-bottom: 1px solid var(--border); }
 .cash-item:last-child { border-bottom: none; }
 .step-track { display: flex; gap: 6px; font-size: 11px; justify-content: flex-end; }
 .step-ic { filter: grayscale(0); }
 .progress { background: var(--border); border-radius: 4px; height: 5px; width: 160px; margin-top: 5px; }
 .progress-bar { height: 100%; border-radius: 4px; transition: width .4s ease; }
+@media (max-width: 640px) {
+  .progress { width: 110px; }
+  .kasbon-head { align-items: flex-start; }
+}
 </style>

@@ -65,11 +65,16 @@ describe('WaterView', () => {
     expect(btns).toContain('📄 PDF')
   })
 
-  it('finance melihat master merk per tipe', async () => {
+  it('finance melihat master merk per tipe di tab Master Merk', async () => {
     const w = await mountView()
+    expect(w.find('[data-testid="water-tab-master"]').exists()).toBe(true)
+    await w.find('[data-testid="water-tab-master"]').trigger('click')
+    expect(w.find('[data-testid="water-tab-master"]').attributes('aria-selected')).toBe('true')
     expect(w.text()).toContain('Master Merk Air Minum')
     expect(w.text()).toContain('AQUA')
     expect(w.text()).toContain('Le Minerale')
+    // Tab pengajuan tersembunyi saat master merk aktif.
+    expect(w.text()).not.toContain('WTR-20260812-0001')
   })
 
   it('detail menampilkan remark verifikasi (pengajuan terverifikasi)', async () => {

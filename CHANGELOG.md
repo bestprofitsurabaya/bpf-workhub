@@ -7,6 +7,48 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.76.0 — 3 November 2026 (Menu bar seragam + pemulihan Data SPBU/BA/OTP)
+
+Merombak navigasi tiga halaman kerja Finance menjadi **menu bar tab** dengan
+satu bahasa visual (ikon, label, keterangan singkat, hitungan antrean) agar
+alur kerja tidak lagi tersebar di kartu-kartu panjang:
+
+- 🧭 **Dashboard Finance** — tab **Ringkasan** (sapaan, kartu prioritas yang
+  bertaut langsung ke antrean, pintasan modul) dan **Air Minum** (rekap,
+  filter tanggal, antrean verifikasi, sebaran per OB/jenis/merk; dimuat
+  lazy saat tab dibuka).
+- ⛽ **BBM, Kasbon & SPBU** (`/cash`) — tab **BBM** (klaim masuk → siap
+  dicairkan → konfirmasi LPJ → riwayat), **Kasbon & LPJ** (kode harian +
+  seluruh pengajuan dengan ringkasan status), dan **SubsidiTepat**
+  (Data SPBU, pencocokan otomatis, akses OTP, Berita Acara). Deep link
+  `?tab=bbm|kasbon|subsidy` dipakai kartu prioritas dashboard.
+- 🚰 **Air Minum** (`/water`) — tab **Pengajuan** (filter + verifikasi) dan
+  **Master Merk**; form edit memakai tanggal ISO yang benar.
+
+Perbaikan yang ikut dibawa:
+
+- 🔁 **Data SPBU/BA/OTP dipulihkan** ke tab SubsidiTepat (refactor sempat
+  memindahkannya keluar): status kesegaran data, chip cakupan, banner
+  peringatan bila tarikan >2 hari beserta tombol minta OTP, dan daftar
+  Berita Acara. Setelah OTP selesai, status SPBU + antrean BBM disegarkan.
+- 🗓️ **Normalisasi tanggal air minum** — nilai GMT seperti
+  `"Mon, 02 Nov 2026 00:00:00 GMT"` tidak lagi terpotong menjadi
+  `"Mon, 02 No"`; tampilan memakai `id-ID`.
+- 🖼️ **Fallback foto bukti hilang** — kartu verifikasi menampilkan
+  “File bukti tidak ditemukan” alih-alih ikon gambar rusak.
+- 🎯 **Pesan `no_record` sadar cakupan** — bila klaim berada di luar rentang
+  data SPBU terimpor, pesan menjelaskan hal itu (bukan menyiratkan
+  transaksi tidak ada). `/api/subsidy/match/<id>` kini mengirim `data_range`
+  (`total`, `oldest`, `newest`).
+- 🏷️ **Label status klaim** diberi warna/label konsisten (menunggu GA,
+  disetujui GA, dibayar · menunggu LPJ, selesai, ditolak) dan tanggal
+  memakai `formatDateTime`.
+
+Verifikasi: **270 Vitest** (38 file) dan **1024 pytest + 6 skipped** hijau.
+Arsip final klaim Ahmad (`BPF-SBY-20261022-*`, id 234/235) tidak disentuh.
+
+---
+
 ## v2.75.0 — 28 Oktober 2026 (Audit UI role Finance — keselarasan FE↔BE dipastikan fungsi)
 
 Audit menyeluruh akses UI role **finance**: semua halaman SPA yang bisa

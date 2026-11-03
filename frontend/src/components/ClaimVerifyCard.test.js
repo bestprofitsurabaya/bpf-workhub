@@ -10,12 +10,12 @@ import ClaimVerifyCard from './ClaimVerifyCard.vue'
 const DETAIL_FULL = {
   id: 12, display_id: 'BBM-012', driver_name: 'RIVAN', nopol: 'L 1 A',
   nominal: 100000, liter: 20, odo_km: 45000, status: 'archived',
-  created_at: '2026-10-20 08:00:00',
-  ga_approved_by: 'ga_sby', ga_approved_at: '2026-10-20 09:30:00',
+  created_at: '20 Okt 2026, 08.00',
+  ga_approved_by: 'ga_sby', ga_approved_at: '20 Okt 2026, 09.30',
   anomaly_cleared_by: null, anomaly_cleared_at: null,
-  finance_payout_by: 'fin_sby', finance_payout_at: '2026-10-20 10:00:00',
-  subsidy_linked_by: 'fin_sby', subsidy_linked_at: '2026-10-20 10:05:00',
-  archived_by: 'admin_ho', archived_at: '2026-10-21 06:00:00',
+  finance_payout_by: 'fin_sby', finance_payout_at: '20 Okt 2026, 10.00',
+  subsidy_linked_by: 'fin_sby', subsidy_linked_at: '20 Okt 2026, 10.05',
+  archived_by: 'admin_ho', archived_at: '21 Okt 2026, 06.00',
   modified_by: null, modification_note: null, rejection_reason: null,
   photos: [],
 }
@@ -65,20 +65,20 @@ describe('ClaimVerifyCard — ⛓ Rantai Verifikasi', () => {
     expect(chain.text()).toContain('🚗 Klaim diajukan driver')
     expect(chain.text()).toContain('RIVAN')
     expect(chain.text()).toContain('BBM-012')
-    expect(chain.text()).toContain('2026-10-20 08:00:00')
+    expect(chain.text()).toContain('20 Okt 2026, 08.00')
     expect(chain.text()).toContain('🛡 Verifikasi GA')
     expect(chain.text()).toContain('ga_sby')
-    expect(chain.text()).toContain('2026-10-20 09:30:00')
+    expect(chain.text()).toContain('20 Okt 2026, 09.30')
     expect(chain.find('.badge-green').exists()).toBe(true)
     expect(chain.text()).toContain('🏦 Verifikasi & Pencairan Finance')
     expect(chain.text()).toContain('fin_sby')
-    expect(chain.text()).toContain('2026-10-20 10:00:00')
+    expect(chain.text()).toContain('20 Okt 2026, 10.00')
     // sub-baris penjodohan SPBU (subsidy.linked ada, field Tugas 1 terisi)
     expect(chain.text()).toContain('Penjodohan SPBU: fin_sby')
-    expect(chain.text()).toContain('2026-10-20 10:05:00')
+    expect(chain.text()).toContain('20 Okt 2026, 10.05')
     expect(chain.text()).toContain('🗄 Arsip')
     expect(chain.text()).toContain('admin_ho')
-    expect(chain.text()).toContain('2026-10-21 06:00:00')
+    expect(chain.text()).toContain('21 Okt 2026, 06.00')
     // tidak ada baris menunggu
     expect(chain.text()).not.toContain('Menunggu verifikasi GA')
     expect(chain.text()).not.toContain('Belum diarsipkan')

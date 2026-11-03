@@ -44,7 +44,7 @@ const MENU_GROUPS = [
     items: [
       { label: 'Log Perjalanan', path: '/trips', icon: '🗺️', roles: ['ga', 'admin'] },
       { label: 'Penugasan Driver', path: '/assignments', icon: '🚗', roles: ['ga', 'admin'], badge: 'assignments_pending' },
-      { label: 'BBM, Kasbon & SPBU', path: '/cash', icon: '💵', roles: ['ga', 'finance', 'admin'], badge: 'cash_pending' },
+      { label: 'BBM, Kasbon & SPBU', path: '/cash', icon: '⛽', roles: ['ga', 'finance', 'admin'], badge: 'cash_pending', keywords: 'kasbon klaim bbm spbu otp subsiditepat' },
       { label: 'Air Minum', path: '/water', icon: '🚰', roles: ['ob', 'finance', 'admin'], badge: 'water_pending' },
       { label: 'Aset & Pemeliharaan', path: '/assets', icon: '🔧', roles: ['ga', 'admin'] },
       { label: 'Pengadaan (PO)', path: '/procurement', icon: '🛒', roles: ['ga', 'admin'] },
@@ -140,7 +140,7 @@ const flatMenu = computed(() => menuGroups.value.flatMap((g) => g.items.map((m) 
 const searchResults = computed(() => {
   const q = searchQ.value.trim().toLowerCase()
   if (!q) return flatMenu.value
-  return flatMenu.value.filter((m) => `${m.label} ${m.group} ${m.path}`.toLowerCase().includes(q))
+  return flatMenu.value.filter((m) => `${m.label} ${m.group} ${m.path} ${m.keywords || ''}`.toLowerCase().includes(q))
 })
 function openSearch() {
   searchOpen.value = true

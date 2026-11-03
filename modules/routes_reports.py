@@ -1,5 +1,5 @@
 """Report, Rekap, Analytics & Settings Routes"""
-from flask import (request, redirect, url_for, flash, make_response)
+from flask import (request, redirect, url_for, flash, make_response, session)
 from modules.config import get_db_connection
 from modules.helpers import log_activity_async, role_required
 from modules.engine import get_rekap_data
@@ -21,8 +21,9 @@ def register_report_routes(app):
             if not tx:
                 cursor.close(); conn.close()
                 return "Data tidak ditemukan", 404
-            # Generate PDF FIRST, then mark as reported (prevent marking on failure).
+            # Kop PDF transaksi harus mengikuti cabang sesi, bukan identitas global.
             pdf = PDFReportCompact()
+            pdf.set_identity(branch_code=session.get('branch_code'))
             pdf.add_page()
             pdf.generate_compact_report(tx, app.config['UPLOAD_FOLDER'])
             pdf_raw = pdf.output(dest='S')
@@ -69,6 +70,7 @@ def register_report_routes(app):
                 ts.append(f"PERIODE: {s} S/D {e}")
             title = "REKAP DANA BBM - " + " | ".join(ts)
             pdf = BBMReportPDF(title=title)
+            pdf.set_identity(branch_code=session.get('branch_code'))
             pdf.add_page()
             pdf.generate_table(data)
             pdf_raw = pdf.output(dest='S')

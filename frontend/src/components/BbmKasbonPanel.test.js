@@ -31,8 +31,6 @@ describe('BbmKasbonPanel (operasional BBM)', () => {
     verdict: 'match', liter: 30, nominal: 200000, linked: null,
     candidates: [{ id: 9, transaction_id: 'SPBU-0001', transaction_date: '2026-01-02 07:30', volume: 30, amount: 199000, dvol: 0, dnom: 1000, spbu_id: '34.001.03', city: 'SIDOARJO', verification: 'ORISINIL', verdict: 'match' }],
   }
-  const ATTESTS = [{ id: 3, period_start: '2026-01-01', period_end: '2026-01-31', record_count: 12, generated_by: 'Finance SBY', generated_at: '2026-02-01 10:00:00' }]
-
   const financeImpl = (path, opts = {}) => {
     if (path === '/api/water/recap') return Promise.resolve(RECAP)
     if (path === '/api/finance/bbm') {
@@ -44,7 +42,6 @@ describe('BbmKasbonPanel (operasional BBM)', () => {
     }
     if (path === '/api/queue/payout/7') return Promise.resolve({ status: 'success', msg: 'Dana #7 dicairkan!' })
     if (path.startsWith('/api/queue')) return Promise.resolve(opts?.params?.tab === 'driver_confirm' ? [] : BBM_QUEUE)
-    if (path === '/api/subsidy/attest') return Promise.resolve({ attestations: ATTESTS })
     if (path === '/api/transactions/detail/7') return Promise.resolve(TX_DETAIL)
     if (path.startsWith('/api/cross-check')) return Promise.resolve(TX_CROSS)
     if (path.startsWith('/api/subsidy/match')) return Promise.resolve(SUBSIDY_MATCH)
@@ -61,17 +58,52 @@ describe('BbmKasbonPanel (operasional BBM)', () => {
     return row
   }
 
-  it('menampilkan Berita Acara Subsidi Tepat (periode, dibuat oleh, unduh PDF)', async () => {
-    Object.defineProperty(window, 'location', { writable: true, value: { href: 'http://localhost/' } })
-    const openSpy = vi.spyOn(window, 'open').mockReturnValue(null)
-    apiMock.mockImplementation(financeImpl)
-    const w = mount(BbmKasbonPanel)
+  it('tab SubsidiTepat menampilkan Data SPBU, akses OTP, dan Berita Acara', async () => {
+    apiMock.mockImplementation((path) => {
+      if (path === '/api/subsidy/otp/status') return Promise.resolve({ state: 'idle' })
+      if (path === '/api/subsidy/status') {
+        return Promise.resolve({
+          count: 138, last_pull: '2026-10-22 08:18:00',
+          oldest: '2026-09-22', newest: '2026-10-22', coverage: { match: 2, no_record: 1 },
+        })
+      }
+      if (path === '/api/subsidy/attest') return Promise.resolve({ attestations: [] })
+      return Promise.resolve({})
+    })
+    const w = mount(BbmKasbonPanel, { props: { activeSection: 'subsidy' } })
     await flushPromises()
-    expect(w.text()).toContain('Berita Acara Rekonsiliasi — Subsidi Tepat')
-    expect(w.text()).toContain('2026-01-01 s/d 2026-01-31')
-    expect(w.text()).toContain('Finance SBY')
-    await w.findAll('button').find((b) => b.text().includes('PDF')).trigger('click')
-    expect(openSpy).toHaveBeenCalledWith('/api/subsidy/attest/3/pdf', '_blank')
+    expect(w.find('[data-testid="subsidy-data-card"]').exists()).toBe(true)
+    expect(w.find('[data-testid="subsidy-otp-panel"]').exists()).toBe(true)
+    expect(w.find('[data-testid="attest-card"]').exists()).toBe(true)
+    expect(w.text()).toContain('138 transaksi')
+    expect(w.find('[data-testid="bbm-quick"]').exists()).toBe(false)
+    expect(apiMock).toHaveBeenCalledWith('/api/subsidy/status')
+    expect(apiMock).toHaveBeenCalledWith('/api/subsidy/attest')
+    expect(apiMock).not.toHaveBeenCalledWith('/api/finance/bbm', expect.anything())
+    expect(apiMock).not.toHaveBeenCalledWith('/api/subsidy/auto-match', { method: 'POST' })
+  })
+
+  it('banner peringatan tampil bila data SPBU lebih dari 2 hari + tombol OTP', async () => {
+    apiMock.mockImplementation((path) => {
+      if (path === '/api/subsidy/otp/status') return Promise.resolve({ state: 'idle' })
+      if (path === '/api/subsidy/status') {
+        return Promise.resolve({
+          count: 138, last_pull: '2020-01-01 06:15:00',
+          oldest: '2019-12-01', newest: '2020-01-01', coverage: {},
+        })
+      }
+      if (path === '/api/subsidy/otp/request') return Promise.resolve({ status: 'success', msg: 'OTP dikirim' })
+      if (path === '/api/subsidy/attest') return Promise.resolve({ attestations: [] })
+      return Promise.resolve({})
+    })
+    const w = mount(BbmKasbonPanel, { props: { activeSection: 'subsidy' } })
+    await flushPromises()
+    const banner = w.find('[data-testid="subsidy-stale-banner"]')
+    expect(banner.exists()).toBe(true)
+    expect(banner.text()).toContain('belum diperbarui')
+    await banner.find('[data-testid="subsidy-stale-otp"]').trigger('click')
+    await flushPromises()
+    expect(apiMock).toHaveBeenCalledWith('/api/subsidy/otp/request', { method: 'POST' })
   })
 
   it('👁 Detail klaim BBM: instrumen render + kandidat bisa dijodohkan', async () => {
@@ -110,63 +142,17 @@ describe('BbmKasbonPanel (operasional BBM)', () => {
   }
   const modalBtn = (w, text) => lastDialog(w).findAll('button').find((b) => b.text() === text)
 
-  // ============================================================
-  // v2.68.0: widget Data SPBU — status agen + pencocokan advisory 1 klik
-  // ============================================================
-  const SUBSIDY_STATUS = {
-    count: 138, last_pull: '2026-10-23 06:15:00',
-    oldest: '2026-09-22 08:00:00', newest: '2026-10-22 13:00:00',
-    coverage: { linked: 2, match: 3, no_record: 1, terbuka: 6 },
-  }
-
-  it('widget Data SPBU: jumlah data, rentang, tarik terakhir + chip coverage', async () => {
-    apiMock.mockImplementation((path) => (path === '/api/subsidy/status' ? Promise.resolve(SUBSIDY_STATUS) : financeImpl(path)))
-    const w = mount(BbmKasbonPanel)
-    await flushPromises()
-    const card = w.find('[data-testid="subsidy-data-card"]')
-    expect(card.text()).toContain('Data SPBU — Subsidi Tepat')
-    expect(card.find('[data-testid="subsidy-count"]').text()).toContain('138')
-    expect(card.text()).toContain('2026-09-22 08:00:00')
-    expect(card.text()).toContain('otomatis harian 06:15')
-    const cov = card.find('[data-testid="subsidy-coverage"]')
-    expect(cov.text()).toContain('Dijodohkan')
-    expect(cov.text()).toContain('Match: 3')
-    expect(cov.text()).toContain('Tanpa catatan: 1')
-    // chip 'terbuka' (bukan chip couverture) tidak dirender
-    expect(cov.text()).not.toContain('terbuka')
-  })
-
-  it('🤝 Cocokkan Klaim Otomatis → POST /api/subsidy/auto-match → muat ulang status & antrean', async () => {
-    let statusCalls = 0
-    apiMock.mockImplementation((path, opts = {}) => {
-      if (path === '/api/subsidy/status') { statusCalls++; return Promise.resolve(SUBSIDY_STATUS) }
-      if (path === '/api/subsidy/auto-match') {
-        return Promise.resolve({ status: 'success', msg: 'Pencocokan otomatis: 3 match, 0 close, 1 tanpa catatan', match: 3 })
-      }
-      return financeImpl(path, opts)
-    })
-    const w = mount(BbmKasbonPanel)
-    await flushPromises()
-    const before = statusCalls
-    await w.find('[data-testid="subsidy-data-card"]').find('button.btn-primary').trigger('click')
-    await flushPromises()
-    expect(apiMock).toHaveBeenCalledWith('/api/subsidy/auto-match', { method: 'POST' })
-    expect(w.text()).toContain('✅ Pencocokan otomatis: 3 match')
-    expect(statusCalls).toBeGreaterThan(before) // status + antrean direfresh
-  })
-
-  // v2.69.0: Login ulang agen (OTP) langsung dari dashboard
+  // v2.69.0: Login ulang agen (OTP) langsung dari SubsidiTepat
   it('🔑 OTP: Minta OTP → status waiting_otp (polling) → input kode → Kirim OTP', async () => {
     vi.useFakeTimers()
     let otpState = { state: 'idle' }
     apiMock.mockImplementation((path, opts = {}) => {
-      if (path === '/api/subsidy/status') return Promise.resolve(SUBSIDY_STATUS)
       if (path === '/api/subsidy/otp/status') return Promise.resolve(otpState)
       if (path === '/api/subsidy/otp/request') return Promise.resolve({ status: 'success', state: 'starting', msg: 'Browser login dijalankan — OTP dikirim ke email akun' })
       if (path === '/api/subsidy/otp/submit') return Promise.resolve({ status: 'success', state: 'verifying', msg: 'OTP diteruskan ke agen' })
       return financeImpl(path, opts)
     })
-    const w = mount(BbmKasbonPanel)
+    const w = mount(BbmKasbonPanel, { props: { activeSection: 'subsidy' } })
     await flushPromises()
     const card = w.find('[data-testid="subsidy-otp"]')
     expect(card.find('[data-testid="otp-state"]').text()).toContain('Idle')
@@ -194,13 +180,11 @@ describe('BbmKasbonPanel (operasional BBM)', () => {
   it('🔑 OTP: kode tak lengkap → tombol Kirim OTP nonaktif; status done tampil hijau', async () => {
     vi.useFakeTimers()
     let otpState = { state: 'waiting_otp', msg: 'Menunggu kode OTP' }
-    let statusCalls = 0
     apiMock.mockImplementation((path) => {
-      if (path === '/api/subsidy/status') { statusCalls++; return Promise.resolve(SUBSIDY_STATUS) }
       if (path === '/api/subsidy/otp/status') return Promise.resolve(otpState)
       return financeImpl(path)
     })
-    const w = mount(BbmKasbonPanel)
+    const w = mount(BbmKasbonPanel, { props: { activeSection: 'subsidy' } })
     await flushPromises()
     const inp = w.find('[data-testid="subsidy-otp"]').find('[data-testid="otp-input"]')
     expect(inp.exists()).toBe(true)
@@ -208,13 +192,14 @@ describe('BbmKasbonPanel (operasional BBM)', () => {
     expect(inp.find('[data-testid="otp-submit"]').attributes('disabled')).toBeDefined()
     await inp.find('[data-testid="otp-code"]').setValue('123456')
     expect(inp.find('[data-testid="otp-submit"]').attributes('disabled')).toBeUndefined()
-    // agen selesai → pesan done + status klaim/data direfresh
+    // Agen selesai: status data SPBU + antrean BBM disegarkan agar hasil tarikan baru terlihat.
     otpState = { state: 'done', msg: '✅ Selesai: 138 transaksi ditarik & diimpor' }
     await vi.advanceTimersByTimeAsync(4000)
     await flushPromises()
     const card = w.find('[data-testid="subsidy-otp"]')
     expect(card.find('[data-testid="otp-msg"]').text()).toContain('Selesai: 138 transaksi')
-    expect(statusCalls).toBeGreaterThan(1) // loadSubsidy() dipanggil ulang
+    expect(apiMock).toHaveBeenCalledWith('/api/subsidy/status')
+    expect(apiMock).toHaveBeenCalledWith('/api/finance/bbm', expect.anything())
     w.unmount()
     vi.useRealTimers()
   })
@@ -287,7 +272,6 @@ describe('BbmKasbonPanel (operasional BBM)', () => {
     apiMock.mockImplementation((path, opts = {}) => {
       if (path === '/api/queue') return Promise.resolve(opts?.params?.tab === 'driver_confirm' ? BBM_QUEUE : [])
       if (path === '/api/water/recap') return Promise.resolve(RECAP)
-      if (path === '/api/subsidy/attest') return Promise.resolve({ attestations: [] })
       return Promise.resolve(RECAP)
     })
     const w = mount(BbmKasbonPanel)

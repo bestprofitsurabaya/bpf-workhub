@@ -6,8 +6,11 @@ dan palet netral (hitam/abu) dipakai — tidak ada aksen warna biru/hijau/merah.
 import io
 from datetime import datetime
 
-from modules.pdf_generator import PDFReportCompact, BBMReportPDF
+from flask import Flask
 
+from modules.pdf_generator import PDFReportCompact, BBMReportPDF
+from modules import routes_reports
+from tests.pdf_text import pdf_text as _pdf_text
 
 def _sample_tx(**over):
     tx = {
@@ -46,8 +49,16 @@ class TestPDFReportCompact:
         assert data.startswith(b'%PDF')
         assert b'%%EOF' in data[-32:]
 
-    def test_konten_lengkap(self):
+    def test_konten_lengkap(self, monkeypatch):
+        from modules.company_identity import get_branch_identity
+        monkeypatch.setattr('modules.company_identity.get_branch_identity', lambda branch_code=None: {
+            'company_name': 'PT BESTPROFIT FUTURES',
+            'company_subtitle': 'Cabang Surabaya',
+            'company_address': 'Graha Bukopin Surabaya',
+            'company_phone': '031-5349888',
+        })
         pdf = PDFReportCompact()
+        pdf.set_identity(branch_code='SBY')
         pdf.add_page()
         pdf.generate_compact_report(_sample_tx())
         buf = io.BytesIO()
@@ -61,6 +72,9 @@ class TestPDFReportCompact:
         assert 'STATUS PERSETUJUAN' in text
         assert 'RIVAN' in text
         assert 'Rp 100,000' in text
+        assert 'Cabang Surabaya' in text
+        assert 'Graha Bukopin Surabaya' in text
+        assert 'Equity Tower' not in text
 
 
 class TestBBMReportPDF:
@@ -72,8 +86,15 @@ class TestBBMReportPDF:
         assert data.startswith(b'%PDF')
         assert b'%%EOF' in data[-32:]
 
-    def test_konten_rekap(self):
+    def test_konten_rekap(self, monkeypatch):
+        monkeypatch.setattr('modules.company_identity.get_branch_identity', lambda branch_code=None: {
+            'company_name': 'PT BESTPROFIT FUTURES',
+            'company_subtitle': 'Cabang Surabaya',
+            'company_address': 'Graha Bukopin Surabaya',
+            'company_phone': '031-5349888',
+        })
         pdf = BBMReportPDF(title='REKAP DANA BBM')
+        pdf.set_identity(branch_code='SBY')
         pdf.add_page()
         pdf.generate_table([_sample_tx()])
         buf = io.BytesIO()
@@ -82,7 +103,79 @@ class TestBBMReportPDF:
         assert 'REKAP DANA BBM' in text
         assert 'L 1234 AB' in text
         assert 'RIVAN' in text
+        assert 'Cabang Surabaya' in text
+        assert 'Graha Bukopin Surabaya' in text
+        assert 'Equity Tower' not in text
 
 
-# Sumber tunggal ekstraktor teks PDF — lihat tests/pdf_text.py.
-from tests.pdf_text import pdf_text as _pdf_text  # noqa: E402
+class TestBBMPDFRouteBranchIdentity:
+    class FakeCursor:
+        def __init__(self, tx):
+            self.tx = tx
+
+        def execute(self, sql, params=None):
+            pass
+
+        def fetchone(self):
+            return self.tx
+
+        def close(self):
+            pass
+
+    class FakeConn:
+        def __init__(self, tx):
+            self.tx = tx
+
+        def cursor(self, dictionary=False):
+            return TestBBMPDFRouteBranchIdentity.FakeCursor(self.tx)
+
+        def commit(self):
+            pass
+
+        def close(self):
+            pass
+
+    def _client(self, monkeypatch, pdf_class):
+        monkeypatch.setattr(routes_reports, 'get_db_connection',
+                            lambda: self.FakeConn(_sample_tx()))
+        monkeypatch.setattr(routes_reports, 'PDFReportCompact', pdf_class)
+        monkeypatch.setattr(routes_reports, 'BBMReportPDF', pdf_class)
+        app = Flask(__name__)
+        app.secret_key = 'test'
+        app.config['UPLOAD_FOLDER'] = 'uploads'
+        routes_reports.register_report_routes(app)
+        client = app.test_client()
+        with client.session_transaction() as session:
+            session['user_role'] = 'finance'
+            session['user_name'] = 'finance_bdg'
+            session['branch_code'] = 'BDG'
+        return client
+
+    def _assert_branch_pdf(self, monkeypatch, route, pdf_class):
+        from modules import company_identity, config
+
+        identity_calls = []
+        monkeypatch.setattr(company_identity, 'get_branch_identity',
+                            lambda branch_code=None: identity_calls.append(branch_code) or {
+                                'company_name': 'PT BESTPROFIT FUTURES',
+                                'company_subtitle': 'Cabang Bandung',
+                                'company_address': 'Gedung Bandung',
+                                'company_phone': '022-1234567',
+                            })
+        monkeypatch.setattr(config, 'get_db_connection', lambda *args, **kwargs: None)
+        client = self._client(monkeypatch, pdf_class)
+        response = client.get(route)
+        assert response.status_code == 200
+        assert response.content_type == 'application/pdf'
+        assert identity_calls == ['BDG']
+        text = _pdf_text(response.data)
+        assert 'Cabang Bandung' in text
+        assert 'Gedung Bandung' in text
+        assert 'Equity Tower' not in text
+
+    def test_pdf_transaksi_menghasilkan_kop_cabang_sesi(self, monkeypatch):
+        self._assert_branch_pdf(monkeypatch, '/admin/report/1', PDFReportCompact)
+
+    def test_pdf_rekap_menghasilkan_kop_cabang_sesi(self, monkeypatch):
+        monkeypatch.setattr(routes_reports, 'get_rekap_data', lambda **kwargs: [_sample_tx()])
+        self._assert_branch_pdf(monkeypatch, '/admin/rekap/pdf', BBMReportPDF)

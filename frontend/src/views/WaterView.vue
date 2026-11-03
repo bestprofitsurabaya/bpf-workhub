@@ -17,6 +17,7 @@ const stepup = useStepupStore()
 const auth = useAuthStore()
 const isOB = auth.role === 'ob'
 const isFinance = ['finance', 'admin'].includes(auth.role)
+const activeTab = ref('pengajuan')
 
 const loading = ref(true)
 const err = ref('')
@@ -71,8 +72,32 @@ const brandForm = ref({ type_id: null, brand: '' })
 
 const STATUS_BADGE = { pending: 'badge-amber', verified: 'badge-green', rejected: 'badge-red' }
 const STATUS_LABEL = { pending: 'Menunggu Verifikasi', verified: 'Terverifikasi', rejected: 'Ditolak' }
-const fmtDate = (d) => (d ? String(d).slice(0, 10) : '-')
-const fmtDateTime = (d) => (d ? String(d).replace('T', ' ').slice(0, 16) : '-')
+// Tanggal dari sheet/API bisa berupa ISO ("2026-11-02"), GMT
+// ("Mon, 02 Nov 2026 00:00:00 GMT"), atau datetime penuh. Semua dinormalisasi
+// agar tidak lagi tampil terpotong seperti "Mon, 02 No".
+function parseDateValue(d) {
+  if (!d) return null
+  const s = String(d).trim()
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
+  const dt = new Date(s)
+  return Number.isNaN(dt.getTime()) ? null : dt
+}
+const toIsoDate = (d) => {
+  const dt = parseDateValue(d)
+  if (!dt) return ''
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`
+}
+const fmtDate = (d) => {
+  const dt = parseDateValue(d)
+  return dt ? dt.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '-'
+}
+const fmtDateTime = (d) => {
+  if (!d) return '-'
+  const dt = new Date(String(d).replace(' ', 'T'))
+  if (Number.isNaN(dt.getTime())) return String(d)
+  return dt.toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+}
 const brandsOf = (typeName) => {
   const t = types.value.find((x) => x.name === typeName)
   return t ? t.brands : []
@@ -259,7 +284,7 @@ function openEdit(p) {
   editForm.value = {
     id: p.id,
     display_id: p.display_id,
-    purchase_date: fmtDate(p.purchase_date) === '-' ? '' : fmtDate(p.purchase_date),
+    purchase_date: toIsoDate(p.purchase_date),
     remark: p.remark || '',
     note: p.note || '',
     items: (p.items || []).map((i) => ({ drink_type: i.drink_type, brand: i.brand, satuan: i.satuan, quantity: Number(i.quantity || 1) })),
@@ -317,90 +342,121 @@ onMounted(() => { form.value.items.push(newItem()); load() })
     <PageHeader icon="🚰" title="Tanda Terima Air Minum"
                 :subtitle="isOB ? 'Ajukan pengiriman air minum — Finance akan memverifikasi' : 'Verifikasi pengajuan & kelola merk air minum'">
       <button v-if="isOB" class="btn btn-primary" @click="showForm = true">➕ Ajukan Pengiriman</button>
-      <button v-if="isFinance" class="btn" @click="openBrandModal">🏷️ Kelola Merk</button>
+      <button v-if="isFinance" class="btn" @click="activeTab = 'master'">🏷️ Master Merk</button>
       <button v-if="!isOB" class="btn" :disabled="exporting" title="Export sesuai filter aktif" @click="exportReport('pdf')">📄 Export PDF</button>
       <button v-if="!isOB" class="btn" :disabled="exporting" title="Export sesuai filter aktif" @click="exportReport('xlsx')">📊 Export Excel</button>
     </PageHeader>
 
+    <nav v-if="isFinance" class="workspace-tabs" role="tablist" aria-label="Menu Air Minum">
+      <button type="button" role="tab" :aria-selected="activeTab === 'pengajuan'" :class="{ active: activeTab === 'pengajuan' }"
+              data-testid="water-tab-pengajuan" @click="activeTab = 'pengajuan'">
+        <span class="workspace-tab-icon" aria-hidden="true">📋</span>
+        <span class="workspace-tab-text">Pengajuan<small>Verifikasi &amp; riwayat</small></span>
+        <span class="workspace-tab-count">{{ purchases.length }}</span>
+      </button>
+      <button type="button" role="tab" :aria-selected="activeTab === 'master'" :class="{ active: activeTab === 'master' }"
+              data-testid="water-tab-master" @click="activeTab = 'master'">
+        <span class="workspace-tab-icon" aria-hidden="true">🏷️</span>
+        <span class="workspace-tab-text">Master Merk<small>Jenis &amp; merk air minum</small></span>
+        <span class="workspace-tab-count">{{ types.length }}</span>
+      </button>
+    </nav>
+
     <div v-if="loading"><LoadingState :rows="5" label="Memuat data air minum…" /></div>
     <div v-else-if="err"><ErrorState :message="err" @retry="load" /></div>
     <template v-else>
-      <!-- Filter rentang tanggal (v2.37.4) — default: awal s/d akhir bulan berjalan -->
-      <div class="card card-pad" style="margin-bottom:16px;">
-        <div class="row" style="align-items:flex-end;gap:8px;flex-wrap:wrap;">
-          <div class="field" style="margin:0;">
-            <label>Dari</label>
-            <input class="input" type="date" v-model="fFrom" @change="load" style="width:auto;" />
+      <!-- Tab Pengajuan — filter rentang tanggal + daftar pengajuan -->
+      <section v-if="!isFinance || activeTab === 'pengajuan'" class="workspace-section" aria-label="Pengajuan air minum">
+        <div class="card card-pad" style="margin-bottom:16px;">
+          <div class="row" style="gap:10px;align-items:center;margin-bottom:10px;">
+            <div class="workspace-tab-icon" aria-hidden="true">🔎</div>
+            <div>
+              <b>Filter pengajuan</b>
+              <div class="muted" style="font-size:11px;">Rentang tanggal, status, dan pencarian — default bulan berjalan.</div>
+            </div>
           </div>
-          <div class="field" style="margin:0;">
-            <label>Sampai</label>
-            <input class="input" type="date" v-model="fTo" @change="load" style="width:auto;" />
+          <div class="workspace-toolbar">
+            <div class="field">
+              <label>Dari</label>
+              <input class="input" type="date" v-model="fFrom" @change="load" style="width:auto;" />
+            </div>
+            <div class="field">
+              <label>Sampai</label>
+              <input class="input" type="date" v-model="fTo" @change="load" style="width:auto;" />
+            </div>
+            <div class="field">
+              <label>Status</label>
+              <select class="select" v-model="fStatus" @change="load" style="width:auto;">
+                <option value="all">Semua</option>
+                <option value="pending">Menunggu</option>
+                <option value="verified">Terverifikasi</option>
+                <option value="rejected">Ditolak</option>
+              </select>
+            </div>
+            <div class="field grow">
+              <label>Cari</label>
+              <input class="input" v-model="fQ" placeholder="No. dokumen / nama OB / merk…" @keyup.enter="load" />
+            </div>
+            <button class="btn btn-primary" :disabled="loading" @click="load">🔍 Tampilkan</button>
+            <button class="btn" @click="resetFilter" title="Kembali ke rentang bulan berjalan">↺ Bulan ini</button>
           </div>
-          <div class="field" style="margin:0;">
-            <label>Status</label>
-            <select class="select" v-model="fStatus" @change="load" style="width:auto;">
-              <option value="all">Semua</option>
-              <option value="pending">Menunggu</option>
-              <option value="verified">Terverifikasi</option>
-              <option value="rejected">Ditolak</option>
-            </select>
-          </div>
-          <div class="field grow" style="margin:0;min-width:180px;">
-            <label>Cari</label>
-            <input class="input" v-model="fQ" placeholder="No. dokumen / nama OB / merk…" @keyup.enter="load" />
-          </div>
-          <button class="btn btn-primary" :disabled="loading" @click="load">🔍 Tampilkan</button>
-          <button class="btn" @click="resetFilter" title="Kembali ke rentang bulan berjalan">↺ Bulan ini</button>
         </div>
-      </div>
 
-      <!-- Daftar pengajuan -->
-      <div class="card">
-        <div class="card-pad row" style="border-bottom:1px solid var(--border);">
-          <b>📋 Pengajuan {{ isOB ? 'Saya' : 'Semua' }}</b>
-          <span class="badge badge-blue">{{ purchases.length }}</span>
+        <!-- Daftar pengajuan -->
+        <div class="card">
+          <div class="card-pad row" style="border-bottom:1px solid var(--border);">
+            <b>📋 Pengajuan {{ isOB ? 'Saya' : 'Semua' }}</b>
+            <span class="badge badge-blue">{{ purchases.length }}</span>
+          </div>
+          <div v-if="!purchases.length" class="empty">Belum ada pengajuan.</div>
+          <div v-for="p in purchases" :key="p.id" class="cash-item">
+            <div class="row" style="align-items:center;flex-wrap:wrap;gap:8px;">
+              <div class="grow">
+                <div class="row" style="gap:8px;align-items:center;">
+                  <b>{{ p.display_id }}</b>
+                  <span class="badge" :class="STATUS_BADGE[p.status] || 'badge-gray'">{{ STATUS_LABEL[p.status] || p.status }}</span>
+                </div>
+                <div class="muted" style="font-size:12px;margin-top:4px;">
+                  🗓️ {{ fmtDate(p.purchase_date) }} · 👤 {{ p.ob_name }} · 📦 {{ itemTotal(p) }} item
+                </div>
+              </div>
+              <div class="row" style="gap:6px;">
+                <button class="btn btn-sm" @click="openDetail(p)">👁️ Detail</button>
+                <button v-if="canEditRow(p)" class="btn btn-sm" @click="openEdit(p)">✏️ Edit</button>
+                <button v-if="isFinance && p.status === 'pending'" class="btn btn-sm btn-success" @click="openVerify('verify', p)">✅ Verifikasi</button>
+                <button v-if="isFinance && p.status === 'pending'" class="btn btn-sm btn-danger" @click="openVerify('reject', p)">✖ Tolak</button>
+                <button v-if="p.status === 'verified'" class="btn btn-sm" @click="downloadPdf(p)">📄 PDF</button>
+                <button v-if="canEditDelete" class="btn btn-sm btn-danger" style="padding:2px 8px;" title="Hapus permanen (snapshot tersimpan di audit log)" @click="deletePurchase(p)">🗑️</button>
+              </div>
+            </div>
+          </div>
         </div>
-        <div v-if="!purchases.length" class="empty">Belum ada pengajuan.</div>
-        <div v-for="p in purchases" :key="p.id" class="cash-item">
-          <div class="row" style="align-items:center;flex-wrap:wrap;gap:8px;">
+      </section>
+
+      <!-- Tab Master Merk (finance) -->
+      <section v-else class="workspace-section" aria-label="Master merk air minum">
+        <div class="card">
+          <div class="card-pad row" style="border-bottom:1px solid var(--border);gap:10px;">
+            <div class="workspace-tab-icon" aria-hidden="true">🏷️</div>
             <div class="grow">
-              <div class="row" style="gap:8px;align-items:center;">
-                <b>{{ p.display_id }}</b>
-                <span class="badge" :class="STATUS_BADGE[p.status] || 'badge-gray'">{{ STATUS_LABEL[p.status] || p.status }}</span>
-              </div>
-              <div class="muted" style="font-size:12px;margin-top:4px;">
-                🗓️ {{ fmtDate(p.purchase_date) }} · 👤 {{ p.ob_name }} · 📦 {{ itemTotal(p) }} item
-              </div>
+              <b>Master Merk Air Minum</b>
+              <div class="muted" style="font-size:11px;">Jenis dan merk yang tersedia untuk pengajuan OB.</div>
             </div>
-            <div class="row" style="gap:6px;">
-              <button class="btn btn-sm" @click="openDetail(p)">👁️ Detail</button>
-              <button v-if="canEditRow(p)" class="btn btn-sm" @click="openEdit(p)">✏️ Edit</button>
-              <button v-if="isFinance && p.status === 'pending'" class="btn btn-sm btn-success" @click="openVerify('verify', p)">✅ Verifikasi</button>
-              <button v-if="isFinance && p.status === 'pending'" class="btn btn-sm btn-danger" @click="openVerify('reject', p)">✖ Tolak</button>
-              <button v-if="p.status === 'verified'" class="btn btn-sm" @click="downloadPdf(p)">📄 PDF</button>
-              <button v-if="canEditDelete" class="btn btn-sm btn-danger" style="padding:2px 8px;" title="Hapus permanen (snapshot tersimpan di audit log)" @click="deletePurchase(p)">🗑️</button>
+            <span class="badge badge-purple">{{ types.length }} tipe</span>
+            <button class="btn btn-primary btn-sm" @click="openBrandModal">➕ Tambah Merk</button>
+          </div>
+          <div class="card-pad" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;">
+            <div v-for="t in types" :key="t.id" class="brand-group">
+              <b style="color:var(--accent);">{{ t.name }}</b>
+              <div v-if="!t.brands.length" class="muted" style="font-size:12px;margin-top:4px;">Belum ada merk.</div>
+              <div v-for="b in t.brands" :key="b.id" class="row" style="justify-content:space-between;align-items:center;gap:6px;margin-top:4px;">
+                <span style="font-size:13px;">• {{ b.brand }}</span>
+                <button class="btn btn-sm btn-danger" :disabled="busy" style="padding:1px 6px;font-size:11px;" @click="deleteBrand(b)" title="Nonaktifkan">✖</button>
+              </div>
             </div>
           </div>
         </div>
-      </div>
-
-      <!-- Master merk (finance) -->
-      <div v-if="isFinance" class="card" style="margin-top:16px;">
-        <div class="card-pad row" style="border-bottom:1px solid var(--border);">
-          <b>🏷️ Master Merk Air Minum</b>
-          <span class="badge badge-purple">{{ types.length }} tipe</span>
-        </div>
-        <div class="card-pad" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;">
-          <div v-for="t in types" :key="t.id">
-            <b style="color:var(--accent);">{{ t.name }}</b>
-            <div v-if="!t.brands.length" class="muted" style="font-size:12px;margin-top:4px;">Belum ada merk.</div>
-            <div v-for="b in t.brands" :key="b.id" class="row" style="justify-content:space-between;align-items:center;gap:6px;margin-top:4px;">
-              <span style="font-size:13px;">• {{ b.brand }}</span>
-              <button class="btn btn-sm btn-danger" :disabled="busy" style="padding:1px 6px;font-size:11px;" @click="deleteBrand(b)" title="Nonaktifkan">✖</button>
-            </div>
-          </div>
-        </div>
-      </div>
+      </section>
     </template>
 
     <!-- Modal detail -->
@@ -605,4 +661,8 @@ onMounted(() => { form.value.items.push(newItem()); load() })
 <style scoped>
 .cash-item { padding: 14px; border-bottom: 1px solid var(--border); }
 .cash-item:last-child { border-bottom: none; }
+.brand-group {
+  padding: 12px; border: 1px solid var(--border); border-radius: 10px;
+  background: var(--surface-2);
+}
 </style>

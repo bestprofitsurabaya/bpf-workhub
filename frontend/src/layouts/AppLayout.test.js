@@ -65,7 +65,7 @@ describe('AppLayout — P1 navigasi', () => {
     w.unmount()
   })
 
-  it('menu finance hanya memuat BBM/Finance, kasbon, dan air minum', async () => {
+  it('menu finance menampilkan workspace BBM dan modul kerja finance yang relevan', async () => {
     const { w } = await mountLayout({ role: 'finance', userName: 'finance_sby', isHo: false, path: '/cash' })
     const nav = w.find('.side-nav').text()
     expect(nav).toContain('Dashboard Finance')

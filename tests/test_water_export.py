@@ -141,9 +141,12 @@ class TestPDF:
             'company_address': 'Graha Bukopin, Lantai 11, Jl. Panglima Sudirman No. 10-18, Surabaya 60271',
             'company_phone': '031-5349888',
         }
+        meta['city'] = 'Surabaya'
         data = WaterReportPDF().generate(ROWS, meta)
         text = _pdf_text(data)
         assert 'Graha Bukopin' in text
+        assert 'Cabang Surabaya' in text
+        assert 'Surabaya, 01/10/2026' in text
         assert 'Equity Tower' not in text
 
 
@@ -155,19 +158,18 @@ class FakeCursor:
         self.store = store
         self.executed = []
         self._rows = []
+        self._one = None
 
     def execute(self, sql, params=None):
         self.executed.append((sql, params))
-        if 'SELECT wp.*' in sql:
-            self._rows = []
-        else:
-            self._rows = []
+        self._one = self.store.get('branch') if 'FROM branches WHERE code=%s' in sql else None
+        self._rows = []
 
     def fetchall(self):
         return list(self._rows)
 
     def fetchone(self):
-        return None
+        return self._one
 
     def close(self):
         pass
@@ -213,13 +215,28 @@ def test_export_xlsx_content_type(client, monkeypatch):
 
 
 def test_export_pdf_content_type(client, monkeypatch):
-    monkeypatch.setattr(rw, 'get_db_connection', lambda: FakeConn({}))
+    branch = {
+        'company_name': 'PT BESTPROFIT FUTURES',
+        'company_subtitle': 'Cabang Surabaya',
+        'address': 'Graha Bukopin, Surabaya',
+        'phone': '031-5349888',
+        'city': 'Surabaya',
+    }
+    monkeypatch.setattr(rw, 'get_db_connection',
+                        lambda branch_code=None, master=False:
+                            FakeConn({'branch': branch} if master else {}))
     _login(client)
     r = client.get('/api/water/purchases/export?format=pdf')
     assert r.status_code == 200
     assert r.headers['Content-Type'] == 'application/pdf'
     assert '.pdf' in r.headers['Content-Disposition']
     assert r.data[:5] == b'%PDF-'
+    from tests.pdf_text import pdf_text
+    text = pdf_text(r.data)
+    assert 'Cabang Surabaya' in text
+    assert 'Graha Bukopin' in text
+    assert 'Equity Tower' not in text
+    assert 'Equity Tower' not in text
 
 
 def test_export_filter_diteruskan(client, monkeypatch):

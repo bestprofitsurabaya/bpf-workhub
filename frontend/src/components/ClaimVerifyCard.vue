@@ -9,10 +9,11 @@
  * tidak pernah memanggil endpoint itu sendiri; lewat slot `link` + event
  * `link`/`unlink` yang dipancarkan ke view pemakai.
  */
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { api } from '../api'
 import LoadingState from './LoadingState.vue'
 import ErrorState from './ErrorState.vue'
+import { formatDate, formatDateTime } from '../utils/format.js'
 
 const props = defineProps({
   txId: { type: [Number, String], required: true },
@@ -53,6 +54,28 @@ defineExpose({ reload })
 // ------------- tampilan bantu -------------
 const fmtRp = (n) => 'Rp ' + (Number(n) || 0).toLocaleString('id-ID')
 const fmtNum = (n) => (Number(n) || 0).toLocaleString('id-ID')
+
+// Foto lama bisa hilang dari disk (mis. migrasi uploads) — tampilkan placeholder
+// yang jelas, bukan ikon gambar rusak tanpa keterangan.
+const brokenPhotos = reactive(new Set())
+const markPhotoBroken = (url) => brokenPhotos.add(url)
+
+function dateOnly(value) {
+  const m = String(value || '').match(/\d{4}-\d{2}-\d{2}/)
+  return m ? m[0] : ''
+}
+const outsideDataRange = computed(() => {
+  if (subsidy.value?.verdict !== 'no_record') return false
+  const range = subsidy.value?.data_range
+  const txDate = dateOnly(data.value?.created_at)
+  if (!range || !txDate || !range.oldest || !range.newest) return false
+  return txDate < dateOnly(range.oldest) || txDate > dateOnly(range.newest)
+})
+const dataRangeLabel = computed(() => {
+  const range = subsidy.value?.data_range
+  if (!range?.oldest || !range?.newest) return ''
+  return `${formatDate(range.oldest)} – ${formatDate(range.newest)}`
+})
 const flagCls = (lv) =>
   lv === 'danger' ? ['badge-red', '🔴'] : lv === 'warning' ? ['badge-amber', '🟡'] : ['badge-green', '🟢']
 
@@ -114,23 +137,35 @@ onMounted(load)
           <div class="cvc-photos" data-testid="cvc-photos">
             <template v-if="data.photos?.length || data.foto_mypertamina_admin">
               <figure v-for="(p, i) in data.photos" :key="p.url" class="cvc-photo">
-                <a v-if="p.url.toLowerCase().split('?')[0].endsWith('.pdf')" class="cvc-photo-btn"
+                <div v-if="brokenPhotos.has(p.url)" class="cvc-photo-missing"
+                     :title="'File tidak ditemukan di server: ' + p.url" role="img"
+                     aria-label="File bukti tidak ditemukan">
+                  <span aria-hidden="true">⚠️</span>
+                  <span>File bukti tidak ditemukan</span>
+                </div>
+                <a v-else-if="p.url.toLowerCase().split('?')[0].endsWith('.pdf')" class="cvc-photo-btn"
                    :href="p.url" target="_blank" rel="noopener" :aria-label="'Buka PDF ' + p.label">
                   <span class="cvc-pdf-link">📄 Buka PDF sumber</span>
                 </a>
                 <button v-else type="button" class="cvc-photo-btn" :aria-label="'Perbesar foto ' + p.label"
                         :title="'Perbesar: ' + p.label" @click="zoomOn(p)">
-                  <img :src="p.url" :alt="'Foto ' + p.label" loading="lazy" />
+                  <img :src="p.url" :alt="'Foto ' + p.label" loading="lazy" @error="markPhotoBroken(p.url)" />
                 </button>
                 <figcaption>{{ p.label }}</figcaption>
               </figure>
               <figure v-if="data.foto_mypertamina_admin && !data.photos?.some((p) => p.url === '/uploads/' + data.foto_mypertamina_admin)"
                       class="cvc-photo" data-testid="finance-subsidy-evidence">
-                <a class="cvc-photo-btn" :href="'/uploads/' + encodeURIComponent(data.foto_mypertamina_admin)"
+                <div v-if="brokenPhotos.has('/uploads/' + encodeURIComponent(data.foto_mypertamina_admin))"
+                     class="cvc-photo-missing" role="img" aria-label="File bukti tidak ditemukan">
+                  <span aria-hidden="true">⚠️</span>
+                  <span>File bukti tidak ditemukan</span>
+                </div>
+                <a v-else class="cvc-photo-btn" :href="'/uploads/' + encodeURIComponent(data.foto_mypertamina_admin)"
                    target="_blank" rel="noopener" :aria-label="'Buka bukti MyPertamina Finance'">
                   <img v-if="!data.foto_mypertamina_admin.toLowerCase().endsWith('.pdf')"
                        :src="'/uploads/' + encodeURIComponent(data.foto_mypertamina_admin)"
-                       alt="Bukti MyPertamina dari Finance" loading="lazy" />
+                       alt="Bukti MyPertamina dari Finance" loading="lazy"
+                       @error="markPhotoBroken('/uploads/' + encodeURIComponent(data.foto_mypertamina_admin))" />
                   <span v-else class="cvc-pdf-link">📄 Buka PDF sumber</span>
                 </a>
                 <figcaption>MyPertamina (Finance)</figcaption>
@@ -145,7 +180,7 @@ onMounted(load)
               <tr><th>Nopol</th><td>{{ data.nopol }}<span v-if="data.vehicle_type" class="muted"> · {{ data.vehicle_type }}</span></td></tr>
               <tr><th>Liter / Nominal</th><td>{{ fmtNum(data.liter) }} L · <b>{{ fmtRp(data.nominal) }}</b></td></tr>
               <tr><th>ODO</th><td>{{ fmtNum(data.odo_km) }} km<span v-if="data.km_per_liter" class="muted"> · {{ Number(data.km_per_liter).toFixed(1) }} km/L</span></td></tr>
-              <tr><th>Waktu Klaim</th><td class="muted">{{ data.created_at }}</td></tr>
+              <tr><th>Waktu Klaim</th><td class="muted">{{ formatDateTime(data.created_at) }}</td></tr>
               <tr v-if="data.gps_address"><th>Lokasi GPS</th><td>📍 {{ data.gps_address }}</td></tr>
               <tr v-if="data.ml_anomaly_flag || data.is_mypertamina_error">
                 <th>Penanda</th>
@@ -213,7 +248,10 @@ onMounted(load)
           <template v-else>
             <div class="cvc-note"
                  :style="subsidy.verdict === 'no_record' ? 'border-color:#dc262633;background:#dc26260d;' : 'border-color:#d9770633;background:#d977060d;color:var(--text);'">
-              <span v-if="subsidy.verdict === 'no_record'" style="color:var(--danger, #b91c1c);">
+              <span v-if="subsidy.verdict === 'no_record' && outsideDataRange" style="color:#1d4ed8;">
+                🔵 Klaim ini di luar rentang data SPBU terimpor ({{ dataRangeLabel }}) — bukan berarti transaksi tidak ada.
+              </span>
+              <span v-else-if="subsidy.verdict === 'no_record'" style="color:var(--danger, #b91c1c);">
                 🔴 Tidak ada transaksi SPBU untuk nopol ini ±1 hari dari tanggal klaim.
               </span>
               <span v-else-if="subsidy.verdict === 'no_match'" style="color:#b45309;">🟡 Ada kandidat, tapi tidak ada yang sesuai liter/nominal.</span>
@@ -255,7 +293,7 @@ onMounted(load)
             <span class="cvc-dot cvc-dot-done" aria-hidden="true"></span>
             <div class="cvc-step-body">
               <b>🚗 Klaim diajukan driver</b>
-              <span class="muted">{{ data.driver_name }}<template v-if="data.display_id"> · {{ data.display_id }}</template> · {{ data.created_at }}</span>
+              <span class="muted">{{ data.driver_name }}<template v-if="data.display_id"> · {{ data.display_id }}</template> · {{ formatDateTime(data.created_at) }}</span>
             </div>
           </li>
           <!-- 2: GA -->
@@ -268,8 +306,8 @@ onMounted(load)
                   <span class="badge badge-green" style="font-size:10px;">Selesai</span>
                 </div>
                 <span class="muted">
-                  {{ data.ga_approved_by || data.anomaly_cleared_by }}<template v-if="data.ga_approved_at"> · {{ data.ga_approved_at }}</template>
-                  <template v-if="data.anomaly_cleared_by && data.anomaly_cleared_at"> · anomali diklarifikasi {{ data.anomaly_cleared_at }}</template>
+                  {{ data.ga_approved_by || data.anomaly_cleared_by }}<template v-if="data.ga_approved_at"> · {{ formatDateTime(data.ga_approved_at) }}</template>
+                  <template v-if="data.anomaly_cleared_by && data.anomaly_cleared_at"> · anomali diklarifikasi {{ formatDateTime(data.anomaly_cleared_at) }}</template>
                 </span>
               </template>
               <template v-else><b class="muted">🛡 Verifikasi GA</b><span class="muted">Menunggu verifikasi GA…</span></template>
@@ -281,9 +319,9 @@ onMounted(load)
             <div class="cvc-step-body">
               <template v-if="finDone">
                 <b>🏦 Verifikasi &amp; Pencairan Finance</b>
-                <span class="muted">{{ data.finance_payout_by }}<template v-if="data.finance_payout_at"> · {{ data.finance_payout_at }}</template></span>
+                <span class="muted">{{ data.finance_payout_by }}<template v-if="data.finance_payout_at"> · {{ formatDateTime(data.finance_payout_at) }}</template></span>
                 <span v-if="subsidy?.linked" class="muted cvc-subrow">
-                  ⛽ Penjodohan SPBU: {{ data.subsidy_linked_by || '—' }}<template v-if="data.subsidy_linked_at"> · {{ data.subsidy_linked_at }}</template>
+                  ⛽ Penjodohan SPBU: {{ data.subsidy_linked_by || '—' }}<template v-if="data.subsidy_linked_at"> · {{ formatDateTime(data.subsidy_linked_at) }}</template>
                 </span>
               </template>
               <template v-else><b class="muted">🏦 Verifikasi &amp; Pencairan Finance</b><span class="muted">Menunggu Finance…</span></template>
@@ -295,7 +333,7 @@ onMounted(load)
             <div class="cvc-step-body">
               <template v-if="archDone">
                 <b>🗄 Arsip</b>
-                <span class="muted">{{ data.archived_by }}<template v-if="data.archived_at"> · {{ data.archived_at }}</template></span>
+                <span class="muted">{{ data.archived_by }}<template v-if="data.archived_at"> · {{ formatDateTime(data.archived_at) }}</template></span>
               </template>
               <template v-else><b class="muted">🗄 Arsip</b><span class="muted">Belum diarsipkan…</span></template>
             </div>
@@ -349,6 +387,12 @@ onMounted(load)
 .cvc-photo img {
   width: 100%; height: 92px; object-fit: cover; display: block;
   border-radius: var(--radius-sm, 8px); border: 1px solid var(--border); background: var(--surface);
+}
+.cvc-photo-missing {
+  min-height: 92px; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 4px; padding: 8px; text-align: center;
+  border: 1px dashed var(--border); border-radius: var(--radius-sm, 8px);
+  background: var(--surface-2); color: var(--text-3); font-size: 9.5px; line-height: 1.25;
 }
 .cvc-photo figcaption { font-size: 9.5px; color: var(--text-3); line-height: 1.2; }
 .cvc-no-photo { font-size: 12px; }
