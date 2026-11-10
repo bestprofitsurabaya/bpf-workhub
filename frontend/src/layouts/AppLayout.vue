@@ -82,6 +82,8 @@ const MENU_GROUPS = [
   {
     label: 'Perkakas IT',
     items: [
+      { label: 'Inventaris IT', path: '/it/inventory', icon: '📦', roles: IT_ROLES },
+      { label: 'Scan Aset', path: '/it/scan', icon: '📷', roles: IT_ROLES },
       { label: 'News Scraper', path: '/it', icon: '📰', roles: IT_ROLES },
       { label: 'Transcoder', path: '/transcoder', icon: '🎬', roles: IT_ROLES },
       { label: 'PDF Kit', path: '/pdfkit', icon: '📄', roles: IT_ROLES },

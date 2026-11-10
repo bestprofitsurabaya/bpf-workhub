@@ -44,6 +44,10 @@ const routes = [
       { path: 'assets', name: 'assets', component: () => import('../views/dashboard/AssetsView.vue'), meta: { roles: ['ga', 'admin'] } },
       { path: 'ga-hr', name: 'ga-hr', component: () => import('../views/dashboard/OvertimeView.vue'), meta: { roles: ['ga_hr', 'admin'] } },
       { path: 'it', name: 'it', component: () => import('../views/ItEfView.vue'), meta: { roles: ['it_sby', 'it_hu', 'it_jkt2', 'it_bdg', 'it_smg', 'it_mlg', 'it_mdn', 'it_bjm', 'it_plm', 'it_lpg', 'admin'] } },
+      // v2.78.0 — Inventaris IT (aset non-jaringan, label QR, kondisi, discovery)
+      { path: 'it/inventory', name: 'it-inventory', component: () => import('../views/ItInventoryView.vue'), meta: { roles: ['it_sby', 'it_hu', 'it_jkt2', 'it_bdg', 'it_smg', 'it_mlg', 'it_mdn', 'it_bjm', 'it_plm', 'it_lpg', 'admin'] } },
+      { path: 'it/assets/:tag', name: 'it-asset-detail', component: () => import('../views/ItAssetDetailView.vue'), meta: { roles: ['it_sby', 'it_hu', 'it_jkt2', 'it_bdg', 'it_smg', 'it_mlg', 'it_mdn', 'it_bjm', 'it_plm', 'it_lpg', 'admin'] } },
+      { path: 'it/scan', name: 'it-scan', component: () => import('../views/ItScanView.vue'), meta: { roles: ['it_sby', 'it_hu', 'it_jkt2', 'it_bdg', 'it_smg', 'it_mlg', 'it_mdn', 'it_bjm', 'it_plm', 'it_lpg', 'admin'] } },
       // Transcoder (v2.46.0) — konversi link YouTube ke format audio/video
       { path: 'transcoder', name: 'transcoder', component: () => import('../views/TranscoderView.vue'), meta: { roles: ['it_sby', 'it_hu', 'it_jkt2', 'it_bdg', 'it_smg', 'it_mlg', 'it_mdn', 'it_bjm', 'it_plm', 'it_lpg', 'admin'] } },
       // PDF Kit (v2.47.0) — kompres PDF (role IT cabang + admin)

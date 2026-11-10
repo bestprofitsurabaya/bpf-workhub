@@ -21,3 +21,6 @@ lxml>=4.9.0
 # v2.46.0: transcoder — yt-dlp sebagai CLI (dipanggil via subprocess oleh
 # modules/transcoder/ytdlp.py); ffmpeg & ffprobe di-install via apt (Dockerfile).
 yt-dlp>=2025.1.26
+# v2.78.0: Inventaris IT — QR label (murni Python, ±50 KB) + OUI vendor offline.
+segno>=1.6.1
+netaddr>=1.3.0

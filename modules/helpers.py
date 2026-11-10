@@ -894,7 +894,10 @@ ROLE_HOME = {
     'receptionist': '/app/receptionist',  # v2.16: sistem pelamar kerja (verifikasi & kehadiran)
     'traineer': '/app/traineer',          # v2.16: pantau rekrutan (upline)
     'ga_hr': '/app/ga-hr',                # v2.22: data overtime (Driver + OB/Security)
-    'it_sby': '/app/it', 'it_hu': '/app/it', 'it_jkt2': '/app/it', 'it_bdg': '/app/it', 'it_smg': '/app/it', 'it_mlg': '/app/it', 'it_mdn': '/app/it', 'it_bjm': '/app/it', 'it_lpg': '/app/it',
+    'it_sby': '/app/it/inventory', 'it_hu': '/app/it/inventory', 'it_jkt2': '/app/it/inventory',
+    'it_bdg': '/app/it/inventory', 'it_smg': '/app/it/inventory', 'it_mlg': '/app/it/inventory',
+    'it_mdn': '/app/it/inventory', 'it_bjm': '/app/it/inventory', 'it_plm': '/app/it/inventory',
+    'it_lpg': '/app/it/inventory',   # v2.78: beranda IT = Inventaris IT
 }
 
 

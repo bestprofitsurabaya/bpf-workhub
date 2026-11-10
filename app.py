@@ -339,6 +339,42 @@ try:
 except Exception as _be:
     print(f'[procurement] branch ensure error: {_be}')
 
+# Inventaris IT v2.78.0: tabel it_assets/it_asset_events/it_discovery_*/
+# it_stocktake_* di DB master + tiap DB cabang (idempoten, pola ensure lain).
+from modules.it_inventory_schema import ensure_it_inventory_schema
+for _attempt in range(5):
+    _ic = _ret_master()
+    if _ic:
+        try:
+            if ensure_it_inventory_schema(_ic):
+                break
+        except Exception as _ie:
+            print(f'[it-inventory] master ensure error: {_ie}')
+        finally:
+            try:
+                _ic.close()
+            except Exception:
+                pass
+    _time.sleep(3)
+try:
+    for _b in bm.list_branches():
+        if _b.get('is_active') and _b.get('db_name') and _b['db_name'] != os.environ.get('DB_NAME', 'bpf_asset_system'):
+            _ib = _ret_pool(_b['db_name'])
+            if _ib:
+                try:
+                    _icn = _ib.get_connection()
+                    try:
+                        ensure_it_inventory_schema(_icn)
+                    finally:
+                        try:
+                            _icn.close()
+                        except Exception:
+                            pass
+                except Exception as _ie:
+                    print(f'[it-inventory] {_b["code"]} ensure error: {_ie}')
+except Exception as _be:
+    print(f'[it-inventory] branch ensure error: {_be}')
+
 # Register all route modules
 from modules.routes_driver import register_driver_routes
 from modules.routes_api_master import register_master_api
@@ -369,6 +405,7 @@ from modules.routes_documents import register_document_routes
 from modules.routes_subsidy import register_subsidy_routes  # v2.50.0
 from modules.routes_procurement import register_procurement_routes          # v2.70.0
 from modules.routes_expense import register_expense_routes                    # v2.71.0
+from modules.routes_it_assets import register_it_asset_routes                # v2.78.0
 from modules.approvals import register_approval_routes
 from modules.transcoder import register_transcoder_routes
 from modules.pdfkit import register_pdfkit_routes
@@ -377,6 +414,7 @@ register_driver_routes(app, socketio)
 register_auth_routes(app)
 register_procurement_routes(app)
 register_expense_routes(app)
+register_it_asset_routes(app)
 register_master_api(app)
 register_transaction_api(app)
 register_assignment_api(app)

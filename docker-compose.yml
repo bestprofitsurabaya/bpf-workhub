@@ -100,6 +100,11 @@ services:
       - DEPOT_LNG=112.7448072
       # v2.50.0: token impor data Subsidi Tepat (agen host → /api/subsidy/import)
       - SUBSIDY_IMPORT_TOKEN=${SUBSIDY_IMPORT_TOKEN:-}
+      # v2.78.0: Inventaris IT — token agen discovery (host/WMI → /api/it/discovery/agent)
+      # dan basis URL publik yang ditanam di QR label (opsional; default host request).
+      - IT_DISCOVERY_TOKEN=${IT_DISCOVERY_TOKEN:-}
+      - IT_ASSET_PUBLIC_BASE=${IT_ASSET_PUBLIC_BASE:-}
+      - IT_DISCOVERY_SUBNETS=${IT_DISCOVERY_SUBNETS:-192.168.2.0/23}
     depends_on:
       db:
         condition: service_healthy
