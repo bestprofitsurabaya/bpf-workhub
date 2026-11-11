@@ -51,56 +51,32 @@ describe('SettingsView', () => {
     expect(w.text()).toContain('Aktif')
   })
 
-  it('toggle driver memanggil endpoint activate/deactivate yang tepat', async () => {
+  it('v2.78.0: tabel driver read-only — tidak ada tombol tambah/nonaktifkan/hapus', async () => {
     const w = await mountView()
-    await w.findAll('button').find((b) => b.text().includes('Nonaktifkan')).trigger('click')
-    await flushPromises()
-    expect(apiMock).toHaveBeenCalledWith('/api/drivers/RIVAN/deactivate', { method: 'POST' })
+    // Satu sumber pengelolaan driver = Manajemen User
+    expect(w.text()).toContain('Kelola di Manajemen User')
+    expect(w.findAll('button').some((b) => b.text().includes('Tambah Driver'))).toBe(false)
+    expect(w.findAll('button').some((b) => b.text().includes('Nonaktifkan'))).toBe(false)
+    expect(w.findAll('button').some((b) => b.text() === '🗑')).toBe(false)
+    // Menampilkan status keterhubungan akun
+    expect(w.text()).toContain('Tanpa akun')
   })
 
-  it('modal tambah driver: simpan memanggil /api/drivers/sync dengan nama uppercase', async () => {
-    const w = await mountView()
-    await w.findAll('button').find((b) => b.text().includes('Tambah Driver')).trigger('click')
-    await flushPromises()
-    expect(w.text()).toContain('Tambah Driver')
-    // Input nama driver ada di modal (placeholder 'mis. RIVAN') — jangan pakai
-    // inputs[0] karena kartu TTD air minum (di atas) ikut punya input.
-    const nameInput = w.findAll('input').find((i) => i.attributes('placeholder') === 'mis. RIVAN')
-    await nameInput.setValue('budi')
-    // Tombol modal simpan = '💾 Simpan' persis (bukan '💾 Simpan Nama TTD' dari kartu air minum)
-    await w.findAll('button').find((b) => b.text().trim() === '💾 Simpan').trigger('click')
-    await flushPromises()
-    expect(apiMock).toHaveBeenCalledWith('/api/drivers/sync', {
-      method: 'POST',
-      body: expect.objectContaining({ driver_name: 'BUDI' }),
-    })
-  })
-
-  it('hapus driver (dengan konfirmasi) memanggil /api/drivers/<nama>/delete', async () => {
-    const w = await mountView()
-    await w.findAll('button').find((b) => b.text() === '🗑').trigger('click')
-    await flushPromises()
-    await confirmYes(w)
-    expect(apiMock).toHaveBeenCalledWith('/api/drivers/RIVAN/delete', { method: 'POST' })
-  })
-
-  it('reset PIN massal driver (konfirmasi) memanggil /api/drivers/pin-reset dengan 123456', async () => {
+  it('reset PIN massal driver (konfirmasi) meminta PIN acak aman (tanpa 123456)', async () => {
     const w = await mountView()
     await w.findAll('button').find((b) => b.text().includes('PIN Driver')).trigger('click')
     await flushPromises()
     await confirmYes(w)
     expect(apiMock).toHaveBeenCalledWith('/api/drivers/pin-reset', {
       method: 'POST',
-      body: expect.objectContaining({ new_pin: '123456' }),
+      body: {},
     })
   })
 
-  it('tipe kendaraan pada modal tidak duplikat (AVANZA hanya sekali)', async () => {
+  it('modal tambah kendaraan: tipe kendaraan tidak duplikat (AVANZA hanya sekali)', async () => {
     const w = await mountView()
-    await w.findAll('button').find((b) => b.text().includes('Tambah Driver')).trigger('click')
+    await w.findAll('button').find((b) => b.text().includes('Tambah Kendaraan')).trigger('click')
     await flushPromises()
-    // select pertama bisa jadi switcher cabang (v2.19.2) — pilih select yang
-    // berisi opsi kendaraan (modal Tambah Driver)
     const vehSelect = w.findAll('select').find((s) => s.findAll('option').some((o) => o.text() === 'AVANZA'))
     const opts = vehSelect.findAll('option').map((o) => o.text())
     expect(opts.filter((t) => t === 'AVANZA').length).toBe(1)

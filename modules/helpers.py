@@ -2,6 +2,7 @@
 import os
 import json
 import ipaddress
+import secrets
 import threading
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
@@ -36,22 +37,59 @@ def resolve_user_pin(pin_field):
         return str(pin_field).strip()
     return None
 
-def finalize_pin(pin, existing_pin=None, default='123456'):
+# PIN lemah yang lazim dipakai akun bawaan. Jangan pernah dipakai untuk
+# akun baru/reset — nilai lama tetap bisa login (kompatibilitas), tetapi
+# pembuatan PIN baru ditolak agar tidak menambah kredensial default.
+_WEAK_PINS = frozenset({
+    '000000', '111111', '112233', '121212', '123123', '123321',
+    '123456', '654321', '666666', '777777', '888888', '999999',
+})
+
+
+def generate_pin(length=6):
+    """PIN acak kriptografis (6 digit default) untuk akun baru/reset."""
+    return ''.join(secrets.choice('0123456789') for _ in range(length))
+
+
+def validate_new_pin(pin):
+    """Validasi PIN baru. Return None bila valid, atau pesan error (str)."""
+    pin = str(pin or '').strip()
+    if not pin.isdigit() or len(pin) != 6:
+        return 'PIN harus 6 digit angka'
+    if pin in _WEAK_PINS or len(set(pin)) == 1:
+        return 'PIN terlalu lemah — hindari 123456/angka berulang. Gunakan PIN acak.'
+    return None
+
+
+def random_strong_pin(length=6):
+    """Generate PIN yang lolos validate_new_pin (hindari nilai lemah)."""
+    for _ in range(50):
+        pin = generate_pin(length)
+        if validate_new_pin(pin) is None:
+            return pin
+    # Praktis tidak mungkin tercapai; fallback tetap 6 digit.
+    return generate_pin(length)
+
+
+def finalize_pin(pin, existing_pin=None, default=None):
     """Fallback PIN di level route (ISO/IEC 27001 A.9.4).
 
     `pin` None (artinya "jangan ubah" dari resolve_user_pin) -> pertahankan
-    existing_pin; bila user baru (tidak ada existing) -> default.
+    existing_pin; bila user baru (tidak ada existing) -> default (bila
+    diberikan) atau PIN acak kuat. PIN default lama '123456' sudah dihapus.
 
     >>> finalize_pin('777333', existing_pin='555111')
     '777333'
     >>> finalize_pin(None, existing_pin='555111')
     '555111'
-    >>> finalize_pin(None, existing_pin=None)
-    '123456'
+    >>> len(finalize_pin(None, existing_pin=None))
+    6
     """
     if pin is not None:
         return pin
-    return existing_pin if existing_pin is not None else default
+    if existing_pin is not None:
+        return existing_pin
+    return default if default is not None else random_strong_pin()
 
 def resolve_driver_form_context(driver_data, driver_name, nopol, vehicle_type, bbm_type):
     """Resolve the final driver context for claim submission using master data when available."""
@@ -638,6 +676,16 @@ def role_required(allowed_roles):
             return f(*args, **kwargs)
         return decorated_function
     return decorator
+
+
+def login_required(f):
+    """Decorator: wajib sesi login (role apa pun)."""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not session.get('user_role'):
+            return _auth_denied_response()
+        return f(*args, **kwargs)
+    return decorated_function
 
 
 def admin_required(f):

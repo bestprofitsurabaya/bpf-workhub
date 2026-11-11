@@ -17,7 +17,7 @@ import os
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from modules.helpers import resolve_user_pin, finalize_pin
+from modules.helpers import resolve_user_pin, finalize_pin, validate_new_pin
 
 
 class TestResolveUserPin:
@@ -49,9 +49,12 @@ class TestFinalizePin:
         """Toggle nonaktif (pin None) -> PIN existing dipertahankan."""
         assert finalize_pin(None, existing_pin='555111') == '555111'
 
-    def test_user_baru_tanpa_pin_mendapat_default(self):
-        """User baru (row tidak ada -> existing None) tanpa pin -> default '123456'."""
-        assert finalize_pin(None, existing_pin=None) == '123456'
+    def test_user_baru_tanpa_pin_mendapat_pin_acak_kuat(self):
+        """User baru tanpa pin -> PIN acak 6 digit yang tidak lemah (bukan 123456)."""
+        pin = finalize_pin(None, existing_pin=None)
+        assert len(pin) == 6 and pin.isdigit()
+        assert pin != '123456'
+        assert validate_new_pin(pin) is None
 
     def test_alur_lengkap_toggle(self):
         """Simulasi route: create user pin 777333, lalu toggle tanpa pin."""
@@ -61,3 +64,21 @@ class TestFinalizePin:
         # toggle tanpa pin -> None -> pertahankan pin yang ada (dari DB)
         pin_after = finalize_pin(resolve_user_pin(None), existing_pin=pin_new)
         assert pin_after == '777333'
+
+
+class TestValidateNewPin:
+    """Kebijakan PIN baru: tolak 6 digit lemah / format salah."""
+
+    def test_tolak_pin_default_dan_berulang(self):
+        assert validate_new_pin('123456') is not None
+        assert validate_new_pin('000000') is not None
+        assert validate_new_pin('111111') is not None
+
+    def test_tolak_format_salah(self):
+        assert validate_new_pin('12345') is not None
+        assert validate_new_pin('abcdef') is not None
+        assert validate_new_pin('') is not None
+
+    def test_terima_pin_acak(self):
+        assert validate_new_pin('483920') is None
+        assert validate_new_pin('927415') is None

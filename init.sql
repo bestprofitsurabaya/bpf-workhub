@@ -300,17 +300,24 @@ CREATE TABLE IF NOT EXISTS appointments (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ============================================================
--- DEFAULT USERS (PIN: 123456)
+-- DEFAULT USERS — SENGAJA TIDAK ADA (v2.79)
 -- ============================================================
--- Konvensi username (v2.29.7): {divisi}_{cabang} — user tahu divisi & cabang
--- dari nama loginnnya. Contoh: ga_sby, finance_sby. Bila >1 orang per divisi di
--- cabang yang sama, username memakai nama: ob_faisol_sby (dibuat manual Admin).
--- v2.37.0: admin mengikuti konvensi yang sama — 'admin' = Admin Pusat (semua
--- cabang), 'admin_<kode>' = Admin cabang (terkunci ke cabangnya).
-INSERT INTO users (username, full_name, role, pin, branch_code) VALUES 
-('admin', 'Administrator', 'admin', '123456', 'SBY'),
-('ga_sby', 'GA Officer', 'ga', '123456', 'SBY'),
-('finance_sby', 'Finance Officer', 'finance', '123456', 'SBY');
+-- Tidak ada lagi akun bawaan dengan PIN 123456. Membuat kredensial default
+-- adalah temuan kritis: siapa pun yang tahu PIN bawaan bisa login sebagai
+-- admin. Buat admin pertama secara eksplisit dengan PIN kuat, contoh:
+--
+--   python3 - <<'PY'
+--   from werkzeug.security import generate_password_hash
+--   print(generate_password_hash('GANTI-DENGAN-PIN-UNIK'))
+--   PY
+--
+--   INSERT INTO users (username, full_name, role, pin, branch_code)
+--   VALUES ('admin_master', 'Administrator', 'admin',
+--           'pbkdf2:sha256:...hasil-hash-di-atas...', 'SBY');
+--
+-- Konvensi username (v2.29.7): {divisi}_{cabang} — mis. ga_sby, finance_sby.
+-- v2.37.0: 'admin_master' = Admin Pusat (semua cabang), 'admin_<kode>' =
+-- Admin cabang (terkunci ke cabangnya).
 
 -- Default system config
 INSERT INTO system_config (config_key, config_value) VALUES 

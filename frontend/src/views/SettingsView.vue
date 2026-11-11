@@ -29,7 +29,7 @@ const showBulk = ref(false)
 
 async function bulkCreate(scope) {
   const label = scope === 'driver' ? 'SEMUA driver aktif' : scope === 'marketing' ? 'SEMUA user di dropdown marketing' : 'semua akun'
-  if (!(await ask(`Buat akun login (PIN 123456) untuk ${label} yang belum punya akun?`, { confirmText: 'Ya, lanjutkan' }))) return
+  if (!(await ask(`Buat akun login (PIN acak aman) untuk ${label} yang belum punya akun?`, { confirmText: 'Ya, lanjutkan' }))) return
   bulkBusy.value = true; bulkMsg.value = ''; bulkResult.value = null
   try {
     const r = await api('/api/users/bulk-create', { method: 'POST', body: { scope } })
@@ -40,8 +40,6 @@ async function bulkCreate(scope) {
   finally { bulkBusy.value = false }
 }
 
-const showDriverForm = ref(false)
-const driverForm = ref({ driver_name: '', nopol: '', vehicle_type: 'AVANZA', bbm_type: 'PERTALITE' })
 const showVehicleForm = ref(false)
 const vehicleForm = ref({ nopol: '', vehicle_type: 'AVANZA', brand: 'Toyota', bbm_default: 'PERTALITE' })
 
@@ -411,48 +409,13 @@ async function load() {
   finally { loading.value = false }
 }
 
-async function toggleDriver(name, active) {
-  busy.value = true; msg.value = ''
-  try {
-    await api(`/api/drivers/${encodeURIComponent(name)}/${active ? 'activate' : 'deactivate'}`, { method: 'POST' })
-    msg.value = '✅ Status driver diperbarui'; load()
-  } catch (e) { msg.value = '❌ ' + e.message }
-  finally { busy.value = false }
-}
-
-async function addDriver() {
-  busy.value = true; msg.value = ''
-  try {
-    const body = { ...driverForm.value }
-    body.driver_name = body.driver_name.trim().toUpperCase()
-    body.nopol = body.nopol.trim().toUpperCase()
-    if (!body.driver_name) { msg.value = '❌ Nama driver wajib diisi'; return }
-    await api('/api/drivers/sync', { method: 'POST', body })
-    msg.value = '✅ Driver tersimpan'
-    showDriverForm.value = false
-    driverForm.value = { driver_name: '', nopol: '', vehicle_type: 'AVANZA', bbm_type: 'PERTALITE' }
-    load()
-  } catch (e) { msg.value = '❌ ' + e.message }
-  finally { busy.value = false }
-}
-
-async function deleteDriver(name) {
-  if (!(await ask(`HAPUS permanen driver "${name}"?`, { confirmText: 'Ya, lanjutkan', danger: true }))) return
-  busy.value = true; msg.value = ''
-  try {
-    await api(`/api/drivers/${encodeURIComponent(name)}/delete`, { method: 'POST' })
-    msg.value = '✅ Driver dihapus'; load()
-  } catch (e) { msg.value = '❌ ' + e.message }
-  finally { busy.value = false }
-}
-
-/** Reset PIN massal seluruh akun driver ke 123456 (onboarding cepat). */
+/** Reset PIN massal seluruh akun driver ke PIN acak aman (bukan 123456). */
 async function resetDriverPinMassal() {
-  if (!(await ask('Reset PIN SEMUA akun driver menjadi 123456?', { confirmText: 'Ya, lanjutkan', danger: true }))) return
+  if (!(await ask('Reset PIN SEMUA akun driver ke PIN acak aman? PIN hasil reset akan ditampilkan sekali — salin dan distribusikan.', { confirmText: 'Ya, lanjutkan', danger: true }))) return
   busy.value = true; msg.value = ''
   try {
-    const r = await api('/api/drivers/pin-reset', { method: 'POST', body: { new_pin: '123456' } })
-    msg.value = '✅ ' + (r.msg || 'PIN semua driver direset ke 123456')
+    const r = await api('/api/drivers/pin-reset', { method: 'POST', body: {} })
+    msg.value = '✅ ' + (r.msg || 'PIN semua driver direset') + (r.pin ? ` PIN: ${r.pin}` : '')
   } catch (e) { msg.value = '❌ ' + e.message }
   finally { busy.value = false }
 }
@@ -602,17 +565,17 @@ onMounted(() => {
       <div id="sec-master" class="card card-pad" style="margin-bottom:16px;display:flex;align-items:center;">
         <div class="grow">
           <h3 style="margin:0;">🚗 Data Master</h3>
-          <p class="muted" style="font-size:11px;">Khusus Admin · pengelolaan driver, kendaraan &amp; tipe BBM</p>
+          <p class="muted" style="font-size:11px;">Kendaraan &amp; tipe BBM · data driver dikelola di <b>Manajemen User</b> (satu akun = satu driver)</p>
         </div>
-        <button class="btn btn-primary btn-sm" @click="showDriverForm = true">➕ Tambah Driver</button>
+        <router-link class="btn btn-primary btn-sm" to="/users">👥 User &amp; Driver</router-link>
         <button class="btn btn-sm" style="margin-left:8px;" @click="showVehicleForm = true">🚙 Tambah Kendaraan</button>
-        <button class="btn btn-sm" style="margin-left:8px;" :disabled="busy" @click="resetDriverPinMassal" title="Set PIN semua akun driver ke 123456">🔑 PIN Driver = 123456</button>
+        <button class="btn btn-sm" style="margin-left:8px;" :disabled="busy" @click="resetDriverPinMassal" title="Reset PIN semua akun driver ke PIN acak aman">🔑 Reset PIN Driver (acak)</button>
       </div>
 
       <div class="card card-pad" style="margin-bottom:16px;">
         <h3 style="margin:0;">👥 Buat Akun Sekaligus</h3>
         <p class="muted" style="font-size:11px;">
-          Buat akun login (role driver / marketing, PIN default <b>123456</b>) untuk semua driver aktif dan
+          Buat akun login (role driver / marketing, <b>PIN acak aman</b> yang ditampilkan setelah dibuat) untuk semua driver aktif dan
           semua user di dropdown marketing yang belum punya akun. Akun yang sudah ada dilewati — idempoten.
         </p>
         <div class="row" style="margin-top:10px;gap:8px;">
@@ -949,21 +912,22 @@ onMounted(() => {
       </div>
 
       <div class="card" style="margin-bottom:16px;">
-        <h3 style="padding:14px 18px 0;">👤 Driver</h3>
+        <div class="row" style="padding:14px 18px 0;align-items:baseline;gap:8px;">
+          <h3 style="margin:0;">👤 Driver</h3>
+          <span class="muted" style="font-size:11px;">Sumber data: akun user ber-role driver</span>
+          <div class="spacer"></div>
+          <router-link class="btn btn-sm" to="/users">✏️ Kelola di Manajemen User</router-link>
+        </div>
         <div class="table-wrap">
           <table class="tbl">
-            <thead><tr><th>Nama</th><th>Nopol</th><th>Tipe</th><th>BBM</th><th>Status</th><th></th></tr></thead>
+            <thead><tr><th>Nama Driver</th><th>Nopol</th><th>Tipe</th><th>BBM</th><th>Akun</th><th>Status</th></tr></thead>
             <tbody>
               <tr v-for="d in drivers" :key="d.name">
-                <td><b>{{ d.name }}</b></td><td>{{ d.nopol || '—' }}</td><td>{{ d.vehicle_type }}</td>
+                <td><b>{{ d.display_name || d.name }}</b><div class="muted" style="font-size:11px;">{{ d.name }}</div></td>
+                <td>{{ d.nopol || '—' }}</td><td>{{ d.vehicle_type }}</td>
                 <td>{{ d.bbm_type }}</td>
+                <td><span class="badge" :class="d.has_account ? 'badge-green' : 'badge-red'">{{ d.has_account ? '🔗 Terhubung' : 'Tanpa akun' }}</span></td>
                 <td><span class="badge" :class="d.is_active ? 'badge-green' : 'badge-red'">{{ d.is_active ? 'Aktif' : 'Nonaktif' }}</span></td>
-                <td>
-                  <button class="btn btn-sm" :disabled="busy" @click="toggleDriver(d.name, !d.is_active)">
-                    {{ d.is_active ? '🔴 Nonaktifkan' : '🟢 Aktifkan' }}
-                  </button>
-                  <button class="btn btn-sm btn-danger" :disabled="busy" style="margin-left:6px;" @click="deleteDriver(d.name)" title="Hapus permanen">🗑</button>
-                </td>
               </tr>
               <tr v-if="!drivers.length"><td colspan="6" class="empty">Belum ada driver.</td></tr>
             </tbody>
@@ -1005,6 +969,9 @@ onMounted(() => {
 
     <Modal v-if="showBulk && bulkResult" title="✅ Hasil Buat Akun Sekaligus" @close="showBulk = false">
       <p class="alert alert-info" style="font-size:12px;">{{ bulkResult.msg }}</p>
+      <p v-if="bulkResult.pin" class="alert alert-warning" style="font-size:12px;">
+        PIN akun baru: <b>{{ bulkResult.pin }}</b> — salin sekarang, PIN tidak ditampilkan lagi.
+      </p>
       <h4 style="margin:10px 0 6px;">🆕 Akun dibuat ({{ bulkResult.created.length }})</h4>
       <div v-if="bulkResult.created.length" class="table-wrap">
         <table class="tbl">
@@ -1024,23 +991,6 @@ onMounted(() => {
       <p v-else class="muted" style="font-size:12px;">—</p>
       <div class="row" style="justify-content:flex-end;margin-top:12px;">
         <button class="btn btn-primary" @click="showBulk = false">Tutup</button>
-      </div>
-    </Modal>
-
-    <Modal v-if="showDriverForm" title="➕ Tambah Driver" @close="showDriverForm = false">
-      <div class="form-grid">
-        <div class="field"><label>Nama Driver *</label><input class="input" v-model="driverForm.driver_name" placeholder="mis. RIVAN" /></div>
-        <div class="field"><label>No. Polisi</label><input class="input" v-model="driverForm.nopol" placeholder="mis. L 1234 AB" /></div>
-        <div class="field"><label>Tipe Kendaraan</label>
-          <select class="select" v-model="driverForm.vehicle_type"><option v-for="t in vehicleTypes" :key="t" :value="t">{{ t }}</option></select>
-        </div>
-        <div class="field"><label>Tipe BBM</label>
-          <select class="select" v-model="driverForm.bbm_type"><option v-for="b in bbmNames" :key="b" :value="b">{{ b }}</option></select>
-        </div>
-      </div>
-      <div class="row" style="justify-content:flex-end;margin-top:12px;">
-        <button class="btn" @click="showDriverForm = false">Batal</button>
-        <button class="btn btn-primary" :disabled="busy" @click="addDriver">💾 Simpan</button>
       </div>
     </Modal>
 

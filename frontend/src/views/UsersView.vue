@@ -32,14 +32,14 @@ const showDeleteConfirm = ref(false)
 const showBulkConfirm = ref(false)
 const showBulkResetPin = ref(false)
 
-const form = ref({ username: '', full_name: '', role: 'ga', pin: '123456', team_name: '', branch_code: '', is_active: true })
+const form = ref({ username: '', full_name: '', role: 'ga', pin: '', team_name: '', branch_code: '', is_active: true })
 const resetPinData = ref({ username: '', pin: '' })
 const auditLogUser = ref(null)
 const auditLogs = ref([])
 const auditLoading = ref(false)
 const deleteTarget = ref(null)
 const bulkAction = ref('')
-const bulkResetPinValue = ref('123456')
+const bulkResetPinValue = ref('')
 
 const busy = ref(false)
 const msg = ref('')
@@ -63,6 +63,10 @@ const ROLES = [
 ]
 const roleLabel = (r) => (ROLES.find((x) => x[0] === r) || [r, r])[1]
 const roleIcon = (r) => (ROLES.find((x) => x[0] === r) || ['', ''])[1].split(' ')[0]
+
+// v2.78.0: akun driver kini terikat ke profil driver (drivers.user_id).
+const isDriverRole = (r) => r === 'driver' || r === 'chief_driver'
+const driverProfile = (u) => u?.driver_profile || null
 
 const branches = ref([])
 const branchName = (code) => {
@@ -160,7 +164,7 @@ function openForm(u) {
     pin: '', team_name: u.team_name || '', branch_code: u.branch_code || '', 
     manager_username: u.manager_username || '', 
     is_active: !!u.is_active 
-  } : { id: null, username: '', full_name: '', role: 'ga', pin: '123456', team_name: '', branch_code: auth.user?.branch_code || '', manager_username: '', is_active: true }
+  } : { id: null, username: '', full_name: '', role: 'ga', pin: '', team_name: '', branch_code: auth.user?.branch_code || '', manager_username: '', is_active: true }
   showForm.value = true
 }
 
@@ -170,8 +174,9 @@ async function save() {
     const body = { ...form.value }
     if (!body.pin) delete body.pin
     if (!body.id) delete body.id
-    await api('/api/users/sync', { method: 'POST', body })
-    msg.value = '✅ User berhasil disimpan'
+    delete body.driver_profile
+    const r = await api('/api/users/sync', { method: 'POST', body })
+    msg.value = '✅ ' + (r?.msg || 'User berhasil disimpan')
     showForm.value = false; load()
   } catch (e) { msg.value = '❌ ' + e.message }
   finally { busy.value = false }
@@ -185,7 +190,10 @@ function openResetPin(u) {
 async function doResetPin() {
   busy.value = true; msg.value = ''
   try {
-    await api('/api/users/reset-pin', { method: 'POST', body: resetPinData.value })
+    await api('/api/users/reset-pin', {
+      method: 'POST',
+      body: { username: resetPinData.value.username, new_pin: resetPinData.value.pin },
+    })
     msg.value = '✅ PIN berhasil direset'
     showResetPin.value = false; load()
   } catch (e) { msg.value = '❌ ' + e.message }
@@ -266,7 +274,7 @@ async function doBulkAction() {
 
 function openBulkResetPin() {
   if (!selectedCount.value) { msg.value = '⚠️ Pilih user terlebih dahulu'; return }
-  bulkResetPinValue.value = '123456'
+  bulkResetPinValue.value = ''
   showBulkResetPin.value = true
 }
 
@@ -274,7 +282,7 @@ async function doBulkResetPin() {
   bulkBusy.value = true; msg.value = ''
   try {
     const promises = selectedUsers.value.map(u => 
-      api('/api/users/reset-pin', { method: 'POST', body: { username: u.username, pin: bulkResetPinValue.value } })
+      api('/api/users/reset-pin', { method: 'POST', body: { username: u.username, new_pin: bulkResetPinValue.value } })
     )
     await Promise.all(promises)
     msg.value = `✅ PIN ${selectedCount.value} user berhasil direset`
@@ -373,6 +381,7 @@ onMounted(load)
               <th>Role</th>
               <th>Tim</th>
               <th>Cabang</th>
+              <th>Driver &amp; Kendaraan</th>
               <th>Status</th>
               <th>Terakhir Login</th>
               <th style="min-width:140px;">Aksi</th>
@@ -385,6 +394,16 @@ onMounted(load)
               <td><span class="badge badge-purple">{{ roleLabel(u.role) }}</span></td>
               <td>{{ u.team_name || '—' }}</td>
               <td><span class="badge badge-blue" v-if="u.branch_code">{{ branchName(u.branch_code) }}</span><span v-else class="muted">—</span></td>
+              <td>
+                <template v-if="isDriverRole(u.role)">
+                  <template v-if="driverProfile(u)">
+                    <b>{{ driverProfile(u).nopol || 'Tanpa kendaraan' }}</b>
+                    <div class="muted" style="font-size:11px;">{{ driverProfile(u).vehicle_type }} · 🔗 terhubung</div>
+                  </template>
+                  <span v-else class="badge badge-red" title="Simpan ulang akun ini agar profil driver dibuat otomatis">⚠ Belum terhubung</span>
+                </template>
+                <span v-else class="muted">—</span>
+              </td>
               <td><span class="badge" :class="u.is_active ? 'badge-green' : 'badge-red'">{{ u.is_active ? '🟢 Aktif' : '🔴 Nonaktif' }}</span></td>
               <td class="muted" style="font-size:12px;">{{ u.last_login ? new Date(u.last_login).toLocaleString('id-ID') : '—' }}</td>
               <td style="white-space:nowrap;">
@@ -395,7 +414,7 @@ onMounted(load)
                 <button class="btn btn-sm btn-danger" :disabled="busy" @click="openDeleteConfirm(u)" title="🗑 Nonaktifkan">🗑</button>
               </td>
             </tr>
-            <tr v-if="!filteredUsers.length"><td colspan="8" class="empty">Tidak ada user ditemukan.</td></tr>
+            <tr v-if="!filteredUsers.length"><td colspan="9" class="empty">Tidak ada user ditemukan.</td></tr>
           </tbody>
         </table>
       </div>
@@ -407,12 +426,14 @@ onMounted(load)
         <div class="field"><label>Username *</label><input class="input" v-model="form.username" required placeholder=" huruf kecil, tanpa spasi" />
           <div class="muted" style="font-size:11px;">{{ usernameHint }}</div>
         </div>
-        <div class="field"><label>Nama Lengkap *</label><input class="input" v-model="form.full_name" required /></div>
+        <div class="field"><label>Nama Lengkap *</label><input class="input" v-model="form.full_name" required />
+          <div v-if="isDriverRole(form.role)" class="muted" style="font-size:11px;">Nama ini otomatis menjadi nama driver; username menjadi identitas driver (huruf besar).</div>
+        </div>
         <div class="field"><label>Role *</label>
           <select class="select" v-model="form.role"><option v-for="r in ROLES" :key="r[0]" :value="r[0]">{{ r[1] }}</option></select>
         </div>
-        <div class="field"><label>PIN {{ form.username && !form.pin ? '(kosong = tidak diubah)' : '' }}</label>
-          <input class="input" v-model="form.pin" maxlength="6" inputmode="numeric" placeholder="6 digit angka" />
+        <div class="field"><label>PIN {{ form.username && !form.pin ? '(kosong = tidak diubah)' : '(wajib untuk akun baru)' }}</label>
+          <input class="input" v-model="form.pin" maxlength="6" inputmode="numeric" placeholder="6 digit, bukan 123456" />
           <div v-if="form.pin && form.pin.length < 6" class="muted" style="font-size:11px;color:#dc2626;">PIN harus 6 digit</div>
         </div>
         <div class="field"><label>Tim Marketing</label><input class="input" v-model="form.team_name" placeholder="mis. Tim Yusie" /></div>
@@ -440,7 +461,7 @@ onMounted(load)
     <Modal v-if="showResetPin" title="🔑 Reset PIN" @close="showResetPin = false">
       <p class="muted" style="font-size:12px;margin-bottom:10px;">User: <b style="color:var(--text);">{{ resetPinData.username }}</b></p>
       <div class="field"><label>PIN baru (6 digit)</label>
-        <input class="input" v-model="resetPinData.pin" maxlength="6" inputmode="numeric" placeholder="123456" />
+        <input class="input" v-model="resetPinData.pin" maxlength="6" inputmode="numeric" placeholder="6 digit, bukan 123456" />
       </div>
       <div class="row" style="justify-content:flex-end;margin-top:12px;gap:8px;">
         <button class="btn" @click="showResetPin = false">Batal</button>
@@ -475,7 +496,7 @@ onMounted(load)
     <Modal v-if="showBulkResetPin" title="🔑 Reset PIN Massal" @close="showBulkResetPin = false">
       <p style="margin:0 0 12px;">Reset PIN <b>{{ selectedCount }} user</b> ke PIN yang sama.</p>
       <div class="field"><label>PIN baru (6 digit)</label>
-        <input class="input" v-model="bulkResetPinValue" maxlength="6" inputmode="numeric" />
+        <input class="input" v-model="bulkResetPinValue" maxlength="6" inputmode="numeric" placeholder="6 digit, bukan 123456" />
       </div>
       <div class="row" style="justify-content:flex-end;margin-top:12px;gap:8px;">
         <button class="btn" @click="showBulkResetPin = false">Batal</button>

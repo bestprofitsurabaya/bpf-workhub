@@ -26,6 +26,7 @@ class FakeCursor:
     def __init__(self, db):
         self.db = db
         self.rowcount = 0
+        self.lastrowid = 1  # seperti cursor MySQL setelah INSERT
         self.log = []  # (sql, params) — SEMUA eksekusi, bukan hanya query terakhir
 
     def execute(self, sql, params=None):
@@ -129,6 +130,9 @@ class TestBulkCreateAccounts:
         import modules.config as mc
         monkeypatch.setattr(mc, 'get_master_connection', lambda: conn)
         monkeypatch.setattr(ram, 'log_activity_async', lambda *a, **k: None)
+        # Sinkron profil driver menyentuh DB cabang; bukan fokus unit test ini.
+        monkeypatch.setattr(ram, 'sync_driver_for_user',
+                            lambda *a, **k: {'ok': True, 'action': 'create', 'name': a[2] if len(a) > 2 else ''})
         app = Flask(__name__)
         app.secret_key = 'test-secret'
         ram.register_master_api(app)
@@ -146,7 +150,7 @@ class TestBulkCreateAccounts:
             'appts': [],
         }
         client, conn = self._register(monkeypatch, db)
-        r = client.post('/api/users/bulk-create', json={'scope': 'all', 'pin': '123456'})
+        r = client.post('/api/users/bulk-create', json={'scope': 'all', 'pin': '483920'})
         assert r.status_code == 200, r.get_json()
         data = r.get_json()
         assert data['status'] == 'success'
@@ -164,7 +168,7 @@ class TestBulkCreateAccounts:
         pins = [params[3] for _, params in inserts]
         # v2.74.0: PIN tersimpan sebagai hash PBKDF2 (semua hash dari PIN sama).
         from modules.pin_security import verify_pin
-        assert all(verify_pin(p, '123456') for p in pins), 'PIN hash semua akun harus memverifikasi PIN asal'
+        assert all(verify_pin(p, '483920') for p in pins), 'PIN hash semua akun harus memverifikasi PIN asal'
         roles = [params[2] for _, params in inserts]
         assert sorted(roles) == ['driver', 'driver', 'marketing']
         # full_name memakai title-case
@@ -178,7 +182,7 @@ class TestBulkCreateAccounts:
         db = {'drivers': ['WICAK'], 'members': [('Icang', 'Yusie')], 'existing': set(), 'appts': []}
         client, _ = self._register(monkeypatch, db)
         r = client.post('/api/users/bulk-create', json={'scope': 'driver'})
-        assert r.status_code == 200
+        assert r.status_code == 200, r.get_json()
         data = r.get_json()
         assert [c['username'] for c in data['created']] == ['wicak']
         assert 'icang' not in [c['username'] for c in data['created']]

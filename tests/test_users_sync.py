@@ -177,7 +177,7 @@ class TestUsersSync:
         client, conn = self._register(monkeypatch, db)
         r = client.post('/api/users/sync', json={
             'username': 'ob_baru', 'full_name': 'OB Baru', 'role': 'ob',
-            'pin': '123456', 'team_name': '', 'branch_code': '', 'is_active': True,
+            'pin': '483920', 'team_name': '', 'branch_code': '', 'is_active': True,
         })
         assert r.status_code == 200, r.get_json()
         inserts = [(sql, params) for sql, params in _all_log(conn)
@@ -231,7 +231,7 @@ class TestUsersSync:
         client, _ = self._register(monkeypatch, db)
         r = client.post('/api/users/sync', json={
             'username': 'uang', 'full_name': 'Keuangan', 'role': 'finance',
-            'pin': '123456', 'team_name': '', 'branch_code': 'SBY', 'is_active': True,
+            'pin': '483920', 'team_name': '', 'branch_code': 'SBY', 'is_active': True,
         })
         assert r.status_code == 400
         assert 'finance_' in r.get_json()['msg']
@@ -256,7 +256,7 @@ class TestUsersSync:
         client, _ = self._register(monkeypatch, db)
         r = client.post('/api/users/sync', json={
             'username': 'qa', 'full_name': 'QA System', 'role': 'ga',
-            'pin': '123456', 'team_name': '', 'branch_code': '', 'is_active': True,
+            'pin': '483920', 'team_name': '', 'branch_code': '', 'is_active': True,
         })
         assert r.status_code == 200, r.get_json()
 
@@ -266,7 +266,7 @@ class TestUsersSync:
         client, conn = self._register(monkeypatch, db)
         r = client.post('/api/users/sync', json={
             'username': 'akhad', 'full_name': 'Akhad', 'role': 'driver',
-            'pin': '123456', 'team_name': '', 'branch_code': 'SBY', 'is_active': True,
+            'pin': '483920', 'team_name': '', 'branch_code': 'SBY', 'is_active': True,
         })
         assert r.status_code == 200, r.get_json()
         inserts = [sql for sql, _ in _all_log(conn)
@@ -277,7 +277,7 @@ class TestUsersSync:
         client2, _ = self._register(monkeypatch, db2)
         r2 = client2.post('/api/users/sync', json={
             'username': 'it_bdg', 'full_name': 'IT Bandung', 'role': 'it_bdg',
-            'pin': '123456', 'team_name': '', 'branch_code': 'BDG', 'is_active': True,
+            'pin': '483920', 'team_name': '', 'branch_code': 'BDG', 'is_active': True,
         })
         assert r2.status_code == 200, r2.get_json()
 
@@ -342,7 +342,7 @@ class TestAdminCabangScope:
         client, conn = self._register(monkeypatch, db)
         r = client.post('/api/users/sync', json={
             'username': 'finance_sby', 'full_name': 'Finance SBY', 'role': 'finance',
-            'branch_code': 'SBY', 'is_active': True,
+            'pin': '483920', 'branch_code': 'SBY', 'is_active': True,
         })
         assert r.status_code == 200, r.get_json()
 

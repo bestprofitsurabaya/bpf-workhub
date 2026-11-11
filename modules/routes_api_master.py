@@ -2,9 +2,15 @@
 from flask import request, jsonify, session
 from mysql.connector import IntegrityError
 from modules.config import get_db_connection, get_master_connection
-from modules.helpers import finalize_pin, log_activity_async, resolve_user_pin, role_required
-from modules.pin_security import stored_pin  # v2.74.0 pentest hardening
+from modules.helpers import (log_activity_async, resolve_user_pin,
+                             role_required, login_required, random_strong_pin,
+                             validate_new_pin)
+from modules.pin_security import stored_pin, is_pin_hash  # v2.74.0 pentest hardening
 from modules.admin_scope import is_ho_admin  # v2.37.0: admin per-cabang
+from modules.driver_identity import (
+    sync_driver_for_user, audit_driver_identity, driver_ref_counts,
+    ensure_driver_user_schema, DRIVER_ROLES,
+)
 
 # ================================================================
 # Konvensi username v2.29.8/9: `{divisi}_{cabang}` — username WAJIB
@@ -94,15 +100,55 @@ def register_master_api(app):
             return jsonify({'error': str(e)}), 500
 
     @app.route('/api/drivers')
+    @login_required
     def api_drivers():
         try:
             conn = get_db_connection()
             if not conn: return jsonify({'error': 'DB error'}), 500
+            ensure_driver_user_schema(conn)
             cursor = conn.cursor(dictionary=True)
-            cursor.execute("SELECT name, nopol, vehicle_type, bbm_type, is_active FROM drivers ORDER BY name")
+            # v2.78.0: sertakan tautan akun + nama tampilan agar UI tidak
+            # menampilkan nama login (uppercase) sebagai nama orang.
+            cursor.execute(
+                "SELECT name, display_name, nopol, vehicle_type, bbm_type, is_active, user_id "
+                "FROM drivers ORDER BY name")
             data = cursor.fetchall()
+            for d in data:
+                d['has_account'] = bool(d.get('user_id'))
+                d['label'] = d.get('display_name') or d.get('name')
             cursor.close(); conn.close()
             return jsonify(data)
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/drivers/audit')
+    @role_required(['admin'])
+    def api_drivers_audit():
+        """Audit konsistensi akun user ↔ profil driver ↔ kendaraan (read-only)."""
+        try:
+            conn = get_db_connection()
+            if not conn:
+                return jsonify({'error': 'DB error'}), 500
+            mconn = get_master_connection()
+            if not mconn:
+                conn.close()
+                return jsonify({'error': 'DB master error'}), 500
+            try:
+                mc = mconn.cursor(dictionary=True)
+                mc.execute("SELECT id, username, full_name, role, branch_code, is_active FROM users")
+                users = mc.fetchall()
+                mc.close()
+            finally:
+                mconn.close()
+            branch = session.get('branch_code') or ''
+            users = [u for u in users
+                     if (u.get('branch_code') or '').strip().upper() == branch.strip().upper()]
+            result = audit_driver_identity(conn, users)
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute("SELECT name, display_name, nopol, is_active, user_id FROM drivers ORDER BY name")
+            result['drivers'] = cursor.fetchall()
+            cursor.close(); conn.close()
+            return jsonify(result)
         except Exception as e:
             return jsonify({'error': str(e)}), 500
 
@@ -117,8 +163,14 @@ def register_master_api(app):
             b = data.get('bbm_type', 'PERTALITE')
             if not n: return jsonify({'status': 'error', 'msg': 'Nama driver wajib'}), 400
             if not p: p = n
-            conn = get_db_connection(); cursor = conn.cursor()
-            cursor.execute("INSERT INTO drivers (name, nopol, vehicle_type, bbm_type) VALUES (%s,%s,%s,%s) ON DUPLICATE KEY UPDATE nopol=VALUES(nopol), vehicle_type=VALUES(vehicle_type), bbm_type=VALUES(bbm_type), is_active=TRUE", (n, p, v, b))
+            conn = get_db_connection()
+            ensure_driver_user_schema(conn)
+            cursor = conn.cursor(dictionary=True)
+            # v2.78.0: bila akun user dengan username ini sudah ada, langsung
+            # tautkan agar tidak lahir profil driver yatim.
+            cursor.execute("SELECT id, full_name FROM users WHERE UPPER(username)=%s LIMIT 1", (n,))
+            urow = cursor.fetchone()
+            cursor.execute("INSERT INTO drivers (name, nopol, vehicle_type, bbm_type, user_id, display_name) VALUES (%s,%s,%s,%s,%s,%s) ON DUPLICATE KEY UPDATE nopol=VALUES(nopol), vehicle_type=VALUES(vehicle_type), bbm_type=VALUES(bbm_type), is_active=TRUE, user_id=VALUES(user_id), display_name=VALUES(display_name)", (n, p, v, b, urow['id'] if urow else None, (urow or {}).get('full_name') or ''))
             conn.commit(); cursor.close(); conn.close()
             log_activity_async(0, 'driver_sync', 'admin', 'Admin', new_data={'driver': n, 'nopol': p}, ip=request.remote_addr)
             return jsonify({'status': 'success', 'msg': f'Driver {n} synced'})
@@ -152,6 +204,13 @@ def register_master_api(app):
     def delete_driver(driver_name):
         try:
             conn = get_db_connection(); cursor = conn.cursor()
+            # v2.78.0: driver yang sudah punya riwayat transaksi tidak boleh
+            # dihapus permanen (data historis jadi yatim) — nonaktifkan saja.
+            refs = driver_ref_counts(conn, driver_name)
+            if refs:
+                cursor.close(); conn.close()
+                return jsonify({'status': 'error',
+                                'msg': f'Driver {driver_name} punya {refs} riwayat transaksi — nonaktifkan saja, jangan dihapus'}), 400
             cursor.execute("DELETE FROM drivers WHERE name = %s", (driver_name,))
             conn.commit(); affected = cursor.rowcount; cursor.close(); conn.close()
             if affected > 0: return jsonify({'status': 'success', 'msg': f'Driver {driver_name} dihapus'})
@@ -162,16 +221,23 @@ def register_master_api(app):
     @app.route('/api/drivers/pin-reset', methods=['POST'])
     @role_required(['admin'])
     def bulk_reset_driver_pin():
-        """Reset PIN massal seluruh user ber-role driver (default 123456).
+        """Reset PIN massal seluruh user ber-role driver.
 
-        Dipakai tombol 'Reset PIN Massal Driver' di SPA Settings (halaman admin).
+        `new_pin` opsional. Bila kosong, server membuat PIN acak kuat dan
+        mengembalikannya ke Admin (tidak pernah jatuh ke default 123456).
         ISO/IEC 27001 A.9.4 — kredensial dikelola Admin (audit trail tercatat).
         """
         try:
             data = request.get_json(silent=True) or {}
-            new_pin = str(data.get('new_pin', '123456') or '123456').strip()
-            if not new_pin.isdigit() or len(new_pin) != 6:
-                return jsonify({'status': 'error', 'msg': 'PIN harus 6 digit angka'}), 400
+            new_pin = str(data.get('new_pin') or '').strip()
+            generated = False
+            if new_pin:
+                err = validate_new_pin(new_pin)
+                if err:
+                    return jsonify({'status': 'error', 'msg': err}), 400
+            else:
+                new_pin = random_strong_pin()
+                generated = True
             conn = get_master_connection()
             if not conn:
                 return jsonify({'status': 'error', 'msg': 'DB error'}), 500
@@ -184,12 +250,16 @@ def register_master_api(app):
             affected = cursor.rowcount
             conn.commit()
             cursor.close(); conn.close()
+            # Jangan catat PIN di audit log (hanya jumlah akun yang berubah).
             log_activity_async(0, 'bulk_driver_pin_reset', 'admin',
                                (session.get('full_name') or session.get('user_name') or 'Admin'),
                                new_data={'total': total, 'changed': affected},
                                ip=request.remote_addr)
             return jsonify({'status': 'success',
-                            'msg': f'PIN {total} akun driver berhasil direset'})
+                            'msg': (f'PIN {total} akun driver direset ke PIN acak. '
+                                    'Salin & distribusikan sekarang.') if generated
+                                   else f'PIN {total} akun driver berhasil direset',
+                            'pin': new_pin, 'generated': generated, 'total': total})
         except Exception as e:
             print(f'[api-master] bulk_reset_pin error: {e}')
             return jsonify({'status': 'error', 'msg': 'Terjadi kesalahan server'}), 500
@@ -201,6 +271,38 @@ def register_master_api(app):
             conn = get_master_connection(); cursor = conn.cursor(dictionary=True)
             cursor.execute("SELECT id, username, full_name, role, team_name, branch_code, manager_username, is_active, last_login FROM users ORDER BY role, username")
             data = cursor.fetchall(); cursor.close(); conn.close()
+            # v2.78.0: sertakan profil driver (nopol/status) agar Admin melihat
+            # satu baris = akun + driver + kendaraan, bukan tiga menu terpisah.
+            from modules.branch_manager import DEFAULT_BRANCH_CODE
+            branches = {(u.get('branch_code') or DEFAULT_BRANCH_CODE).strip().upper()
+                        for u in data if u.get('role') in DRIVER_ROLES}
+            profiles = {}
+            for bc in branches:
+                try:
+                    bconn = get_db_connection(branch_code=bc)
+                except Exception:
+                    continue
+                if not bconn:
+                    continue
+                try:
+                    ensure_driver_user_schema(bconn)
+                    bc_cur = bconn.cursor(dictionary=True)
+                    bc_cur.execute(
+                        "SELECT user_id, name, display_name, nopol, vehicle_type, bbm_type, is_active "
+                        "FROM drivers WHERE user_id IS NOT NULL")
+                    for d in bc_cur.fetchall():
+                        profiles[d['user_id']] = d
+                    bc_cur.close()
+                except Exception:
+                    pass
+                finally:
+                    try:
+                        bconn.close()
+                    except Exception:
+                        pass
+            for u in data:
+                if u.get('role') in DRIVER_ROLES:
+                    u['driver_profile'] = profiles.get(u['id'])
             # v2.37.0: admin cabang hanya melihat user cabangnya sendiri.
             if session.get('user_role') == 'admin' and not is_ho_admin():
                 from modules.admin_scope import admin_branches
@@ -238,6 +340,7 @@ def register_master_api(app):
             # PIN hanya diubah bila dikirim eksplisit & tidak kosong (agar
             # toggle is_active / update role / delete tidak menimpa PIN user).
             pin = resolve_user_pin(data.get('pin'))
+            pin_was_provided = pin is not None
 
             # Team hanya diubah bila dikirim eksplisit (agar toggle is_active
             # atau update role tidak menghapus tim marketing yang sudah ada).
@@ -300,17 +403,41 @@ def register_master_api(app):
                                            'non-admin di cabangnya sendiri.'}), 403
 
             conn = get_master_connection(); cursor = conn.cursor()
+            # v2.78.0: simpan baris lama (username/role/branch) untuk sinkron
+            # profil driver + rename cascade setelah update.
+            if data.get('id') is not None:
+                cursor.execute("SELECT id, username, role, full_name, branch_code FROM users WHERE id=%s", (data.get('id'),))
+            else:
+                cursor.execute("SELECT id, username, role, full_name, branch_code FROM users WHERE username=%s", (u,))
+            _old = cursor.fetchone()
             if team is None or pin is None or branch is None or manager is None:
                 cursor.execute("SELECT team_name, pin, branch_code, manager_username FROM users WHERE username=%s OR id=%s", (u, data.get('id')))
                 row = cursor.fetchone()
                 if team is None:
                     team = row[0] if row else ''
                 if pin is None:
-                    pin = finalize_pin(None, row[1] if row else None)
+                    existing_pin = row[1] if row else None
+                    if existing_pin is None:
+                        # v2.79: user baru WAJIB diberi PIN eksplisit oleh
+                        # Admin — jangan pernah membuat kredensial default.
+                        cursor.close(); conn.close()
+                        return jsonify({'status': 'error',
+                                        'msg': 'PIN 6 digit wajib untuk user baru '
+                                               '(jangan gunakan PIN default)'}), 400
+                    pin = existing_pin
                 if branch is None:
                     branch = row[2] if row else None
                 if manager is None:
                     manager = row[3] if row and len(row) > 3 else None
+
+            # PIN plaintext BARU (dikirim Admin) wajib lolos kebijakan.
+            # PIN existing (hash maupun plaintext legacy) TIDAK divalidasi —
+            # supaya toggle/edit akun lama tidak gagal karena PIN lamanya lemah.
+            if pin_was_provided and not is_pin_hash(str(pin)):
+                err = validate_new_pin(pin)
+                if err:
+                    cursor.close(); conn.close()
+                    return jsonify({'status': 'error', 'msg': err}), 400
 
             # Edit user lama dipakai id (bila dikirim) supaya username juga bisa
             # diganti — username adalah kunci login, bukan primary key. Update
@@ -334,16 +461,44 @@ def register_master_api(app):
                     return jsonify({'status': 'error', 'msg': 'User tidak ditemukan'}), 404
             else:
                 cursor.execute("INSERT INTO users (username, full_name, role, pin, team_name, branch_code, manager_username, is_active) VALUES (%s,%s,%s,%s,%s,%s,%s,%s) ON DUPLICATE KEY UPDATE full_name=VALUES(full_name), role=VALUES(role), pin=VALUES(pin), team_name=VALUES(team_name), branch_code=VALUES(branch_code), manager_username=VALUES(manager_username), is_active=VALUES(is_active)", (u, f, r, pin, team, branch, manager, 1 if a else 0))
+            new_uid = uid if uid is not None else getattr(cursor, 'lastrowid', None)
+            # Baris lama (tuple) — ambil aman meski driver fake hanya 3 kolom.
+            old_role = _old[2] if _old and len(_old) > 2 else None
+            old_branch = _old[4] if _old and len(_old) > 4 else None
             conn.commit(); cursor.close(); conn.close()
-            log_activity_async(0, 'user_sync', 'admin', 'Admin', new_data={'username': u, 'role': r, 'team': team, 'branch_code': branch, 'manager': manager}, ip=request.remote_addr)
-            return jsonify({'status': 'success', 'msg': f'User {u} saved'})
+            # v2.78.0: cerminkan ke profil driver (satu akun = satu driver).
+            driver_sync = None
+            if new_uid and (r in DRIVER_ROLES or old_role in DRIVER_ROLES):
+                driver_sync = sync_driver_for_user(
+                    new_uid, u, f, r, branch,
+                    is_active=bool(a))
+                # Pindah cabang: profil driver di cabang lama dinonaktifkan
+                # (riwayat tetap utuh, tidak memblokir akun baru).
+                if (r in DRIVER_ROLES and old_role in DRIVER_ROLES
+                        and (old_branch or '').strip().upper() != (branch or '').strip().upper()):
+                    try:
+                        oconn = get_db_connection(branch_code=old_branch)
+                        if oconn:
+                            ensure_driver_user_schema(oconn)
+                            oc = oconn.cursor()
+                            oc.execute("UPDATE drivers SET is_active=0 WHERE user_id=%s", (new_uid,))
+                            oconn.commit(); oc.close(); oconn.close()
+                    except Exception:
+                        pass
+            log_activity_async(0, 'user_sync', 'admin', 'Admin', new_data={'username': u, 'role': r, 'team': team, 'branch_code': branch, 'manager': manager, 'driver_sync': driver_sync}, ip=request.remote_addr)
+            msg = f'User {u} saved'
+            if driver_sync and driver_sync.get('ok') and driver_sync.get('action') in ('create', 'rename'):
+                msg = f'User {u} saved — profil driver ikut disinkronkan ({driver_sync.get("name")})'
+            elif driver_sync and not driver_sync.get('ok'):
+                msg = f'User {u} saved, tetapi sinkron driver gagal: {driver_sync.get("error")}'
+            return jsonify({'status': 'success', 'msg': msg, 'driver_sync': driver_sync})
         except Exception as e:
             return jsonify({'status': 'error', 'msg': str(e)}), 500
 
     @app.route('/api/users/bulk-create', methods=['POST'])
     @role_required(['admin'])
     def bulk_create_user_accounts():
-        """Buat akun login sekaligus (PIN default 123456) untuk:
+        """Buat akun login sekaligus (PIN acak aman) untuk:
 
         - scope 'driver'   : seluruh driver AKTIF di tabel `drivers`
                              yang belum punya akun users (username = nama driver).
@@ -360,11 +515,19 @@ def register_master_api(app):
         try:
             data = request.get_json(silent=True) or {}
             scope = str(data.get('scope', 'all') or 'all').strip().lower()
-            new_pin = str(data.get('pin', '123456') or '123456').strip()
             if scope not in ('driver', 'marketing', 'all'):
                 return jsonify({'status': 'error', 'msg': 'Scope tidak valid (driver/marketing/all)'}), 400
-            if not new_pin.isdigit() or len(new_pin) != 6:
-                return jsonify({'status': 'error', 'msg': 'PIN harus 6 digit angka'}), 400
+            new_pin = str(data.get('pin') or '').strip()
+            generated = False
+            if new_pin:
+                err = validate_new_pin(new_pin)
+                if err:
+                    return jsonify({'status': 'error', 'msg': err}), 400
+            else:
+                # v2.79: tidak ada lagi PIN default 123456 — buat PIN acak kuat
+                # dan kembalikan ke Admin untuk didistribusikan.
+                new_pin = random_strong_pin()
+                generated = True
             # v2.74.0 (pentest hardening): PIN disimpan sebagai hash —
             # di-hash SEKALI di luar loop (pbkdf2 mahal, dibuat massal).
             new_pin_hash = stored_pin(new_pin)
@@ -385,6 +548,7 @@ def register_master_api(app):
 
             created = []
             skipped = []
+            driver_accounts = []  # (user_id, username, full_name) — untuk ditautkan
 
             def _tidy_username(raw):
                 """Username rapi: huruf kecil, tanpa spasi/karakter aneh."""
@@ -410,6 +574,8 @@ def register_master_api(app):
                     "VALUES (%s, %s, %s, %s, %s, %s, 1)",
                     (username, full_name[:100], role, new_pin_hash, (team or '')[:100], branch_code))
                 created.append({'username': username, 'role': role, 'team': team or '', 'branch_code': branch_code})
+                if role in DRIVER_ROLES:
+                    driver_accounts.append((mcur.lastrowid, username, full_name))
 
             if scope in ('driver', 'all'):
                 cursor.execute(
@@ -426,19 +592,27 @@ def register_master_api(app):
                     _create(row['member_name'], 'marketing', row['team_name'])
 
             mconn.commit()
+            # v2.78.0: akun driver baru langsung ditautkan ke profil driver
+            # (tidak menunggu audit manual).
+            for _uid, _uname, _ufull in driver_accounts:
+                sync_driver_for_user(_uid, _uname, _ufull, 'driver', branch_code, True)
             actor = session.get('full_name') or session.get('user_name') or 'Admin'
             log_activity_async(0, 'user_bulk_create', 'admin', actor,
                                new_data={'scope': scope, 'created': len(created),
-                                         'skipped': len(skipped), 'pin': new_pin,
+                                         'skipped': len(skipped),
                                          'branch_code': branch_code},
                                ip=request.remote_addr)
             cursor.close(); conn.close()
             mcur.close(); mconn.close()
             return jsonify({
                 'status': 'success',
-                'msg': f'{len(created)} akun dibuat (PIN {new_pin}); {len(skipped)} dilewati',
+                'msg': (f'{len(created)} akun dibuat (PIN acak: {new_pin}); '
+                        f'{len(skipped)} dilewati — salin PIN sekarang.') if generated
+                       else f'{len(created)} akun dibuat (PIN {new_pin}); {len(skipped)} dilewati',
                 'created': created,
                 'skipped': skipped,
+                'pin': new_pin,
+                'generated': generated,
             })
         except Exception as e:
             return jsonify({'status': 'error', 'msg': str(e)}), 500
@@ -449,8 +623,11 @@ def register_master_api(app):
         try:
             data = request.get_json()
             username = data.get('username', '').strip(); new_pin = data.get('new_pin', '').strip()
-            if not username or not new_pin or len(new_pin) != 6:
+            if not username or not new_pin:
                 return jsonify({'status': 'error', 'msg': 'Username dan PIN 6-digit wajib'}), 400
+            err = validate_new_pin(new_pin)
+            if err:
+                return jsonify({'status': 'error', 'msg': err}), 400
             conn = get_master_connection(); cursor = conn.cursor()
             # v2.74.0 (pentest hardening): PIN reset disimpan sebagai hash.
             cursor.execute("UPDATE users SET pin = %s WHERE username = %s", (stored_pin(new_pin), username))
@@ -505,7 +682,11 @@ def register_master_api(app):
             return jsonify({'error': str(e)}), 500
 
     @app.route('/api/system-config/<config_key>')
+    @role_required(['admin'])
     def api_system_config(config_key):
+        # v2.79: endpoint generik sempat publik → membocorkan webhook secret,
+        # URL Google Sheet, dan konfigurasi internal lain tanpa login.
+        # Branding pra-login tetap tersedia via /api/system-config/identity.
         try:
             conn = get_db_connection(); cursor = conn.cursor(dictionary=True)
             cursor.execute("SELECT config_value FROM system_config WHERE config_key=%s", (config_key,))
@@ -541,7 +722,7 @@ def register_master_api(app):
             return jsonify({'status': 'error', 'msg': str(e)}), 500
 
     @app.route('/api/system-config/<config_key>', methods=['PUT'])
-    @role_required(['ga', 'finance', 'admin'])
+    @role_required(['admin'])
     def api_update_system_config(config_key):
         try:
             data = request.get_json()
