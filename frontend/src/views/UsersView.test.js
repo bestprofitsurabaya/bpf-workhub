@@ -138,15 +138,16 @@ describe('UsersView', () => {
     await addBtn.trigger('click')
     await flushPromises()
 
-    // The Modal component renders with v-if, so it should be in the DOM now.
-    // Find all inputs with type text/number in the form
+    // Modal tampil (v-if). Cari input berdasarkan placeholder.
     const allInputs = w.findAll('input')
-    // Debug: log all input types and placeholders
-    allInputs.forEach((inp, i) => {
-      console.log(`Input ${i}: type=${inp.attributes('type')}, placeholder=${inp.attributes('placeholder')}, disabled=${inp.attributes('disabled')}`)
-    })
 
-    // The first input in the modal should be username (placeholder: "huruf kecil, tanpa spasi")
+    // v2.79: tidak ada lagi PIN default 123456 — Admin wajib mengisi PIN
+    // eksplisit, jadi test ini mengisi kolom PIN sebelum menyimpan.
+    const pinInput = allInputs.find((i) => i.attributes('placeholder')?.includes('6 digit'))
+    expect(pinInput).toBeTruthy()
+    await pinInput.setValue('246810')
+
+    // Input username (placeholder: "huruf kecil, tanpa spasi")
     const usernameInput = allInputs.find(i => i.attributes('placeholder')?.includes('huruf kecil'))
     expect(usernameInput).toBeTruthy()
     await usernameInput.setValue('new_user')
@@ -169,6 +170,6 @@ describe('UsersView', () => {
     const call = apiMock.mock.calls.find((c) => c[0] === '/api/users/sync')
     expect(call).toBeTruthy()
     expect(call[1].body.username).toBe('new_user')
-    expect(call[1].body.pin).toBe('123456')
+    expect(call[1].body.pin).toBe('246810')
   })
 })
