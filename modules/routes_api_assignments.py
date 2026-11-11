@@ -147,7 +147,11 @@ def register_assignment_api(app):
             notes = data.get('notes', '').strip()
             if not driver_name or not nopol: return jsonify({'status': 'error', 'msg': 'Driver dan Nopol wajib'}), 400
             conn = get_db_connection(); cursor = conn.cursor()
-            cursor.execute("UPDATE vehicle_assignments SET is_current = 0, unassigned_date = CURDATE() WHERE nopol = %s AND is_current = 1", (nopol,))
+            # v2.78.0: satu driver hanya boleh punya SATU penugasan aktif.
+            # Dulu hanya nopol lama yang dilepas; menugaskan mobil baru ke
+            # driver meninggalkan penugasan lamanya tetap is_current=1
+            # (contoh nyata: ABIEM punya 2 mobil aktif sekaligus).
+            cursor.execute("UPDATE vehicle_assignments SET is_current = 0, unassigned_date = CURDATE() WHERE (nopol = %s OR driver_name = %s) AND is_current = 1", (nopol, driver_name))
             cursor.execute("INSERT INTO vehicle_assignments (driver_name, nopol, vehicle_type, bbm_type, assigned_date, is_current, driver_notes) VALUES (%s, %s, %s, %s, CURDATE(), 1, %s)", (driver_name, nopol, vehicle_type, bbm_type, notes))
             cursor.execute("INSERT INTO drivers (name, nopol, vehicle_type, bbm_type, is_active) VALUES (%s, %s, %s, %s, 1) ON DUPLICATE KEY UPDATE nopol = VALUES(nopol), vehicle_type = VALUES(vehicle_type), bbm_type = VALUES(bbm_type), is_active = 1", (driver_name, nopol, vehicle_type, bbm_type))
             conn.commit(); cursor.close(); conn.close()
@@ -174,6 +178,8 @@ def register_assignment_api(app):
             vehicle_type = old['vehicle_type'] if old else 'AVANZA'
             bbm_type = old['bbm_type'] if old else 'PERTALITE'
             if old: cursor.execute("UPDATE vehicle_assignments SET is_current = 0, unassigned_date = CURDATE() WHERE id = %s", (old['id'],))
+            # v2.78.0: driver penerima hanya boleh punya satu penugasan aktif.
+            cursor.execute("UPDATE vehicle_assignments SET is_current = 0, unassigned_date = CURDATE() WHERE driver_name = %s AND is_current = 1", (new_driver,))
             cursor.execute("INSERT INTO vehicle_assignments (driver_name, nopol, vehicle_type, bbm_type, assigned_date, is_current, driver_notes) VALUES (%s, %s, %s, %s, CURDATE(), 1, %s)", (new_driver, nopol, vehicle_type, bbm_type, reason))
             cursor.execute("UPDATE drivers SET nopol = %s, vehicle_type = %s, bbm_type = %s WHERE name = %s", (nopol, vehicle_type, bbm_type, new_driver))
             if old_driver: cursor.execute("UPDATE drivers SET nopol = '' WHERE name = %s AND nopol = %s", (old_driver, nopol))

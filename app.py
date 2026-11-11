@@ -242,6 +242,67 @@ try:
 except Exception as _be:
     print(f'[assignments] branch ensure error: {_be}')
 
+# Identitas driver v2.78.0: tautkan `drivers.user_id` ke `users.id` di tiap DB
+# cabang (idempoten + backfill dari nama lama). Satu akun = satu profil driver.
+from modules.driver_identity import (
+    ensure_driver_user_schema as _ensure_driver_link,
+    backfill_driver_links as _backfill_driver_links,
+)
+from modules.config import get_master_connection as _di_master, _pool_for as _di_pool
+for _attempt in range(5):
+    _dconn = _di_master()
+    if _dconn:
+        try:
+            if _ensure_driver_link(_dconn):
+                break
+        except Exception as _de:
+            print(f'[driver-identity] master ensure error: {_de}')
+        finally:
+            try:
+                _dconn.close()
+            except Exception:
+                pass
+    _time.sleep(3)
+try:
+    _drv_users = []
+    _duconn = _di_master()
+    if _duconn:
+        try:
+            _duc = _duconn.cursor(dictionary=True)
+            _duc.execute("SELECT id, username, full_name, role, branch_code, is_active FROM users")
+            _drv_users = _duc.fetchall()
+            _duc.close()
+        finally:
+            try:
+                _duconn.close()
+            except Exception:
+                pass
+    for _b in bm.list_branches():
+        if not (_b.get('is_active') and _b.get('db_name')):
+            continue
+        _dp = _di_pool(_b['db_name']) if _b['db_name'] != os.environ.get('DB_NAME', 'bpf_asset_system') else None
+        _dbc = None
+        try:
+            _dbc = _dp.get_connection() if _dp else _di_master()
+            if _dbc:
+                _ensure_driver_link(_dbc)
+                # Hanya user cabang ini — jangan tautkan driver clone cabang
+                # lain ke akun SBY (nama sama, orang/DB berbeda).
+                _bcode = (_b.get('code') or '').strip().upper()
+                _busers = [u for u in _drv_users
+                           if ((u.get('branch_code') or '').strip().upper() or bm.DEFAULT_BRANCH_CODE.upper()) == _bcode]
+                _backfill_driver_links(_dbc, _busers)
+        except Exception as _de:
+            print(f'[driver-identity] {_b["code"]} ensure error: {_de}')
+        finally:
+            try:
+                if _dbc:
+                    _dbc.close()
+            except Exception:
+                pass
+except Exception as _be:
+    print(f'[driver-identity] branch ensure error: {_be}')
+
 # Retensi v2.34.0 (Tahap 5/6): tabel arsip audit + register tindakan retensi
 # dibuat di master & setiap DB cabang (activity_logs tersebar per-cabang).
 from modules.routes_retention import ensure_retention_tables
