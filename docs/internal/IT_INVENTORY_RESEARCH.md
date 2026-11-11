@@ -521,3 +521,77 @@ Catatan operasional:
   dipakai ulang.
 - QR kamera memerlukan `BarcodeDetector` (Chrome Android); input tag manual
   tersedia sebagai fallback di `/it/scan`.
+
+## 9. Rollout agen terkontrol + cakupan (v2.79, 11 Nov 2026)
+
+Keputusan: **deployment terkontrol berbasis allowlist**, bukan agen yang
+menyebar sendiri. Tujuannya bukan "menjangkau sebanyak mungkin host", tetapi
+mengetahui *host mana yang sudah terpantau* dan *mana yang belum* — dengan
+jejak audit per host.
+
+### 9.1 Komponen
+
+| Komponen | Peran |
+|---|---|
+| `scripts/it_inventory_agent.ps1` v1.1.0 | Agen di PC: baca WMI/CIM, kirim kandidat, lapor registry, self-update harian |
+| `scripts/deploy_it_agent.ps1` | Deployer dari PC operator: allowlist CSV, WinRM, laporan hasil |
+| `it_agent_hosts` | Satu baris per PC: versi agen, status deploy, laporan terakhir, metode |
+| `GET /api/it/agents/coverage` | Angka cakupan + daftar target yang belum tercakup |
+| `GET /api/it/agents/targets.csv` | Allowlist siap pakai (hanya PC yang belum tercakup) |
+| `GET /api/it/agents/version` + `/package` | Self-update agen (token-gated) |
+
+Status registry: `pending` → `installed` → (`failed` / `unreachable`).
+Host dianggap **tercakup** bila `installed` dan laporan terakhir ≤ 7 hari
+(`IT_AGENT_STALE_DAYS`). Angka cakupan dihitung dari aset kategori PC/laptop
+dibandingkan registry, bukan dari jumlah kandidat.
+
+### 9.2 Dua jalur pemasangan
+
+| Lingkungan | Jalur | Kredensial | Catatan |
+|---|---|---|---|
+| Active Directory | GPO startup script / Intune / SCCM | tidak perlu per-PC | paling bersih; jalankan `-Install -ApiUrl ... -TokenFile ...` dari share baca-saja |
+| Workgroup / standalone | `deploy_it_agent.ps1` via WinRM (5985/5986) | admin lokal per PC / akun seragam | allowlist wajib, maks 25 host per eksekusi |
+
+WinRM harus aktif di PC target (`Enable-PSRemoting -Force`, atau GPO). Untuk
+workgroup dengan WinRM HTTP, mesin operator perlu `-SetupTrustedHosts` atau
+lebih baik WinRM HTTPS. Deployer **tidak** memakai PsExec, tidak menulis ke
+share admin, dan tidak punya parameter subnet/CIDR.
+
+### 9.3 Penjaga keamanan
+
+- `-Targets <csv>` wajib; baris CIDR, rentang IP, dan wildcard ditolak.
+- `-MaxHosts` default 25; melebihi hanya dengan `-Force` (keputusan sadar).
+- Token tidak ditampilkan di command line remote: dikirim sebagai berkas
+  sementara ber-ACL, dihapus setelah config tersimpan (`-DeleteTokenFile`).
+- Config agen (`C:\ProgramData\BPFWorkHub\agent-config.json`) di-ACL ke
+  SYSTEM + Administrators.
+- Agen tidak memindai jaringan, tidak membuka port, tidak membuat aset, dan
+  tidak menyentuh host di luar allowlist; self-update hanya menarik dari
+  `/api/it/agents/package` dengan token.
+- `-DryRun` menampilkan rencana tanpa membuka koneksi; konfirmasi `ya`
+  diminta sebelum push.
+
+### 9.4 Runbook singkat
+
+```powershell
+# di PC operator Windows (folder berisi kedua skrip)
+.\deploy_it_agent.ps1 -Targets .\target_agen_it_SBY.csv `
+    -ApiUrl https://nasbpfsby.duckdns.org:5000 -Branch SBY -DryRun
+.\deploy_it_agent.ps1 -Targets .\target_agen_it_SBY.csv `
+    -ApiUrl https://nasbpfsby.duckdns.org:5000 -Branch SBY `
+    -Credential (Get-Credential)
+```
+
+Hasil per host: log CSV di `.\logs\deploy_it_agent_<branch>_<stamp>.csv` dan
+baris registry di dashboard (tab Jaringan → panel **Cakupan Agen**). Host yang
+gagal tercatat `failed`/`unreachable` beserta pesan penyebab, sehingga bisa
+diulang tanpa menebak.
+
+### 9.5 Verifikasi
+
+- `tests/test_it_agent_rollout.py` (41 test): host key, versi, status, cakupan,
+  allowlist CSV, keselarasan versi Python↔PowerShell, dan penjaga deployer.
+- Build SPA + vitest (270 test) lulus; endpoint agen terdaftar di url_map.
+- Uji produksi: `GET /api/it/agents/version` tanpa token → 401; dengan
+  `X-IT-TOKEN` → `{"version":"1.1.0"}`; `targets.csv` hanya berisi PC yang
+  belum tercakup.

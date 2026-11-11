@@ -487,6 +487,167 @@ def _label_pdf(assets, layout='a4-24', base_url=''):
 # ------------------------------------------------------------------ routes
 
 
+# ------------------------------------------------------- agen inventaris
+# Versi agen WAJIB sama dengan $AgentVersion di scripts/it_inventory_agent.ps1
+# (dijaga oleh tests/test_it_agent_rollout.py).
+AGENT_VERSION = '1.1.0'
+AGENT_SCRIPT = 'it_inventory_agent.ps1'
+AGENT_STALE_DAYS = int(os.environ.get('IT_AGENT_STALE_DAYS', '7') or 7)
+_AGENT_STATUSES = ('pending', 'installed', 'failed', 'unreachable', 'ignored')
+
+
+def _agent_script_path():
+    return os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        'scripts', AGENT_SCRIPT,
+    )
+
+
+def _version_tuple(value):
+    """'1.10.2' -> (1, 10, 2). Nilai aneh -> (0,) agar selalu 'lebih tua'."""
+    parts = []
+    for chunk in str(value or '').strip().lstrip('vV').split('.'):
+        digits = re.match(r'\d+', chunk)
+        parts.append(int(digits.group()) if digits else 0)
+    return tuple(parts) or (0,)
+
+
+def _agent_host_key(hostname, ip):
+    """Kunci unik registry: hostname lebih stabil daripada IP (DHCP)."""
+    host = str(hostname or '').strip().lower()
+    if host:
+        return host[:120]
+    ipv = str(ip or '').strip().lower()
+    return ('ip:' + ipv)[:120] if ipv else ''
+
+
+def _normalize_agent_status(value):
+    value = str(value or '').strip().lower()
+    return value if value in _AGENT_STATUSES else 'installed'
+
+
+def _target_display(row):
+    return {
+        'asset_tag': row.get('asset_tag') or '',
+        'host': row.get('hostname') or row.get('ip') or row.get('ip_address') or '',
+        'ip': row.get('ip') or row.get('ip_address') or '',
+        'mac': row.get('mac') or row.get('mac_address') or '',
+    }
+
+
+def _host_flags(row, stale_days=AGENT_STALE_DAYS, now=None):
+    """Tambahkan umur laporan, status basi, dan status versi agen."""
+    now = now or datetime.now()
+    last = row.get('last_report_at')
+    days = None
+    if isinstance(last, datetime):
+        days = max(0, (now - last).days)
+    elif isinstance(last, str) and last.strip():
+        try:
+            days = max(0, (now - datetime.strptime(last[:19], '%Y-%m-%d %H:%M:%S')).days)
+        except ValueError:
+            days = None
+    installed = row.get('deploy_status') == 'installed'
+    stale = bool(days is None or days > stale_days)
+    return dict(row, days_since_report=days, is_stale=(installed and stale),
+                outdated=(_version_tuple(row.get('agent_version')) < _version_tuple(AGENT_VERSION)))
+
+
+def _targets_csv_response(rows, filename):
+    """CSV target deployment (dipakai scripts/deploy_it_agent.ps1)."""
+    buf = io.StringIO()
+    writer = csv.writer(buf, delimiter=',')
+    writer.writerow(['host', 'ip', 'mac', 'source', 'asset_tag', 'note'])
+    for r in rows:
+        writer.writerow([r.get('host'), r.get('ip'), r.get('mac'),
+                         r.get('source'), r.get('asset_tag'), r.get('note')])
+    resp = make_response(buf.getvalue())
+    resp.headers['Content-Type'] = 'text/csv; charset=utf-8'
+    resp.headers['Content-Disposition'] = f'attachment; filename={filename}'
+    resp.headers['Cache-Control'] = 'no-store'
+    return resp
+
+
+def _coverage_payload(target_rows, host_rows, stale_days=AGENT_STALE_DAYS, now=None):
+    """Hitung cakupan agen. Murni (tanpa DB) supaya mudah diuji.
+
+    `target_rows`: aset kategori pc/laptop (hostname/ip_address/mac_address).
+    `host_rows`  : isi it_agent_hosts.
+    Sebuah target dianggap TERCakup bila ada host berstatus installed, laporannya
+    belum basi, dan hostname/IP/MAC-nya cocok.
+    """
+    now = now or datetime.now()
+    hosts = []
+    covered = set()
+    for h in host_rows:
+        flags = _host_flags(h, stale_days, now)
+        hosts.append(flags)
+        if flags['deploy_status'] == 'installed' and not flags['is_stale']:
+            for k in (h.get('host_key'), h.get('hostname'), h.get('ip'), h.get('mac')):
+                k = str(k or '').strip().lower()
+                if k:
+                    covered.add(k)
+
+    missing = []
+    covered_targets = 0
+    for t in target_rows:
+        keys = {str(t.get(k) or '').strip().lower()
+                for k in ('hostname', 'ip_address', 'mac_address')}
+        keys.discard('')
+        if keys & covered:
+            covered_targets += 1
+        else:
+            missing.append(t)
+
+    targets = len(target_rows)
+    return {
+        'targets': targets,
+        'covered': covered_targets,
+        'missing': len(missing),
+        'percent': round(covered_targets * 100.0 / targets, 1) if targets else 0.0,
+        'stale_days': stale_days,
+        'hosts_total': len(hosts),
+        'hosts_installed': sum(1 for h in hosts if h['deploy_status'] == 'installed'),
+        'hosts_stale': sum(1 for h in hosts if h['is_stale']),
+        'hosts_failed': sum(1 for h in hosts if h['deploy_status'] in ('failed', 'unreachable')),
+        'hosts_outdated': sum(1 for h in hosts if h['outdated']),
+        'agent_version': AGENT_VERSION,
+        'missing_hosts': [_target_display(t) for t in missing][:50],
+        'hosts': hosts,
+    }
+
+
+def _targets_rows(candidates, assets, covered_keys):
+    """Daftar target siap-pakai untuk scripts/deploy_it_agent.ps1 (CSV)."""
+    covered = {str(k or '').strip().lower() for k in covered_keys if str(k or '').strip()}
+    rows, seen = [], set()
+
+    def add(host, ip, mac, source, note='', asset_tag=''):
+        keys = {str(v or '').strip().lower() for v in (host, ip, mac)}
+        keys.discard('')
+        if not keys or (keys & covered):
+            return
+        key = next(iter(sorted(keys)))
+        if key in seen:
+            return
+        seen.add(key)
+        rows.append({'host': host or ip, 'ip': ip, 'mac': mac,
+                     'source': source, 'asset_tag': asset_tag, 'note': note[:120]})
+
+    for c in candidates:
+        add(c.get('hostname') or '', c.get('ip') or '', c.get('mac') or '',
+            'discovery',
+            ' '.join(filter(None, [c.get('vendor'), c.get('category_suggest'),
+                                   'port ' + str(c.get('open_ports')) if c.get('open_ports') else ''])),
+            '')
+    for a in assets:
+        add(a.get('hostname') or '', a.get('ip_address') or '', a.get('mac_address') or '',
+            'inventaris',
+            ' '.join(filter(None, [a.get('brand'), a.get('model')])),
+            a.get('asset_tag') or '')
+    return rows
+
+
 def register_it_asset_routes(app):
 
     # ---------------------------------------------------------- master data
@@ -1127,6 +1288,240 @@ def register_it_asset_routes(app):
                             'found': len(devices), 'new': new})
         except Exception as e:
             return jsonify({'status': 'error', 'msg': str(e)}), 500
+
+    # ------------------------------------------------------- agen: registry
+    def _agent_token_ok():
+        expected = os.environ.get('IT_DISCOVERY_TOKEN', '').strip()
+        provided = str(request.headers.get('X-IT-TOKEN', '') or '').strip()
+        return bool(expected) and hmac.compare_digest(expected, provided)
+
+    def _agent_session_ok():
+        return bool(session.get('user_role')) and session.get('user_role') in ALLOWED
+
+    @app.route('/api/it/agents/report', methods=['POST'])
+    def api_it_agents_report():
+        """Laporan agen/deployer (token) atau IT (sesi).
+
+        Body tunggal {hostname, ip, status, agent_version, ...} atau
+        {branch_code, hosts:[...]} untuk hasil push massal.
+        """
+        token_ok = _agent_token_ok()
+        sess_ok = _agent_session_ok()
+        if not (token_ok or sess_ok):
+            return jsonify({'status': 'error', 'msg': 'Token tidak valid'}), 401
+        data = request.get_json(silent=True) or {}
+        items = data.get('hosts') if isinstance(data.get('hosts'), list) else [data]
+        default_branch = (_branch() if sess_ok
+                          else str(data.get('branch_code') or 'SBY').strip().upper())
+        actor = _user() if sess_ok else 'agent'
+        conns, results = {}, []
+        try:
+            for item in items[:500]:
+                if not isinstance(item, dict):
+                    continue
+                branch = str(item.get('branch_code') or default_branch or 'SBY').strip().upper()[:10]
+                hostname = str(item.get('hostname') or '').strip()[:120]
+                ip = str(item.get('ip') or '').strip()[:45]
+                mac = normalize_mac(item.get('mac')) or ''
+                key = _agent_host_key(hostname, ip)
+                if not key:
+                    results.append({'host': '', 'status': 'error', 'msg': 'hostname/ip kosong'})
+                    continue
+                status = _normalize_agent_status(item.get('status') or item.get('deploy_status'))
+                version = str(item.get('agent_version') or item.get('version') or '')[:20]
+                method = str(item.get('install_method') or item.get('method') or '')[:30]
+                os_name = str(item.get('os_name') or item.get('ad_os') or '')[:120]
+                message = str(item.get('message') or item.get('deploy_message') or '')[:300]
+                if branch not in conns:
+                    conns[branch] = get_db_connection(branch_code=branch)
+                conn = conns[branch]
+                if not conn:
+                    results.append({'host': key, 'status': 'error', 'msg': 'DB tidak tersedia'})
+                    continue
+                cur = conn.cursor(dictionary=True)
+                asset_tag = str(item.get('asset_tag') or '').strip()[:40]
+                if not asset_tag and (hostname or mac):
+                    cur.execute(
+                        "SELECT asset_tag FROM it_assets WHERE branch_code=%s AND "
+                        "(LOWER(hostname)=LOWER(%s) OR (mac_address<>'' AND mac_address=%s)) "
+                        "ORDER BY id LIMIT 1", (branch, hostname, mac))
+                    asset_tag = ((cur.fetchone() or {}).get('asset_tag') or '')[:40]
+                cur.execute(
+                    "INSERT INTO it_agent_hosts (branch_code, host_key, hostname, ip, mac, os_name, "
+                    "agent_version, install_method, deploy_status, deploy_message, asset_tag, "
+                    "first_installed_at, last_report_at, last_deploy_at, deployed_by) "
+                    "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,"
+                    "IF(%s='installed', NOW(), NULL), IF(%s='installed', NOW(), NULL), NOW(), %s) "
+                    "ON DUPLICATE KEY UPDATE ip=VALUES(ip), "
+                    "hostname=IF(VALUES(hostname)='', hostname, VALUES(hostname)), "
+                    "mac=IF(VALUES(mac)='', mac, VALUES(mac)), "
+                    "os_name=IF(VALUES(os_name)='', os_name, VALUES(os_name)), "
+                    "agent_version=IF(VALUES(agent_version)='', agent_version, VALUES(agent_version)), "
+                    "install_method=IF(VALUES(install_method)='', install_method, VALUES(install_method)), "
+                    "deploy_status=VALUES(deploy_status), deploy_message=VALUES(deploy_message), "
+                    "asset_tag=IF(VALUES(asset_tag)='', asset_tag, VALUES(asset_tag)), "
+                    "first_installed_at=IF(first_installed_at IS NULL AND VALUES(deploy_status)='installed', "
+                    "NOW(), first_installed_at), "
+                    "last_report_at=IF(VALUES(deploy_status)='installed', NOW(), last_report_at), "
+                    "last_deploy_at=NOW(), deployed_by=VALUES(deployed_by)",
+                    (branch, key, hostname, ip, mac, os_name, version, method, status, message,
+                     asset_tag, status, status, actor))
+                if status == 'installed' and asset_tag:
+                    cur.execute(
+                        "UPDATE it_assets SET last_seen_at=NOW(), "
+                        "ip_address=IF(%s<>'', %s, ip_address), "
+                        "mac_address=IF(%s<>'', %s, mac_address), "
+                        "os_name=IF(%s<>'', %s, os_name) "
+                        "WHERE branch_code=%s AND asset_tag=%s",
+                        (ip, ip, mac, mac, os_name, os_name, branch, asset_tag))
+                conn.commit()
+                cur.close()
+                results.append({'host': key, 'hostname': hostname, 'status': status,
+                                'asset_tag': asset_tag})
+            log_activity_async(0, 'it_agent_report', 'it', actor,
+                               new_data={'hosts': len(results)}, ip=request.remote_addr)
+            return jsonify({'status': 'success', 'updated': len(results),
+                            'results': results, 'agent_version': AGENT_VERSION})
+        except Exception as e:
+            return jsonify({'status': 'error', 'msg': str(e)}), 500
+        finally:
+            for c in conns.values():
+                try:
+                    c.close()
+                except Exception:
+                    pass
+
+    @app.route('/api/it/agents')
+    @role_required(ALLOWED)
+    def api_it_agents_list():
+        branch = _branch()
+        conn = get_db_connection()
+        if not conn:
+            return jsonify({'error': 'DB error'}), 500
+        cur = conn.cursor(dictionary=True)
+        try:
+            status = str(request.args.get('status') or '').strip().lower()
+            q = str(request.args.get('q') or '').strip()
+            where, params = ["branch_code=%s"], [branch]
+            if status in _AGENT_STATUSES:
+                where.append('deploy_status=%s')
+                params.append(status)
+            if q:
+                like = _like(q)
+                where.append('(hostname LIKE %s OR ip LIKE %s OR mac LIKE %s OR asset_tag LIKE %s)')
+                params.extend([like] * 4)
+            clause = ' AND '.join(where)
+            cur.execute(f"SELECT COUNT(*) c FROM it_agent_hosts WHERE {clause}", params)
+            total = cur.fetchone()['c']
+            page = max(1, request.args.get('page', 1, type=int) or 1)
+            per_page = min(200, max(10, request.args.get('per_page', 50, type=int) or 50))
+            cur.execute(
+                f"SELECT * FROM it_agent_hosts WHERE {clause} "
+                "ORDER BY FIELD(deploy_status,'failed','unreachable','pending','installed','ignored'), "
+                "hostname, ip LIMIT %s OFFSET %s",
+                params + [per_page, (page - 1) * per_page])
+            hosts = [_host_flags(_serialize(r)) for r in cur.fetchall()]
+            cur.close(); conn.close()
+            return jsonify({'data': hosts, 'total': total, 'page': page,
+                            'per_page': per_page, 'agent_version': AGENT_VERSION,
+                            'stale_days': AGENT_STALE_DAYS})
+        except Exception as e:
+            cur.close(); conn.close()
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/it/agents/coverage')
+    @role_required(ALLOWED)
+    def api_it_agents_coverage():
+        branch = _branch()
+        conn = get_db_connection()
+        if not conn:
+            return jsonify({'error': 'DB error'}), 500
+        cur = conn.cursor(dictionary=True)
+        try:
+            cur.execute(
+                "SELECT asset_tag, hostname, ip_address, mac_address FROM it_assets "
+                "WHERE branch_code=%s AND category IN ('pc','laptop') AND status<>'disposed' "
+                "ORDER BY asset_tag", (branch,))
+            targets = cur.fetchall()
+            cur.execute("SELECT * FROM it_agent_hosts WHERE branch_code=%s", (branch,))
+            hosts = [_serialize(r) for r in cur.fetchall()]
+            cur.execute(
+                "SELECT COUNT(*) c FROM it_discovered_devices WHERE branch_code=%s AND state='new' "
+                "AND (category_suggest IN ('pc','laptop') OR open_ports REGEXP '445|3389|5985')",
+                (branch,))
+            discovered = cur.fetchone()['c']
+            cur.close(); conn.close()
+            payload = _coverage_payload(targets, hosts)
+            payload['discovered_windows'] = discovered
+            return jsonify(payload)
+        except Exception as e:
+            cur.close(); conn.close()
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/it/agents/targets.csv')
+    @role_required(ALLOWED)
+    def api_it_agents_targets_csv():
+        branch = _branch()
+        conn = get_db_connection()
+        if not conn:
+            return jsonify({'error': 'DB error'}), 500
+        cur = conn.cursor(dictionary=True)
+        try:
+            cur.execute(
+                "SELECT hostname, ip, mac, vendor, category_suggest, open_ports "
+                "FROM it_discovered_devices WHERE branch_code=%s AND state='new' "
+                "AND (category_suggest IN ('pc','laptop') OR open_ports REGEXP '445|3389|5985') "
+                "ORDER BY ip", (branch,))
+            candidates = cur.fetchall()
+            cur.execute(
+                "SELECT asset_tag, hostname, ip_address, mac_address, brand, model "
+                "FROM it_assets WHERE branch_code=%s AND category IN ('pc','laptop') "
+                "AND status<>'disposed' ORDER BY asset_tag", (branch,))
+            assets = cur.fetchall()
+            cur.execute(
+                "SELECT host_key, hostname, ip, mac FROM it_agent_hosts "
+                "WHERE branch_code=%s AND deploy_status='installed'", (branch,))
+            covered = set()
+            for h in cur.fetchall():
+                for k in (h.get('host_key'), h.get('hostname'), h.get('ip'), h.get('mac')):
+                    k = str(k or '').strip().lower()
+                    if k:
+                        covered.add(k)
+            cur.close(); conn.close()
+            rows = _targets_rows(candidates, assets, covered)
+            log_activity_async(0, 'it_agent_targets_csv', 'it', _full_name(),
+                               new_data={'rows': len(rows)}, ip=request.remote_addr)
+            return _targets_csv_response(
+                rows, f"target_agen_it_{branch}_{datetime.now():%Y%m%d}.csv")
+        except Exception as e:
+            cur.close(); conn.close()
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/it/agents/version')
+    def api_it_agents_version():
+        if not (_agent_token_ok() or _agent_session_ok()):
+            return jsonify({'status': 'error', 'msg': 'Token tidak valid'}), 401
+        path = _agent_script_path()
+        if not os.path.isfile(path):
+            return jsonify({'status': 'error', 'msg': 'Paket agen tidak ditemukan'}), 404
+        return jsonify({'status': 'success', 'version': AGENT_VERSION,
+                        'file': AGENT_SCRIPT, 'size': os.path.getsize(path)})
+
+    @app.route('/api/it/agents/package')
+    def api_it_agents_package():
+        """Unduh skrip agen (untuk self-update). Token, bukan sesi browser."""
+        if not (_agent_token_ok() or _agent_session_ok()):
+            return jsonify({'status': 'error', 'msg': 'Token tidak valid'}), 401
+        path = _agent_script_path()
+        if not os.path.isfile(path):
+            return jsonify({'status': 'error', 'msg': 'Paket agen tidak ditemukan'}), 404
+        with open(path, 'rb') as fh:
+            body = fh.read()
+        resp = make_response(body)
+        resp.headers['Content-Type'] = 'text/plain; charset=utf-8'
+        resp.headers['Content-Disposition'] = f'attachment; filename={AGENT_SCRIPT}'
+        resp.headers['Cache-Control'] = 'no-store'
+        return resp
 
     # ------------------------------------------------------------ stok opname
     @app.route('/api/it/stocktake', methods=['GET', 'POST'])

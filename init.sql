@@ -760,6 +760,33 @@ CREATE TABLE IF NOT EXISTS it_stocktake_items (
         REFERENCES it_stocktake_sessions (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- v2.79.0: registry agen inventaris (cakupan push terkontrol). Satu baris per
+-- PC; hanya lahir dari laporan eksplisit agen/deployer, bukan propagasi.
+CREATE TABLE IF NOT EXISTS it_agent_hosts (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    branch_code VARCHAR(10) NOT NULL DEFAULT 'SBY',
+    host_key VARCHAR(120) NOT NULL,
+    hostname VARCHAR(120) DEFAULT '',
+    ip VARCHAR(45) DEFAULT '',
+    mac VARCHAR(20) DEFAULT '',
+    os_name VARCHAR(120) DEFAULT '',
+    agent_version VARCHAR(20) DEFAULT '',
+    install_method VARCHAR(30) DEFAULT '',
+    deploy_status ENUM('pending','installed','failed','unreachable','ignored')
+        NOT NULL DEFAULT 'pending',
+    deploy_message VARCHAR(300) DEFAULT '',
+    asset_tag VARCHAR(40) DEFAULT '',
+    first_installed_at DATETIME NULL,
+    last_report_at DATETIME NULL,
+    last_deploy_at DATETIME NULL,
+    deployed_by VARCHAR(50) DEFAULT '',
+    created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uniq_agent_host (branch_code, host_key),
+    KEY idx_agent_status (branch_code, deploy_status),
+    KEY idx_agent_report (branch_code, last_report_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- ============================================================
 -- OVERTIME
 -- ============================================================

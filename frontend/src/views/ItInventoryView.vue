@@ -293,6 +293,65 @@ function confidenceClass(v) {
   return 'badge-gray'
 }
 
+// ------------------------------------------------------- cakupan agen (v2.79)
+const coverage = ref(null)
+const covLoading = ref(false)
+const agents = ref([])
+const agentTotal = ref(0)
+const agentStatus = ref('')
+const agentQuery = ref('')
+const deployHelpOpen = ref(false)
+const agentBusy = ref(false)
+
+const covPercent = computed(() => Number(coverage.value?.percent || 0))
+const covBarWidth = computed(() => `${Math.min(100, Math.max(0, covPercent.value))}%`)
+
+function agentBadge(status) {
+  return {
+    installed: 'badge-green', failed: 'badge-red', unreachable: 'badge-amber',
+    pending: 'badge-gray', ignored: 'badge-gray',
+  }[status] || 'badge-gray'
+}
+function agentStatusLabel(status) {
+  return {
+    installed: 'terpasang', failed: 'gagal', unreachable: 'tak terjangkau',
+    pending: 'menunggu', ignored: 'diabaikan',
+  }[status] || status || '—'
+}
+async function loadCoverage() {
+  covLoading.value = true
+  try {
+    const [cov, list] = await Promise.all([
+      api('/api/it/agents/coverage'),
+      api('/api/it/agents', { params: { status: agentStatus.value, q: agentQuery.value, per_page: 100 } }),
+    ])
+    coverage.value = cov
+    agents.value = list.data || []
+    agentTotal.value = list.total || 0
+  } catch (e) {
+    flash('❌ Gagal memuat cakupan agen: ' + e.message, 'error')
+  } finally {
+    covLoading.value = false
+  }
+}
+async function downloadTargetsCsv() {
+  try {
+    const blob = await api('/api/it/agents/targets.csv', { raw: true })
+    const name = `target_agen_it_${meta.value.branch || 'SBY'}_${new Date().toISOString().slice(0, 10)}.csv`
+    downloadBlob(blob, name)
+    flash('✅ Daftar target (allowlist) diunduh — tinjau isinya sebelum deploy')
+  } catch (e) {
+    flash('❌ Gagal mengunduh daftar target: ' + e.message, 'error')
+  }
+}
+const deployCommand = computed(() => [
+  '.\\deploy_it_agent.ps1',
+  '-Targets .\\target_agen_it_' + (meta.value.branch || 'SBY') + '.csv',
+  '-ApiUrl ' + (window.location.origin || 'https://nasbpfsby.duckdns.org:5000'),
+  '-Branch ' + (meta.value.branch || 'SBY'),
+  '-MaxHosts 25 -DryRun',
+].join(' '))
+
 // ---------------------------------------------------------------- stok opname
 const stSessions = ref([])
 const stDetail = ref(null)
@@ -339,7 +398,7 @@ async function switchTab(name) {
   router.replace({ query: { ...route.query, tab: name } })
   if (name === 'dashboard') await Promise.all([loadSummary(), loadWarranty(), loadAssets()])
   if (name === 'assets') await loadAssets()
-  if (name === 'discovery') await loadDiscovery()
+  if (name === 'discovery') await Promise.all([loadDiscovery(), loadCoverage()])
   if (name === 'labels') await loadAssets()
   if (name === 'stocktake') await Promise.all([loadStocktake(), loadAssets()])
 }
@@ -347,7 +406,7 @@ async function switchTab(name) {
 onMounted(async () => {
   await loadMeta()
   await Promise.all([loadSummary(), loadWarranty(), loadAssets()])
-  if (tab.value === 'discovery') loadDiscovery()
+  if (tab.value === 'discovery') Promise.all([loadDiscovery(), loadCoverage()])
   if (tab.value === 'stocktake') loadStocktake()
 })
 </script>
@@ -528,6 +587,101 @@ onMounted(async () => {
 
     <!-- ============================== JARINGAN =============================== -->
     <section v-else-if="tab === 'discovery'" class="workspace-section">
+      <!-- Cakupan agen: ukuran keberhasilan rollout, bukan sekadar daftar kandidat -->
+      <div class="card card-pad" style="margin-bottom:14px;">
+        <div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:8px;">
+          <div>
+            <h3 style="margin:0;">Cakupan Agen</h3>
+            <p class="muted tiny" style="margin:4px 0 0;">
+              Deployment terkontrol: hanya PC di allowlist (<code>targets.csv</code>) yang menerima agen.
+              Angka di bawah berasal dari laporan agen, bukan perkiraan.
+            </p>
+          </div>
+          <div class="row">
+            <button class="btn" :disabled="covLoading" @click="loadCoverage">🔄 Muat ulang</button>
+            <button class="btn" @click="downloadTargetsCsv">⤓ Unduh targets.csv</button>
+            <button class="btn btn-primary" @click="deployHelpOpen = true">🚀 Cara Deploy</button>
+          </div>
+        </div>
+
+        <div v-if="coverage">
+          <div class="cov-head">
+            <strong>{{ coverage.covered }}/{{ coverage.targets }} PC tercakup</strong>
+            <span class="muted tiny">
+              {{ covPercent }}% · {{ coverage.missing }} belum ·
+              {{ coverage.hosts_stale }} basi · {{ coverage.hosts_failed }} gagal ·
+              {{ coverage.hosts_outdated }} versi lama · {{ coverage.discovered_windows }} kandidat Windows
+            </span>
+          </div>
+          <div class="cov-bar" role="progressbar" :aria-valuenow="covPercent" aria-valuemin="0" aria-valuemax="100">
+            <span :style="{ width: covBarWidth }"></span>
+          </div>
+          <div v-if="!coverage.targets" class="muted tiny" style="margin-top:8px;">
+            Belum ada aset kategori PC/laptop. Tambahkan aset atau adopsi kandidat dulu agar target terhitung.
+          </div>
+          <details v-if="coverage.missing_hosts?.length" style="margin-top:10px;">
+            <summary class="muted tiny" style="cursor:pointer;">
+              {{ coverage.missing }} target belum tercakup (menampilkan maks 50)
+            </summary>
+            <ul class="tiny" style="margin:6px 0 0 18px;line-height:1.6;">
+              <li v-for="(m, i) in coverage.missing_hosts" :key="i">
+                <span class="mono">{{ m.host || m.ip || '—' }}</span>
+                <span class="muted"> · {{ m.ip || '—' }}{{ m.asset_tag ? ' · ' + m.asset_tag : '' }}</span>
+              </li>
+            </ul>
+          </details>
+        </div>
+        <div v-else class="muted tiny">Memuat ringkasan cakupan…</div>
+
+        <div class="row" style="margin-top:12px;gap:8px;flex-wrap:wrap;">
+          <input class="input" v-model="agentQuery" placeholder="Cari host / IP / MAC / tag"
+                 style="max-width:260px;" @keyup.enter="loadCoverage" />
+          <select class="select" v-model="agentStatus" @change="loadCoverage" style="max-width:180px;">
+            <option value="">Semua status</option>
+            <option value="installed">Terpasang</option>
+            <option value="pending">Menunggu</option>
+            <option value="failed">Gagal</option>
+            <option value="unreachable">Tak terjangkau</option>
+            <option value="ignored">Diabaikan</option>
+          </select>
+          <span class="muted tiny">{{ agentTotal }} host di registry</span>
+        </div>
+
+        <div v-if="agents.length" class="table-wrap" style="margin-top:10px;">
+          <table class="tbl">
+            <thead>
+              <tr><th>Host</th><th>IP</th><th>MAC</th><th>Aset</th><th>Versi</th><th>Status</th><th>Lapor terakhir</th><th>Metode</th></tr>
+            </thead>
+            <tbody>
+              <tr v-for="h in agents" :key="h.id">
+                <td>{{ h.hostname || h.host_key }}</td>
+                <td class="mono tiny">{{ h.ip || '—' }}</td>
+                <td class="mono tiny">{{ h.mac || '—' }}</td>
+                <td class="mono tiny">{{ h.asset_tag || '—' }}</td>
+                <td class="tiny">
+                  {{ h.agent_version || '—' }}
+                  <span v-if="h.outdated" class="badge badge-amber" style="margin-left:4px;">lama</span>
+                </td>
+                <td>
+                  <span class="badge" :class="agentBadge(h.deploy_status)">{{ agentStatusLabel(h.deploy_status) }}</span>
+                  <span v-if="h.is_stale" class="badge badge-amber" style="margin-left:4px;">basi</span>
+                </td>
+                <td class="tiny">
+                  {{ h.last_report_at || '—' }}
+                  <span v-if="h.days_since_report !== null && h.days_since_report !== undefined" class="muted">
+                    ({{ h.days_since_report }} hr)
+                  </span>
+                </td>
+                <td class="tiny">{{ h.install_method || '—' }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p v-else-if="!covLoading" class="muted tiny" style="margin-top:10px;">
+          Belum ada host yang melapor. Jalankan deploy lewat <strong>Cara Deploy</strong>; host akan muncul di sini setelah laporan pertama.
+        </p>
+      </div>
+
       <div class="card card-pad" style="margin-bottom:14px;">
         <div class="row" style="justify-content:space-between;">
           <div class="row">
@@ -816,6 +970,40 @@ onMounted(async () => {
       </div>
     </Modal>
 
+    <Modal v-if="deployHelpOpen" title="🚀 Deploy Agen Terkontrol" wide @close="deployHelpOpen = false">
+      <ol class="procedure" style="margin-top:0;">
+        <li>
+          <strong>Unduh allowlist</strong> — tombol <em>Unduh targets.csv</em>. Isinya hanya PC yang sudah
+          dikenal (kandidat Windows + aset PC/laptop). Tinjau dan hapus baris yang tidak berhak; jangan
+          menambahkan rentang atau subnet.
+        </li>
+        <li>
+          <strong>Siapkan PC operator (Windows)</strong> — letakkan <code>scripts/deploy_it_agent.ps1</code>
+          dan <code>scripts/it_inventory_agent.ps1</code> dalam satu folder.
+        </li>
+        <li>
+          <strong>Uji rencana</strong> (tidak membuka koneksi, tidak butuh token):
+          <pre class="cmd">{{ deployCommand }}</pre>
+        </li>
+        <li>
+          <strong>Jalankan</strong> tanpa <code>-DryRun</code>, dengan kredensial admin WinRM:
+          <pre class="cmd">{{ deployCommand.replace(' -DryRun', '') }} -Credential (Get-Credential)</pre>
+        </li>
+        <li>
+          <strong>Token</strong> diminta secara tersembunyi; nilainya <code>IT_DISCOVERY_TOKEN</code> di
+          <code>.env</code>. Jangan menempelkan token ke chat, email, atau tiket.
+        </li>
+      </ol>
+      <p class="muted tiny">
+        Batas bawaan 25 PC per eksekusi. Skrip menolak baris CIDR/rentang/wildcard dan tidak punya opsi
+        “semua host”. PC yang tergabung domain sebaiknya memakai GPO/Intune; WinRM hanya untuk
+        workgroup/standalone.
+      </p>
+      <div class="row" style="justify-content:flex-end;margin-top:10px;">
+        <button class="btn" @click="deployHelpOpen = false">Tutup</button>
+      </div>
+    </Modal>
+
     <ConfirmDialog ref="confirmRef" />
   </div>
 </template>
@@ -833,4 +1021,8 @@ onMounted(async () => {
 .timeline .when { margin-left: auto; color: var(--text-3); font-size: 11px; }
 .procedure { font-size: 13px; line-height: 1.7; padding-left: 18px; }
 .procedure ul { margin-top: 4px; }
+.cov-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.cov-bar { height: 10px; border-radius: 999px; background: var(--surface-3, #e5e7eb); overflow: hidden; margin-top: 6px; }
+.cov-bar span { display: block; height: 100%; background: var(--success); transition: width .3s ease; }
+.cmd { background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; font-size: 12px; white-space: pre-wrap; word-break: break-all; margin: 6px 0; }
 </style>

@@ -7,6 +7,33 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.79.0 — 11 November 2026 (Inventaris IT: rollout agen terkontrol & cakupan)
+
+Melengkapi modul Inventaris IT v2.78.0 dengan cara memperluas pemantauan ke PC
+Windows **tanpa** propagasi otomatis — allowlist, kredensial, dan log per host.
+
+- 🚀 **Deployer allowlist** — `scripts/deploy_it_agent.ps1`: wajib `-Targets`
+  CSV, maks 25 host per eksekusi (`-Force` untuk melebihi), hanya WinRM
+  (5985/5986), tolak baris CIDR/rentang/wildcard, `-DryRun` untuk uji rencana.
+- 📊 **Registry cakupan** — tabel `it_agent_hosts` + endpoint
+  `/api/it/agents` dan `/api/it/agents/coverage`: persentase PC tercakup,
+  host basi (>7 hari), gagal, dan versi agen lama.
+- 🧾 **Allowlist siap pakai** — `GET /api/it/agents/targets.csv` hanya berisi
+  PC yang belum tercakup, siap diumpankan ke deployer.
+- 🔄 **Self-update agen** — agen v1.1.0 memasang Scheduled Task harian,
+  memeriksa `/api/it/agents/version`, dan menarik paket baru (token-gated).
+  Token tidak tampil di command line remote; config di-ACL ke SYSTEM/Admins.
+- 🖥️ **Panel “Cakupan Agen”** di tab Jaringan: progres, tabel host, unduhan
+  targets.csv, dan instruksi deploy (token selalu disamarkan).
+- ✅ **Pengujian** — 41 test rollout baru (cakupan, allowlist, keselarasan
+  versi Python↔PowerShell, penjaga skrip); total 91 test IT lulus, vitest 270
+  lulus, build SPA sukses.
+
+Catatan: PC domain sebaiknya lewat GPO/Intune; WinRM hanya untuk
+workgroup/standalone. Detail di `docs/internal/IT_INVENTORY_RESEARCH.md` §9.
+
+---
+
 ## v2.77.0 — 3 November 2026 (OTP SubsidiTepat: kirim ulang & verifikasi terpercaya)
 
 Perbaikan alur OTP login agen SubsidiTepat setelah user melaporkan OTP
