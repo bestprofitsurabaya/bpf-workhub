@@ -1,11 +1,33 @@
 """Central SocketIO bus + per-driver rooms for real-time driver notifications."""
-from flask import request
+from flask import request, session
+
+from modules.helpers import session_driver_name
 
 socketio = None
 
 # Track which room each session is currently in, so a driver switching name
 # doesn't keep receiving old rooms' notifications.
 _sid_room = {}
+
+# Room yang boleh dimasuki per role (v2.79 — cegah penyadapan notifikasi).
+_ROOM_ROLES = {
+    'appointments_board': ('marketing', 'chief_driver', 'ga', 'admin'),
+    'ga_hr_board': ('ga_hr', 'admin'),
+}
+
+
+def _allowed_room(room):
+    """True bila sesi saat ini berhak masuk ke `room`."""
+    role = str(session.get('user_role') or '').lower()
+    if not role:
+        return False
+    if room in _ROOM_ROLES:
+        return role in _ROOM_ROLES[room]
+    # Room marketing_<username> hanya untuk user marketing yang bersangkutan.
+    if room.startswith('marketing_'):
+        return role == 'marketing' and room == (
+            'marketing_' + str(session.get('user_name') or '').strip())
+    return False
 
 
 def init_socketio(sio):
@@ -18,11 +40,15 @@ def init_socketio(sio):
         @sio.on('join_driver')
         def _join_driver(data):
             try:
-                name = str((data or {}).get('name', '')).strip().upper()
-                if not name:
+                # Identitas driver WAJIB dari sesi (anti-impersonasi). Klien
+                # tidak boleh memilih nama driver lain untuk menyadap notifikasi.
+                user_role = str(session.get('user_role') or '').lower()
+                name = session_driver_name()
+                if user_role != 'driver' or not name:
+                    print(f"[realtime] join_driver denied (role={user_role or '-'})")
                     return
                 sid = request.sid
-                room = 'driver_' + name
+                room = 'driver_' + name.upper()
                 prev = _sid_room.get(sid)
                 # Catatan: room management ada di python-socketio Server (sio.server),
                 # bukan di wrapper flask-socketio (sio.enter_room TIDAK ADA).
@@ -36,10 +62,11 @@ def init_socketio(sio):
 
         @sio.on('join_room')
         def _join_room(data):
-            """Generic room join (mis. marketing_<username> untuk halaman marketing)."""
+            """Generic room join (board/room yang diizinkan sesuai role)."""
             try:
                 room = str((data or {}).get('room', '')).strip()
-                if not room:
+                if not room or not _allowed_room(room):
+                    print(f"[realtime] join_room denied room={room or '-'}")
                     return
                 sid = request.sid
                 prev = _sid_room.get(sid)

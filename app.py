@@ -83,8 +83,17 @@ app.config['SESSION_COOKIE_SAMESITE'] = os.environ.get('SESSION_COOKIE_SAMESITE'
 app.config['SESSION_COOKIE_SECURE'] = os.environ.get('SESSION_COOKIE_SECURE', 'true').lower() in ('1', 'true', 'yes')
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=int(os.environ.get('SESSION_HOURS', '12')))
 
-# Init SocketIO
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode=socketio_async_mode, logger=False, engineio_logger=False)
+# Init SocketIO — batasi CORS ke origin aplikasi (bukan "*").
+# Override via env SOCKETIO_ALLOWED_ORIGINS (dipisah koma) bila domain berubah.
+_socketio_origins = [
+    o.strip() for o in os.environ.get(
+        'SOCKETIO_ALLOWED_ORIGINS',
+        'https://nasbpfsby.duckdns.org:5000,'
+        'https://192.168.2.31:5000,http://192.168.2.31:5000,'
+        'http://localhost:5000,http://127.0.0.1:5000',
+    ).split(',') if o.strip()
+]
+socketio = SocketIO(app, cors_allowed_origins=_socketio_origins, async_mode=socketio_async_mode, logger=False, engineio_logger=False)
 
 # Attach realtime bus (driver notification rooms)
 from modules.realtime import init_socketio
