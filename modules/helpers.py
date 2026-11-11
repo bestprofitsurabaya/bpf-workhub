@@ -892,7 +892,7 @@ ROLE_HOME = {
     'finance': '/app/finance',   # v2.7: dashboard khusus Finance (rekap air minum + kasbon)
     'ga': '/app/ga',             # v2.8: dashboard khusus GA (antrean klaim + kasbon + trip)
     'receptionist': '/app/receptionist',  # v2.16: sistem pelamar kerja (verifikasi & kehadiran)
-    'traineer': '/app/traineer',          # v2.16: pantau rekrutan (upline)
+    'traineer': '/app/first-work',        # v2.80: verifikasi Absensi FirstWork
     'ga_hr': '/app/ga-hr',                # v2.22: data overtime (Driver + OB/Security)
     'it_sby': '/app/it/inventory', 'it_hu': '/app/it/inventory', 'it_jkt2': '/app/it/inventory',
     'it_bdg': '/app/it/inventory', 'it_smg': '/app/it/inventory', 'it_mlg': '/app/it/inventory',

@@ -40,10 +40,20 @@ const MENU_GROUPS = [
     ],
   },
   {
+    label: 'SDM & Armada',
+    items: [
+      // v2.78.0: akun user, profil driver, penugasan, dan kendaraan
+      // dikelompokkan dalam satu tempat agar tidak tersebar di 3 menu.
+      { label: 'User & Driver', path: '/users', icon: '👥', roles: ['admin'] },
+      { label: 'Penugasan Driver', path: '/assignments', icon: '🚗', roles: ['ga', 'admin'], badge: 'assignments_pending' },
+      { label: 'Kendaraan & Pengaturan', path: '/settings', icon: '🚙', roles: ['admin'] },
+      { label: 'In-Out Karyawan', path: '/inout', icon: '🚪', roles: ['receptionist', 'admin'] },
+    ],
+  },
+  {
     label: 'Operasional',
     items: [
       { label: 'Log Perjalanan', path: '/trips', icon: '🗺️', roles: ['ga', 'admin'] },
-      { label: 'Penugasan Driver', path: '/assignments', icon: '🚗', roles: ['ga', 'admin'], badge: 'assignments_pending' },
       { label: 'BBM, Kasbon & SPBU', path: '/cash', icon: '⛽', roles: ['ga', 'finance', 'admin'], badge: 'cash_pending', keywords: 'kasbon klaim bbm spbu otp subsiditepat' },
       { label: 'Air Minum', path: '/water', icon: '🚰', roles: ['ob', 'finance', 'admin'], badge: 'water_pending' },
       { label: 'Aset & Pemeliharaan', path: '/assets', icon: '🔧', roles: ['ga', 'admin'] },
@@ -53,13 +63,20 @@ const MENU_GROUPS = [
     ],
   },
   {
-    label: 'Persetujuan & SDM',
+    label: 'Persetujuan',
     items: [
       // wave-18A: finance tidak melihat ACC Atasan (tidak berguna untuk pengelolaan klaim BBM) — OB/Security/GA/HR saja
       { label: 'ACC Atasan', path: '/approvals', icon: '✅', roles: ['chief_driver', 'ga', 'ga_hr'], badge: 'approvals_pending' },
-      { label: 'Pelamar Kerja', path: '/receptionist', icon: '🪪', roles: ['receptionist', 'admin'] },
-      { label: 'In-Out Karyawan', path: '/inout', icon: '🚪', roles: ['receptionist', 'admin'] },
-      { label: 'Rekrutan Saya', path: '/traineer', icon: '🎯', roles: ['traineer'] },
+    ],
+  },
+  {
+    // Rekrutmen: satu sumber data pelamar. Receptionist mengelola, Traineer
+    // hanya membaca; verifikasi kehadiran calon karyawan ada di FirstWork.
+    label: 'Rekrutmen & Trainee',
+    items: [
+      { label: 'Rekrutmen', path: '/receptionist', icon: '🪪', roles: ['receptionist', 'traineer', 'admin'], keywords: 'pelamar kerja recruitment rekrutmen' },
+      // v2.80.0: form publik trainee + verifikasi (traineer, finance read-only, admin)
+      { label: 'Absensi FirstWork', path: '/first-work', icon: '📝', roles: ['traineer', 'finance', 'ga_hr', 'admin'], badge: 'first_work_pending', keywords: 'absensi first work trainee verifikasi' },
     ],
   },
   {
@@ -73,9 +90,7 @@ const MENU_GROUPS = [
   {
     label: 'Administrasi',
     items: [
-      { label: 'Manajemen User', path: '/users', icon: '👥', roles: ['admin'] },
       { label: 'Access Review', path: '/access-review', icon: '🛂', roles: ['admin'] },
-      { label: 'Pengaturan', path: '/settings', icon: '⚙️', roles: ['admin'] },
       { label: 'Audit Log', path: '/logs', icon: '📝', roles: ['admin'] },
     ],
   },

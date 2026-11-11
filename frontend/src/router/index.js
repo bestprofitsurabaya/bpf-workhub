@@ -8,6 +8,11 @@ const routes = [
   { path: '/apply', name: 'apply', component: () => import('../views/ApplyView.vue'), meta: { public: true } },
   // Form publik overtime OB/Security (v2.22) — tanpa login
   { path: '/overtime-form', name: 'overtime-form', component: () => import('../views/OvertimeFormView.vue'), meta: { public: true } },
+  // Form publik Absensi FirstWork (v2.80.0) — tanpa login, mobile-first.
+  // Path sengaja BUKAN /first-work: path itu milik halaman data di dalam layout.
+  // Kalau sama, Vue Router memilih record pertama (form) sehingga user login
+  // yang membuka menu "Absensi FirstWork" justru melihat form, bukan datanya.
+  { path: '/first-work-form', name: 'first-work-form', component: () => import('../views/FirstWorkFormView.vue'), meta: { public: true } },
   // Driver PWA (v2.4): layout mobile mandiri, wajib login PIN driver
   { path: '/driver', name: 'driver', component: () => import('../views/driver/DriverView.vue'), meta: { roles: ['driver'] } },
   {
@@ -37,10 +42,14 @@ const routes = [
       { path: 'expenses', name: 'expenses', component: () => import('../views/ExpensesView.vue'), meta: { roles: ['admin'] } },
       // Form overtime user OB & Security (v2.39) — dari dalam aplikasi (login)
       { path: 'overtime-me', name: 'overtime-me', component: () => import('../views/OvertimeMeView.vue'), meta: { roles: ['ob', 'security'] } },
-      { path: 'receptionist', name: 'receptionist', component: () => import('../views/dashboard/ReceptionistView.vue'), meta: { roles: ['receptionist', 'admin'] } },
+      // Rekrutmen (v2.80) — receptionist mengelola, traineer hanya melihat.
+      { path: 'receptionist', name: 'receptionist', component: () => import('../views/dashboard/ReceptionistView.vue'), meta: { roles: ['receptionist', 'traineer', 'admin'], title: 'Rekrutmen' } },
+      // URL lama "Rekrutan Saya" — diarahkan ke halaman Rekrutmen.
+      { path: 'traineer', redirect: '/receptionist' },
       // In-Out Karyawan (v2.41.0) — catatan keluar-masuk (read-only, sync sheet)
       { path: 'inout', name: 'inout', component: () => import('../views/dashboard/EmployeeInOutView.vue'), meta: { roles: ['receptionist', 'admin'] } },
-      { path: 'traineer', name: 'traineer', component: () => import('../views/dashboard/TraineerView.vue'), meta: { roles: ['traineer'] } },
+      // Absensi FirstWork (v2.80.0) — verifikasi Traineer, lihat Finance, kelola Admin
+      { path: 'first-work', name: 'first-work', component: () => import('../views/FirstWorkView.vue'), meta: { roles: ['traineer', 'finance', 'ga_hr', 'admin'], title: 'Absensi FirstWork' } },
       { path: 'assets', name: 'assets', component: () => import('../views/dashboard/AssetsView.vue'), meta: { roles: ['ga', 'admin'] } },
       { path: 'ga-hr', name: 'ga-hr', component: () => import('../views/dashboard/OvertimeView.vue'), meta: { roles: ['ga_hr', 'admin'] } },
       { path: 'it', name: 'it', component: () => import('../views/ItEfView.vue'), meta: { roles: ['it_sby', 'it_hu', 'it_jkt2', 'it_bdg', 'it_smg', 'it_mlg', 'it_mdn', 'it_bjm', 'it_plm', 'it_lpg', 'admin'] } },
@@ -75,6 +84,9 @@ router.beforeEach(async (to) => {
   }
 
   if (!auth.isAuthenticated) {
+    // Tautan form yang sudah tersebar memakai /first-work — arahkan ke form
+    // publik yang baru alih-alih memaksa pendaftar login.
+    if (to.name === 'first-work') return { name: 'first-work-form', query: to.query }
     return { name: 'login', query: { next: to.fullPath } }
   }
   const roles = to.meta.roles

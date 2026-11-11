@@ -7,6 +7,51 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.80.0 — 11 November 2026 (Rekrutmen & Absensi FirstWork: satu pintu, read-only aman)
+
+Merapikan area pelamar/trainee setelah fitur Absensi FirstWork masuk. Menu
+"Rekrutan Saya" dihapus — isinya menduplikasi FirstWork dan memakai scope teks
+UPLINE yang tidak bisa dijamin.
+
+- 🧭 **Menu dirapikan** — grup *Rekrutmen & Trainee* kini hanya berisi
+  **Rekrutmen** (pelamar kerja) dan **Absensi FirstWork**. In-Out Karyawan
+  pindah ke *SDM & Armada*, ACC Atasan punya grup *Persetujuan* sendiri.
+- 👁 **Rekrutmen satu halaman** — Receptionist/Admin mengelola penuh; Traineer
+  membuka halaman yang sama dalam mode **lihat saja** (tanpa tombol verifikasi,
+  edit, kehadiran, status, hapus, atau PDF). Endpoint tulis tetap 403 untuk
+  Traineer.
+- 🏢 **Scope per cabang, bukan upline** — data pelamar mengikuti DB cabang sesi;
+  `/api/first-work` dan meta referrer dibatasi `branch_code` sesi. Admin Pusat
+  saja yang melihat semua cabang.
+- 🐞 **Perbaikan hitungan** — kartu statistik pelamar dulu dihitung dari 1.000
+  baris pertama (LIMIT), sekarang COUNT/GROUP BY SQL dengan filter yang sama.
+- 🔢 **Badge antrean FirstWork** — menu *Absensi FirstWork* menampilkan jumlah
+  pendaftar berstatus menunggu verifikasi (traineer/admin, dibatasi cabang sesi;
+  sumber data tabel master).
+- 🌐 **Agregasi pelamar Admin Pusat** — Admin Pusat melihat pelamar dari SEMUA
+  cabang dalam satu daftar (kolom Cabang + filter cabang, baris selalu membawa
+  `branch_code`). Tampilan agregat bersifat lihat-saja agar aksi tidak menulis
+  ke cabang yang salah; pengelolaan tetap per cabang. Admin cabang, receptionist,
+  dan traineer tidak berubah — tetap satu cabang.
+- ✨ **UX FirstWork** — chip status (Semua/Menunggu/Terverifikasi/Ditolak) untuk
+  antrean verifikasi, kolom tabel digabung agar ringkas; halaman ini tidak lagi
+  dipakai sebagai tab di halaman lain.
+- 🐞 **Form publik pindah ke `/app/first-work-form`** — dulu form publik memakai
+  path yang sama dengan halaman data (`/first-work`), sehingga Router memilih
+  form lebih dulu dan Traineer/Finance/GA HR yang membuka menu *Absensi FirstWork*
+  justru melihat form, bukan daftar data. Sekarang `/app/first-work` selalu
+  menampilkan data, dan tautan form hanya muncul untuk Traineer & Admin.
+- ✅ **Pengujian** — test backend terkait (pelamar, badge, doc integrity) dan
+  vitest Rekrutmen + navigasi lulus, build SPA sukses, serta verifikasi lintas
+  cabang dengan akun uji (traineer MLG/SBY, admin cabang MLG, admin pusat)
+  membuktikan tidak ada kebocoran data. Akun uji dinonaktifkan setelah verifikasi.
+
+Catatan data lama (diverifikasi 11 Nov 2026): hanya cabang SBY yang berisi data
+pelamar (3.023) dan FirstWork (1.831, semua menunggu); 11 cabang lain kosong,
+sehingga agregasi menampilkan data SBY tanpa duplikasi.
+
+---
+
 ## v2.79.0 — 11 November 2026 (Inventaris IT: rollout agen terkontrol & cakupan)
 
 Melengkapi modul Inventaris IT v2.78.0 dengan cara memperluas pemantauan ke PC

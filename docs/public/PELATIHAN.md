@@ -18,8 +18,8 @@ Telp: 031-5349888
 4. [Finance — Rekap & Verifikasi](#4-finance--rekap--verifikasi)
 5. [Marketing — Appointment](#5-marketing--appointment)
 6. [Chief Driver — Pembagian Tugas](#6-chief-driver--pembagian-tugas)
-7. [Receptionist — Pelamar Kerja](#7-receptionist--pelamar-kerja)
-8. [Traineer — Pantau Rekrutan](#8-traineer--pantau-rekrutan)
+7. [Receptionist — Rekrutmen](#7-receptionist--rekrutmen)
+8. [Traineer — Absensi FirstWork & Rekrutmen](#8-traineer--absensi-firstwork--rekrutmen)
 9. [Admin — User & Pengaturan](#9-admin--user--pengaturan)
 10. [IT Surabaya — News Scraper](#10-it-surabaya--news-scraper)
 11. [Daftar Periksa Sebelum Demo](#11-daftar-periksa-sebelum-demo)
@@ -111,7 +111,7 @@ Telp: 031-5349888
 
 ---
 
-## 7. Receptionist — Pelamar Kerja
+## 7. Receptionist — Rekrutmen
 
 | # | Langkah | Hasil yang Diharapkan |
 |---|---------|----------------------|
@@ -128,14 +128,17 @@ Telp: 031-5349888
 
 ---
 
-## 8. Traineer — Pantau Rekrutan
+## 8. Traineer — Absensi FirstWork & Rekrutmen
 
 | # | Langkah | Hasil yang Diharapkan |
 |---|---------|----------------------|
-| 1 | Login akun Traineer | Masuk Rekrutan Saya |
-| 2 | Gunakan filter tanggal / user / status | Daftar terfilter sesuai |
-| 3 | Perhatikan chip kehadiran (I · H1–H4) | Chip menyala sesuai tahap |
-| 4 | (Coba) klik tombol edit/hapus | Tidak ada — Traineer hanya melihat (read-only) |
+| 1 | Login akun Traineer | Langsung masuk **Absensi FirstWork** cabangnya |
+| 2 | Klik chip 🕒 Menunggu | Antrean pendaftar yang belum diverifikasi |
+| 3 | Buka **Detail** salah satu baris | NIK, referensi, No. HP, dan tombol unduh KTP |
+| 4 | Isi catatan → ✅ Verifikasi (atau ✕ Tolak + alasan) | Status berubah dan tercatat di riwayat |
+| 5 | Buka menu **Rekrutmen** | Data pelamar kerja cabang Anda — chip kehadiran I · H1–H4 tampil |
+| 6 | (Coba) cari tombol edit/verifikasi pelamar | Tidak ada — halaman Rekrutmen hanya lihat untuk Traineer |
+| 7 | Login akun Traineer cabang lain | Hanya data cabangnya; data FirstWork/pelamar cabang lain tidak muncul |
 
 ---
 
@@ -143,7 +146,7 @@ Telp: 031-5349888
 
 | # | Langkah | Hasil yang Diharapkan |
 |---|---------|----------------------|
-| 1 | Login `admin` / PIN `123456` | Masuk Dashboard Admin |
+| 1 | Login `admin_master` dengan PIN yang diberikan Admin | Masuk Dashboard Admin |
 | 2 | Buka Users → cari user | Daftar user tampil; bisa nonaktifkan/aktifkan |
 | 3 | Buka Settings | Nama Finance & GA untuk tanda terima bisa diubah |
 | 4 | Buka Audit Log | Aksi-aksi tadi tercatat |

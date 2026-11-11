@@ -26,6 +26,8 @@ class FakeCursor:
             self._rows = self.conn.approvals
         elif 'vehicle_assignments' in s:
             self._one = {'c': self.conn.counts['assignments_pending']}
+        elif 'first_work_submissions' in s:
+            self._one = {'c': self.conn.counts['first_work_pending']}
         elif 'water_purchases' in s:
             self._one = {'c': self.conn.counts['water_pending']}
         elif 'fuel_cash_requests' in s:
@@ -55,7 +57,7 @@ class FakeConn:
         self.counts = {
             'ga_pending': 3, 'finance_pending': 2, 'water_pending': 4,
             'assignments_pending': 1, 'cash_lpj': 1, 'cash_finance': 2,
-            'bbm_verify_pending': 2,
+            'bbm_verify_pending': 2, 'first_work_pending': 5,
         }
         self.approvals = [{'show': True}, {'show': False}]
         self.queries = []
@@ -72,6 +74,8 @@ def _client(monkeypatch, role, username):
     import modules.routes_nav as rn
     conn = FakeConn()
     monkeypatch.setattr(rn, 'get_db_connection', lambda: conn)
+    # Badge FirstWork memakai DB master (tabel first_work_submissions)
+    monkeypatch.setattr(rn, 'get_master_connection', lambda: conn)
     app = Flask(__name__)
     app.secret_key = 'test-secret'
     rn.register_nav_routes(app)
@@ -101,6 +105,7 @@ class TestNavBadges:
             'water_pending': 4,
             'bbm_verify_pending': 2,
             'cash_pending': 3,
+            'first_work_pending': 5,
         }
         assert not any('approval_requests' in q for q in conn.queries)
         assert conn.closed is True
@@ -131,6 +136,15 @@ class TestNavBadges:
             'cash_pending': 2,
             'approvals_pending': 1,
         }
+
+    def test_traineer_hanya_antrean_first_work_cabangnya(self, monkeypatch):
+        client, conn = _client(monkeypatch, 'traineer', 'traineer_sby')
+        r = client.get('/api/nav/badges')
+        assert r.status_code == 200
+        assert r.get_json()['badges'] == {'first_work_pending': 5}
+        # scope cabang sesi dipakai pada query DB master
+        assert any('first_work_submissions' in q and 'branch_code' in q
+                   for q in conn.queries)
 
     def test_chief_driver_hanya_acc(self, monkeypatch):
         _allow_first_approval(monkeypatch)

@@ -22,8 +22,8 @@
     - [6.9 Subsidi Tepat (MyPertamina) ⛽ (sejak v2.50–2.69)](#69-subsidi-tepat-mypertamina-sejak-v250269)
 7. [Untuk Marketing — Jadwal Appointment 📣](#7-untuk-marketing--jadwal-appointment)
 8. [Untuk Chief Driver — Pembagian Tugas 🚛](#8-untuk-chief-driver--pembagian-tugas)
-9. [Untuk Receptionist — Pelamar Kerja 🪪](#9-untuk-receptionist--pelamar-kerja)
-10. [Untuk Traineer / Upline — Pantau Rekrutan 🎯](#10-untuk-traineer--upline--pantau-rekrutan)
+9. [Untuk Receptionist — Rekrutmen 🪪](#9-untuk-receptionist--rekrutmen)
+10. [Untuk Traineer — Absensi FirstWork & Rekrutmen 🎯](#10-untuk-traineer--absensi-firstwork--rekrutmen)
 11. [Untuk GA — Aset & Pemeliharaan 🔧](#11-untuk-ga--aset--pemeliharaan)
     - [11.5 Untuk GA HR — Data Overtime ⏰](#115-untuk-ga-hr--data-overtime-)
     - [11.6 Migrasi Data dari Google Sheet 📥](#116-untuk-ga-hr--migrasi-data-driver-dari-google-sheet-)
@@ -459,7 +459,7 @@ Semua perubahan papan berjalan realtime — saat driver menyelesaikan tugas, sta
 
 ---
 
-## 9. Untuk Receptionist — Pelamar Kerja 🪪
+## 9. Untuk Receptionist — Rekrutmen 🪪
 
 > **Kamu adalah Receptionist.** Pelamar kerja mengisi form sendiri lewat halaman publik (tanpa login). Tugasmu: memverifikasi, memperbaiki data yang salah, mencatat kehadiran interview & training, dan membuat laporan PDF resmi.
 
@@ -475,7 +475,7 @@ Semua perubahan papan berjalan realtime — saat driver menyelesaikan tugas, sta
 - **＋ Tambah** opsi baru (cth: `TEAM BARU 6`), **🚫 Nonaktifkan / ✅ Aktifkan** (opsi nonaktif tidak muncul di form pelamar), atau **🗑 Hapus**.
 - Perubahan langsung berlaku di form publik & dropdown edit — semua tercatat di Audit Log (`user_option_*`).
 
-### 9.2 Dashboard Receptionist `/app/receptionist`
+### 9.2 Halaman Rekrutmen `/app/receptionist`
 
 - **Mencari & memfilter**: kolom tanggal (dari/sampai), UPLINE, User, Status, dan kotak pencarian (nama/HP/posisi).
 - **✅ Verifikasi** — pastikan data pelamar benar, lalu klik tombol centang.
@@ -505,17 +505,26 @@ Semua perubahan papan berjalan realtime — saat driver menyelesaikan tugas, sta
 
 ---
 
-## 10. Untuk Traineer / Upline — Pantau Rekrutan 🎯
+## 10. Untuk Traineer — Absensi FirstWork & Rekrutmen 🎯
 
-> **Kamu adalah Traineer / Upline.** Halaman ini menampilkan **hanya orang yang kamu rekrut** (UPLINE = kamu) — otomatis, tanpa perlu filter manual.
+> **Kamu adalah Traineer.** Dua menu kerja kamu: **Absensi FirstWork** (verifikasi pendaftar) dan **Rekrutmen** (data pelamar cabangmu, hanya lihat). Semua data terbatas pada cabangmu — cabang lain tidak terlihat.
 
-### 10.1 Dashboard Traineer `/app/traineer`
+### 10.1 Absensi FirstWork `/app/first-work`
 
-- **Lihat rekrutanmu**: nama, posisi, user, jadwal interview, dan **chip kehadiran** (I · H1 · H2 · H3 · H4) — chip menyala hijau sesuai tahap yang sudah dihadiri.
-- **Filter & cari**: rentang tanggal, UPLINE/User/Status, dan kotak pencarian.
-- **Kartu statistik**: total rekrutan, yang sudah interview, dalam training, lulus, mundur.
+- Form publik `/app/first-work-form` (tanpa login) dipakai pendaftar first work: NIK, nama, pendidikan, referensi, No. HP, dan foto KTP. Halaman `/app/first-work` sendiri selalu menampilkan **data** pengisian.
+- Tautan form hanya tersedia untuk Traineer & Admin (lewat tombol **↗ Buka Form Publik** / **🔗 Salin Link**); Finance & GA HR cukup melihat datanya.
+- Chip **🕒 Menunggu** membuka antrean yang perlu diverifikasi; chip lain memfilter status. Angka antrean juga tampil sebagai badge di menu sidebar.
+- **Detail** menampilkan NIK, referensi, No. HP, riwayat, dan tombol **🪪 Unduh KTP**.
+- **✅ Verifikasi** atau **✕ Tolak** — alasan penolakan wajib; setiap keputusan tercatat di riwayat.
+- **⬇️ Ekspor CSV** mengikuti filter yang aktif. Finance & GA HR hanya bisa melihat.
 
-> ℹ️ Traineer hanya **melihat** (read-only) — edit, kehadiran, dan PDF dikelola Receptionist.
+### 10.2 Rekrutmen `/app/receptionist` (mode lihat saja)
+
+- Data pelamar kerja cabangmu: nama, posisi, upline, user, jadwal interview, **chip kehadiran** (I · H1 · H2 · H3 · H4), dan status.
+- **Filter & cari**: rentang tanggal, UPLINE/User/Status, kotak pencarian, dan tombol Reset.
+- **Kartu statistik**: total pelamar, hari ini, interview, dalam training, lulus, mundur.
+
+> ℹ️ Traineer hanya **melihat** — tombol verifikasi, edit, kehadiran, status, hapus, dan PDF tidak tersedia (backend juga menolak). Pengelolaan penuh ada di Receptionist.
 
 ---
 

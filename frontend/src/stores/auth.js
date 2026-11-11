@@ -40,7 +40,7 @@ export const ROLE_META = {
   ob:           { label: 'OB',           home: '/water',        color: '#0d9488', icon: '🚰' },
   security:     { label: 'Security',     home: '/overtime-me',  color: '#ea580c', icon: '🛡️' },
   receptionist: { label: 'Receptionist', home: '/receptionist', color: '#db2777', icon: '🪪' },
-  traineer:     { label: 'Traineer',     home: '/traineer',     color: '#b45309', icon: '🎯' },
+  traineer:     { label: 'Traineer',     home: '/first-work',   color: '#b45309', icon: '🎯' },
   ga_hr:        { label: 'GA HR',        home: '/ga-hr',        color: '#7e22ce', icon: '⏰' },
   it_sby:       { label: 'IT Surabaya',  home: '/it/inventory',           color: '#0891b2', icon: '📦' },
   it_hu:        { label: 'IT Jakarta HO', home: '/it/inventory',          color: '#0891b2', icon: '📦' },

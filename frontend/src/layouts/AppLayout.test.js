@@ -24,6 +24,8 @@ function makeRouter() {
       { path: '/ga', component: Blank },
       { path: '/settings', component: Blank },
       { path: '/cash', component: Blank },
+      { path: '/receptionist', component: Blank },
+      { path: '/first-work', component: Blank },
     ],
   })
 }
@@ -34,7 +36,7 @@ async function mountLayout({ role = 'admin', userName = 'admin', isHo = true, pa
   const auth = useAuthStore()
   auth.user = { role, user_name: userName, full_name: 'Uji', is_ho_admin: isHo }
   apiMock.mockImplementation((p) => {
-    if (p === '/api/nav/badges') return Promise.resolve({ badges: { ga_pending: 3 } })
+    if (p === '/api/nav/badges') return Promise.resolve({ badges: { ga_pending: 3, first_work_pending: 4 } })
     return Promise.resolve({})
   })
   const router = makeRouter()
@@ -57,11 +59,25 @@ describe('AppLayout — P1 navigasi', () => {
     const nav = w.find('.side-nav').text()
     expect(nav).toContain('Ringkasan')
     expect(nav).toContain('Operasional')
-    expect(nav).toContain('Persetujuan & SDM')
-    expect(nav).toContain('Administrasi')
+    // admin tidak terlibat ACC apa pun → grup Persetujuan kosong & tidak tampil
+    expect(nav).not.toContain('ACC Atasan')
+    expect(nav).toContain('Rekrutmen')
+    expect(nav).toContain('Absensi FirstWork')
     expect(nav).toContain('Perkakas IT')
+    expect(nav).not.toContain('Rekrutan Saya')
     expect(nav).not.toContain('Access Review')
     expect(nav).not.toContain('Audit Log')
+    w.unmount()
+  })
+
+  it('menu traineer hanya berisi Rekrutmen (lihat saja) & Absensi FirstWork', async () => {
+    const { w } = await mountLayout({ role: 'traineer', userName: 'traineer_mlg', isHo: false, path: '/first-work' })
+    const nav = w.find('.side-nav').text()
+    expect(nav).toContain('Rekrutmen')
+    expect(nav).toContain('Absensi FirstWork')
+    for (const hidden of ['Rekrutan Saya', 'Pelamar Kerja', 'User & Driver', 'Sync Sheet', 'In-Out Karyawan']) {
+      expect(nav).not.toContain(hidden)
+    }
     w.unmount()
   })
 
@@ -81,13 +97,15 @@ describe('AppLayout — P1 navigasi', () => {
     const { w } = await mountLayout({ role: 'admin', userName: 'admin', isHo: true })
     const ga = w.findAll('.side-nav a').find((a) => a.text().includes('Dashboard GA'))
     expect(ga.text()).toContain('3')
+    const fw = w.findAll('.side-nav a').find((a) => a.text().includes('Absensi FirstWork'))
+    expect(fw.text()).toContain('4')
     w.unmount()
   })
 
   it('breadcrumb mengikuti grup & halaman aktif', async () => {
     const { w } = await mountLayout({ path: '/settings' })
     expect(w.find('.crumb').text()).toContain('Beranda')
-    expect(w.find('.crumb').text()).toContain('Administrasi')
+    expect(w.find('.crumb').text()).toContain('SDM & Armada')
     expect(w.find('.crumb').text()).toContain('Pengaturan')
     w.unmount()
   })

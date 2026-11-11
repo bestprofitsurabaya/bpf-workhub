@@ -227,11 +227,34 @@ const PAGE_HELP = [
     terms: ['Audit Log'],
   },
   {
-    paths: ['/receptionist', '/inout'],
-    title: 'Receptionist & In-Out',
-    summary: 'Kelola data pelamar dan catatan keluar-masuk karyawan.',
+    paths: ['/receptionist'],
+    title: 'Rekrutmen',
+    summary: 'Data pelamar kerja cabang Anda: interview, 4 hari training, sampai lulus.',
     steps: [
-      'Sinkronkan data dari Google Sheet bila perlu — data lokal yang sudah dikelola tidak tertimpa.',
+      'Receptionist mengelola penuh: verifikasi, koreksi data, kehadiran, status, dan laporan PDF.',
+      'Traineer melihat halaman yang sama dalam mode lihat saja — tanpa tombol pengelolaan.',
+      'Isi filter tanggal/upline/user/status lalu tekan Cari untuk mempersempit daftar.',
+    ],
+    terms: ['Audit Log'],
+  },
+  {
+    paths: ['/first-work'],
+    title: 'Absensi FirstWork',
+    summary: 'Pendaftar first work mengisi form publik; Traineer memverifikasi datanya.',
+    steps: [
+      'Chip Menunggu membuka antrean yang belum diverifikasi.',
+      'Buka Detail untuk memeriksa NIK, referensi, dan unduh KTP sebelum memutuskan.',
+      'Penolakan wajib diberi alasan; semua keputusan tercatat di riwayat.',
+      'Data hanya berisi cabang Anda — cabang lain tidak terlihat.',
+    ],
+    terms: ['HO'],
+  },
+  {
+    paths: ['/inout'],
+    title: 'In-Out Karyawan',
+    summary: 'Catatan keluar-masuk karyawan; sumber sheet atau input receptionist.',
+    steps: [
+      'Sinkronkan data dari Google Sheet bila perlu — baris yang dikelola aplikasi tidak tertimpa.',
       'Gunakan filter tanggal untuk melihat aktivitas harian.',
       'Hapus data hanya dengan alasan yang jelas; tindakan masuk audit.',
     ],
@@ -285,10 +308,10 @@ const ROLE_FOCUS = {
   marketing: 'Marketing Hub membantu Anda memantau appointment dan hasil kunjungan nasabah.',
   chief_driver: 'Chief Driver mengatur penugasan, mengganti driver, dan memantau perjalanan yang berjalan.',
   ga_hr: 'Halaman Overtime membantu Anda mengelola pengajuan lembur dan batas waktunya.',
-  receptionist: 'Data pelamar dan in-out karyawan bisa disinkronkan dari Google Sheet.',
+  receptionist: 'Menu Rekrutmen berisi data pelamar kerja cabang Anda; in-out karyawan ada di menu SDM.',
   ob: 'Pengajuan air minum dan overtime bisa Anda pantau dari menu operasional.',
   security: 'Pengajuan overtime bisa Anda pantau dari menu Overtime Saya.',
-  traineer: 'Halaman Rekrutan Saya berisi progres dan tugas pelatihan Anda.',
+  traineer: 'Verifikasi pendaftar first work ada di menu Absensi FirstWork; data pelamar cabang Anda bisa dilihat (hanya lihat) di menu Rekrutmen.',
   driver: 'Gunakan tab bawah untuk BBM, Kasbon, Trip, Overtime, dan Rapor. Data tetap tersimpan saat sinyal lemah.',
 }
 

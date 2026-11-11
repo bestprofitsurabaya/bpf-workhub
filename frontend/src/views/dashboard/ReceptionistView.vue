@@ -5,6 +5,7 @@ import StatCard from '../../components/StatCard.vue'
 import Modal from '../../components/Modal.vue'
 import { useRealtimeStore } from '../../stores/realtime'
 import { useStepupStore } from '../../stores/stepup'
+import { useAuthStore } from '../../stores/auth'
 import ConfirmDialog from '../../components/ConfirmDialog.vue'
 import PageHeader from '../../components/PageHeader.vue'
 import LoadingState from '../../components/LoadingState.vue'
@@ -15,6 +16,30 @@ const ask = (message, opts) => confirmRef.value?.open(message, opts) ?? Promise.
 
 const realtime = useRealtimeStore()
 const stepup = useStepupStore()
+const auth = useAuthStore()
+
+// v2.80: Traineer memakai halaman yang sama dengan Receptionist, tetapi
+// READ-ONLY — seluruh tombol pengelolaan disembunyikan dan backend menolak
+// endpoint tulis (role_required receptionist/admin).
+const canManage = computed(() => ['receptionist', 'admin'].includes(auth.role))
+// v2.80.1: Admin Pusat melihat agregat SEMUA cabang. Pengelolaan tetap per
+// cabang (agar aksi tidak menulis ke cabang yang salah), jadi tampilan agregat
+// bersifat lihat-saja dan cabang dipilih lewat Pengaturan.
+const hoView = computed(() => auth.isHoAdmin === true)
+const canEdit = computed(() => canManage.value && !hoView.value)
+const scopeBranch = ref('')
+const branches = ref([])
+const branchSummary = ref([])
+const summaryRows = computed(() => [...branchSummary.value].sort((a, b) =>
+  (b.total + b.first_work_pending) - (a.total + a.first_work_pending) ||
+  String(a.code).localeCompare(String(b.code))))
+const branchLabel = computed(() => {
+  if (hoView.value) {
+    const picked = branches.value.find((b) => b.code === f.value.branch)
+    return picked ? picked.name : 'Semua cabang'
+  }
+  return auth.user?.branch_name || (scopeBranch.value ? `Cabang ${scopeBranch.value}` : '')
+})
 
 const list = ref([])
 const stats = ref(null)
@@ -25,7 +50,7 @@ const msg = ref('')
 const busy = ref(false)
 
 // Filter
-const f = ref({ date_from: '', date_to: '', upline: '', user: '', status: '', search: '' })
+const f = ref({ date_from: '', date_to: '', upline: '', user: '', status: '', search: '', branch: '' })
 const reportStage = ref('interview')
 
 const STAGES = ['interview', 'training_1', 'training_2', 'training_3', 'training_4']
@@ -47,12 +72,34 @@ async function load() {
     const d = await api('/api/applicants', { params: { ...f.value } })
     list.value = d.data || []
     stats.value = d.stats || null
+    scopeBranch.value = d.scope_branch || ''
+    branchSummary.value = d.branch_summary || []
   } catch (e) { err.value = e.message }
   finally { loading.value = false }
 }
 
 async function loadMeta() {
-  try { meta.value = await api('/api/applicants/meta') } catch { meta.value = { uplines: [], users: [], statuses: [] } }
+  try {
+    const d = await api('/api/applicants/meta')
+    meta.value = d
+    branches.value = d.branches || []
+  } catch {
+    meta.value = { uplines: [], users: [], statuses: [], user_options: [] }
+    branches.value = []
+  }
+}
+
+const fmtNum = (n) => Number(n || 0).toLocaleString('id-ID')
+
+const hasFilter = computed(() => Object.values(f.value).some(Boolean))
+function resetFilters() {
+  f.value = { date_from: '', date_to: '', upline: '', user: '', status: '', search: '', branch: '' }
+  load()
+}
+
+function pickBranch(code) {
+  f.value.branch = code
+  load(1)
 }
 
 // ---- Modal edit ----
@@ -291,20 +338,45 @@ const totalAtt = computed(() => list.value.length)
 // saat push webhook/sync diterima via Socket.IO.
 let _lastSeq = 0
 watch(() => realtime.receptionistSeq, (seq) => {
+  if (!canManage.value) return
   if (seq !== _lastSeq) { _lastSeq = seq; load(); loadMeta() }
 })
 
 onMounted(() => {
   load(); loadMeta()
-  api('/api/receptionist/realtime-sync', { method: 'POST' }).catch(() => {})
+  if (canManage.value) {
+    api('/api/receptionist/realtime-sync', { method: 'POST' }).catch(() => {})
+  }
 })
 </script>
 
 <template>
   <div>
-    <PageHeader icon="🪪" title="Pelamar Kerja" subtitle="Pipeline pelamar: interview, training & lulusan" />
+    <PageHeader icon="🪪" title="Rekrutmen"
+                :subtitle="hoView ? 'Data pelamar kerja seluruh cabang — pilih cabang untuk mengelola' : canEdit ? 'Data pelamar kerja: interview, training & lulusan' : 'Data pelamar kerja cabang Anda — hanya lihat'">
+      <span v-if="branchLabel" class="badge badge-blue">🏢 {{ branchLabel }}</span>
+    </PageHeader>
+
+    <div v-if="hoView" class="ro-note">
+      <b>👁 Mode agregat semua cabang.</b>
+      Data dari setiap cabang digabung di sini (hanya lihat). Untuk mengubah, memverifikasi,
+      atau menghapus data, pilih dulu cabang aktif di menu <b>Kendaraan &amp; Pengaturan</b>.
+    </div>
+
+    <div v-else-if="!canManage" class="ro-note">
+      <b>👁 Mode lihat saja.</b>
+      Data pelamar dikelola Receptionist. Anda bisa mencari dan memfilter, tetapi tidak
+      mengubah, memverifikasi, mencatat kehadiran, atau menghapus data. Verifikasi
+      kehadiran calon karyawan ada di menu <router-link to="/first-work">Absensi FirstWork</router-link>.
+    </div>
+
     <div class="card card-pad" style="margin-bottom:16px;">
       <div class="row" style="flex-wrap:wrap;gap:10px;align-items:flex-end;">
+        <div v-if="hoView" class="field" style="margin:0;"><label>Cabang</label>
+          <select class="select" v-model="f.branch" @change="load" style="min-width:180px;">
+            <option value="">Semua cabang</option>
+            <option v-for="b in branches" :key="b.code" :value="b.code">{{ b.name }} ({{ b.code }})</option>
+          </select></div>
         <div class="field" style="margin:0;"><label>Dari Tanggal</label>
           <input class="input" type="date" v-model="f.date_from" @change="load" /></div>
         <div class="field" style="margin:0;"><label>Sampai Tanggal</label>
@@ -327,6 +399,8 @@ onMounted(() => {
         <div class="field" style="margin:0;flex:1;min-width:180px;"><label>🔍 Cari (nama/HP/posisi)</label>
           <input class="input" v-model="f.search" placeholder="Ketik lalu Enter…" @keyup.enter="load" /></div>
         <button class="btn" @click="load" title="Terapkan filter">🔍 Cari</button>
+        <button v-if="hasFilter" class="btn" @click="resetFilters" title="Kosongkan filter">✖ Reset</button>
+        <template v-if="canEdit">
         <div class="spacer"></div>
         <div class="field" style="margin:0;"><label>Tahap Laporan</label>
           <select class="select" v-model="reportStage" style="min-width:150px;">
@@ -340,6 +414,7 @@ onMounted(() => {
         <button class="btn btn-primary" :disabled="syncing" title="Tarik data terbaru dari Google Sheet pelamar (Google Form lama)" @click="syncSheet">{{ syncing ? '⏳ Sinkron…' : '🔄 Sync Sheet' }}</button>
         <button class="btn btn-primary" title="Catat pelamar baru langsung dari aplikasi" @click="openAdd">＋ Input Pelamar</button>
         <button class="btn" title="Kelola pilihan User untuk dropdown form" @click="openOptions">⚙️ Kelola User</button>
+        </template>
       </div>
       <div v-if="msg" class="alert" :class="msg.startsWith('✅') ? 'alert-success' : msg.startsWith('⚠️') ? 'alert-warning' : 'alert-error'" style="margin-top:10px;">{{ msg }}</div>
     </div>
@@ -356,18 +431,52 @@ onMounted(() => {
         <StatCard icon="🚪" label="Mengundurkan Diri" :value="stats?.resigned ?? 0" color="#dc2626" />
       </div>
 
+      <div v-if="hoView && summaryRows.length" class="card card-pad" style="margin-bottom:16px;">
+        <div class="row" style="justify-content:space-between;align-items:baseline;">
+          <h3 style="margin:0;font-size:14px;">🏢 Ringkasan per cabang</h3>
+          <span class="muted" style="font-size:11px;">Klik baris untuk menyaring cabang itu</span>
+        </div>
+        <div class="table-wrap" style="margin-top:10px;">
+          <table class="tbl">
+            <thead>
+              <tr><th>Cabang</th><th style="text-align:right;">Pelamar</th><th style="text-align:right;">Interview</th><th style="text-align:right;">Training</th><th style="text-align:right;">Lulus</th><th style="text-align:right;">Mundur</th><th style="text-align:right;">Antrean FirstWork</th></tr>
+            </thead>
+            <tbody>
+              <tr v-for="b in summaryRows" :key="b.code" class="sum-row"
+                  :title="`Lihat pelamar ${b.name}`" @click="pickBranch(b.code)">
+                <td><b>{{ b.code }}</b> <span class="muted" style="font-size:11px;">{{ b.name }}</span></td>
+                <td style="text-align:right;">{{ fmtNum(b.total) }}</td>
+                <td style="text-align:right;">{{ fmtNum(b.interview) }}</td>
+                <td style="text-align:right;">{{ fmtNum(b.training) }}</td>
+                <td style="text-align:right;">{{ fmtNum(b.lulus) }}</td>
+                <td style="text-align:right;">{{ fmtNum(b.resigned) }}</td>
+                <td style="text-align:right;">
+                  <span class="badge" :class="b.first_work_pending ? 'badge-orange' : 'badge-gray'">
+                    {{ fmtNum(b.first_work_pending) }}
+                  </span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       <div class="card">
         <div class="table-wrap">
           <table class="tbl">
             <thead>
-              <tr><th>Pelamar</th><th>Posisi</th><th>Upline</th><th>User</th><th>Interview</th><th>Kehadiran</th><th>Status</th><th style="min-width:230px;">Aksi</th></tr>
+              <tr><th>Pelamar</th><th v-if="hoView">Cabang</th><th>Posisi</th><th>Upline</th><th>User</th><th>Interview</th><th>Kehadiran</th><th>Status</th><th v-if="canEdit" style="min-width:230px;">Aksi</th></tr>
             </thead>
             <tbody>
-              <tr v-for="a in list" :key="a.id">
+              <tr v-for="a in list" :key="`${a.branch_code || ''}-${a.id}`">
                 <td>
                   <b>{{ a.nama_lengkap }}</b>
                   <div class="muted" style="font-size:11px;">{{ a.display_id }} · {{ a.no_hp || '—' }} · {{ a.pendidikan || '—' }}</div>
                   <div v-if="a.verified_by" class="muted" style="font-size:10px;color:#059669;">✅ Verifikasi: {{ a.verified_by }}</div>
+                </td>
+                <td v-if="hoView">
+                  <span class="badge badge-blue">{{ a.branch_code || '—' }}</span>
+                  <div class="muted" style="font-size:10px;">{{ a.branch_name || '' }}</div>
                 </td>
                 <td>{{ a.posisi || '—' }}</td>
                 <td>{{ a.upline || '—' }}</td>
@@ -382,7 +491,7 @@ onMounted(() => {
                   </div>
                 </td>
                 <td><span class="badge" :class="badge(a.status)">{{ STATUS_LABELS[a.status] || a.status }}</span></td>
-                <td style="white-space:nowrap;">
+                <td v-if="canEdit" style="white-space:nowrap;">
                   <button class="btn btn-sm" title="Edit / perbaiki data" @click="openEdit(a)">✏️</button>
                   <button v-if="!a.verified_by" class="btn btn-sm" title="Verifikasi data" @click="doVerify(a)">✅</button>
                   <button class="btn btn-sm" :disabled="terminal(a)" title="Catat kehadiran (interview / training)" @click="openAttendance(a)">🎯</button>
@@ -393,7 +502,7 @@ onMounted(() => {
                   <button class="btn btn-sm btn-danger" title="Hapus" @click="doDelete(a)">🗑</button>
                 </td>
               </tr>
-              <tr v-if="!list.length"><td colspan="8" class="empty">Belum ada data pelamar dengan filter ini.</td></tr>
+              <tr v-if="!list.length"><td :colspan="(canEdit ? 8 : 7) + (hoView ? 1 : 0)" class="empty">{{ hasFilter ? 'Tidak ada pelamar yang cocok dengan filter ini.' : hoView ? 'Belum ada data pelamar di cabang mana pun.' : 'Belum ada data pelamar di cabang ini.' }}</td></tr>
             </tbody>
           </table>
         </div>
@@ -555,6 +664,19 @@ onMounted(() => {
 </template>
 
 <style scoped>
+.ro-note {
+  background: var(--surface-2, #f8fafc);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--primary, #7c3aed);
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin-bottom: 14px;
+  font-size: 12px;
+  color: var(--text-2);
+}
+.ro-note b { display: block; margin-bottom: 2px; color: var(--text); }
+.sum-row { cursor: pointer; }
+.sum-row:hover td { background: var(--bg); }
 .att-row { display: flex; gap: 3px; }
 .att-chip {
   min-width: 22px; height: 20px; padding: 0 4px; border-radius: 6px; font-size: 10px; font-weight: 700;

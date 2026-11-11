@@ -116,6 +116,14 @@ for _attempt in range(5):
         break
     _time.sleep(3)
 
+# First Work / Absensi FirstWork (v2.80.0): tabel first_work_* — form publik
+# trainee, verifikasi Traineer, read-only Finance. Aman diulang saat startup.
+from modules.first_work_schema import ensure_first_work_schema
+for _attempt in range(5):
+    if ensure_first_work_schema():
+        break
+    _time.sleep(3)
+
 # Receptionist sheet sync (v2.41.0): tabel employee_inout + kolom sync di
 # applicants (safe on every startup, paritas schema ensure lainnya).
 from modules.routes_receptionist import ensure_receptionist_schema
@@ -406,6 +414,7 @@ from modules.routes_subsidy import register_subsidy_routes  # v2.50.0
 from modules.routes_procurement import register_procurement_routes          # v2.70.0
 from modules.routes_expense import register_expense_routes                    # v2.71.0
 from modules.routes_it_assets import register_it_asset_routes                # v2.78.0
+from modules.routes_first_work import register_first_work_routes             # v2.80.0
 from modules.approvals import register_approval_routes
 from modules.transcoder import register_transcoder_routes
 from modules.pdfkit import register_pdfkit_routes
@@ -415,6 +424,7 @@ register_auth_routes(app)
 register_procurement_routes(app)
 register_expense_routes(app)
 register_it_asset_routes(app)
+register_first_work_routes(app)   # v2.80.0 — Absensi FirstWork (trainee)
 register_master_api(app)
 register_transaction_api(app)
 register_assignment_api(app)

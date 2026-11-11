@@ -417,7 +417,7 @@ server {
 | `/app/overtime-me` | Form Overtime Saya — user OB & Security (v2.39, login) |
 | `/app/water` | Air minum (OB) / verifikasi (Finance) |
 | `/app/marketing` · `/app/chief-driver` · `/app/driver` | Marketing / Chief Driver / PWA Driver |
-| `/app/receptionist` · `/app/traineer` · `/app/assets` | Pelamar kerja / Traineer / Aset |
+| `/app/receptionist` · `/app/first-work` · `/app/assets` | Rekrutmen / Absensi FirstWork / Aset |
 | `/app/it` | News Scraper & WordPress |
 | `/app/overtime-form` | Form publik overtime OB/Security (tanpa login) |
 | `/app/apply` | Form publik pelamar kerja (tanpa login) |

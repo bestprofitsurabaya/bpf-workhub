@@ -1,4 +1,4 @@
-"""Sistem Pelamar Kerja (v2.16) — form pelamar -> Receptionist -> Traineer.
+"""Sistem Pelamar Kerja (v2.16) — form pelamar -> Rekrutmen (Receptionist).
 
 Alur bisnis (menggantikan Google Form + Google Sheet):
   - Pelamar kerja mengisi form publik (nama, pendidikan, HP, upline, user,
@@ -7,18 +7,20 @@ Alur bisnis (menggantikan Google Form + Google Sheet):
     mengelola kehadiran (interview + 4 hari training), mencatat pengunduran diri
     (alasan WAJIB bila pelamar sudah hadir), dan membuat laporan PDF resmi
     berlogo BPF per tahap.
-  - Traineer/Upline: memantau kehadiran orang yang direkrutnya (scope = upline
-    miliknya), dengan search & filter tanggal/user/upline.
+  - Traineer: melihat data pelamar cabangnya READ-ONLY (tanpa verifikasi,
+    edit, kehadiran, status, atau hapus). Semua endpoint tulis di modul ini
+    hanya untuk receptionist/admin; endpoint baca memakai DB cabang sesi
+    sehingga data antar cabang tidak pernah tercampur.
 """
 import io
 import time
 from datetime import datetime, date
 
 from flask import (request, jsonify, session, make_response)
-from modules.config import get_db_connection
+from modules.config import get_db_connection, get_master_connection
 from modules.helpers import (role_required, log_activity_async,
                              generate_display_id, applicant_stage_label,
-                             applicant_status_label)
+                             applicant_status_label, client_ip)
 from modules.pdf_generator import ApplicantReportPDF
 from modules.stepup import stepup_required
 
@@ -77,18 +79,180 @@ def _current_user():
     }
 
 
-def _traineer_upline():
-    """Scope upline untuk role traineer: username & full_name akunnya sendiri.
+READ_ROLES = ['receptionist', 'traineer', 'admin']
 
-    Pelamar menulis UPLINE bebas (bisa nama lengkap/username traineer), jadi
-    filter scope memakai LIKE kecocokan parsial (case-insensitive).
+
+def _scope_branch():
+    """Cabang data pelamar yang sedang dilihat.
+
+    Data pelamar hidup di DB cabang masing-masing (get_db_connection mengikuti
+    session['branch_code']), jadi scope ini hanya untuk label & badge UI.
+    None = Admin Pusat (boleh semua cabang lewat pemilih cabang).
     """
-    if session.get('user_role') == 'traineer':
-        uname = (session.get('user_name') or '').strip()
-        fname = (session.get('full_name') or '').strip()
-        names = [n for n in (uname, fname) if n]
-        return names or [uname]
-    return None
+    if session.get('user_role') != 'admin':
+        return (session.get('branch_code') or '').strip().upper() or None
+    try:
+        from modules.admin_scope import is_ho_admin
+        if is_ho_admin():
+            return None
+    except Exception:
+        pass
+    return (session.get('branch_code') or '').strip().upper() or None
+
+
+def _active_branches():
+    """[(code, name)] cabang aktif dari DB master; [] bila DB gagal."""
+    conn = get_master_connection()
+    if not conn:
+        return []
+    try:
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT code, name FROM branches WHERE is_active=1 ORDER BY code")
+        rows = cursor.fetchall() or []
+        cursor.close()
+        return [((r.get('code') or '').strip().upper(), r.get('name') or '')
+                for r in rows if (r.get('code') or '').strip()]
+    except Exception:
+        return []
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
+def _scope_dbs(branch_filter=''):
+    """Daftar cabang yang dibaca request ini: [(code, name, aggregate)].
+
+    - Selain Admin Pusat: hanya cabang sesi (isolasi DB cabang).
+    - Admin Pusat: semua cabang aktif, atau satu cabang bila `branch_filter`
+      valid. Filter tak dikenal → daftar kosong (fail-closed), bukan master.
+    """
+    scope = _scope_branch()
+    if scope is not None:
+        name = (session.get('branch_name') or '').strip()
+        return [(scope, name, False)]
+    branches = _active_branches()
+    if branch_filter:
+        return [(code, name, False) for code, name in branches if code == branch_filter]
+    if not branches:
+        fallback = (session.get('branch_code') or '').strip().upper() or 'SBY'
+        return [(fallback, '', False)]
+    return [(code, name, True) for code, name in branches]
+
+
+def _query_applicants_branch(code, where, params):
+    """Baca pelamar + kehadiran + statistik dari SATU DB cabang.
+
+    Return (rows, attendance_map, stats) atau None bila DB/tabel tak siap.
+    Baris dibatasi per cabang; penggabungan & pemotongan akhir di pemanggil.
+    """
+    conn = get_db_connection(branch_code=code)
+    if not conn:
+        return None
+    cursor = None
+    try:
+        cursor = conn.cursor(dictionary=True)
+        having = ((' WHERE ' + ' AND '.join(where)) if where else '')
+        cursor.execute("SELECT * FROM applicants" + having +
+                       " ORDER BY interview_at DESC, id DESC LIMIT 1000", params)
+        rows = cursor.fetchall() or []
+        att_map = _load_attendance_map(cursor, [r['id'] for r in rows])
+
+        # Statistik dihitung di SQL (bukan dari baris ber-LIMIT) agar total
+        # tetap benar walau data cabang lebih dari 1.000 baris.
+        stats = {'total': 0, 'today': 0}
+        for key in STATUS_LABELS:
+            stats[key] = 0
+        cursor.execute("SELECT status, COUNT(*) AS c FROM applicants"
+                       + having + " GROUP BY status", params)
+        for r in cursor.fetchall():
+            n = int(r['c'] or 0)
+            stats[r['status']] = stats.get(r['status'], 0) + n
+            stats['total'] += n
+        cursor.execute("SELECT COUNT(*) AS c FROM applicants"
+                       + (having + ' AND ' if having else ' WHERE ')
+                       + "DATE(interview_at)=CURDATE()", params)
+        stats['today'] = int((cursor.fetchone() or {}).get('c') or 0)
+        return rows, att_map, stats
+    except Exception:
+        return None
+    finally:
+        try:
+            if cursor is not None:
+                cursor.close()
+        except Exception:
+            pass
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
+def _first_work_pending_by_branch():
+    """{branch_code: jumlah menunggu verifikasi} dari tabel master FirstWork."""
+    conn = get_master_connection()
+    if not conn:
+        return {}
+    try:
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT branch_code, COUNT(*) AS c FROM first_work_submissions "
+                       "WHERE status='submitted' GROUP BY branch_code")
+        rows = cursor.fetchall() or []
+        cursor.close()
+        return {((r.get('branch_code') or '').strip().upper()): int(r['c'] or 0)
+                for r in rows}
+    except Exception:
+        return {}
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
+def _applicant_branch_summary(dbs):
+    """Ringkasan per cabang (tanpa filter aktif) untuk halaman Admin Pusat.
+
+    Angka pelamar diambil dari DB masing-masing cabang; antrean FirstWork dari
+    tabel master. Cabang yang DB-nya belum siap tetap tampil dengan angka 0.
+    """
+    pending = _first_work_pending_by_branch()
+    out = []
+    for code, name, _agg in dbs:
+        counts = {}
+        conn = get_db_connection(branch_code=code)
+        if conn:
+            cursor = None
+            try:
+                cursor = conn.cursor(dictionary=True)
+                cursor.execute("SELECT status, COUNT(*) AS c FROM applicants "
+                               "GROUP BY status")
+                counts = {r['status']: int(r['c'] or 0) for r in cursor.fetchall()}
+            except Exception:
+                counts = {}
+            finally:
+                try:
+                    if cursor is not None:
+                        cursor.close()
+                except Exception:
+                    pass
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+        out.append({
+            'code': code,
+            'name': name,
+            'total': sum(counts.values()),
+            'interview': counts.get('interview', 0),
+            'training': sum(counts.get(f'training_{i}', 0) for i in range(1, 5)),
+            'lulus': counts.get('lulus', 0),
+            'resigned': counts.get('resigned', 0),
+            'rejected': counts.get('rejected', 0),
+            'first_work_pending': pending.get(code, 0),
+        })
+    return out
 
 
 def _parse_date(value, label):
@@ -127,7 +291,7 @@ def register_applicant_routes(app):
     @app.route('/api/applicants', methods=['POST'])
     def api_apply_submit():
         try:
-            ip = request.remote_addr or '?'
+            ip = client_ip() or '?'
             if not _rate_ok(ip):
                 return jsonify({'status': 'error',
                                 'msg': 'Terlalu banyak pendaftaran dari perangkat ini. '
@@ -178,27 +342,52 @@ def register_applicant_routes(app):
     # META — pilihan filter (upline, user, status)
     # ================================================================
     @app.route('/api/applicants/meta')
-    @role_required(['receptionist', 'traineer', 'admin'])
+    @role_required(READ_ROLES)
     def api_applicants_meta():
         try:
-            conn = get_db_connection()
-            if not conn:
-                return jsonify({'error': 'DB error'}), 500
-            cursor = conn.cursor(dictionary=True)
-            cursor.execute(
-                "SELECT DISTINCT upline FROM applicants WHERE upline<>'' ORDER BY upline")
-            uplines = [r['upline'] for r in cursor.fetchall()]
-            cursor.execute(
-                "SELECT DISTINCT user_field FROM applicants WHERE user_field<>'' ORDER BY user_field")
-            users = [r['user_field'] for r in cursor.fetchall()]
-            cursor.execute(
-                "SELECT id, name FROM applicant_user_options WHERE is_active=1 ORDER BY name")
-            user_options = cursor.fetchall()
-            cursor.close()
-            conn.close()
-            return jsonify({'uplines': uplines, 'users': users,
-                            'user_options': user_options,
-                            'statuses': [{'value': k, 'label': v} for k, v in STATUS_LABELS.items()]})
+            dbs = _scope_dbs()
+            aggregate = len(dbs) > 1
+            uplines, users, user_options = set(), set(), {}
+            for code, _name, _agg in dbs:
+                conn = get_db_connection(branch_code=code)
+                if not conn:
+                    continue
+                cursor = None
+                try:
+                    cursor = conn.cursor(dictionary=True)
+                    cursor.execute(
+                        "SELECT DISTINCT upline FROM applicants WHERE upline<>''")
+                    uplines |= {r['upline'] for r in cursor.fetchall()}
+                    cursor.execute(
+                        "SELECT DISTINCT user_field FROM applicants WHERE user_field<>''")
+                    users |= {r['user_field'] for r in cursor.fetchall()}
+                    cursor.execute(
+                        "SELECT id, name FROM applicant_user_options WHERE is_active=1")
+                    for r in cursor.fetchall():
+                        user_options.setdefault(r['name'], r['id'])
+                except Exception:
+                    pass  # DB cabang belum siap → opsi cabang itu dilewati
+                finally:
+                    try:
+                        if cursor is not None:
+                            cursor.close()
+                    except Exception:
+                        pass
+                    try:
+                        conn.close()
+                    except Exception:
+                        pass
+            return jsonify({
+                'uplines': sorted(uplines),
+                'users': sorted(users),
+                'user_options': [{'id': user_options[n], 'name': n}
+                                 for n in sorted(user_options)],
+                'scope_branch': _scope_branch(),
+                'aggregate': aggregate,
+                'branches': [{'code': c, 'name': n} for c, n in _active_branches()]
+                            if _scope_branch() is None else [],
+                'statuses': [{'value': k, 'label': v} for k, v in STATUS_LABELS.items()],
+            })
         except Exception as e:
             return jsonify({'error': str(e)}), 500
 
@@ -259,7 +448,7 @@ def register_applicant_routes(app):
             conn.commit()
             user = _current_user()
             log_activity_async(None, 'user_option_add', user['role'], user['full_name'],
-                               new_data={'name': name}, ip=request.remote_addr)
+                               new_data={'name': name}, ip=client_ip())
             cursor.close(); conn.close()
             return jsonify({'status': 'success', 'msg': f'Opsi "{name}" ditambahkan', 'id': new_id})
         except Exception as e:
@@ -302,7 +491,7 @@ def register_applicant_routes(app):
             user = _current_user()
             log_activity_async(None, 'user_option_edit', user['role'], user['full_name'],
                                new_data={'id': opt_id, 'fields': list(data.keys())},
-                               ip=request.remote_addr)
+                               ip=client_ip())
             cursor.close(); conn.close()
             return jsonify({'status': 'success', 'msg': 'Opsi diperbarui'})
         except Exception as e:
@@ -327,17 +516,17 @@ def register_applicant_routes(app):
             conn.commit()
             user = _current_user()
             log_activity_async(None, 'user_option_delete', user['role'], user['full_name'],
-                               new_data={'name': row['name']}, ip=request.remote_addr)
+                               new_data={'name': row['name']}, ip=client_ip())
             cursor.close(); conn.close()
             return jsonify({'status': 'success', 'msg': f'Opsi "{row["name"]}" dihapus'})
         except Exception as e:
             return jsonify({'status': 'error', 'msg': str(e)}), 500
 
     # ================================================================
-    # LIST — receptionist & traineer (scope upline utk traineer)
+    # LIST — receptionist & traineer (traineer READ-ONLY) & admin
     # ================================================================
     @app.route('/api/applicants')
-    @role_required(['receptionist', 'traineer', 'admin'])
+    @role_required(READ_ROLES)
     def api_applicants_list():
         try:
             d_from = _parse_date(request.args.get('date_from'), 'Tanggal dari')
@@ -363,59 +552,62 @@ def register_applicant_routes(app):
             if status:
                 where.append("status = %s")
                 params.append(status)
-            # Scope traineer: hanya rekrutan upline sendiri (cocok parsial
-            # case-insensitive karena pelamar bebas menulis nama/username).
-            # Flag scope_traineer mencegah klausa upline LIKE duplikat di bawah.
-            t_up = _traineer_upline()
-            scope_traineer = False
-            if t_up is not None:
-                upline = upline or t_up[0]
-                scope_traineer = True
-                ors = ' OR '.join(["LOWER(upline) LIKE %s"] * len(t_up))
-                where.append(f"({ors})")
-                params += [f"%{u.lower()}%" for u in t_up]
-            if upline and not scope_traineer:
+            # Semua role baca (receptionist, traineer, admin) melihat SELURUH
+            # pelamar di cabangnya sendiri; traineer tidak lagi dibatasi teks
+            # UPLINE (scope lama) karena isolasi data dijaga oleh DB cabang.
+            if upline:
                 where.append("upline LIKE %s")
                 params.append(f"%{upline}%")
             if user:
                 where.append("user_field LIKE %s")
                 params.append(f"%{user}%")
 
-            conn = get_db_connection()
-            if not conn:
-                return jsonify({'error': 'DB error'}), 500
-            cursor = conn.cursor(dictionary=True)
-            sql = "SELECT * FROM applicants"
-            if where:
-                sql += " WHERE " + " AND ".join(where)
-            sql += " ORDER BY interview_at DESC, id DESC LIMIT 1000"
-            cursor.execute(sql, params)
-            rows = cursor.fetchall()
+            # v2.80.1: Admin Pusat boleh membaca SEMUA cabang sekaligus (data
+            # pelamar ada di DB cabang masing-masing). Role lain tetap terkurung
+            # pada DB cabang sesi.
+            branch_filter = str(request.args.get('branch', '') or '').strip().upper()
+            dbs = _scope_dbs(branch_filter)
+            aggregate = len(dbs) > 1
 
-            att_map = _load_attendance_map(cursor, [r['id'] for r in rows])
-            cursor.close()
-            conn.close()
+            rows_all = []
+            att_all = {}
+            stats = {'total': 0, 'today': 0}
+            for key in STATUS_LABELS:
+                stats[key] = 0
+            for code, name, _agg in dbs:
+                result = _query_applicants_branch(code, where, params)
+                if not result:
+                    continue  # DB cabang belum siap → lewati, jangan gagalkan semua
+                rows, att_map, branch_stats = result
+                for row in rows:
+                    row['branch_code'] = code
+                    row['branch_name'] = name
+                rows_all.extend(rows)
+                for applicant_id, stages in att_map.items():
+                    att_all[(code, applicant_id)] = stages
+                for key, value in branch_stats.items():
+                    stats[key] = stats.get(key, 0) + value
+
+            rows_all.sort(key=lambda r: str(r.get('interview_at') or ''), reverse=True)
+            rows_all = rows_all[:1000]
 
             data = []
-            for r in rows:
+            for r in rows_all:
                 item = _serialize(r)
                 item['status_label'] = STATUS_LABELS.get(r['status'], r['status'])
+                att = att_all.get((r.get('branch_code'), r['id']), {})
                 item['attendance'] = {
-                    stage: _serialize(att_map.get(r['id'], {}).get(stage) or {})
-                    for stage in VALID_STAGES
+                    stage: _serialize(att.get(stage) or {}) for stage in VALID_STAGES
                 }
                 data.append(item)
 
-            # Stats ringkas (scope yang sama)
-            stats = {'total': len(data), 'today': 0}
-            today = date.today().isoformat()
-            for s in STATUS_LABELS:
-                stats[s] = 0
-            for it in data:
-                stats[it['status']] = stats.get(it['status'], 0) + 1
-                if (it.get('interview_at') or '')[:10] == today:
-                    stats['today'] += 1
-            return jsonify({'data': data, 'stats': stats, 'scope_upline': upline})
+            return jsonify({'data': data, 'stats': stats,
+                            'scope_branch': _scope_branch(),
+                            'aggregate': aggregate,
+                            'branches': [{'code': c, 'name': n}
+                                         for c, n, _a in dbs] if aggregate else [],
+                            'branch_summary': _applicant_branch_summary(dbs)
+                                              if aggregate else []})
         except ValueError as e:
             return jsonify({'error': str(e)}), 400
         except Exception as e:
@@ -460,7 +652,7 @@ def register_applicant_routes(app):
             conn.commit()
             user = _current_user()
             log_activity_async(None, 'applicant_edit', user['role'], user['full_name'],
-                               new_data={'fields': list(data.keys())}, ip=request.remote_addr)
+                               new_data={'fields': list(data.keys())}, ip=client_ip())
             cursor.close(); conn.close()
             return jsonify({'status': 'success', 'msg': 'Data pelamar diperbarui'})
         except Exception as e:
@@ -490,7 +682,7 @@ def register_applicant_routes(app):
             user = _current_user()
             log_activity_async(None, 'applicant_delete', user['role'], user['full_name'],
                                new_data={'display_id': row['display_id'], 'nama': row['nama_lengkap']},
-                               ip=request.remote_addr)
+                               ip=client_ip())
             cursor.close(); conn.close()
             return jsonify({'status': 'success', 'msg': f'{row["display_id"]} dihapus'})
         except Exception as e:
@@ -519,7 +711,7 @@ def register_applicant_routes(app):
                            (user['full_name'], appt_id))
             conn.commit()
             log_activity_async(None, 'applicant_verify', user['role'], user['full_name'],
-                               new_data={'display_id': row['display_id']}, ip=request.remote_addr)
+                               new_data={'display_id': row['display_id']}, ip=client_ip())
             cursor.close(); conn.close()
             return jsonify({'status': 'success', 'msg': f'{row["display_id"]} terverifikasi'})
         except Exception as e:
@@ -582,7 +774,7 @@ def register_applicant_routes(app):
             log_activity_async(None, 'applicant_attendance', user['role'], user['full_name'],
                                new_data={'stage': stage, 'status': new_status,
                                          'at': attended_dt.strftime('%Y-%m-%d %H:%M:%S')},
-                               ip=request.remote_addr)
+                               ip=client_ip())
             cursor.close(); conn.close()
             return jsonify({'status': 'success',
                             'msg': f'Kehadiran {applicant_stage_label(stage)} tercatat',
@@ -640,7 +832,7 @@ def register_applicant_routes(app):
             conn.commit()
             log_activity_async(None, 'applicant_status', user['role'], user['full_name'],
                                new_data={'status': status, 'reason': reason},
-                               ip=request.remote_addr)
+                               ip=client_ip())
             cursor.close(); conn.close()
             return jsonify({'status': 'success', 'msg': f'Status menjadi {applicant_status_label(status)}'})
         except Exception as e:

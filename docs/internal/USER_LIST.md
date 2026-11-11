@@ -90,8 +90,8 @@ Sistem mendukung **11 peran inti** (peran `it` dipecah per cabang pada daftar di
 | 6 | `driver` | 🚗 Driver | `/app/driver` | PWA: submit trip, foto ODO/struk, GPS, notifikasi |
 | 7 | `ob` | 🧹 OB | `/app/water` | Pengajuan pembelian air minum + **Overtime Saya** (v2.39) |
 | 8 | `security` | 🛡️ Security | `/app/overtime-me` | **Overtime Saya** — pengajuan lembur Security (v2.39) |
-| 9 | `receptionist` | 🪪 Receptionist | `/app/receptionist` | Verifikasi pelamar kerja & kehadiran |
-| 10 | `traineer` | 🎯 Traineer | `/app/traineer` | Pantau rekrutan (read-only) |
+| 9 | `receptionist` | 🪪 Receptionist | `/app/receptionist` | Rekrutmen: verifikasi pelamar kerja & kehadiran |
+| 10 | `traineer` | 🎯 Traineer | `/app/first-work` | Verifikasi Absensi FirstWork; Rekrutmen cabang (read-only) |
 | 11 | `ga_hr` | ⏰ GA HR | `/app/ga-hr` | Data overtime Driver & OB/Security — termasuk ACC berjenjang (langkah 1) & atur batas waktu submit (v2.40.0) |
 | 11 | `it_sby` | 📰 IT Surabaya | `/app/it` | News Scraper (SBY) |
 | 12 | `it_hu` | 📰 IT Jakarta HO | `/app/it` | News Scraper (JKT) — lihat semua site |
@@ -334,14 +334,14 @@ membuat akun.
 
 ### 🎯 Traineer (`traineer`)
 
-**Akses:** Pantau rekrutan (read-only)
+**Akses:** Verifikasi Absensi FirstWork cabangnya; data pelamar cabang READ-ONLY
 
 **Fitur Khusus:**
-- Lihat orang yang direkrut (scope: upline sendiri)
-- Filter tanggal, search, chip kehadiran
-- Tanpa akses edit/PDF
+- Absensi FirstWork: verifikasi/tolak pendaftar, unduh KTP, lihat riwayat
+- Rekrutmen (read-only): seluruh pelamar kerja cabangnya, filter tanggal/upline/user/status
+- Tanpa akses edit/verifikasi pelamar, PDF, atau data cabang lain
 
-**Halaman:** Traineer Dashboard (`/app/traineer`)
+**Halaman:** Absensi FirstWork (`/app/first-work`) · Rekrutmen (`/app/receptionist`)
 
 ---
 

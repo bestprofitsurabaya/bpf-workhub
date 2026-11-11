@@ -24,8 +24,8 @@ BPF WorkHub lahir dari masalah yang sudah bertahun-tahun jadi kebiasaan: pengelu
 | **GA HR** | Kelola data lembur (rekap, PDF resmi, formulir permohonan) | `/app/ga-hr` |
 | **Marketing** | Jadwal & pantau appointment nasabah | `/app/marketing` |
 | **OB / Security** | Belanja air minum, pencatatan lembur | PWA `/m/` · `/app/overtime-me` |
-| **Receptionist** | Pelamar & in-out karyawan (sinkron dari aplikasi + Google Sheet) | `/app/receptionist` |
-| **Traineer** | Pembinaan trainee | `/app/traineer` |
+| **Receptionist** | Rekrutmen (pelamar & in-out karyawan) | `/app/receptionist` |
+| **Traineer** | Verifikasi Absensi FirstWork; data pelamar cabang (lihat saja) | `/app/first-work` |
 | **IT per cabang** (`it_<kode>`) | Berita perusahaan (scraper), Transcoder, PDF Kit | `/app/it` |
 
 Konvensi akun — **satu orang per divisi di satu cabang** → `{divisi}_{cabang}` (mis. `finance_sby`); lebih dari satu → `{divisi}_{nama}_{cabang}` (mis. `ob_faisol_sby`); Driver memakai nama orang; divisi IT memakai role `it_<kode>` per cabang. Backend memvalidasi pembeda divisi ini, jadi nama seperti `uang` untuk Finance akan ditolak. Semua login memakai **PIN**.

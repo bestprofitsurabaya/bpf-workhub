@@ -9,7 +9,7 @@ dan setelah event realtime, bukan aksi pengguna yang perlu diaudit.
 """
 from flask import jsonify, session
 
-from modules.config import get_db_connection
+from modules.config import get_db_connection, get_master_connection
 from modules.helpers import role_required
 
 # Semua role yang memakai AppLayout (driver punya tampilan mobile sendiri).
@@ -64,6 +64,36 @@ def _approvals_pending(conn, role):
         return 0
 
 
+def _first_work_pending():
+    """Antrean verifikasi Absensi FirstWork untuk traineer/admin.
+
+    Data FirstWork ada di DB MASTER dengan kolom `branch_code`, jadi hitungannya
+    memakai koneksi master + scope cabang sesi (Admin Pusat = semua cabang).
+    Badge opsional: error apa pun → 0, jangan ganggu sidebar.
+    """
+    conn = None
+    try:
+        from modules.routes_first_work import _scope_branch
+        conn = get_master_connection()
+        if not conn:
+            return 0
+        scope = _scope_branch(conn)
+        sql = "SELECT COUNT(*) FROM first_work_submissions WHERE status='submitted'"
+        params = []
+        if scope:
+            sql += ' AND branch_code=%s'
+            params.append(scope)
+        return _count(conn, sql, params)
+    except Exception:
+        return 0
+    finally:
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+
 def register_nav_routes(app):
 
     @app.route('/api/nav/badges')
@@ -107,6 +137,11 @@ def register_nav_routes(app):
 
             if role in ('ga', 'finance', 'chief_driver', 'ga_hr'):
                 out['approvals_pending'] = _approvals_pending(conn, role)
+
+            # v2.80.1: antrean verifikasi Absensi FirstWork (traineer & admin
+            # yang memang boleh memverifikasi) — sumbernya DB master.
+            if role in ('traineer', 'admin'):
+                out['first_work_pending'] = _first_work_pending()
         finally:
             try:
                 conn.close()

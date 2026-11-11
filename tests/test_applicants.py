@@ -1,8 +1,8 @@
-"""Sistem Pelamar Kerja (v2.16) — form publik, receptionist, traineer, PDF.
+"""Sistem Pelamar Kerja (v2.16) — form publik, rekrutmen, traineer, PDF.
 
 Menggantikan Google Form + Google Sheet: data dikelola internal.
 Alur: pelamar submit form publik -> receptionist verifikasi/edit/kehadiran/status
--> traineer pantau rekrutan (scope upline sendiri). Laporan PDF resmi berlogo.
+-> traineer melihat data pelamar cabangnya READ-ONLY. Laporan PDF resmi berlogo.
 """
 import io
 import re
@@ -36,9 +36,10 @@ class TestLabels:
 
     def test_home_for_role(self):
         assert home_for_role('receptionist') == '/app/receptionist'
-        assert home_for_role('traineer') == '/app/traineer'
+        # v2.80: beranda traineer = antrean verifikasi FirstWork
+        assert home_for_role('traineer') == '/app/first-work'
         assert ROLE_HOME['receptionist'] == '/app/receptionist'
-        assert ROLE_HOME['traineer'] == '/app/traineer'
+        assert ROLE_HOME['traineer'] == '/app/first-work'
 
 
 # ============================================================
@@ -54,28 +55,47 @@ def _mk_pdf(rows, stage='interview'):
     return buf.getvalue()
 
 
-class TestTraineerScope:
-    """Scope traineer: kecocokan parsial case-insensitive (username + nama)."""
+class TestApplicantScope:
+    """v2.80: scope pelamar berbasis CABANG, traineer read-only.
 
-    def test_matches_full_name_or_username(self):
-        import flask
-        from modules.routes_applicants import _traineer_upline
-        # Tanpa sesi -> None (endpoint menolak via role_required)
-        with flask.Flask(__name__).test_request_context('/'):
-            assert _traineer_upline() is None
+    Data pelamar tinggal di DB cabang (get_db_connection mengikuti sesi), jadi
+    `_scope_branch` hanya untuk label. Yang WAJIB dijamin: traineer tidak pernah
+    tercantum di daftar role endpoint tulis.
+    """
 
-    def test_where_clause_build(self):
-        # Verifikasi konstruksi where untuk scope traineer tidak ganda.
-        # (Logika penuh diuji E2E; unit ini mengamankan _traineer_upline.)
+    def test_traineer_scope_is_session_branch(self):
         import flask
-        from modules.routes_applicants import _traineer_upline
+        from modules.routes_applicants import _scope_branch
         fapp = flask.Flask(__name__)
         fapp.secret_key = 'test-secret'
         with fapp.test_request_context('/'):
             flask.session['user_role'] = 'traineer'
-            flask.session['user_name'] = 'traineer_a'
-            flask.session['full_name'] = 'Traineer Upline A'
-            assert _traineer_upline() == ['traineer_a', 'Traineer Upline A']
+            flask.session['branch_code'] = 'mlg'
+            assert _scope_branch() == 'MLG'
+
+    def test_scope_none_without_session(self):
+        import flask
+        from modules.routes_applicants import _scope_branch
+        with flask.Flask(__name__).test_request_context('/'):
+            assert _scope_branch() is None
+
+    def test_read_roles_include_traineer(self):
+        from modules.routes_applicants import READ_ROLES
+        assert 'traineer' in READ_ROLES
+
+    def test_traineer_cannot_mutate(self):
+        """Semua endpoint tulis di modul pelamar hanya receptionist/admin."""
+        import inspect
+        from modules import routes_applicants as mod
+        src = inspect.getsource(mod)
+        write_routes = ('/attendance', '/verify', '/status', '/register-employee')
+        for marker in write_routes:
+            idx = src.find(marker)
+            if idx < 0:
+                continue
+            # decorator role_required terdekat tepat setelah deklarasi route
+            window = src[idx:idx + 400]
+            assert "role_required(['receptionist', 'admin'])" in window, marker
 
 
 class TestApplicantPDF:

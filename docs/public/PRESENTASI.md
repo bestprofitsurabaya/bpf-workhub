@@ -248,7 +248,7 @@ Telp: 031-5349888
 2. Login Receptionist → data pelamar tadi langsung tampil → Verifikasi → Catat Kehadiran.
 3. Coba Mengundurkan Diri tanpa alasan → ditolak (alasan wajib).
 4. Pilih tahap laporan → 📄 Laporan PDF → dokumen resmi berlogo BPF.
-5. Login Traineer → hanya melihat rekrutan dengan UPLINE miliknya.
+5. Login Traineer → data pelamar cabangnya tampil sebagai halaman **Rekrutmen** mode lihat saja, tanpa tombol edit/verifikasi.
 
 **Satu kalimat kunci:**
 > *"Dari Google Form manual menjadi sistem internal yang terstruktur — jam interview otomatis, kehadiran tercatat, laporan resmi."*
@@ -333,7 +333,7 @@ Telp: 031-5349888
 | "Apakah ini bisa dipakai untuk cabang lain?" | Ya — tinggal tambah pengguna & data master; alurnya sama. |
 | "Data pelamar masih lewat Google Form?" | Tidak — sudah diganti form internal; 914 riwayat Google Sheet lama sudah dimigrasikan. |
 | "Ada aplikasi aset terpisah?" | Sudah dimigrasikan total ke WorkHub — 15 AC + 8 kendaraan + 12 komponen. |
-| "Upline bisa lihat rekrutannya?" | Ya — Traineer membuka halamannya, otomatis hanya rekrutan dengan UPLINE miliknya. |
+| "Traineer bisa lihat data pelamar?" | Ya — lewat menu **Rekrutmen**, hanya cabangnya sendiri dan hanya lihat (tanpa edit/verifikasi/PDF). |
 
 ---
 

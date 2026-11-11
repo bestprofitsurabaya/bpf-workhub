@@ -70,7 +70,7 @@ Sebelumnya, pencatatan BBM, kasbon, dan pembelian air minum dilakukan manual —
 1. **Driver** mengajukan klaim BBM dari HP → **Chief Driver** ACC → **GA** menyetujui → **Finance** memverifikasi.
 2. **OB** mengajukan pembelian air minum dengan foto → **Finance** verifikasi → PDF tanda terima.
 3. **Marketing** membuat jadwal kunjungan → **Chief Driver** menugaskan → hasil kunjungan tercatat.
-4. **Pelamar** mengisi form → **Receptionist** memverifikasi & mencatat kehadiran → **Traineer** melihat rekrutannya.
+4. **Pelamar** mengisi form → **Receptionist** memverifikasi & mencatat kehadiran → **Traineer** melihat data pelamar cabangnya (lihat saja) dan memverifikasi **Absensi FirstWork**.
 5. Dashboard **Admin**: analytics, pengguna, dan pantauan realtime.
 
 ---
