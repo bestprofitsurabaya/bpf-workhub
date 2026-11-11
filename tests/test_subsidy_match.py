@@ -285,8 +285,10 @@ def test_otp_request_tolak_saat_starting_409(env, gate):
     r = client.post('/api/subsidy/otp/request')
     assert r.status_code == 409
     # permintaan ganda selama agen menunggu OTP juga ditolak
+    # (timestamp HARUS baru — cooldown resend portal 180 detik).
+    now_iso = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S.000Z')
     (gate / 'agent_state.json').write_text(
-        '{"state": "waiting_otp", "updated_at": "2026-11-03T12:20:00.000Z"}')
+        '{"state": "waiting_otp", "updated_at": "%s"}' % now_iso)
     r = client.post('/api/subsidy/otp/request')
     assert r.status_code == 409
 

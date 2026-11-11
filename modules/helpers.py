@@ -1209,20 +1209,36 @@ def _is_trusted_proxy(ip):
     return addr.is_loopback or addr.is_private
 
 
+def _valid_ip(value):
+    """True bila `value` adalah alamat IP valid (cegah header sampah/spoof)."""
+    try:
+        ipaddress.ip_address(str(value or '').strip())
+        return True
+    except ValueError:
+        return False
+
+
 def client_ip():
     """IP klien anti-spoofing (ISO/IEC 27001 A.12.6 — kontrol teknis).
 
     - Via Cloudflare Tunnel (cloudflared di host): `CF-Connecting-IP` di-set oleh
       Cloudflare dan request masuk lewat loopback/private → dipercaya.
-    - Akses langsung origin (remote_addr publik): header CF bisa dipalsukan klien
-      → `CF-Connecting-IP` DIABAIKAN, dipakai `remote_addr` (peer TCP nyata).
+    - Via reverse proxy nginx di container lain: peer TCP adalah IP privat
+      (mis. 172.x). nginx menimpa `X-Real-IP` dengan `$remote_addr`, sehingga
+      header ini dipercaya HANYA bila peer-nya loopback/privat.
+    - Akses langsung origin (remote_addr publik): header CF/X-Real-IP bisa
+      dipalsukan klien → DIABAIKAN, dipakai `remote_addr` (peer TCP nyata).
     - `X-Forwarded-For` DIABAIKAN total: nilainya dikontrol penuh oleh klien bila
       request sampai ke origin tanpa proxy tepercaya (celah bypass rate limit).
     """
-    cf = (request.headers.get('CF-Connecting-IP') or '').strip()
     raddr = (request.remote_addr or '').strip()
-    if cf and _is_trusted_proxy(raddr):
-        return cf
+    if _is_trusted_proxy(raddr):
+        cf = (request.headers.get('CF-Connecting-IP') or '').strip()
+        if cf and _valid_ip(cf):
+            return cf
+        real = (request.headers.get('X-Real-IP') or '').strip()
+        if real and _valid_ip(real):
+            return real
     return raddr or '?'
 
 

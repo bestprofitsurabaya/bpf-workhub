@@ -158,7 +158,7 @@ def register_spa_routes(app):
         session['branch_name'] = branch['name']
         session.permanent = True
         csrf = _ensure_csrf()
-        log_activity_async(None, 'login', 'user', user['username'], ip=request.remote_addr)
+        log_activity_async(None, 'login', 'user', user['username'], ip=client_ip())
         # v2.37.0: admin per-cabang (`admin_<kode>`) terkunci ke cabangnya —
         # abaikan cabang terakhir yang dipakai sesi admin sebelumnya.
         is_ho = False
@@ -173,9 +173,9 @@ def register_spa_routes(app):
             from modules.routes_overtime import (trigger_driver_refresh_async,
                                                   trigger_ob_refresh_async)
             trigger_driver_refresh_async(user['role'], user['full_name'],
-                                         ip=request.remote_addr)
+                                         ip=client_ip())
             trigger_ob_refresh_async(user['role'], user['full_name'],
-                                     ip=request.remote_addr)
+                                     ip=client_ip())
         except Exception:
             pass  # sinkronisasi gagal tidak boleh menghalangi login
         # v2.41.1: sheet pelamar & in-out karyawan ikut disync saat login
@@ -183,7 +183,7 @@ def register_spa_routes(app):
         try:
             from modules.routes_receptionist import trigger_receptionist_sync_async
             trigger_receptionist_sync_async(user['role'], user['full_name'],
-                                            ip=request.remote_addr)
+                                            ip=client_ip())
         except Exception:
             pass  # sinkronisasi gagal tidak boleh menghalangi login
         return jsonify({
@@ -204,15 +204,15 @@ def register_spa_routes(app):
         try:
             from modules.routes_overtime import (trigger_driver_refresh_async,
                                                   trigger_ob_refresh_async)
-            trigger_driver_refresh_async(role, full_name, ip=request.remote_addr)
-            trigger_ob_refresh_async(role, full_name, ip=request.remote_addr)
+            trigger_driver_refresh_async(role, full_name, ip=client_ip())
+            trigger_ob_refresh_async(role, full_name, ip=client_ip())
         except Exception:
             pass  # sinkronisasi gagal tidak boleh menghalangi logout
         # v2.41.1: sheet pelamar & in-out karyawan ikut disync saat logout
         # receptionis/admin (fire-and-forget, debounce 30 detik).
         try:
             from modules.routes_receptionist import trigger_receptionist_sync_async
-            trigger_receptionist_sync_async(role, full_name, ip=request.remote_addr)
+            trigger_receptionist_sync_async(role, full_name, ip=client_ip())
         except Exception:
             pass  # sinkronisasi gagal tidak boleh menghalangi logout
         session.clear()
@@ -267,7 +267,7 @@ def register_spa_routes(app):
                 (admin_name, trip_id))
             conn.commit()
             cursor.close(); conn.close()
-            log_activity_async(trip_id, 'trip_verify', 'ga', admin_name, ip=request.remote_addr)
+            log_activity_async(trip_id, 'trip_verify', 'ga', admin_name, ip=client_ip())
             return jsonify({'status': 'success', 'msg': f'Trip #{trip_id} diverifikasi'})
         except Exception as e:
             return jsonify({'error': str(e)}), 500
@@ -288,7 +288,7 @@ def register_spa_routes(app):
             conn.commit()
             cursor.close(); conn.close()
             log_activity_async(trip_id, 'trip_reject', 'ga', session.get('user_name', 'GA Officer'),
-                               new_data={'reason': reason}, ip=request.remote_addr)
+                               new_data={'reason': reason}, ip=client_ip())
             return jsonify({'status': 'success', 'msg': f'Trip #{trip_id} ditolak'})
         except Exception as e:
             return jsonify({'error': str(e)}), 500

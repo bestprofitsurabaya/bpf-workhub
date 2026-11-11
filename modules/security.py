@@ -22,8 +22,12 @@ DEFAULT_WINDOW = 60     # detik
 
 
 def _client_ip():
-    # Konsisten dengan helpers.client_ip (hargai proxy trust)
-    return request.remote_addr or 'unknown'
+    # Konsisten dengan helpers.client_ip (hargai header proxy tepercaya).
+    try:
+        from modules.helpers import client_ip
+        return client_ip() or 'unknown'
+    except Exception:
+        return request.remote_addr or 'unknown'
 
 
 def rate_limit(limit=DEFAULT_LIMIT, window=DEFAULT_WINDOW, scope='public'):

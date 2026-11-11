@@ -16,6 +16,7 @@ atau sesi admin untuk uji manual. Sifat integrasi ADVISORY, bukan blokir:
 alat kepastian data yang diputuskan Finance saat verifikasi — rating match
 hanya membantu, payout tetap kebijakan Finance.
 """
+import hmac
 import json
 import os
 import re
@@ -278,7 +279,7 @@ def register_subsidy_routes(app):
         if has_session and str(session.get('user_role')).lower() != 'admin':
             return jsonify({'status': 'error', 'msg': 'Hanya admin'}), 403
         if not has_session:
-            if not expected or not header or header != expected:
+            if not expected or not header or not hmac.compare_digest(header, expected):
                 return jsonify({'status': 'error', 'msg': 'Token tidak valid'}), 401
         data = request.get_json(silent=True) or {}
         rows = data.get('rows') or []
@@ -681,7 +682,7 @@ def register_subsidy_routes(app):
         if has_session and role not in ('finance', 'admin'):
             return jsonify({'status': 'error', 'msg': 'Hanya finance/admin'}), 403
         if not has_session:
-            if not expected or not header or header != expected:
+            if not expected or not header or not hmac.compare_digest(header, expected):
                 return jsonify({'status': 'error', 'msg': 'Token tidak valid'}), 401
         actor = (session.get('full_name') or session.get('user_name') or 'agen').strip()
         conn = get_db_connection()

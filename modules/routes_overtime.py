@@ -24,7 +24,8 @@ from datetime import datetime, date, timedelta
 from flask import request, jsonify, make_response, session
 from modules.config import get_db_connection
 from modules.helpers import (role_required, log_activity_async,
-                             generate_display_id, production_pool_executor)
+                             generate_display_id, production_pool_executor,
+                             client_ip)
 from modules.overtime_helpers import (clean, map_headers, parse_date_mdy,
                                       parse_time_12h,
                                       parse_date_any, parse_time_any,
@@ -679,7 +680,7 @@ def register_overtime_routes(app):
     def api_overtime_me_submit():
         """Submit overtime oleh user OB/Security yang sedang login."""
         try:
-            ip = request.remote_addr or '?'
+            ip = client_ip() or '?'
             if not _rate_ok(ip):
                 return jsonify({'status': 'error',
                                 'msg': 'Terlalu banyak pengiriman dari perangkat ini. '
@@ -786,7 +787,7 @@ def register_overtime_routes(app):
     def api_overtime_submit():
         """Submit overtime OB/Security dari form publik (tanpa login)."""
         try:
-            ip = request.remote_addr or '?'
+            ip = client_ip() or '?'
             if not _rate_ok(ip):
                 return jsonify({'status': 'error',
                                 'msg': 'Terlalu banyak pengiriman dari perangkat ini. '
@@ -855,7 +856,7 @@ def register_overtime_routes(app):
     def api_overtime_driver_submit():
         """Submit overtime Driver dari PWA (perlu login driver)."""
         try:
-            ip = request.remote_addr or '?'
+            ip = client_ip() or '?'
             if not _rate_ok(ip):
                 return jsonify({'status': 'error',
                                 'msg': 'Terlalu banyak pengiriman dari perangkat ini. '
@@ -898,7 +899,7 @@ def register_overtime_routes(app):
             hook_create_approval(conn, 'overtime_driver', ot_row_id, display_id=display_id, role='driver')
 
             log_activity_async(None, 'overtime_driver_submit', 'driver', nama,
-                               new_data={'display_id': display_id}, ip=request.remote_addr)
+                               new_data={'display_id': display_id}, ip=client_ip())
             try:
                 from modules.notifications import push_overtime_notification
                 push_overtime_notification(
@@ -1001,7 +1002,7 @@ def register_overtime_routes(app):
                 }), 502
             user = _current_user()
             log_activity_async(None, 'overtime_driver_refresh', user['role'],
-                               user['full_name'], new_data=result, ip=request.remote_addr)
+                               user['full_name'], new_data=result, ip=client_ip())
             return jsonify(result)
         except Exception as e:
             return jsonify({'status': 'error', 'msg': str(e)}), 500
@@ -1030,7 +1031,7 @@ def register_overtime_routes(app):
                 }), 502
             user = _current_user()
             log_activity_async(None, 'overtime_ob_refresh', user['role'],
-                               user['full_name'], new_data=result, ip=request.remote_addr)
+                               user['full_name'], new_data=result, ip=client_ip())
             return jsonify(result)
         except Exception as e:
             return jsonify({'status': 'error', 'msg': str(e)}), 500
@@ -1440,7 +1441,7 @@ def register_overtime_routes(app):
                 cursor.close(); conn.close()
                 user = _current_user()
                 log_activity_async(None, 'overtime_config', user['role'], user['full_name'],
-                                   new_data={'submit_deadline_hours': hours}, ip=request.remote_addr)
+                                   new_data={'submit_deadline_hours': hours}, ip=client_ip())
                 return jsonify({'status': 'success',
                                 'msg': f'Batas waktu submit: {hours} jam setelah jam selesai OT'})
             modul = clean(data.get('modul', 'driver'))
@@ -1463,7 +1464,7 @@ def register_overtime_routes(app):
             conn.commit()
             user = _current_user()
             log_activity_async(None, 'overtime_config', user['role'], user['full_name'],
-                               new_data={'modul': modul, 'sheet_url': url[:120]}, ip=request.remote_addr)
+                               new_data={'modul': modul, 'sheet_url': url[:120]}, ip=client_ip())
             cursor.close(); conn.close()
             label = 'Driver' if modul == 'driver' else 'OB/Security'
             return jsonify({'status': 'success', 'msg': f'URL sumber data {label} diperbarui'})
@@ -1569,7 +1570,7 @@ def register_overtime_routes(app):
                                old_data={'id': row_id, 'modul': modul},
                                new_data={'id': row_id, 'modul': modul,
                                          'changes': {c: clean(str(data[c])) for c in _OT_COLUMNS[modul] if c in data}},
-                               ip=request.remote_addr)
+                               ip=client_ip())
             cursor.close(); conn.close()
             return jsonify({'status': 'success', 'msg': 'Data overtime diperbarui'})
         except Exception as e:
@@ -1594,7 +1595,7 @@ def register_overtime_routes(app):
             log_activity_async(None, 'overtime_delete', user['role'], user['full_name'],
                                old_data={'id': row_id, 'modul': modul,
                                          'nama': old.get('nama'), 'tanggal': str(old.get('tanggal'))},
-                               ip=request.remote_addr)
+                               ip=client_ip())
             cursor.close(); conn.close()
             return jsonify({'status': 'success', 'msg': 'Data overtime dihapus'})
         except Exception as e:
@@ -1675,7 +1676,7 @@ def register_overtime_routes(app):
             log_activity_async(None, 'overtime_replace_foto', user['role'], user['full_name'],
                                old_data={'id': row_id, 'modul': modul, col: old.get(col)},
                                new_data={'id': row_id, 'modul': modul, col: url},
-                               ip=request.remote_addr)
+                               ip=client_ip())
             return jsonify({'status': 'success', 'msg': f'Foto {slot} diperbarui', 'url': url})
         except Exception as e:
             return jsonify({'status': 'error', 'msg': str(e)}), 500
@@ -1693,7 +1694,7 @@ def register_overtime_routes(app):
             result = _cleanup_old_photos(max_age_days=180)
             user = _current_user()
             log_activity_async(None, 'overtime_photo_cleanup', user['role'],
-                               user['full_name'], new_data=result, ip=request.remote_addr)
+                               user['full_name'], new_data=result, ip=client_ip())
             return jsonify({'status': 'success', 'msg': f"{result['deleted']} foto dihapus, {result['errors']} error", **result})
         except Exception as e:
             return jsonify({'status': 'error', 'msg': str(e)}), 500

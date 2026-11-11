@@ -5,6 +5,7 @@ Menjamin rate limit (login & verify-pin) tidak bisa dibypass dengan memalsukan
 header X-Forwarded-For:
 
 - Via Cloudflare Tunnel: CF-Connecting-IP (di-set & ditimpa Cloudflare) dipakai.
+- Via nginx container: X-Real-IP dipercaya HANYA bila peer TCP loopback/privat.
 - X-Forwarded-For DIABAIKAN sepenuhnya (nilai pertamanya dikontrol klien).
 - Akses langsung origin: request.remote_addr (peer TCP nyata) sebagai fallback.
 
@@ -63,6 +64,41 @@ def test_cf_palsu_diabaikan_saat_origin_diakses_langsung_dari_ip_publik():
     )
     with ctx:
         assert client_ip() == '8.8.8.8'
+
+
+def test_x_real_ip_dipakai_dari_proxy_privat():
+    """nginx di container lain (peer 172.x) menimpa X-Real-IP -> dipercaya."""
+    app = Flask(__name__)
+    ctx = app.test_request_context(
+        '/',
+        headers={'X-Real-IP': '203.0.113.50'},
+        environ_overrides={'REMOTE_ADDR': '172.18.0.5'},
+    )
+    with ctx:
+        assert client_ip() == '203.0.113.50'
+
+
+def test_x_real_ip_palsu_diabaikan_dari_ip_publik():
+    """X-Real-IP palsu tidak dipercaya bila peer TCP publik (origin diekspos)."""
+    app = Flask(__name__)
+    ctx = app.test_request_context(
+        '/',
+        headers={'X-Real-IP': '203.0.113.50'},
+        environ_overrides={'REMOTE_ADDR': '8.8.8.8'},
+    )
+    with ctx:
+        assert client_ip() == '8.8.8.8'
+
+
+def test_x_real_ip_sampah_diabaikan():
+    app = Flask(__name__)
+    ctx = app.test_request_context(
+        '/',
+        headers={'X-Real-IP': 'not-an-ip'},
+        environ_overrides={'REMOTE_ADDR': '172.18.0.5'},
+    )
+    with ctx:
+        assert client_ip() == '172.18.0.5'
 
 
 def test_selalu_mengembalikan_string_non_kosong():
