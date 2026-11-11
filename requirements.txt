@@ -11,7 +11,7 @@ requests==2.34.2
 # dihapus di gunicorn 26 — insiden 8 Sep 2026). gevent kini via extra
 # gunicorn[gevent]; naik ke 26.x aman SETELAH jalur gevent stabil.
 gunicorn[gevent]==23.0.0
-openpyxl>=3.1.0
+openpyxl>=3.1.5
 flask-socketio>=5.6.1
 gevent>=24.10.1
 redis>=5.0.0
