@@ -250,6 +250,18 @@ const PAGE_HELP = [
     terms: ['HO'],
   },
   {
+    paths: ['/profile'],
+    title: 'Profil Saya',
+    summary: 'Ganti nama tampilan dan PIN Anda sendiri, tanpa perlu Admin.',
+    steps: [
+      'Buka menu Profil Saya lewat ikon 👤 di kartu user (kanan bawah sidebar).',
+      'Ubah Nama Lengkap lalu tekan Simpan — nama ini dipakai di sidebar, PDF, dan audit log.',
+      'Ganti PIN: isi PIN saat ini, PIN baru 6 digit, lalu ulangi PIN baru.',
+      'PIN lemah (123456 / angka berulang) ditolak. Username, peran, dan cabang tetap diatur Admin.',
+    ],
+    terms: ['PIN', 'Audit Log'],
+  },
+  {
     paths: ['/inout'],
     title: 'In-Out Karyawan',
     summary: 'Catatan keluar-masuk karyawan; sumber sheet atau input receptionist.',

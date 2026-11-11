@@ -90,7 +90,26 @@ Mintalah **Admin** untuk mereset PIN-mu (dari halaman Manajemen User). Jangan be
 
 > 🔑 **Saran:** segera ganti PIN setelah pertama kali masuk. PIN awal semua akun biasanya `123456`.
 
-### 2.4 Memasang di Layar Utama HP (Opsional)
+### 2.4 Profil Saya — Ganti Nama & PIN 👤 (sejak v2.81.0)
+
+Setiap user (semua peran & cabang) bisa merawat akunnya sendiri tanpa menunggu
+Admin:
+
+1. Klik ikon **👤** di kartu user (kanan bawah sidebar) — atau buka
+   **`/app/profile`**.
+2. **Nama Tampilan** — ubah **Nama Lengkap**, lalu klik **💾 Simpan Nama**.
+   Nama ini yang tampil di sidebar, dokumen PDF, dan jejak audit.
+3. **Ganti PIN** — isi **PIN saat ini**, **PIN baru** (6 digit), dan **ulangi PIN
+   baru**, lalu klik **🔑 Ganti PIN**.
+   - PIN lemah ditolak (mis. `123456` atau angka berulang).
+   - PIN baru harus berbeda dari PIN lama.
+   - PIN disimpan sebagai hash dan tidak pernah ditulis di audit log.
+4. **Username, peran, dan cabang** tidak bisa diubah sendiri — hubungi Admin.
+
+> 🔒 Percobaan ganti PIN dibatasi 10× per 5 menit per perangkat. Kalau PIN saat
+> ini lupa, minta Admin mereset dari **Manajemen User**.
+
+### 2.5 Memasang di Layar Utama HP (Opsional)
 
 1. Buka aplikasi di browser HP (Chrome).
 2. Ketuk ikon **⋮** (titik tiga) di pojok kanan atas.

@@ -324,6 +324,7 @@ onBeforeUnmount(() => {
             <span v-if="auth.role === 'admin' && !auth.isHoAdmin" class="branch-chip" title="Admin cabang — terkunci ke cabang ini">🔒 Cabang</span>
           </div>
         </div>
+        <router-link class="btn-icon" to="/profile" title="Profil Saya" aria-label="Profil Saya">👤</router-link>
         <button class="btn-icon" title="Keluar" aria-label="Keluar" @click="doLogout">🚪</button>
       </div>
     </aside>

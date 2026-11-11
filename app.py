@@ -485,6 +485,7 @@ from modules.routes_procurement import register_procurement_routes          # v2
 from modules.routes_expense import register_expense_routes                    # v2.71.0
 from modules.routes_it_assets import register_it_asset_routes                # v2.78.0
 from modules.routes_first_work import register_first_work_routes             # v2.80.0
+from modules.routes_profile import register_profile_routes                   # v2.81.0
 from modules.approvals import register_approval_routes
 from modules.transcoder import register_transcoder_routes
 from modules.pdfkit import register_pdfkit_routes
@@ -495,6 +496,7 @@ register_procurement_routes(app)
 register_expense_routes(app)
 register_it_asset_routes(app)
 register_first_work_routes(app)   # v2.80.0 — Absensi FirstWork (trainee)
+register_profile_routes(app)      # v2.81.0 — Profil Saya (ganti nama & PIN)
 register_master_api(app)
 register_transaction_api(app)
 register_assignment_api(app)

@@ -7,6 +7,34 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.81.0 — 11 November 2026 (Profil Saya: ganti nama & PIN sendiri)
+
+Sebelumnya mengganti nama atau PIN selalu lewat Admin, sehingga user di cabang
+harus menunggu dan Admin memegang PIN banyak orang. Kini setiap user — semua
+role di semua cabang — punya halaman **Profil Saya** untuk merawat akunnya
+sendiri tanpa membuka akses administratif.
+
+- 👤 **Profil Saya** (`/app/profile`, ikon 👤 di kartu user) — menampilkan
+  username, peran, cabang, dan login terakhir; nama lengkap bisa langsung diubah
+  dan dipakai di sidebar, dokumen PDF, serta audit log.
+- 🔑 **Ganti PIN mandiri** — wajib memasukkan PIN saat ini, PIN baru 6 digit yang
+  lolos kebijakan (bukan `123456`/angka berulang), dan konfirmasi ulangan. PIN
+  disimpan sebagai hash; nilai PIN tidak pernah masuk audit log (hanya catatan
+  `profile_pin_change`).
+- 🛡️ **Batas percobaan** — endpoint profil dibatasi 10 percobaan per 5 menit per
+  perangkat, dan percobaan PIN salah dicatat sebagai `profile_pin_change_failed`.
+- 🔒 **Tetap least privilege** — username, peran, dan cabang tidak bisa diubah
+  sendiri (hanya Admin lewat Manajemen User); sesi langsung memakai nama baru.
+- ✅ **Pengujian** — 9 test backend (`tests/test_profile.py`: semua role, PIN
+  salah/lemah/berulang, hash tersimpan, audit tanpa PIN) dan 5 test vitest
+  (muat profil, simpan nama, validasi & ganti PIN).
+
+Akun uji lintas cabang (Semarang) dibuat untuk verifikasi: `traineer_smg_uji`,
+`finance_smg_uji`, `gahr_smg_uji`, `admin_smg_uji` — keempatnya hanya melihat
+data cabangnya sendiri (0 antrean) dan semua percobaan tulis ditolak 403.
+
+---
+
 ## v2.80.0 — 11 November 2026 (Rekrutmen & Absensi FirstWork: satu pintu, read-only aman)
 
 Merapikan area pelamar/trainee setelah fitur Absensi FirstWork masuk. Menu
