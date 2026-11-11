@@ -339,8 +339,9 @@ Detail kecil yang penting:
 Urut per cabang+kategori, tidak pernah dipakai ulang (aset disposed tetap
 memegang tag-nya).
 
-**Isi QR:** URL pendek `https://nasbpfsby.duckdns.org/app/it/assets/SBY-IT-PC-0001`
-(±62 karakter, QR versi 4, masih nyaman dicetak 22–25 mm). Untuk perangkat
+**Isi QR:** URL aplikasi `https://nasbpfsby.duckdns.org:5000/app/it/assets/SBY-IT-PC-0001`
+(`:5000` wajib — port 443 dilayani Nextcloud; ±67 karakter, QR versi 5, masih
+nyaman dicetak 22–25 mm). Untuk perangkat
 tanpa akses internet, sisi aplikasi tetap bisa membuka lewat input tag manual.
 
 **Langkah baku:**
@@ -458,7 +459,7 @@ tests/test_it_assets.py            (baru)  CRUD, scoping cabang, klasifikasi
 
 ## 7. Keputusan yang perlu dikonfirmasi
 
-1. **Domain QR**: pakai URL publik `nasbpfsby.duckdns.org` (bisa discan siapa pun,
+1. **Domain QR**: pakai URL publik `nasbpfsby.duckdns.org:5000` (bisa discan siapa pun,
    tapi butuh login) atau kode ringkas `BPFIT:...` (hanya dikenal aplikasi)?
 2. **Cakupan discovery**: hanya `192.168.2.0/23` atau juga pool VPN
    `172.60.199.0/24`?
@@ -482,3 +483,41 @@ tests/test_it_assets.py            (baru)  CRUD, scoping cabang, klasifikasi
 - PDF label: 24 label A4 (3×8, 63×35 mm) berisi QR + `SBY-IT-PC-xxxx` +
   footer "PT Bestprofit Futures - Surabaya"; file uji `/tmp/qr-label-spike.pdf`.
 - `it_sby` PIN terverifikasi cocok dengan hash scrypt di DB master.
+
+
+---
+
+## 8. Status implementasi (produksi, 11 Nov 2026)
+
+Keputusan yang diambil pada bagian 7 — semua sudah diterapkan kecuali yang
+ditandai *menunggu*:
+
+| Butir | Keputusan |
+|---|---|
+| Domain QR | URL publik `https://nasbpfsby.duckdns.org:5000/app/it/assets/<TAG>` (butuh login) |
+| Cakupan discovery | `192.168.2.0/23` (VNAT `172.60.199.0/24` *menunggu persetujuan*) |
+| MikroTik | API 8728 masih tertutup — sweep + ARP jalan; *menunggu* bila ingin hostname akurat |
+| Agen WMI | dipakai (PowerShell, manual/Task Scheduler) |
+| Printer label | stiker A4 (3×8 default, opsi 2×8 dan 2×6) |
+| Auto-adopt | **tidak** — kandidat selalu ditinjau IT |
+
+Konfigurasi produksi yang terpasang:
+
+- `.env`: `IT_DISCOVERY_TOKEN` (48 karakter acak), `IT_ASSET_PUBLIC_BASE`,
+  `IT_DISCOVERY_SUBNETS=192.168.2.0/23`.
+- Cron host `it-ef`: `0 12,20 * * *` menjalankan
+  `scripts/it_discovery_agent.py --branch SBY --subnets 192.168.2.0/23`
+  (log `/home/it-ef/it-discovery.log`). Hasil hanya menjadi kandidat.
+- Tabel `it_*` dibuat otomatis saat container start di DB master + 11 DB cabang.
+- Akses: role IT (per cabang) dan `admin`; role lain ditolak 403. Data ter-scope
+  `branch_code` — aset cabang lain tidak terlihat (404 pada lookup lintas cabang).
+- MikroTik via API: `pip install librouteros` di host bila API 8728 dibuka.
+
+Catatan operasional:
+
+- Label batch default hanya mencetak aset yang `label_printed_at` masih kosong
+  (maks 120); mencetak label menandai aset "tercetak" dan menulis event riwayat.
+- Hapus permanen tidak disediakan; gunakan status `disposed` agar tag tidak
+  dipakai ulang.
+- QR kamera memerlukan `BarcodeDetector` (Chrome Android); input tag manual
+  tersedia sebagai fallback di `/it/scan`.
