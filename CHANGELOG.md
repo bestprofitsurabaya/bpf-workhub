@@ -7,6 +7,25 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.91.0 — 12 November 2026 (FirstWork: OCR dua jalur — ROI NIK/nama + voting)
+
+- 🎯 **Dua jalur OCR**: selain membaca halaman penuh (`--psm 6`), kini kata
+  kunci "NIK" dan "Nama" dicari dari kotak kata Tesseract, area di kanannya
+  dipotong, lalu dibaca ulang (`--psm 7`) — NIK memakai whitelist angka.
+- 🧮 **Voting + filter tanggal lahir**: kandidat NIK dari semua jalur
+digabung, yang tanggalnya tidak valid dibuang lebih dulu, lalu dipilih yang
+  paling sering muncul dan paling yakin. Sebelumnya satu kandidat berlabel
+  namun salah baca bisa membuat NIK valid lain ikut terbuang.
+- 🔍 **Fallback sparse (`--psm 11`)** bila NIK tetap tidak ditemukan, dan
+  **upscale** gambar KTP kecil (<900 px) sebelum OCR.
+- 📈 Diukur dengan harness v2.90.0 pada 24 KTP sintetis (rotasi/blur/glare):
+  akurasi NIK **66,7% → 75,0%**, nama **100%**, waktu OCR ~468 ms/berkas.
+  Angka ini baseline sintetis, bukan akurasi lapangan; korpus nyata
+  ber-consent masih perlu diukur dengan perintah yang sama.
+- ⚠️ Pemilihan kandidat memakai skor (keyakinan + bonus label NIK +
+  frekuensi), bukan semata voting — varian ini diuji dan menaikkan NIK dari
+  70,8% ke 75,0%.
+
 ## v2.90.0 — 12 November 2026 (FirstWork: alat ukur scan + OCR KTP)
 
 - 🧪 **Harness evaluasi** `scripts/eval_first_work_ktp.py` — mengukur laju
