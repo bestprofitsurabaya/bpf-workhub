@@ -426,6 +426,15 @@ def register_driver_routes(app, socketio):
         # Auth check: require login session to access uploaded files (IDOR prevention).
         if not session.get('user_name') and not session.get('driver_name'):
             return jsonify({'error': 'Login diperlukan'}), 401
+        # v2.82.0: berkas FirstWork (foto KTP = dokumen identitas) HANYA untuk
+        # Traineer/Admin yang berhak memverifikasi. Sebelumnya cukup punya sesi
+        # login apa pun (driver/OB/marketing cabang lain) untuk membuka KTP bila
+        # nama filenya diketahui. Jalur resmi: /api/first-work/<id>/ktp
+        # (ter-scope cabang + tercatat di audit).
+        _upload_path = str(filename or '').replace('\\', '/').lstrip('/')
+        if _upload_path.startswith('first_work/') and \
+                session.get('user_role') not in ('traineer', 'admin'):
+            return jsonify({'error': 'Akses ditolak: berkas ini hanya untuk Traineer/Admin.'}), 403
         # v2.40.1: <filename> -> <path:filename> — foto bukti overtime disimpan
         # di SUBFOLDER uploads/overtime/ (URL 2 segmen) yang tidak tertangkap
         # route lama 1-segmen → preview & PDF foto form selalu 404.

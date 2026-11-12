@@ -10,6 +10,9 @@ const STEPS = ['Data Diri', 'Kontak & Referensi', 'Identitas']
 // terhadap master branches dan menolak nilai asing (jatuh ke SBY).
 const linkParams = new URLSearchParams(window.location.search)
 const linkBranch = (linkParams.get('cabang') || linkParams.get('branch') || '').trim().toUpperCase()
+// v2.82.0: token form milik cabang. Tanpa token yang cocok, isian tidak bisa
+// dikirim atas nama cabang tersebut (anti tukar/mix antar cabang).
+const linkToken = (linkParams.get('t') || linkParams.get('token') || '').trim()
 const branchLabel = ref('')
 const resolvedBranch = ref(linkBranch)
 
@@ -157,9 +160,17 @@ watch(step, saveDraft)
 
 async function loadReferrers() {
   try {
-    const query = linkBranch ? `?cabang=${encodeURIComponent(linkBranch)}` : ''
+    const params = new URLSearchParams()
+    if (linkBranch) params.set('cabang', linkBranch)
+    if (linkToken) params.set('t', linkToken)
+    const query = params.toString() ? `?${params.toString()}` : ''
     const response = await fetch('/api/first-work/referrers' + query, { headers: { Accept: 'application/json' } })
     const data = await response.json()
+    if (!response.ok) {
+      error.value = data.error || 'Tautan form tidak valid untuk cabang ini.'
+      referrers.value = []
+      return
+    }
     referrers.value = data.referrers || []
     branchLabel.value = data.branch_name || ''
     resolvedBranch.value = data.branch || linkBranch
@@ -267,6 +278,7 @@ async function submit() {
   if (manualRef.value) payload.append('referensi_text', form.referensi_text.trim())
   else payload.append('referrer_id', form.referrer_id)
   payload.append('branch', resolvedBranch.value)
+  if (linkToken) payload.append('t', linkToken)
   payload.append('ktp', ktpFile.value)
 
   const csrf = localStorage.getItem('bpf_csrf') || sessionStorage.getItem('bpf_csrf')
