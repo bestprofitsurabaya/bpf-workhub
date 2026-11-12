@@ -96,10 +96,13 @@ def get_rekap_data(start_date=None, end_date=None, nopol=None, driver=None, tx_t
             return []
         cursor = conn.cursor(dictionary=True)
 
-        query = """
+        # v2.101.0: definisi Rekap disamakan — klaim yang sudah dibayar/arsip
+        # + LPJ sah, tanpa `rejected`/`pending` (modules/bbm_scope.py).
+        from modules import bbm_scope
+        query = f"""
             SELECT t.*, d.vehicle_type as master_vehicle, d.bbm_type as master_bbm
             FROM transactions t LEFT JOIN drivers d ON t.driver_name = d.name
-            WHERE t.status IN ('verified', 'archived', 'os_finance', 'verified_ga', 'rejected')
+            WHERE {bbm_scope.rekap_scope_sql('t')}
               AND (t.is_dummy = 0 OR t.is_dummy IS NULL)
         """
         params = []

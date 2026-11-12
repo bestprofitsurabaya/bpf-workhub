@@ -1,5 +1,5 @@
 <script setup>
-import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Chart, registerables } from 'chart.js'
 import { api } from '../api'
 import LoadingState from '../components/LoadingState.vue'
@@ -15,9 +15,11 @@ function localISO(d) {
   return `${d.getFullYear()}-${mm}-${dd}`
 }
 
+// Fase 3 (v2.102.0): periode datang dari context bar /cash.
+const props = defineProps({ scope: { type: Object, default: null } })
 const today = localISO(new Date())
-const start = ref(localISO(new Date(Date.now() - 29 * 864e5)))
-const end = ref(today)
+const start = ref(props.scope?.start || localISO(new Date(Date.now() - 29 * 864e5)))
+const end = ref(props.scope?.end || today)
 const d = ref(null)
 const loading = ref(true)
 const err = ref('')
@@ -102,15 +104,13 @@ async function load() {
   }
 }
 
-function preset(key) {
-  const now = new Date()
-  if (key === '7') start.value = localISO(new Date(Date.now() - 6 * 864e5))
-  else if (key === '30') start.value = localISO(new Date(Date.now() - 29 * 864e5))
-  else if (key === 'month') start.value = localISO(new Date(now.getFullYear(), now.getMonth(), 1))
-  else if (key === 'year') start.value = `${now.getFullYear()}-01-01`
-  end.value = today
+watch(() => props.scope, (s) => {
+  if (!s?.start || !s?.end) return
+  if (s.start === start.value && s.end === end.value) return
+  start.value = s.start
+  end.value = s.end
   load()
-}
+})
 
 function csvCell(v) {
   const s = String(v ?? '')
@@ -170,18 +170,10 @@ onBeforeUnmount(() => { [ch1, ch2, ch3].forEach((c) => c && c.destroy()) })
 
     <div class="card card-pad" style="margin-bottom:16px;">
       <div class="row" style="flex-wrap:wrap;gap:8px;">
-        <div class="field" style="margin:0;"><label>Dari</label><input class="input" type="date" v-model="start" /></div>
-        <div class="field" style="margin:0;"><label>Sampai</label><input class="input" type="date" v-model="end" /></div>
-        <button class="btn btn-primary" @click="load" style="margin-top:18px;">📈 Tampilkan</button>
+        <span class="muted" style="font-size:12px;">Periode: {{ start }} s/d {{ end }} (dari bar di atas).</span>
         <div class="spacer"></div>
-        <button class="btn" @click="exportCsv" style="margin-top:18px;">⬇️ CSV</button>
-      </div>
-      <div class="row" style="gap:6px;margin-top:10px;flex-wrap:wrap;">
-        <span class="muted" style="font-size:11px;align-self:center;">Cepat:</span>
-        <button class="btn btn-sm" @click="preset('7')">7 hari</button>
-        <button class="btn btn-sm" @click="preset('30')">30 hari</button>
-        <button class="btn btn-sm" @click="preset('month')">Bulan ini</button>
-        <button class="btn btn-sm" @click="preset('year')">Tahun ini</button>
+        <button class="btn" @click="load">🔄 Muat ulang</button>
+        <button class="btn" @click="exportCsv">⬇️ CSV</button>
       </div>
     </div>
 

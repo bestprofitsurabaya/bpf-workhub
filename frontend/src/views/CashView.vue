@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, defineAsyncComponent, onMounted, ref, watch } from 'vue'
 import { api } from '../api'
 import { useAuthStore } from '../stores/auth'
 import { useStepupStore } from '../stores/stepup'
@@ -8,17 +8,116 @@ import LoadingState from '../components/LoadingState.vue'
 import ErrorState from '../components/ErrorState.vue'
 import PageHeader from '../components/PageHeader.vue'
 import BbmKasbonPanel from '../components/BbmKasbonPanel.vue'
+import BbmActionQueue from '../components/BbmActionQueue.vue'
+import BbmWorkspaceKpi from '../components/BbmWorkspaceKpi.vue'
 import { formatDateTime } from '../utils/format.js'
+
+// Fase 1 (v2.100.0): tiga laporan lama dirender di dalam meja kerja ini.
+// Dimuat malas agar tab BBM tidak ikut menanggung chart.js.
+const RekapReport = defineAsyncComponent(() => import('./RekapView.vue'))
+const ExpensesReport = defineAsyncComponent(() => import('./ExpensesView.vue'))
+const AnalyticsReport = defineAsyncComponent(() => import('./AnalyticsView.vue'))
 
 const stepup = useStepupStore()
 
+// Fase 3 (v2.103.0): antrean hanya menunjuk tab; aksi uang tetap di panel tab.
+// v2.104.0: antrean boleh bringing baris yang perlu ditindak, dan tab tujuan
+// bisa difilter — jadi "angka → baris → aksi" benar-benar jalan.
+// Filter yang bisa dibawa:
+//   { tab, filters: { kasbon?: 'cair'|'outstanding'|'all',
+//                      bbmTab?: 'incoming'|'ready'|'confirm'|'history',
+//                      bbmType?: 'CLAIM'|'CASH_LPJ' } }
+const kasbonFilter = ref('all')
+const bbmFocus = ref({ tab: '', type: '' })
+
+const KASBON_FILTERS = {
+  all: { label: 'Semua kasbon', test: () => true },
+  cair: { label: 'Kasbon cair (dana diserahkan)', test: (c) => !!c.handover_at },
+  outstanding: {
+    label: 'Dana di driver (belum LPJ)',
+    test: (c) => ['FUNDS_WITH_DRIVER', 'LPJ_SUBMITTED'].includes(c.status),
+  },
+}
+
+const visibleCash = computed(() => {
+  const f = KASBON_FILTERS[kasbonFilter.value] || KASBON_FILTERS.all
+  return (cash.value || []).filter(f.test)
+})
+
+// Catatan filter per tab — supaya catatan dari tab lain tidak ikut terbawa.
+const kasbonNote = computed(() =>
+  kasbonFilter.value === 'all' ? '' : `Filter: ${KASBON_FILTERS[kasbonFilter.value].label}`)
+
+const bbmNote = computed(() => {
+  const parts = []
+  if (bbmFocus.value.tab) parts.push(bbmFocus.value.tab)
+  if (bbmFocus.value.type) parts.push(bbmFocus.value.type)
+  return parts.length ? `Filter: ${parts.join(' · ')}` : ''
+})
+
+function applyFilters(filters) {
+  if (!filters) return
+  if (filters.kasbon && KASBON_FILTERS[filters.kasbon]) {
+    kasbonFilter.value = filters.kasbon
+  }
+  if (filters.bbmTab || filters.bbmType) {
+    bbmFocus.value = {
+      tab: filters.bbmTab || bbmFocus.value.tab,
+      type: filters.bbmType || bbmFocus.value.type,
+    }
+  }
+}
+
+function openQueue(payload) {
+  // Backward-compatible: string (nama tab) atau objek { tab, filters }.
+  const p = typeof payload === 'string' ? { tab: payload } : (payload || {})
+  let tab = p.tab
+  // Tab SubsidiTepat hanya untuk Finance/Admin — jangan buka tab yang tidak
+  // ada (biarpun URL/parameter minta), cukup arahkan ke tab BBM.
+  if (tab === 'subsidy' && !isFinance) tab = 'bbm'
+  if (['bbm', 'kasbon', 'subsidy', 'laporan'].includes(tab)) activeSection.value = tab
+  applyFilters(p.filters)
+}
+
 const auth = useAuthStore()
+
+// Fase 3 (v2.102.0): satu periode untuk semua laporan di meja kerja ini.
+// Sebelumnya Rekap & Analisis default 30 hari, Realisasi default YTD — angka
+// tiga tab bisa berasal dari rentang berbeda tanpa disadari.
+function localISO(d) {
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  const dd = String(d.getDate()).padStart(2, '0')
+  return `${d.getFullYear()}-${mm}-${dd}`
+}
+const _scopeParams = new URLSearchParams(window.location.search)
+const reportStart = ref(_scopeParams.get('start') || localISO(new Date(Date.now() - 29 * 864e5)))
+const reportEnd = ref(_scopeParams.get('end') || localISO(new Date()))
+const reportScope = computed(() => ({ start: reportStart.value, end: reportEnd.value }))
+
+function scopePreset(key) {
+  const now = new Date()
+  if (key === '7') reportStart.value = localISO(new Date(Date.now() - 6 * 864e5))
+  else if (key === '30') reportStart.value = localISO(new Date(Date.now() - 29 * 864e5))
+  else if (key === 'month') reportStart.value = localISO(new Date(now.getFullYear(), now.getMonth(), 1))
+  else if (key === 'year') reportStart.value = `${now.getFullYear()}-01-01`
+  reportEnd.value = localISO(now)
+}
+
+// Periode ikut tersimpan di URL agar bookmark/refresh menampilkan angka yang sama.
+watch([reportStart, reportEnd], ([s, e]) => {
+  const p = new URLSearchParams(window.location.search)
+  p.set('start', s); p.set('end', e); p.set('tab', 'laporan')
+  window.history.replaceState(null, '', `${window.location.pathname}?${p.toString()}`)
+})
+
 const cash = ref([])
 const loading = ref(true)
 const err = ref('')
 const daily = ref({ code: '', manual_mode: false })
 const dailyMsg = ref('')
 const busy = ref(false)
+// v2.104.0: naikkan untuk memuat ulang antrean setelah aksi dari antrean.
+const queueReloadKey = ref(0)
 
 const action = ref(null) // { kind, id }
 const form = ref({ amount: '', reason: '', notes: '' })
@@ -32,10 +131,28 @@ const canEditDaily = isFinance
 
 // Menu bar modul: BBM | Kasbon & LPJ | SubsidiTepat (SPBU + OTP).
 // Deep link ?tab=kasbon dipakai kartu prioritas Dashboard Finance.
-const _requestedTab = new URLSearchParams(window.location.search).get('tab')
-const _validTabs = ['bbm', 'kasbon', 'subsidy']
+const _params = new URLSearchParams(window.location.search)
+const _requestedTab = _params.get('tab')
+const _validTabs = ['bbm', 'kasbon', 'subsidy', 'laporan']
 const activeSection = ref(
   _validTabs.includes(_requestedTab) && (_requestedTab !== 'subsidy' || isFinance) ? _requestedTab : 'bbm',
+)
+
+// Sub-tab laporan. Definisi & filter masih milik masing-masing halaman sampai
+// Fase 2 menyatukan periode/cabang; sub-tab yang tidak boleh dilihat role
+// tidak dirender sama sekali (mis. Realisasi untuk GA).
+const REPORT_TABS = [
+  { key: 'rekap', label: 'Rekap Klaim BBM', icon: '📋', roles: ['ga', 'finance', 'admin'], comp: RekapReport },
+  { key: 'realisasi', label: 'Realisasi Pengeluaran', icon: '📊', roles: ['finance', 'admin'], comp: ExpensesReport },
+  { key: 'analisis', label: 'Analisis BBM & Armada', icon: '📈', roles: ['ga', 'finance', 'admin'], comp: AnalyticsReport },
+]
+const reportViews = computed(() => REPORT_TABS.filter((t) => t.roles.includes(auth.role)))
+const _requestedView = _params.get('view')
+const reportView = ref(
+  reportViews.value.some((t) => t.key === _requestedView) ? _requestedView : reportViews.value[0]?.key,
+)
+const activeReport = computed(
+  () => reportViews.value.find((t) => t.key === reportView.value) || reportViews.value[0],
 )
 
 const STEPS = ['DRAFT', 'GA_APPROVED', 'FINANCE_APPROVED', 'FUNDS_WITH_DRIVER', 'LPJ_SUBMITTED', 'COMPLETED']
@@ -78,6 +195,7 @@ const MODAL_TITLES = {
   reset_lpj: '🔄 Reset LPJ',
   approve_lpj: '✅ Approve LPJ',
   reject_lpj: '❌ Tolak LPJ',
+  verify_claim: '✅ Verifikasi Klaim',
 }
 const modalTitle = computed(() => {
   if (!action.value) return ''
@@ -89,6 +207,7 @@ const canAct = computed(() => {
   if (!a) return false
   switch (a.kind) {
     case 'approve_ga': case 'handover': case 'approve_lpj': case 'reject_lpj': return isGa
+    case 'verify_claim': return isGa
     case 'approve_finance': return isFinance
     case 'reset_lpj': return isFinance
     case 'reject': case 'delete': case 'edit': case 'cancel': return true
@@ -130,6 +249,13 @@ function openAction(kind, item) {
   action.value = { kind, id: item?.id }
 }
 
+// v2.104.0: aksi dari baris antrean "Perlu Tindakan" memakai modal & step-up
+// yang sama dengan aksi di panel tab — tidak ada jalur aksi kedua.
+function onQueueAction(payload) {
+  if (!payload?.kind || !payload?.item) return
+  openAction(payload.kind, payload.item)
+}
+
 async function openDetail(item) {
   detailItem.value = item
   detailLoading.value = true
@@ -160,6 +286,9 @@ async function submitAction() {
     reset_lpj: `/api/cash/reset-lpj/${a.id}`,
     approve_lpj: `/api/cash/approve-lpj/${a.id}`,
     reject_lpj: `/api/cash/reject-lpj/${a.id}`,
+    // v2.104.0: verifikasi klaim langsung dari antrean "Perlu Tindakan".
+    // Endpoint + step-up yang sama seperti antrean GA di dashboard.
+    verify_claim: `/api/queue/approve-ga/${a.id}`,
   }[a.kind]
   const body = {
     approve_ga: { ga_name: who },
@@ -171,11 +300,13 @@ async function submitAction() {
     reset_lpj: { reason: form.value.reason || 'Reset LPJ dari SPA' },
     approve_lpj: { ga_name: who, notes: form.value.notes },
     reject_lpj: { ga_name: who, reason: form.value.reason },
+    verify_claim: { ga_name: who },
   }[a.kind]
   // Step-up (ISO/IEC 27001 A.8.5): aksi yang menggerakkan uang kasbon
   // (approve GA, pencairan Finance, serah terima dana ke driver, approve LPJ)
-  // wajib konfirmasi PIN ulang bila grant belum ada.
-  const STEPUP_KINDS = ['approve_ga', 'approve_finance', 'handover', 'approve_lpj']
+  // wajib konfirmasi PIN ulang bila grant belum ada. Verifikasi klaim (GA)
+  // juga wajib step-up — endpointnya memakai `@stepup_required`.
+  const STEPUP_KINDS = ['approve_ga', 'approve_finance', 'handover', 'approve_lpj', 'verify_claim']
   try {
     const run = () => api(EP, { method: 'POST', body })
     const d = STEPUP_KINDS.includes(a.kind)
@@ -184,6 +315,8 @@ async function submitAction() {
     alert(d.msg || 'Berhasil')
     action.value = null
     load()
+    // Antrean "Perlu Tindakan" ikut berubah setelah aksi — minta muat ulang.
+    queueReloadKey.value += 1
   } catch (e) {
     // v2.36.0: ACC berjenjang — jelaskan ke mana pengajuan harus diproses.
     if (e.status === 409 && e.data && e.data.code === 'SUPERVISOR_APPROVAL_REQUIRED') {
@@ -226,6 +359,11 @@ onMounted(load)
     <PageHeader icon="⛽" title="BBM, Kasbon &amp; SPBU"
                 subtitle="Satu pusat kerja klaim BBM, kasbon/LPJ, dan data SPBU SubsidiTepat" />
 
+    <BbmActionQueue :reload-key="queueReloadKey" @open="openQueue" @act="onQueueAction" />
+
+    <!-- KPI periode ini — setiap angka bisa diklik ke daftar baris sumber. -->
+    <BbmWorkspaceKpi :scope="reportScope" @open="openQueue" />
+
     <nav class="workspace-tabs" role="tablist" aria-label="Menu BBM, Kasbon, dan SPBU">
       <button type="button" role="tab" :aria-selected="activeSection === 'bbm'" :class="{ active: activeSection === 'bbm' }"
               data-testid="workspace-tab-bbm" @click="activeSection = 'bbm'">
@@ -244,11 +382,17 @@ onMounted(load)
         <span class="workspace-tab-icon" aria-hidden="true">🛡️</span>
         <span class="workspace-tab-text">SubsidiTepat<small>Data SPBU &amp; akses OTP</small></span>
       </button>
+      <button type="button" role="tab" :aria-selected="activeSection === 'laporan'" :class="{ active: activeSection === 'laporan' }"
+              data-testid="workspace-tab-laporan" @click="activeSection = 'laporan'">
+        <span class="workspace-tab-icon" aria-hidden="true">📈</span>
+        <span class="workspace-tab-text">Laporan<small>Rekap, realisasi, analisis</small></span>
+      </button>
     </nav>
 
     <!-- Tab 1 — klaim BBM: masuk → siap dicairkan → konfirmasi LPJ → riwayat. -->
     <section v-if="activeSection === 'bbm'" class="workspace-section" aria-label="Transaksi BBM">
-      <BbmKasbonPanel active-section="bbm" />
+      <BbmKasbonPanel active-section="bbm" :focus="bbmFocus" />
+      <p v-if="bbmNote" class="muted" style="font-size:11px;" data-testid="filter-note">{{ bbmNote }}</p>
     </section>
 
     <!-- Tab 2 — kasbon & LPJ: kode harian + seluruh pengajuan kasbon. -->
@@ -273,14 +417,24 @@ onMounted(load)
         <div class="card">
           <div class="card-pad row kasbon-head">
             <b>🧾 Kasbon &amp; LPJ</b>
-            <span class="badge badge-blue">{{ cash.length }} pengajuan</span>
+            <span class="badge badge-blue">{{ visibleCash.length }} pengajuan</span>
             <div class="grow"></div>
             <span v-for="s in kasbonSummary" :key="s.label" class="badge" :class="s.tone">
               {{ s.label }} <b>{{ s.n }}</b>
             </span>
           </div>
-          <div v-if="!cash.length" class="empty">Tidak ada pengajuan kasbon.</div>
-          <div v-for="c in cash" :key="c.id" class="cash-item">
+          <!-- v2.104.0: filter dari KPI / antrean — daftar bisa disaring. -->
+          <div class="card-pad row" style="gap:6px;flex-wrap:wrap;border-bottom:1px solid var(--border);">
+            <button v-for="(f, key) in KASBON_FILTERS" :key="key" class="btn btn-sm"
+                    :class="kasbonFilter === key ? 'btn-primary' : ''"
+                    :data-testid="'kasbon-filter-' + key"
+                    @click="kasbonFilter = key">
+              {{ f.label }}
+            </button>
+            <span v-if="kasbonNote" class="muted" style="font-size:11px;" data-testid="kasbon-note">{{ kasbonNote }}</span>
+          </div>
+          <div v-if="!visibleCash.length" class="empty">Tidak ada pengajuan kasbon pada filter ini.</div>
+          <div v-for="c in visibleCash" :key="c.id" class="cash-item">
             <div class="row" style="align-items:center;">
               <div class="grow">
                 <div class="row" style="gap:8px;align-items:center;">
@@ -317,8 +471,42 @@ onMounted(load)
     </section>
 
     <!-- Tab 3 — SubsidiTepat: Data SPBU, Berita Acara, dan login ulang agen (OTP). -->
-    <section v-else class="workspace-section" aria-label="Data SPBU SubsidiTepat">
+    <section v-else-if="activeSection === 'subsidy'" class="workspace-section" aria-label="Data SPBU SubsidiTepat">
       <BbmKasbonPanel active-section="subsidy" />
+    </section>
+
+    <!-- Tab 4 — Laporan: tiga laporan lama dalam satu tempat (Fase 1 v2.100.0). -->
+    <section v-else class="workspace-section" aria-label="Laporan dan analisis">
+      <div class="card card-pad report-scope" data-testid="report-scope">
+        <div class="row" style="flex-wrap:wrap;gap:10px;align-items:flex-end;">
+          <div class="field" style="margin:0;width:150px;"><label>Dari</label>
+            <input class="input" type="date" v-model="reportStart" data-testid="scope-start" />
+          </div>
+          <div class="field" style="margin:0;width:150px;"><label>Sampai</label>
+            <input class="input" type="date" v-model="reportEnd" data-testid="scope-end" />
+          </div>
+          <div class="row" style="gap:6px;flex-wrap:wrap;">
+            <button class="btn btn-sm" data-testid="scope-preset-7" @click="scopePreset('7')">7 hari</button>
+            <button class="btn btn-sm" data-testid="scope-preset-30" @click="scopePreset('30')">30 hari</button>
+            <button class="btn btn-sm" data-testid="scope-preset-month" @click="scopePreset('month')">Bulan ini</button>
+            <button class="btn btn-sm" data-testid="scope-preset-year" @click="scopePreset('year')">Tahun ini</button>
+          </div>
+          <div class="spacer"></div>
+          <span class="muted" style="font-size:11px;">
+            Periode dipakai bersama Rekap, Realisasi, dan Analisis. Cabang mengikuti sesi;
+            Finance HO memilih cabang di tab Realisasi.
+          </span>
+        </div>
+      </div>
+      <nav class="workspace-tabs report-subtabs" role="tablist" aria-label="Jenis laporan">
+        <button v-for="r in reportViews" :key="r.key" type="button" role="tab"
+                :aria-selected="reportView === r.key" :class="{ active: reportView === r.key }"
+                :data-testid="'report-tab-' + r.key" @click="reportView = r.key">
+          <span class="workspace-tab-icon" aria-hidden="true">{{ r.icon }}</span>
+          <span class="workspace-tab-text">{{ r.label }}</span>
+        </button>
+      </nav>
+      <component v-if="activeReport" :is="activeReport.comp" :scope="reportScope" @open-tab="openQueue" />
     </section>
 
     <!-- Cash Detail Modal -->
@@ -376,6 +564,8 @@ onMounted(load)
 
 <style scoped>
 .kasbon-code { margin-bottom: 16px; }
+.report-subtabs { margin-bottom: 14px; }
+.report-scope { margin-bottom: 14px; }
 .kasbon-code .workspace-tab-icon { background: var(--primary-soft); }
 .kasbon-head { border-bottom: 1px solid var(--border); gap: 8px; }
 .cash-item { padding: 14px; border-bottom: 1px solid var(--border); }

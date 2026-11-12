@@ -7,6 +7,147 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.104.0 — 12 November 2026 (Fase 3 selesai: angka → baris → aksi)
+
+- 🎯 **Setiap KPI bisa diklik ke daftar baris sumber.** Baris KPI baru di
+  meja kerja BBM: *Klaim dibayar · LPJ sah · Kasbon cair · Dana di driver*,
+  semuanya dari `/api/bbm/workspace/summary` (definisi tunggal
+  `modules/bbm_scope.py` — bukan angka terpisah). Klik kartu → tab operasional
+  terbuka dengan daftar **terfilter** (mis. "Klaim dibayar" → tab BBM →
+  riwayat → jenis CLAIM; "Dana di Driver" → tab Kasbon → hanya kasbon
+  `FUNDS_WITH_DRIVER`/`LPJ_SUBMITTED`).
+- 🖱️ Kartu di laporan **Realisasi** (Kasbon Cair, Realisasi LPJ, Sisa Kasbon)
+  ikut bisa diklik. Kartu **Pembelian Barang** sengaja tidak — belum ada
+  daftar operasional PO di meja kerja ini, jadi tidak ada baris tujuan.
+- 🚨 **Antrean "Perlu Tindakan" membawa baris nyata, bukan hanya jumlah.**
+  Setiap item bisa dibuka; baris menua tampil beserta umurnya, dan GA bisa
+  langsung **Verifikasi Klaim** atau **Approve/Tolak LPJ** dari antrean.
+  Aksinya memakai endpoint + step-up PIN yang **sudah ada** — tidak ada jalur
+  uang baru, dan peran tetap menentukan tombol mana yang tampil.
+- 🔴 **Antrean keempat: SPBU mismatch.** Aturannya **bukan aturan baru** —
+  ini verdict yang sudah ditulis mesin auto-match
+  (`transactions.subsidy_match = 'mismatch'`, `modules/routes_subsidy.py::_judge`:
+  volume/nominal di luar toleransi). Antrean hanya membacanya; klaim yang
+  sudah ditutup (arsip/ditolak) tidak dihitung. `no_record` sengaja tidak
+  masuk antrean: itu berarti tidak ada kandidat SPBU sama sekali (bisa karena
+  data belum ditarik), bukan selisih angka.
+- 🧹 **Phase 4 (rapikan duplikasi):** definisi "LPJ sah" pada drill-down
+  Realisasi kini diambil dari `bbm_scope.LPJ_VALID_STATUSES` (bukan ditulis
+  ulang), lewat helper baru `bbm_scope.statuses_in()`. `/api/finance/bbm`
+  mendapat parameter `type` (additive) supaya daftar bisa disaring per jenis.
+- 🖨️ **PDF Rekap & CSV Rekap membawa meta**: dasar hitung, cabang, dan waktu
+  dibuat — file export bisa diaudit sendiri tanpa membuka UI.
+- 🧪 Tes: `tests/test_bbm_action_queue.py` (10 — ambang, cutoff, baris nyata,
+  batas payload, mismatch membaca verdict yang sudah ada), `BbmWorkspaceKpi`
+  (4), `CashView` (5 baru), `ExpensesView` (1 baru). Full: **1231 pytest +
+  307 vitest** hijau.
+- 🐛 Test basi diperbaiki: `SettingsView` menyangkar 8 seksi padahal sudah 9
+  (seksi *Deploy* masuk sejak v2.98.1) — selama ini merah di suite penuh.
+
+## v2.103.0 — 12 November 2026 (Antrean “Perlu Tindakan” di meja kerja BBM)
+
+- 🚨 **Panel Perlu Tindakan** di atas tab `/cash`: klaim menunggu verifikasi GA
+  (> 2 hari), dana di driver yang LPJ-nya belum masuk (> 14 hari), dan LPJ
+  menunggu verifikasi (> 7 hari). Umur dihitung dari waktu sekarang — bukan
+  dari periode laporan — karena ini antrean kerja, bukan angka periode.
+- 🔗 Setiap item hanya **menunjuk tab tujuan** (BBM / Kasbon & LPJ); aksi uang
+  tetap lewat endpoint dan step-up yang sudah ada — tidak ada jalur baru.
+- 📊 Kartu **Dana di Driver** di Realisasi kini bisa diklik untuk membuka
+  antrean kasbon.
+- 🧪 Tes kontrak `tests/test_bbm_action_queue.py`: ambang, cutoff, status yang
+  dihitung, dan item kosong tidak menggeser item lain; tes UI untuk panel dan
+  klik kartu.
+- ⚠️ Tidak menghitung mismatch SPBU: di data saat ini `subsidy_match` hanya
+  `linked`/kosong, sehingga aturan mismatch belum punya bukti untuk diuji.
+
+## v2.102.0 — 12 November 2026 (Satu periode untuk semua laporan di /cash)
+
+- 📅 **Context bar periode bersama** di tab Laporan: Rekap, Realisasi, dan
+  Analisis kini memakai rentang tanggal yang sama — sebelumnya Rekap/Analisis
+  default 30 hari sementara Realisasi default YTD, sehingga tiga tab bisa
+  menampilkan angka dari periode berbeda tanpa disadari.
+- 🔖 Periode tersimpan di URL (`?tab=laporan&start=…&end=…`) — bookmark dan
+  refresh menampilkan angka yang sama.
+- 📊 Realisasi memetakan rentang tanggal ke tahun + bulan; rentang lintas tahun
+  dipotong ke tahun akhir dengan peringatan eksplisit, bukan diam-diam.
+- 🧹 Filter tanggal ganda di tiga laporan dihapus. Filter driver/nopol/jenis
+  (Rekap) dan pemilih cabang (Realisasi) tetap.
+- ℹ️ Tidak ada pemilih cabang semu di bar: Rekap & Analisis memang ter-scope
+  cabang sesi di server, jadi pilihan cabang hanya muncul di Realisasi.
+
+## v2.101.0 — 12 November 2026 (Rekap Klaim BBM: definisi final, bukan hanya arsip)
+
+- 📋 **Rekap Klaim BBM kini menjawab pertanyaan yang sama dengan Realisasi.**
+  Definisi resmi: klaim `CLAIM` yang sudah dibayar (`os_finance`/`archived`)
+  + LPJ kasbon yang sah (`verified_ga`/`archived`). Sebelumnya hanya baris
+  `archived`, sehingga klaim yang sudah dibayar tapi belum diarsipkan — dan
+  seluruh LPJ yang sah — tidak pernah muncul di Rekap.
+- 🖨️ **PDF Rekap & engine memakai definisi yang sama** (`get_rekap_data`),
+  jadi layar, CSV, dan PDF tidak lagi berbeda angka.
+- 🏷️ Label diperjelas: "Klaim Final", dengan basis & pengecualian tertulis di
+  header laporan.
+- 🧪 Tes kontrak `rekap_scope_sql` ditambahkan: wajib memuat kedua kelompok
+  status final dan tidak memuat `pending`/`rejected`.
+- ⚠️ Angka Rekap akan **naik** setelah rilis ini — koreksi cakupan, bukan
+  duplikasi. Tidak ada perubahan data.
+
+## v2.100.1 — 12 November 2026 (Satu definisi angka BBM/kasbon/LPJ)
+
+- 📐 **`modules/bbm_scope.py`** — satu sumber definisi metrik. Rekap, Realisasi,
+  dan Analisis kini memakai pembangun query yang sama, sehingga tidak lagi
+  menjawab pertanyaan yang sama dengan tiga angka berbeda.
+- 🚗 **Dana di driver akhirnya terhitung.** Kasbon cair = `handover_at` terisi,
+  bukan hanya status `COMPLETED`; kasbon yang masih di driver
+  (`FUNDS_WITH_DRIVER`/`LPJ_SUBMITTED`) tampil sebagai `outstanding` di
+  Realisasi dan Analisis, bukan hilang sampai LPJ disetujui.
+- 📋 **LPJ sah = `verified_ga`/`archived`.** Sebelumnya semua LPJ non-rejected
+  (termasuk yang belum diverifikasi) sudah dihitung sebagai realisasi.
+- ➕ **`GET /api/bbm/workspace/summary`** — ringkasan satu periode: klaim per
+  ember status, LPJ diajukan vs sah, kasbon diajukan/cair/selesai/outstanding,
+  plus `meta.basis_version` agar laporan dapat ditelusuri.
+- 🧪 `tests/test_bbm_scope.py` mengunci definisi dan identitas
+  `kasbon cair = selesai + outstanding`.
+- ⚠️ Angka **Sisa Kasbon/Dana di Driver akan naik** setelah rilis ini — itu
+  koreksi, bukan anomali: uang yang sudah diserahkan memang sudah keluar.
+
+## v2.100.0 — 12 November 2026 (Satu meja kerja: laporan masuk ke BBM, Kasbon & SPBU)
+
+- 🧭 **Tab "Laporan" di `/cash`** — Rekap Klaim BBM, Realisasi Pengeluaran, dan
+  Analisis BBM & Armada kini dirender di dalam meja kerja operasional sebagai
+  sub-tab. Tab BBM / Kasbon & LPJ / SubsidiTepat tidak berubah.
+- 🔗 **Tautan lama tetap hidup** — `/rekap`, `/expenses`, `/analytics` dialihkan
+  ke `/cash?tab=laporan&view=…` dengan query lama dibawa, jadi bookmark dan
+  tautan yang sudah beredar tidak putus.
+- 🔒 **Isolasi cabang tidak berubah** — sub-tab Realisasi tetap khusus
+  Finance/Admin, dan Finance cabang tetap terkunci ke cabangnya (v2.99.1).
+  Sub-tab yang tidak boleh dilihat role tidak dirender sama sekali.
+- 📦 **Dimuat malas** — halaman laporan di-`defineAsyncComponent` supaya tab
+  BBM tidak menanggung chart.js.
+- ℹ️ **Fase 1 belum menyamakan definisi/filter** antarhalaman — itu Fase 2
+  (`docs/internal/DESIGN_BBM_WORKSPACE_20261112.md`).
+
+## v2.99.1 — 12 November 2026 (Realisasi Pengeluaran: isolasi cabang Finance)
+
+- 🔒 **Finance cabang tidak lagi bisa membaca cabang lain.** `/api/expenses/recap`
+  dan `/api/expenses/detail` dulu hanya membatasi *role*, lalu menerima
+  `?branch=` apa pun — termasuk `ALL`. Kini Finance cabang terkunci ke cabang
+  sesinya: `ALL` atau kode cabang lain → **403**, dan daftar cabang yang
+  dikirim ke UI hanya cabangnya sendiri.
+- 🎯 **Default cabang mengikuti sesi, bukan SBY.** Sebelumnya Finance cabang
+  mana pun yang membuka halaman tanpa parameter menerima data **Surabaya**.
+  Kini default = cabang sesi (fail-closed 403 bila sesi tidak punya cabang).
+- 🏢 **Yang boleh lintas cabang hanya Admin Pusat dan Finance HO**
+  (`finance_hu`, dapat ditambah lewat `FINANCE_HO_USERNAMES`). Admin cabang
+  tetap terbatas pada `managed_branches`/suffix username-nya.
+- 🧾 **Berita Acara SPBU ikut ter-scope cabang.** Registry BA ada di DB master
+  dan sebelumnya menampilkan 25 BA terakhir **semua cabang** — termasuk PDF-nya
+  (nama driver, nopol, liter, nominal). Kini BA baru menyimpan `branch_code`;
+  Finance cabang hanya melihat/mengunduh BA cabangnya, Admin Pusat/Finance HO
+  melihat semua. BA lama tanpa `branch_code` tidak ditampilkan ke cabang
+  (fail-closed) sampai dibuat ulang.
+- 🧩 Aturan ini dipusatkan di `modules/branch_scope.py` agar endpoint laporan
+  berikutnya memakai cakupan yang sama.
+
 ## v2.99.0 — 12 November 2026 (Laporan & analisis: definisi, rekonsiliasi, drill-down)
 
 - 🧾 **Identitas laporan di tiga halaman.** Rekap, Realisasi Pengeluaran, dan

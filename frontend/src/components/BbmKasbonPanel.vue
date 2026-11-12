@@ -9,7 +9,14 @@ import { formatDateTime } from '../utils/format.js'
 
 // Panel operasional BBM + Data SPBU (Subsidi Tepat). Dipakai halaman
 // Kasbon / BBM supaya semua pekerjaan BBM Finance ada dalam satu tempat.
-const props = defineProps({ activeSection: { type: String, default: 'bbm' } })
+//
+// v2.104.0: `focus` datang dari KPI/antrean — memerintahkan panel membuka
+// tab + jenis transaksi tertentu ("Klaim dibayar" vs "LPJ sah"), supaya
+// angka di laporan benar-benar bisa diklik ke daftar baris sumber.
+const props = defineProps({
+  activeSection: { type: String, default: 'bbm' },
+  focus: { type: Object, default: null },
+})
 
 const stepup = useStepupStore()
 const confirmRef = ref(null)
@@ -36,6 +43,10 @@ const bbm = ref({ incoming: 0, ready: 0, confirm: 0, history: 0, incomingPages: 
 const bbmSearch = ref('')
 const bbmPage = ref(1)
 const bbmTab = ref('incoming')
+// v2.104.0: filter jenis (CLAIM / CASH_LPJ) — KPI "Klaim dibayar"
+// vs "LPJ sah" membuka daftar yang benar-benar terpisah.
+const bbmType = ref('')
+const BBM_TABS = ['incoming', 'ready', 'confirm', 'history']
 const bbmBusy = ref(false)
 const bbmUpload = ref(null)
 const bbmUploadFile = ref(null)
@@ -46,6 +57,7 @@ async function loadBbm() {
   bbmBusy.value = true
   try {
     const params = { search: bbmSearch.value, limit: 50, page: bbmPage.value }
+    if (bbmType.value) params.type = bbmType.value
     const [incoming, ready, history] = await Promise.all(
       ['incoming', 'ready', 'history'].map((tab) => api('/api/finance/bbm', { params: { ...params, tab } }))
     )
@@ -436,6 +448,23 @@ watch(() => props.activeSection, (section) => {
   }
 })
 
+// v2.104.0: KPI/antrean membuka tab + jenis tertentu di panel ini.
+watch(() => props.focus, async (f) => {
+  if (!f) return
+  let changed = false
+  if (f.tab && BBM_TABS.includes(f.tab) && f.tab !== bbmTab.value) {
+    bbmTab.value = f.tab
+    changed = true
+  }
+  if (f.type && f.type !== bbmType.value) {
+    bbmType.value = f.type
+    changed = true
+  }
+  if (!changed) return
+  bbmPage.value = 1
+  await loadBbm()
+}, { deep: true })
+
 onBeforeUnmount(() => {
   otpPollStop()
   if (bbmRefreshTimer) clearInterval(bbmRefreshTimer)
@@ -473,6 +502,11 @@ onMounted(() => {
           <button class="btn btn-sm" :class="bbmTab === 'history' ? 'btn-primary' : ''" @click="switchBbmTab('history')">✅ Sudah diproses <b>{{ bbm.history }}</b></button>
           <input v-model="bbmSearch" class="inp" type="search" placeholder="Cari nomor, driver, atau nopol" @keyup.enter="bbmPage = 1; loadBbm()" />
           <button class="btn btn-sm" @click="bbmPage = 1; loadBbm()">Cari</button>
+          <span v-if="bbmType" class="badge badge-blue" data-testid="bbm-type-filter">
+            {{ bbmType === 'CASH_LPJ' ? 'LPJ Kasbon' : 'Klaim BBM' }}
+            <button type="button" class="btn-icon" aria-label="Hapus filter jenis"
+                    @click="bbmType = ''; bbmPage = 1; loadBbm()">✕</button>
+          </span>
         </div>
         <p v-if="bbmMsg" class="alert" :class="bbmMsg.startsWith('✅') ? 'alert-success' : 'alert-error'">{{ bbmMsg }}</p>
         <div class="table-wrap" style="margin-top:8px;">

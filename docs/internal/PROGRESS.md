@@ -4,11 +4,80 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 **Terakhir diperbarui:** 2026-11-12<br>
 **Branch:** `main`<br>
-**Versi terbaru:** v2.84.0 (12 Nov — semua cabang wajib tautan ber-token + QR statis lokal) · v2.83.0 (12 Nov — ID Fingerprint & ID BPF: backfill 1.831 baris, panel traineer, koreksi per baris) · v2.82.0 (11 Nov — audit isolasi cabang FirstWork: token per cabang, KTP tertutup, NIK disamarkan) · v2.81.0 (11 Nov — Profil Saya) · v2.80.0 (11 Nov — Absensi FirstWork + migrasi 1.831 baris sheet) · v2.77.0 (3 Nov — OTP SubsidiTepat: anti request ganda, supervisor verifikasi status, cooldown resend; siklus OTP end-to-end OK — kode diverifikasi → token → 192 transaksi SPBU terimpor)
+**Versi terbaru:** v2.104.0 (12 Nov — Fase 3 selesai: KPI bisa diklik ke daftar baris terfilter, antrean bawa baris nyata + aksi GA, antrean keempat SPBU mismatch) · v2.103.0 (12 Nov — meja kerja BBM: isolasi cabang, definisi metrik tunggal, context bar, antrean Perlu Tindakan) · v2.84.0 (12 Nov — semua cabang wajib tautan ber-token + QR statis lokal) · v2.83.0 (12 Nov — ID Fingerprint & ID BPF: backfill 1.831 baris, panel traineer, koreksi per baris) · v2.82.0 (11 Nov — audit isolasi cabang FirstWork: token per cabang, KTP tertutup, NIK disamarkan) · v2.81.0 (11 Nov — Profil Saya) · v2.80.0 (11 Nov — Absensi FirstWork + migrasi 1.831 baris sheet) · v2.77.0 (3 Nov — OTP SubsidiTepat: anti request ganda, supervisor verifikasi status, cooldown resend; siklus OTP end-to-end OK — kode diverifikasi → token → 192 transaksi SPBU terimpor)
 
 ---
 
-## 🔁 Handoff sesi berikutnya (12 Nov 2026 — baca ini dulu!)
+## 🔁 Handoff 12 Nov 2026 — Meja kerja BBM, Kasbon & Laporan (v2.99.0 → v2.104.0)
+
+**Live:** v2.104.0 (sebelum deploy: working tree NAS + sudah di-commit).
+
+**Gelombang yang diselesaikan sesi ini (v2.99.1 → v2.103.0, dari sesi
+sebelumnya):**
+- **v2.99.1 — isolasi cabang:** `modules/branch_scope.py`; finance cabang
+  terkunci ke cabangnya (`?branch=ALL`/cabang lain → 403, default bukan SBY);
+  Finance HO (`finance_hu`, env `FINANCE_HO_USERNAMES`) + Admin Pusat lintas
+  cabang; BA SPBU menyimpan `branch_code` dan daftar/PDF-nya ter-scope.
+- **v2.100.0 — shell:** tab Laporan di `/cash`; `/rekap`, `/expenses`,
+  `/analytics` jadi redirect (bookmark lama tidak putus).
+- **v2.100.1 — definisi tunggal:** `modules/bbm_scope.py`; kasbon cair =
+  `handover_at`, LPJ sah = `verified_ga`/`archived`, outstanding = dana di
+  driver; `GET /api/bbm/workspace/summary`.
+- **v2.101.0 — Rekap final:** Rekap = klaim dibayar + LPJ sah (bukan hanya
+  `archived`); satu klausa `rekap_scope_sql` dipakai layar, CSV, dan PDF
+  (`engine.get_rekap_data`).
+- **v2.102.0 — context bar:** satu periode (Dari/Sampai + preset) untuk
+  Rekap/Realisasi/Analisis, tersimpan di URL (`?tab=laporan&start=&end=`).
+- **v2.103.0 — Perlu Tindakan:** `modules/bbm_action_queue.py` +
+  `GET /api/bbm/workspace/actions`; antrean klaim > 2 hari, dana di driver
+  > 14 hari, LPJ > 7 hari; tombol hanya menunjuk tab, aksi uang tetap lewat
+  step-up. Kartu Dana di Driver → tab Kasbon.
+
+**Gelombang sesi ini (v2.104.0 — Fase 3 selesai):**
+- **KPI → baris:** baris KPI baru (`frontend/src/components/BbmWorkspaceKpi.vue`)
+  memuat *Klaim dibayar · LPJ sah · Kasbon cair · Dana di driver* dari
+  `/api/bbm/workspace/summary`. Klik → tab operasional + daftar terfilter.
+  Kontrak filter: `openQueue({tab, filters:{kasbon|bbmTab|bbmType}})`.
+- **Kartu Realisasi bisa diklik:** Kasbon Cair / Realisasi LPJ / Sisa Kasbon
+  ikut membuka daftar sumber. Kartu Pembelian Barang **tidak** (belum ada
+  daftar operasional PO di meja kerja ini — jujur, bukan tombol mati).
+- **Antrean bawa baris + aksi:** `bbm_action_queue` kini mengembalikan baris
+  nyata (dibatasi `MAX_ROWS=20`, jumlah total tetap akurat). Baris LPJ bisa
+  di-Approve/Tolak dari antrean; baris klaim bisa di-Verifikasi GA (GA/Admin).
+  Semua lewat endpoint + step-up yang sudah ada.
+- **Antrean keempat — SPBU mismatch:** membaca `transactions.subsidy_match =
+  'mismatch'` (verdict yang **sudah** ditulis `_judge` di
+  `modules/routes_subsidy.py`) — bukan aturan baru. `no_record` tidak masuk.
+- **Phase 4 (bagian yang dikerjakan):** definisi LPJ sah pada drill-down
+  Realisasi memakai `bbm_scope.LPJ_VALID_STATUSES` (helper baru
+  `bbm_scope.statuses_in()`); `/api/finance/bbm` dapat parameter `type`;
+  PDF & CSV Rekap membawa meta (dasar hitung, cabang, waktu dibuat).
+- **Test basi diperbaiki:** `SettingsView.test.js` menyangkar 8 seksi
+  padahal sudah 9 (seksi *Deploy* sejak v2.98.1) — suite penuh jadi merah.
+
+**Sisa Fase 3/4 (belum dikerjakan — sesi berikutnya):**
+1. **Aksi dari baris antrean belum lengkap:** dana di driver (`FUNDS_WITH_DRIVER`)
+   tidak punya aksi dari antrean — memang tidak boleh (driver yang harus
+   submit LPJ). Kalau mau, bisa ditambah pengingat/tagih ke driver.
+2. **Mismatch SPBU belum punya data nyata.** Aturan & query-nya siap, tapi
+   data produksi saat ini `subsidy_match` masih `linked`/kosong → antrean
+   kosong. Jalankan `POST /api/subsidy/auto-match` dulu untuk mengisi
+   verdict, baru antrean ini bisa diuji dengan data sungguhan.
+3. **Kartu Pembelian Barang** belum punya daftar tujuan (butuh tab/list PO
+   di meja kerja).
+4. **Phase 4 remainder:** pensiunkan endpoint/duplikasi lama yang belum
+   disentuh (hasil `scripts/audit_endpoints.py`: 53 path tanpa referensi
+   frontend — sebagian besar route SPA/agen, **belum** diverifikasi satu per
+   satu; jangan pernah menghapus tanpa cek mobile/agen/skrip).
+
+**Verifikasi rilis terakhir:** **1231 pytest** (6 skip) + **307 vitest** hijau;
+stamp 7 titik ✅ `v2.104.0`. Catatan: data SBY/BDG saat ini tidak punya
+antrean menua (semua `archived`/`completed`), jadi panel menampilkan "tidak ada
+antrean" — itu benar, bukan bug.
+
+---
+
+## 🔁 Handoff sesi sebelumnya (12 Nov 2026 — baca ini dulu!)
 
 - **Absensi FirstWork lengkap (v2.80–v2.84):** 1.831 baris historis Google Sheet
   termigrasi + KTP lama ditarik via Apps Script; form publik ber-token per

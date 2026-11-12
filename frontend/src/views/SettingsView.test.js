@@ -82,11 +82,12 @@ describe('SettingsView', () => {
     expect(opts.filter((t) => t === 'AVANZA').length).toBe(1)
   })
 
-  it('peta seksi tampil & berisi 8 seksi (7 + Realtime Sheet sejak v2.42.0)', async () => {
+  it('peta seksi tampil & berisi 9 seksi (8 + Deploy sejak v2.98.1)', async () => {
     const w = await mountView()
     const nav = w.find('.settings-nav')
     expect(nav.exists()).toBe(true)
-    expect(nav.findAll('.settings-nav-btn').length).toBe(8)
+    // 9 = 7 lama + Realtime Sheet (v2.42.0) + status Deploy (v2.98.1).
+    expect(nav.findAll('.settings-nav-btn').length).toBe(9)
     // Seksi realtime receptionis (v2.42.0) ada di peta & panel
     expect(w.text()).toContain('Realtime Sheet Receptionist')
   })

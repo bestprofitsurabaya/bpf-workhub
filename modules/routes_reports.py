@@ -4,6 +4,7 @@ from modules.config import get_db_connection
 from modules.helpers import log_activity_async, role_required
 from modules.engine import get_rekap_data
 from modules.pdf_generator import PDFReportCompact, BBMReportPDF
+from modules import bbm_scope
 from datetime import datetime
 import zipfile, io, os, subprocess
 from io import BytesIO
@@ -73,7 +74,15 @@ def register_report_routes(app):
                 s, e = filters['start_date'] or 'ALL', filters['end_date'] or 'ALL'
                 ts.append(f"PERIODE: {s} S/D {e}")
             title = "REKAP DANA BBM - " + " | ".join(ts)
-            pdf = BBMReportPDF(title=title)
+            # v2.104.0: kop laporan menyebut dasar hitung, cabang, dan waktu
+            # dibuat — PDF harus bisa diaudit tanpa melihat UI.
+            branch_code = (session.get('branch_code') or '').upper() or '-'
+            meta = (
+                f"Dasar: {bbm_scope.BASIS['rekap']} | "
+                f"Cabang: {branch_code} | "
+                f"Dibuat: {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+            )
+            pdf = BBMReportPDF(title=title, meta=meta)
             pdf.set_identity(branch_code=session.get('branch_code'))
             pdf.add_page()
             pdf.generate_table(data)

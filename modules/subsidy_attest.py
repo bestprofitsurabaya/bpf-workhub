@@ -40,9 +40,13 @@ CREATE TABLE IF NOT EXISTS subsidy_attestations (
     snapshot_path VARCHAR(255) NULL,
     pdf_path VARCHAR(255) NULL,
     generated_by VARCHAR(80) NOT NULL,
+    -- v2.99.1: BA adalah milik satu cabang; registry di master tapi daftar &
+    -- unduhannya tidak boleh lintas cabang (kecuali Admin Pusat/Finance HO).
+    branch_code VARCHAR(20) DEFAULT NULL,
     generated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     KEY idx_period (period_start, period_end),
-    KEY idx_generated (generated_at)
+    KEY idx_generated (generated_at),
+    KEY idx_branch (branch_code)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
 """
 
@@ -58,6 +62,13 @@ def ensure_attestation_schema(conn=None):
     cur = conn.cursor()
     try:
         cur.execute(_ATTEST_DDL)
+        # Kolom baru untuk DB yang tabelnya sudah ada (idempoten).
+        try:
+            cur.execute(
+                "ALTER TABLE subsidy_attestations "
+                "ADD COLUMN IF NOT EXISTS branch_code VARCHAR(20) DEFAULT NULL")
+        except Exception:
+            pass
         conn.commit()
         return True
     finally:
@@ -214,8 +225,12 @@ def build_attestation(period_start, period_end, actor):
     }
 
 
-def persist_attestation(data, actor):
-    """Simpan registry BA di master — return id."""
+def persist_attestation(data, actor, branch_code=None):
+    """Simpan registry BA di master — return id.
+
+    `branch_code` = cabang pemilik BA; dipakai untuk memisahkan daftar/unduhan
+    antar cabang. NULL hanya untuk baris lama (sebelum v2.99.1).
+    """
     m = get_master_connection()
     if not m:
         raise ValueError('DB master tidak tersedia')
@@ -224,11 +239,12 @@ def persist_attestation(data, actor):
         cur.execute(
             "INSERT INTO subsidy_attestations "
             "(period_start, period_end, record_count, root_hash, manifest_json, "
-            " snapshot_sha256, snapshot_path, generated_by) "
-            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
+            " snapshot_sha256, snapshot_path, generated_by, branch_code) "
+            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)",
             (data['period_start'], data['period_end'], data['record_count'],
              data['root_hash'], json.dumps(data['manifest'], ensure_ascii=False),
-             data['snapshot_sha256'], data['snapshot_path'], actor))
+             data['snapshot_sha256'], data['snapshot_path'], actor,
+             (branch_code or None)))
         m.commit()
         return cur.lastrowid
     finally:

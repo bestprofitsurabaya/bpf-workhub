@@ -11,7 +11,7 @@ from modules.company_identity import get_company_identity, IDENTITY_DEFAULTS  # 
 # ============================================================
 COMPANY_NAME = 'PT BESTPROFIT FUTURES'
 COMPANY_SUBTITLE = 'Kantor Pusat | Jakarta'
-SYSTEM_VERSION = 'BPF WorkHub v2.99.0'
+SYSTEM_VERSION = 'BPF WorkHub v2.104.0'
 LOGO_FILENAMES = ['icon-512.png', 'icon-192.png']
 PHOTO_FIELDS = [
     ('foto_odo_sebelum', 'ODO Sebelum'),
@@ -946,9 +946,12 @@ class WaterReceiptPDF(BPFBasePDF):
 class BBMReportPDF(BPFBasePDF):
     """Landscape multi-transaction recap PDF."""
 
-    def __init__(self, title="REKAP DANA BBM"):
+    def __init__(self, title="REKAP DANA BBM", meta=None):
         super().__init__(orientation='L', unit='mm', format='A4')
         self.title = title
+        # v2.104.0: baris meta (dasar hitung, cabang, waktu dibuat) — kop
+        # laporan harus bisa diaudit sendiri tanpa perlu melihat UI.
+        self.meta = meta
         self.set_auto_page_break(auto=True, margin=15)
 
     def header(self):
@@ -957,6 +960,12 @@ class BBMReportPDF(BPFBasePDF):
         self.set_text_color(*INK)
         self.cell(0, 6, self.clean_text(self.title), align="C", new_x="LMARGIN", new_y="NEXT")
         self.ln(3)
+        if self.meta:
+            self.set_font(self._font(), '', 7)
+            self.set_text_color(*GRAY_LABEL)
+            self.cell(0, 4, self.clean_text(str(self.meta)), align="C",
+                      new_x="LMARGIN", new_y="NEXT")
+            self.ln(2)
 
     def generate_table(self, data):
         if not data:

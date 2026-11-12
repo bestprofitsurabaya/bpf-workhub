@@ -1,11 +1,15 @@
 """
-Unit Tests — Rekap Pengeluaran (v2.71.0) modules/routes_expense.py
+Unit Tests — Rekap Pengeluaran (v2.71.0, isolasi cabang v2.99.1)
+modules/routes_expense.py + modules/branch_scope.py
 BPF WorkHub
 
 - _fill_vector: baris GROUP BY bulan → vektor 12 ganda, bulan tidak valid
   diabaikan, bulan ganda dijumlahkan.
-- Aksela API: role gate (finance/admin boleh; ga/ob ditolak), validasi
-  cabang, response shape (vektor 12, totals = jumlah bulan).
+- Akses API: role gate (finance/admin boleh; ga/ob ditolak), validasi cabang,
+  bentuk response (vektor 12, totals = jumlah bulan).
+- Isolasi cabang (v2.99.1): finance cabang hanya cabangnya — `ALL`/cabang lain
+  403, default mengikuti sesi (bukan SBY); `finance_hu` dan Admin Pusat boleh
+  semua; admin cabang tidak boleh `ALL`.
 - Isolasi error per cabang: DB satu cabang gagal → cabang lain tetap terisi.
 
 Jalankan:
@@ -37,10 +41,10 @@ def client():
         yield c
 
 
-def _login(client, role='finance', branch='SBY'):
+def _login(client, role='finance', branch='SBY', username=None):
     with client.session_transaction() as s:
         s['user_role'] = role
-        s['user_name'] = role.upper()
+        s['user_name'] = username or role.upper()
         s['full_name'] = role.upper()
         s['branch_code'] = branch
 
@@ -127,6 +131,11 @@ def _patch(monkeypatch, po_rows=(), kas_rows=()):
     return c
 
 
+def _admin_branches(monkeypatch, codes, all_branches=False):
+    import modules.branch_scope as bs
+    monkeypatch.setattr(bs, 'admin_branches', lambda conn=None: (list(codes), all_branches))
+
+
 def test_rute_terdaftar_401_tanpa_login(client):
     rv = client.get('/api/expenses/recap')
     assert rv.status_code in (301, 302, 401, 403)
@@ -181,11 +190,15 @@ def test_detail_bulan_tidak_valid_ditolak(client):
     assert rv.status_code == 400
 
 
-def test_scope_all_menggabungkan_cabang(client, monkeypatch):
+# ---------------------------------------------------------------------------
+# Isolasi cabang (v2.99.1)
+# ---------------------------------------------------------------------------
+
+def test_admin_pusat_boleh_all(client, monkeypatch):
     _patch(monkeypatch,
            po_rows=[{'m': 1, 'amount': 300000.0}],
            kas_rows=[{'m': 1, 'amount': 100000.0}])
-    _login(client)
+    _login(client, role='admin', username='admin')
     rv = client.get('/api/expenses/recap?year=2026&branch=ALL')
     d = rv.get_json()
     assert rv.status_code == 200
@@ -194,3 +207,66 @@ def test_scope_all_menggabungkan_cabang(client, monkeypatch):
     assert d['display']['name'] == 'Semua Cabang'
     assert d['grand_total'] == 600000.0
     assert {b['code'] for b in d['branches']} == {'SBY', 'BDG'}
+
+
+def test_finance_hu_boleh_all(client, monkeypatch):
+    _patch(monkeypatch, po_rows=[{'m': 1, 'amount': 100000.0}])
+    _login(client, role='finance', branch='HU', username='finance_hu')
+    rv = client.get('/api/expenses/recap?year=2026&branch=ALL')
+    assert rv.status_code == 200
+    assert rv.get_json()['display']['name'] == 'Semua Cabang'
+
+
+def test_finance_cabang_tidak_boleh_all(client, monkeypatch):
+    _patch(monkeypatch)
+    _login(client, role='finance', branch='BDG', username='finance_bdg')
+    rv = client.get('/api/expenses/recap?year=2026&branch=ALL')
+    assert rv.status_code == 403
+
+
+def test_finance_cabang_tidak_boleh_cabang_lain(client, monkeypatch):
+    _patch(monkeypatch)
+    _login(client, role='finance', branch='BDG', username='finance_bdg')
+    rv = client.get('/api/expenses/recap?year=2026&branch=SBY')
+    assert rv.status_code == 403
+    rv = client.get('/api/expenses/detail?year=2026&month=2&branch=SBY&category=po')
+    assert rv.status_code == 403
+
+
+def test_finance_default_mengikuti_cabang_sesi(client, monkeypatch):
+    """Tanpa ?branch= tidak boleh jatuh ke SBY."""
+    _patch(monkeypatch, po_rows=[{'m': 3, 'amount': 75000.0}])
+    _login(client, role='finance', branch='BDG', username='finance_bdg')
+    rv = client.get('/api/expenses/recap?year=2026')
+    assert rv.status_code == 200
+    d = rv.get_json()
+    assert d['selected'] == 'BDG'
+    assert list(d['per_branch']) == ['BDG']
+    assert d['display']['name'] == 'Cabang Bandung'
+    # Pemilih cabang juga hanya berisi cabang sendiri.
+    assert d['branches'] == [{'code': 'BDG', 'name': 'Cabang Bandung'}]
+
+
+def test_finance_tanpa_cabang_ditolak(client, monkeypatch):
+    _patch(monkeypatch)
+    _login(client, role='finance', branch=None, username='finance_baru')
+    rv = client.get('/api/expenses/recap?year=2026')
+    assert rv.status_code == 403
+
+
+def test_admin_cabang_tidak_boleh_all(client, monkeypatch):
+    _patch(monkeypatch)
+    _admin_branches(monkeypatch, ['SBY'], all_branches=False)
+    _login(client, role='admin', branch='SBY', username='admin_sby')
+    rv = client.get('/api/expenses/recap?year=2026&branch=ALL')
+    assert rv.status_code == 403
+    rv = client.get('/api/expenses/recap?year=2026&branch=SBY')
+    assert rv.status_code == 200
+
+
+def test_admin_cabang_tidak_boleh_cabang_lain(client, monkeypatch):
+    _patch(monkeypatch)
+    _admin_branches(monkeypatch, ['SBY'], all_branches=False)
+    _login(client, role='admin', branch='SBY', username='admin_sby')
+    rv = client.get('/api/expenses/recap?year=2026&branch=BDG')
+    assert rv.status_code == 403

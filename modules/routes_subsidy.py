@@ -25,6 +25,7 @@ from datetime import datetime, timedelta, timezone
 
 from flask import jsonify, request, session, make_response, send_from_directory
 
+from modules.branch_scope import sees_all_branches, session_branch_code
 from modules.config import get_db_connection, get_master_connection
 from modules.helpers import role_required, log_activity_async
 from modules.subsidy_attest import (build_attestation, ensure_attestation_schema,
@@ -549,7 +550,8 @@ def register_subsidy_routes(app):
             return jsonify({'status': 'error', 'msg': str(e)[:200]}), 500
 
         try:
-            attest_id = persist_attestation(attest, actor)
+            # v2.99.1: BA dicatat sebagai milik cabang sesi, bukan "global".
+            attest_id = persist_attestation(attest, actor, session_branch_code())
         except Exception as e:
             return jsonify({'status': 'error', 'msg': f"Registry: {str(e)[:180]}"}), 500
 
@@ -590,10 +592,19 @@ def register_subsidy_routes(app):
             return jsonify({'error': 'DB error'}), 500
         cur = m.cursor(dictionary=True)
         try:
-            cur.execute(
-                "SELECT id, period_start, period_end, record_count, root_hash, "
-                "snapshot_sha256, pdf_path, generated_by, generated_at "
-                "FROM subsidy_attestations ORDER BY id DESC LIMIT 25")
+            # v2.99.1: registry ada di master, tapi BA milik satu cabang.
+            # Finance cabang hanya menerima daftar BA cabangnya sendiri.
+            _cols = ("id, period_start, period_end, record_count, root_hash, "
+                     "snapshot_sha256, pdf_path, generated_by, branch_code, generated_at ")
+            if sees_all_branches():
+                cur.execute(f"SELECT {_cols} FROM subsidy_attestations "
+                            "ORDER BY id DESC LIMIT 25")
+            else:
+                own = session_branch_code()
+                if not own:
+                    return jsonify({'attestations': []})
+                cur.execute(f"SELECT {_cols} FROM subsidy_attestations "
+                            "WHERE branch_code=%s ORDER BY id DESC LIMIT 25", (own,))
             rows = cur.fetchall() or []
             return jsonify({'attestations': [
                 {**r, 'period_start': str(r['period_start']),
@@ -627,6 +638,11 @@ def register_subsidy_routes(app):
                 pass
         if not row:
             return jsonify({'error': 'Not found'}), 404
+        # v2.99.1: BA cabang lain tidak boleh diunduh Finance cabang.
+        if not sees_all_branches():
+            own = session_branch_code()
+            if not own or (row.get('branch_code') or '') != own:
+                return jsonify({'error': 'Berita Acara ini milik cabang lain.'}), 403
 
         pdf_rel = row.get('pdf_path')
         if pdf_rel and os.path.isfile(pdf_rel):

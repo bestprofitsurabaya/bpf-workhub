@@ -93,6 +93,25 @@ describe('ExpensesView', () => {
     authMock.user = { branch_code: 'SBY' }
   })
 
+  it('kartu Dana di Driver membuka antrean kasbon', async () => {
+    const w = await mountView()
+    await w.find('[data-testid="open-kasbon-queue"]').trigger('click')
+    expect(w.emitted('open-tab')).toEqual([[
+      { tab: 'kasbon', filters: { kasbon: 'outstanding' }, label: 'Dana di Driver' },
+    ]])
+  })
+
+  // v2.104.0: kartu KPI lain juga bisa diklik ke daftar baris sumber.
+  it('kartu Kasbon Cair & Realisasi LPJ membuka daftar baris yang terfilter', async () => {
+    const w = await mountView()
+    await w.find('[data-testid="open-kasbon-cair"]').trigger('click')
+    await w.find('[data-testid="open-lpj-sah"]').trigger('click')
+
+    const ev = w.emitted('open-tab')
+    expect(ev[0][0]).toMatchObject({ tab: 'kasbon', filters: { kasbon: 'cair' } })
+    expect(ev[1][0]).toMatchObject({ tab: 'bbm', filters: { bbmTab: 'history', bbmType: 'CASH_LPJ' } })
+  })
+
   it('menampilkan penjelasan cara membaca & pengecualian', async () => {
     const w = await mountView()
     const txt = w.text()

@@ -99,6 +99,21 @@ def test_incoming_and_ready_list_only_claim_not_cash_lpj(monkeypatch, tmp_path):
         assert "'CASH_LPJ'" not in sql
 
 
+def test_ga_bisa_membaca_daftar_bbm_panel_workspace(monkeypatch, tmp_path):
+    """v2.104.0 — panel BBM di /cash dipakai GA; semula 403 → tab kosong diam-diam.
+
+    GA sudah boleh melihat data yang sama lewat /api/queue & /api/cash/*,
+    jadi ini memperbaiki UX, bukan membuka akses baru. Peran lain tetap 403.
+    """
+    client, _ = make_client(monkeypatch, tmp_path=tmp_path)
+    login(client, 'ga')
+    assert client.get('/api/finance/bbm?tab=incoming').status_code == 200
+    assert client.get('/api/finance/bbm?tab=history').status_code == 200
+    # Peran yang memang tidak boleh tetap ditolak.
+    login(client, 'driver')
+    assert client.get('/api/finance/bbm?tab=incoming').status_code == 403
+
+
 def test_finance_evidence_upload_updates_transaction_without_changing_status(monkeypatch, tmp_path):
     conn = Connection()
     client, conn = make_client(monkeypatch, conn=conn, tmp_path=tmp_path)

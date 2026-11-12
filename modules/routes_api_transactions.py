@@ -4,6 +4,7 @@ import os
 from flask import request, jsonify, session
 from modules.config import get_db_connection
 from modules.helpers import log_activity_async, role_required, save_file
+from modules import bbm_scope
 from modules.engine import generate_human_insight
 from modules.admin_scope import is_ho_admin
 from datetime import datetime, timedelta
@@ -29,7 +30,9 @@ def register_transaction_api(app):
             cursor = conn.cursor(dictionary=True)
 
             # v2.75.0: data DEMO tidak boleh muncul di daftar/rekap Finance.
-            where = ["status = 'archived'", "(is_dummy=0 OR is_dummy IS NULL)"]
+            # v2.101.0: Rekap = klaim final (dibayar/arsip) + LPJ sah, sesuai
+            # definisi tunggal modules/bbm_scope.py — bukan hanya `archived`.
+            where = [bbm_scope.REKAP_SCOPE_SQL, "(is_dummy=0 OR is_dummy IS NULL)"]
             params = []
             if not start_date:
                 where.append("created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)")
@@ -81,14 +84,25 @@ def register_transaction_api(app):
 
     # Finance workspace: incoming submissions, claims ready to pay, and
     # persistent completed/history rows (PDFs remain available without archiving).
+    #
+    # v2.104.0: GA juga boleh. Panel BBM dipakai GA di meja kerja /cash, tapi
+    # endpoint ini semula finance/admin saja → GA melihat tab BBM kosong
+    # (403 → daftar kosong tanpa penjelasan). GA sudah boleh melihat data yang
+    # sama lewat /api/queue (tab ga/finance/driver_confirm) dan /api/cash/*,
+    # jadi ini memperbaiki UX yang rusak, BUKAN membuka data baru.
     @app.route('/api/finance/bbm')
-    @role_required(['finance', 'admin'])
+    @role_required(['ga', 'finance', 'admin'])
     def api_finance_bbm():
         try:
             tab = request.args.get('tab', 'incoming')
             page = max(1, request.args.get('page', 1, type=int))
             limit = min(100, max(1, request.args.get('limit', 50, type=int)))
             search = request.args.get('search', '').strip()[:100]
+            # v2.104.0: filter jenis (additive) — KPI "Klaim dibayar" vs
+            # "LPJ sah" membuka daftar baris yang terfilter, bukan tab campur.
+            tx_type = request.args.get('type', '').strip().upper()
+            if tx_type not in ('', 'CLAIM', 'CASH_LPJ'):
+                return jsonify({'error': 'Jenis transaksi tidak dikenal'}), 400
             if tab == 'incoming':
                 where = ["status IN ('pending','modified')", "COALESCE(transaction_type,'CLAIM') = 'CLAIM'", '(is_dummy=0 OR is_dummy IS NULL)']
             elif tab == 'ready':
@@ -100,6 +114,10 @@ def register_transaction_api(app):
             else:
                 return jsonify({'error': 'Tab BBM tidak dikenal'}), 400
             params = []
+            if tx_type == 'CLAIM':
+                where.append("COALESCE(transaction_type,'CLAIM') = 'CLAIM'")
+            elif tx_type == 'CASH_LPJ':
+                where.append("transaction_type = 'CASH_LPJ'")
             if search:
                 where.append('(display_id LIKE %s OR driver_name LIKE %s OR nopol LIKE %s)')
                 params.extend([f'%{search}%'] * 3)
@@ -533,8 +551,10 @@ def register_transaction_api(app):
             cash_total = 0; cash_amount = 0
             if not tx_type or tx_type == 'CASH_LPJ':
                 # Kasbon dihitung saat dana benar-benar diserahkan (handover_at),
-                # sama dengan basis Rekap Pengeluaran.
-                cash_where = "status='COMPLETED' AND handover_at IS NOT NULL"
+                # sama dengan basis Rekap Pengeluaran (modules/bbm_scope.py).
+                # v2.100.1: status COMPLETED tidak lagi disyaratkan — dana yang
+                # masih di driver tetap uang yang sudah keluar.
+                cash_where = "handover_at IS NOT NULL"
                 cash_params = []
                 if start_date:
                     cash_where += " AND DATE(handover_at) >= %s"; cash_params.append(start_date)

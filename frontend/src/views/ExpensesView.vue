@@ -9,7 +9,7 @@
  * Total realisasi = Pembelian barang diterima + Realisasi LPJ.
  * Kasbon BUKAN pengeluaran final (hanya dana muka) — lihat routes_expense.py.
  */
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { api } from '../api'
 import { useAuthStore } from '../stores/auth'
 import PageHeader from '../components/PageHeader.vue'
@@ -23,20 +23,36 @@ const err = ref('')
 const notice = ref('')
 const generatedAt = ref('')
 
+// Fase 3 (v2.102.0): periode datang dari context bar /cash (rentang tanggal),
+// dipetakan ke tahun + bulan karena rekap pengeluaran dihitung per tahun.
+const props = defineProps({ scope: { type: Object, default: null } })
+const emit = defineEmits(['open-tab'])
+
+function monthsFromScope(scope) {
+  if (!scope?.start || !scope?.end) return null
+  const y = Number(scope.end.slice(0, 4))
+  const sy = Number(scope.start.slice(0, 4))
+  const mf = sy === y ? Number(scope.start.slice(5, 7)) : 1
+  const mt = Math.min(12, Math.max(mf, Number(scope.end.slice(5, 7))))
+  return { year: y, monthFrom: mf, monthTo: mt, clipped: sy !== y }
+}
+
 const NAMA_BULAN = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des']
 const now = new Date()
-const year = ref(now.getFullYear())
-const years = computed(() => {
-  const y = now.getFullYear()
-  return [y, y - 1, y - 2, y - 3]
-})
-const branch = ref(auth.role === 'admin' ? 'ALL' : (auth.user?.branch_code || 'SBY'))
-const monthFrom = ref(1)
-const monthTo = ref(now.getFullYear() === year.value ? now.getMonth() + 1 : 12)
+const _initial = monthsFromScope(props.scope)
+const year = ref(_initial?.year ?? now.getFullYear())
+const branch = ref(auth.role === 'admin' ? 'ALL' : (auth.user?.branch_code || ''))
+// Server menentukan cakupan (v2.99.1): hanya Admin Pusat / Finance HO yang
+// boleh memilih "Semua Cabang". Finance cabang terkunci ke cabangnya.
+const allBranches = ref(auth.role === 'admin')
+const monthFrom = ref(_initial?.monthFrom ?? 1)
+const monthTo = ref(_initial?.monthTo ?? (now.getFullYear() === year.value ? now.getMonth() + 1 : 12))
+const clipped = ref(!!_initial?.clipped)
 const branches = ref([])
 
 const recap = ref(null)
 const display = ref(null)
+const outstanding = ref({ total: 0, count: 0 })
 const perBranchRaw = ref({})
 const errors = ref({})
 
@@ -99,11 +115,6 @@ const scopeLabel = computed(() => {
 const pesanErrCabang = computed(() =>
   Object.entries(errors.value).map(([c, e]) => `${c}: ${e}`).join(' · '))
 
-function applyYearMonths() {
-  monthFrom.value = 1
-  monthTo.value = year.value === now.getFullYear() ? now.getMonth() + 1 : 12
-}
-
 async function load() {
   loading.value = true
   err.value = ''
@@ -114,6 +125,9 @@ async function load() {
     branches.value = d.branches || []
     perBranchRaw.value = branch.value === 'ALL' ? (d.per_branch || {}) : {}
     errors.value = d.errors || {}
+    allBranches.value = d.scope?.all_branches ?? (auth.role === 'admin')
+    if (!allBranches.value && d.selected && d.selected !== 'ALL') branch.value = d.selected
+    outstanding.value = d.outstanding || { total: 0, count: 0 }
     generatedAt.value = new Date().toLocaleString('id-ID')
   } catch (e) {
     err.value = e?.data?.error || e?.message || 'Gagal memuat rekap pengeluaran'
@@ -122,10 +136,16 @@ async function load() {
   }
 }
 
-function onYearChange() {
-  applyYearMonths()
+watch(() => props.scope, (s) => {
+  const m = monthsFromScope(s)
+  if (!m) return
+  if (m.year === year.value && m.monthFrom === monthFrom.value && m.monthTo === monthTo.value) return
+  year.value = m.year
+  monthFrom.value = m.monthFrom
+  monthTo.value = m.monthTo
+  clipped.value = m.clipped
   load()
-}
+})
 
 // === Drill-down ===
 const detail = ref({ open: false, month: null, loading: false, error: '', sections: [] })
@@ -186,16 +206,15 @@ onMounted(load)
   <div>
     <PageHeader icon="📊" title="Realisasi Pengeluaran"
                 subtitle="Uang yang benar-benar terpakai: pembelian diterima + LPJ BBM, dengan jembatan kasbon">
-      <div class="field" style="width:110px;">
-        <select class="select" v-model.number="year" @change="onYearChange">
-          <option v-for="y in years" :key="y" :value="y">{{ y }}</option>
-        </select>
-      </div>
-      <div class="field" style="width:190px;">
+      <div v-if="allBranches" class="field" style="width:190px;">
         <select class="select" v-model="branch" @change="load">
           <option value="ALL">🏭 Semua Cabang</option>
           <option v-for="b in branches" :key="b.code" :value="b.code">{{ b.name }}</option>
         </select>
+      </div>
+      <div v-else class="field" style="width:190px;">
+        <label>Cabang</label>
+        <input class="input" :value="scopeLabel" disabled />
       </div>
     </PageHeader>
 
@@ -210,25 +229,18 @@ onMounted(load)
         :period="periodLabel + (isYtd ? ' (YTD)' : '')"
         :scope="scopeLabel"
         source="purchase_orders + po_receipts, fuel_cash_requests, transactions (CASH_LPJ)"
-        basis="PO: qty diterima × harga (tanggal order) · Kasbon: COMPLETED (handover_at) · LPJ: CASH_LPJ non-rejected"
+        basis="PO: qty diterima × harga (tanggal order) · Kasbon cair: handover_at terisi · LPJ sah: CASH_LPJ verified_ga/archived"
         exclusions="Air minum & overtime belum menyimpan nominal; kasbon bukan pengeluaran final"
         :generated-at="generatedAt"
         :rows="rowsBulan.length + ' bulan'"
       />
 
       <div class="card card-pad" style="margin-bottom:14px;">
-        <div class="row" style="flex-wrap:wrap;gap:10px;align-items:flex-end;">
-          <div class="field" style="margin:0;width:130px;"><label>Dari bulan</label>
-            <select class="select" v-model.number="monthFrom">
-              <option v-for="(b, i) in NAMA_BULAN" :key="b" :value="i + 1">{{ b }}</option>
-            </select>
-          </div>
-          <div class="field" style="margin:0;width:130px;"><label>Sampai bulan</label>
-            <select class="select" v-model.number="monthTo">
-              <option v-for="(b, i) in NAMA_BULAN" :key="b" :value="i + 1">{{ b }}</option>
-            </select>
-          </div>
-          <span v-if="monthFrom > monthTo" class="muted" style="font-size:11px;color:var(--danger);">Bulan awal melebihi bulan akhir</span>
+        <div class="row" style="flex-wrap:wrap;gap:10px;align-items:center;">
+          <b>📅 {{ periodLabel }}</b>
+          <span v-if="clipped" class="muted" style="font-size:11px;color:var(--danger);">
+            Rekap pengeluaran dihitung per tahun; rentang lintas tahun dipotong ke {{ year }}.
+          </span>
           <div class="spacer"></div>
           <button class="btn" @click="exportCsv">⬇️ CSV</button>
           <button class="btn btn-primary" @click="load">🔄 Muat ulang</button>
@@ -239,24 +251,39 @@ onMounted(load)
         ⚠️ Sebagian cabang gagal dihitung: {{ pesanErrCabang }}
       </div>
 
-      <!-- Jembatan kas + kartu realisasi -->
+      <!-- Jembatan kas + kartu realisasi. v2.104.0: tiap angka bisa diklik ke
+           daftar baris sumber di tab operasional (bukan sekadar angka). -->
       <div class="row" style="gap:12px;flex-wrap:wrap;margin-bottom:12px;">
-        <div class="card card-pad grow" style="min-width:190px;">
+        <button type="button" class="card card-pad grow aq-link" style="min-width:190px;text-align:left;"
+             data-testid="open-kasbon-cair"
+             @click="emit('open-tab', { tab: 'kasbon', filters: { kasbon: 'cair' }, label: 'Kasbon cair' })">
           <div class="muted" style="font-size:12px;">💵 Kasbon BBM Cair</div>
           <b style="font-size:21px;">{{ fmtRupiah(totals.kasbon) }}</b>
-          <div class="muted" style="font-size:10px;">Dana muka — belum tentu terpakai</div>
-        </div>
-        <div class="card card-pad grow" style="min-width:190px;">
+          <div class="muted" style="font-size:10px;">Dana muka — belum tentu terpakai · klik untuk lihat baris</div>
+        </button>
+        <button type="button" class="card card-pad grow aq-link" style="min-width:190px;text-align:left;"
+             data-testid="open-lpj-sah"
+             @click="emit('open-tab', { tab: 'bbm', filters: { bbmTab: 'history', bbmType: 'CASH_LPJ' }, label: 'LPJ sah' })">
           <div class="muted" style="font-size:12px;">📋 Realisasi LPJ</div>
           <b style="font-size:21px;">{{ fmtRupiah(totals.lpj) }}</b>
-          <div class="muted" style="font-size:10px;">Dipertanggungjawabkan driver</div>
-        </div>
-        <div class="card card-pad grow" style="min-width:190px;"
-             :style="totals.sisa < 0 ? 'border-color:var(--danger)' : ''">
+          <div class="muted" style="font-size:10px;">Dipertanggungjawabkan driver · klik untuk lihat baris</div>
+        </button>
+        <button type="button" class="card card-pad grow aq-link" style="min-width:190px;text-align:left;"
+             :style="totals.sisa < 0 ? 'border-color:var(--danger)' : ''"
+             data-testid="open-sisa-kasbon"
+             @click="emit('open-tab', { tab: 'kasbon', filters: { kasbon: 'cair' }, label: 'Sisa Kasbon' })">
           <div class="muted" style="font-size:12px;">↔️ Sisa Kasbon</div>
           <b style="font-size:21px;" :style="totals.sisa < 0 ? 'color:var(--danger)' : ''">{{ fmtRupiah(totals.sisa) }}</b>
-          <div class="muted" style="font-size:10px;">Kasbon cair − LPJ</div>
-        </div>
+          <div class="muted" style="font-size:10px;">Kasbon cair − LPJ · klik untuk lihat baris</div>
+        </button>
+        <button type="button" class="card card-pad grow aq-link" style="min-width:190px;text-align:left;"
+             :style="outstanding.total > 0 ? 'border-color:#d97706' : ''"
+             data-testid="open-kasbon-queue"
+             @click="emit('open-tab', { tab: 'kasbon', filters: { kasbon: 'outstanding' }, label: 'Dana di Driver' })">
+          <div class="muted" style="font-size:12px;">🚗 Dana di Driver</div>
+          <b style="font-size:21px;color:#d97706;">{{ fmtRupiah(outstanding.total) }}</b>
+          <div class="muted" style="font-size:10px;">{{ outstanding.count }} kasbon belum LPJ · klik untuk buka antrean</div>
+        </button>
       </div>
 
       <div class="row" style="gap:12px;flex-wrap:wrap;margin-bottom:16px;">
@@ -350,8 +377,8 @@ onMounted(load)
       <div class="card card-pad" style="margin-bottom:16px;">
         <b style="font-size:13px;">ℹ️ Cara membaca laporan ini</b>
         <ul class="muted" style="font-size:12px;margin:8px 0 0;padding-left:18px;line-height:1.7;">
-          <li><b>Kasbon cair</b> = uang muka yang diserahkan ke driver (status COMPLETED, tanggal serah dana). Bukan pengeluaran final.</li>
-          <li><b>Realisasi LPJ</b> = nilai BBM yang dipertanggungjawabkan driver. Total realisasi = pembelian diterima + LPJ.</li>
+          <li><b>Kasbon cair</b> = uang muka yang sudah diserahkan ke driver (handover_at terisi). Bukan pengeluaran final.</li>
+          <li><b>Realisasi LPJ</b> = LPJ kasbon yang sah (verified_ga/archived). Total realisasi = pembelian diterima + LPJ sah.</li>
           <li><b>Sisa kasbon</b> = kasbon cair − LPJ. Nilai negatif berarti LPJ melebihi dana muka dan perlu ditelusuri.</li>
           <li><b>Pembelian barang</b> = qty yang benar-benar diterima × harga item, dikelompokkan menurut tanggal order.</li>
           <li>Air minum dan overtime belum masuk karena sistem belum menyimpan nominalnya — bukan dianggap nol.</li>
@@ -404,6 +431,13 @@ onMounted(load)
 
 <style scoped>
 .table { width: 100%; border-collapse: collapse; font-size: 13px; }
+/* Kartu KPI yang bisa diklik → daftar baris sumber (v2.104.0). */
+.aq-link {
+  cursor: pointer; text-align: left; font-size: inherit; color: inherit;
+  transition: border-color .15s ease, transform .15s ease;
+}
+.aq-link:hover { transform: translateY(-1px); border-color: var(--primary, #2563eb); }
+.aq-link:focus-visible { outline: 2px solid var(--primary, #2563eb); outline-offset: 2px; }
 .table th, .table td { padding: 7px 10px; border-bottom: 1px solid var(--border, #e5e7eb); }
 .table th { text-align: left; font-weight: 600; }
 .bulan-aktif td { background: var(--primary-soft, rgba(25,103,210,.05)); }
