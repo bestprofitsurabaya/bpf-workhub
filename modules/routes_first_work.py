@@ -780,6 +780,68 @@ def _ensure_ktp_scan(conn, row, src_path):
     return os.path.join(UPLOAD_DIR, result['file'])
 
 
+def _add_event_once(conn, submission_id, event, note):
+    """Catat event sistem sekali saja (idempoten per submission)."""
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "SELECT id FROM first_work_events WHERE submission_id=%s AND event=%s "
+            "LIMIT 1", (submission_id, event))
+        if cursor.fetchone():
+            return False
+        cursor.execute(
+            "INSERT INTO first_work_events "
+            "(submission_id, event, note, actor, actor_role) "
+            "VALUES (%s,%s,%s,'system','system')",
+            (submission_id, event, note))
+        return True
+    finally:
+        cursor.close()
+
+
+def _flag_reuse_signals(conn, submission_id):
+    """Tandai No. HP atau file KTP yang dipakai pendaftaran lain (v2.92.0).
+
+    Sinyal untuk review manusia — TIDAK memblokir pengiriman, karena satu
+    nomor HP bisa sah dipakai keluarga dan review tetap di tangan traineer.
+    Yang dicatat hanya nomor registrasi pasangan, bukan data pribadi baru.
+    """
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            "SELECT id, registration_no, branch_code, no_hp_norm, ktp_sha256 "
+            "FROM first_work_submissions WHERE id=%s", (submission_id,))
+        row = cursor.fetchone()
+        if not row:
+            return
+        if row.get('no_hp_norm'):
+            cursor.execute(
+                "SELECT registration_no, branch_code FROM first_work_submissions "
+                "WHERE no_hp_norm=%s AND id<>%s ORDER BY id LIMIT 1",
+                (row['no_hp_norm'], submission_id))
+            duplicate = cursor.fetchone()
+            if duplicate:
+                _add_event_once(
+                    conn, submission_id, 'phone_reuse',
+                    f"No. HP sama dengan {duplicate['registration_no']} "
+                    f"({duplicate['branch_code']}) — perlu review")
+        sha = row.get('ktp_sha256') or ''
+        if sha:
+            cursor.execute(
+                "SELECT registration_no, branch_code FROM first_work_submissions "
+                "WHERE ktp_sha256=%s AND id<>%s ORDER BY id LIMIT 1",
+                (sha, submission_id))
+            duplicate = cursor.fetchone()
+            if duplicate:
+                _add_event_once(
+                    conn, submission_id, 'ktp_reuse',
+                    f"File KTP identik dengan {duplicate['registration_no']} "
+                    f"({duplicate['branch_code']}) — perlu review")
+    finally:
+        cursor.close()
+    conn.commit()
+
+
 def _fetch_ktp_from_bridge(conn, row):
     """Ambil file KTP lama via Apps Script (?ktp=&token=). Return filename."""
     file_id = _drive_file_id(row.get('ktp_drive_url') or row.get('photoid_url'))
@@ -1364,6 +1426,8 @@ def register_first_work_routes(app):
                     {'id': submission_id, 'registration_no': registration_no,
                      'ktp_scan_file': ''},
                     os.path.join(UPLOAD_DIR, filename))
+                # v2.92.0: sinyal anti-fraud (HP ganda / file KTP identik).
+                _flag_reuse_signals(conn, submission_id)
             except Exception as scan_error:
                 print(f'[first-work-scan] submit: {scan_error}')
 
@@ -1979,6 +2043,11 @@ def register_first_work_routes(app):
             # v2.88.0: sajikan versi scan (lurus + kontras + watermark) bila
             # tersedia; file asli tetap disimpan sebagai bukti.
             scan_path = _ensure_ktp_scan(conn, row, path)
+            if scan_path:
+                try:
+                    _flag_reuse_signals(conn, submission_id)
+                except Exception as reuse_error:
+                    print(f'[first-work-reuse] {reuse_error}')
             serve_path = scan_path or path
             suffix = '_scan' if scan_path else ''
             ext = '.jpg' if scan_path else os.path.splitext(filename)[1]

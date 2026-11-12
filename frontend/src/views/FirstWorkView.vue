@@ -87,6 +87,21 @@ const exportUrl = computed(() => {
   return '/api/first-work/export' + (suffix ? '?' + suffix : '')
 })
 
+// v2.92.0: label event yang ramah dibaca (termasuk sinyal anti-fraud).
+const EVENT_LABELS = {
+  created: 'Form dikirim',
+  consent: 'Persetujuan UU PDP',
+  verified: 'Diverifikasi',
+  rejected: 'Ditolak',
+  ktp_purge: 'KTP dipurge (retensi)',
+  phone_reuse: '⚠️ No. HP juga dipakai pendaftaran lain',
+  ktp_reuse: '⚠️ File KTP identik dengan pendaftaran lain',
+  first_work_id_config: 'Pengaturan ID Fingerprint/BPF',
+}
+function eventLabel(name) {
+  return EVENT_LABELS[name] || name
+}
+
 function fmtDT(value) {
   if (!value) return '-'
   const dt = new Date(String(value).replace(' ', 'T'))
@@ -763,8 +778,9 @@ onMounted(() => {
 
       <div v-if="events.length" class="fw-events">
         <h4>Riwayat</h4>
-        <div v-for="(e, index) in events" :key="index" class="fw-event">
-          <b>{{ e.event }}</b> · {{ e.status_to || '-' }} · {{ e.actor || 'sistem' }}
+        <div v-for="(e, index) in events" :key="index" class="fw-event"
+             :class="{ 'fw-event-warn': String(e.event).includes('reuse') }">
+          <b>{{ eventLabel(e.event) }}</b> · {{ e.status_to || '-' }} · {{ e.actor || 'sistem' }}
           <span>{{ fmtDT(e.created_at) }}</span>
           <div v-if="e.note" class="fw-hint">{{ e.note }}</div>
         </div>
@@ -850,6 +866,7 @@ onMounted(() => {
 .fw-verify label { display: block; font-size: 11px; color: var(--text-3); margin-bottom: 5px; }
 .fw-edit-grid { display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); margin: 8px 0; }
 .fw-event { font-size: 11px; padding: 6px 0; border-bottom: 1px dashed var(--border); }
+.fw-event-warn b { color: #b45309; }
 .fw-event span { color: var(--text-3); margin-left: 6px; }
 .fw-hint { font-size: 10px; color: var(--text-3); }
 .fw-sync { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-bottom: 14px; font-size: 12px; }

@@ -7,6 +7,20 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.92.0 — 12 November 2026 (FirstWork: sinyal anti-fraud No. HP & file KTP)
+
+- 🚩 **No. HP ganda** — saat pengiriman, nomor yang sudah dipakai pendaftaran
+  lain dicatat sebagai event `phone_reuse` berisi nomor registrasi pasangan
+  (bukan data pribadi baru). Tidak memblokir: satu nomor bisa sah dipakai
+  keluarga.
+- 🖼️ **File KTP identik** — SHA-256 hasil scan dibandingkan dengan pengiriman
+  lain; bila sama, tercatat event `ktp_reuse`. Berguna mendeteksi KTP yang
+  dipakai ulang untuk pendaftaran berbeda.
+- 🧾 Event tampil di riwayat detail dengan label ramah dan warna peringatan;
+  deteksi bersifat idempoten (tidak menumpuk tiap kali detail dibuka).
+- 🔁 Deteksi juga berjalan saat data lama pertama kali dibuka (scan dibuat
+  lazy), bukan hanya untuk pengiriman baru.
+
 ## v2.91.0 — 12 November 2026 (FirstWork: OCR dua jalur — ROI NIK/nama + voting)
 
 - 🎯 **Dua jalur OCR**: selain membaca halaman penuh (`--psm 6`), kini kata
