@@ -75,6 +75,25 @@ async function saveIdentity() {
   finally { identityBusy.value = false }
 }
 
+// Status deploy (v2.98.1) — versi image berjalan vs versi repo (CHANGELOG).
+const deployStatus = ref(null)
+const deployErr = ref('')
+const deployBusy = ref(false)
+
+async function loadDeployStatus() {
+  deployBusy.value = true; deployErr.value = ''
+  try { deployStatus.value = await api('/api/admin/deploy-status') }
+  catch (e) { deployStatus.value = null; deployErr.value = e.message || 'Gagal memuat status deploy' }
+  finally { deployBusy.value = false }
+}
+
+const deployBadge = computed(() => {
+  if (!deployStatus.value) return { label: 'Tidak diketahui', cls: 'badge-gray' }
+  if (deployStatus.value.stale) return { label: '⚠️ Tertinggal', cls: 'badge-red' }
+  if (deployStatus.value.state === 'ok') return { label: '✅ Sinkron', cls: 'badge-green' }
+  return { label: '❔ Tidak diketahui', cls: 'badge-gray' }
+})
+
 // Cabang (v2.19.2) — multi-cabang: satu instalasi, banyak cabang (DB terpisah)
 const branches = ref([])
 const currentBranch = ref(null)
@@ -518,6 +537,7 @@ const SECTIONS = [
   { id: 'sec-receptionist-realtime', label: '⚡ Realtime Sheet' },
   { id: 'sec-cabang', label: '🏢 Cabang & Nomor' },
   { id: 'sec-kepatuhan', label: '🗄️ Kepatuhan (ISO)' },
+  { id: 'sec-deploy', label: '🚀 Deploy' },
   { id: 'sec-branding', label: '🎨 Identitas' },
   { id: 'sec-lainnya', label: '🧪 Lainnya' },
 ]
@@ -534,7 +554,7 @@ function scrollToSection(id) {
 }
 
 let _secObserver = null
-onMounted(() => { load(); loadWaterNames(); loadEditEnabled(); loadIdentityForm(); loadDemoStatus(); loadBranches(); loadDocSequences(); loadRetention(); loadDocs(); loadSheetUrls(); loadInOutMode(); loadWebhook() })
+onMounted(() => { load(); loadWaterNames(); loadEditEnabled(); loadIdentityForm(); loadDemoStatus(); loadDeployStatus(); loadBranches(); loadDocSequences(); loadRetention(); loadDocs(); loadSheetUrls(); loadInOutMode(); loadWebhook() })
 onMounted(() => {
   // Highlight seksi aktif saat scroll (IntersectionObserver — ringan).
   _secObserver = new IntersectionObserver((entries) => {
@@ -874,6 +894,31 @@ onMounted(() => {
               <tr v-if="!docs.length"><td colspan="6" class="empty">Belum ada dokumen terdaftar — PDF resmi otomatis tercatat saat diunduh.</td></tr>
             </tbody>
           </table>
+        </div>
+      </div>
+
+      <div id="sec-deploy" class="card card-pad" style="margin-bottom:16px;">
+        <h3 style="margin:0;">🚀 Status Deploy <span class="badge" :class="deployBadge.cls" style="font-size:10px;vertical-align:middle;">{{ deployBadge.label }}</span></h3>
+        <p class="muted" style="font-size:11px;">
+          Guard deploy membandingkan versi image yang berjalan dengan versi repo
+          (<code>CHANGELOG.md</code>). Bila repo lebih baru, server menolak request
+          non-health dengan 503 sampai image di-rebuild — mencegah perilaku lama
+          tetap melayani pengguna.
+        </p>
+        <div v-if="deployStatus" class="form-grid" style="margin-top:12px;">
+          <div class="field"><label>Versi berjalan (image)</label><input class="input" :value="deployStatus.running_version || '—'" readonly /></div>
+          <div class="field"><label>Versi repo (CHANGELOG)</label><input class="input" :value="deployStatus.repo_version || '—'" readonly /></div>
+          <div class="field"><label>Mode guard</label><input class="input" :value="deployStatus.mode || '—'" readonly /></div>
+        </div>
+        <p v-if="deployStatus?.stale" class="alert alert-error" style="margin-top:10px;">
+          ⚠️ Image tertinggal dari repo. Jalankan <code>docker compose up -d --build web</code>.
+        </p>
+        <p v-else-if="deployStatus" class="alert alert-success" style="margin-top:10px;">
+          ✅ Versi image dan repo sudah sinkron.
+        </p>
+        <p v-else-if="deployErr" class="alert alert-error" style="margin-top:10px;">{{ deployErr }}</p>
+        <div class="row" style="justify-content:flex-end;margin-top:8px;">
+          <button class="btn btn-sm" :disabled="deployBusy" @click="loadDeployStatus">↩️ Muat Ulang</button>
         </div>
       </div>
 

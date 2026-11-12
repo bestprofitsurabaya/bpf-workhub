@@ -56,6 +56,49 @@ def test_repo_version_reads_latest_heading(tmp_path):
     assert dg.repo_version(str(path)) == (2, 98, 0)
 
 
+def test_status_dict_versions_and_state(tmp_path, monkeypatch):
+    path = _changelog(tmp_path, 'v2.98.1')
+    monkeypatch.setenv('DEPLOY_GUARD_FILE', str(path))
+    monkeypatch.setenv('DEPLOY_GUARD', 'block')
+    monkeypatch.setattr(dg, 'running_version', lambda: (2, 98, 0))
+    dg.reset_cache()
+    data = dg.status_dict()
+    assert data['running_version'] == 'v2.98.0'
+    assert data['repo_version'] == 'v2.98.1'
+    assert data['stale'] is True
+    assert data['state'] == 'stale'
+    assert data['mode'] == 'block'
+
+
+def test_health_payload_marks_degraded_when_stale(monkeypatch):
+    import modules.config as cfg
+    # branch_manager mengikat get_master_connection saat impor; impor dulu agar
+    # tidak mengikat lambda FakeConn milik tes ini (bocor ke tes berikutnya).
+    import modules.branch_manager  # noqa: F401
+    import modules.security as sec
+
+    class FakeConn:
+        def cursor(self):
+            return self
+        def execute(self, *a, **k):
+            return None
+        def fetchone(self):
+            return (1,)
+        def close(self):
+            pass
+
+    monkeypatch.setattr(cfg, 'get_master_connection', lambda: FakeConn())
+    monkeypatch.setattr(cfg, 'get_db_pool_info', lambda: None)
+    monkeypatch.setattr(sec, '_redis_ping', lambda: True)
+    monkeypatch.setattr(dg, 'status', lambda *a, **k: {
+        'stale': True, 'running': (2, 98, 0), 'repo': (2, 98, 1), 'path': 'x'})
+    payload = sec.health_payload()
+    assert payload['checks']['deploy']['stale'] is True
+    assert payload['checks']['deploy']['running_version'] == 'v2.98.0'
+    assert payload['checks']['deploy']['repo_version'] == 'v2.98.1'
+    assert payload['status'] == 'degraded'
+
+
 def test_stale_when_repo_newer(tmp_path, monkeypatch):
     client = _client(tmp_path, monkeypatch)
     assert client.get('/api/first-work/id-config').status_code == 503

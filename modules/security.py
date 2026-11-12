@@ -97,6 +97,17 @@ def health_payload(branches=False):
     except Exception:
         pass
 
+    # Guard deploy (v2.98.1): versi image berjalan vs versi repo (CHANGELOG).
+    # Stale = image tertinggal; perilaku lama masih dilayani → degraded.
+    try:
+        from modules.deploy_guard import status_dict
+        deploy = status_dict()
+        status['checks']['deploy'] = deploy
+        if deploy.get('stale'):
+            status['status'] = 'degraded'
+    except Exception:
+        status['checks']['deploy'] = {'state': 'unknown', 'stale': False}
+
     # Per cabang (admin)
     if branches and session.get('user_role') == 'admin':
         branch_checks = {}
@@ -140,7 +151,16 @@ def _branch_db_ok(code):
 
 
 def register_health_routes(app):
+    from modules.helpers import role_required
+
     @app.route('/api/health')
     def api_health():
         want_branches = request.args.get('branches') in ('1', 'true')
         return jsonify(health_payload(branches=want_branches))
+
+    @app.route('/api/admin/deploy-status')
+    @role_required(['admin'])
+    def api_admin_deploy_status():
+        """Status guard deploy untuk halaman Pengaturan (admin)."""
+        from modules.deploy_guard import status_dict
+        return jsonify(status_dict())

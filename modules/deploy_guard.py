@@ -114,6 +114,31 @@ def status(now=None, path=None):
     return {'stale': stale, 'running': running, 'repo': repo, 'path': path}
 
 
+def _fmt_version(value):
+    return f'v{value[0]}.{value[1]}.{value[2]}' if value else None
+
+
+def status_dict():
+    """Versi status aman-JSON untuk /api/health & halaman admin."""
+    state = status()
+    running = state['running']
+    repo = state['repo']
+    if state['stale']:
+        label = 'stale'
+    elif running and repo:
+        label = 'ok'
+    else:
+        label = 'unknown'
+    mode = (os.environ.get('DEPLOY_GUARD') or 'block').strip().lower()
+    return {
+        'state': label,
+        'stale': state['stale'],
+        'running_version': _fmt_version(running),
+        'repo_version': _fmt_version(repo),
+        'mode': mode,
+    }
+
+
 def reset_cache():
     """Kosongkan cache (dipakai test)."""
     _CACHE.update({'path': None, 'mtime': None, 'repo': None, 'checked': 0.0})

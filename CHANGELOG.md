@@ -7,6 +7,17 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.98.1 — 12 November 2026 (Status guard deploy di health & Pengaturan)
+
+- 📊 **`/api/health`** kini memuat `checks.deploy` — versi image berjalan, versi
+  repo (`CHANGELOG.md`), status `stale`, dan mode guard. Bila image tertinggal,
+  keseluruhan status menjadi `degraded` sehingga monitoring bisa membedakan
+  "layanan hidup tapi kode lama" dari sehat sungguhan.
+- ⚙️ **Pengaturan → Status Deploy** menampilkan versi berjalan vs repo, badge
+  Sinkron/Tertinggal, mode guard, dan tombol muat ulang. Endpoint barunya
+  `GET /api/admin/deploy-status` (admin-only), memakai data yang sama dengan
+  `/api/health`.
+
 ## v2.98.0 — 12 November 2026 (Guard deploy: tolak request saat image tertinggal dari repo)
 
 - 🛡️ **Guard deploy** — server membandingkan versi kode yang berjalan dengan
