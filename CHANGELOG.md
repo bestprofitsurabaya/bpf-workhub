@@ -7,6 +7,18 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.93.0 — 12 November 2026 (FirstWork: visibilitas umur antrean verifikasi)
+
+- ⏳ **Statistik antrean menua** — daftar FirstWork kini menghitung pendaftar
+  berstatus `submitted` yang sudah menunggu **>3 hari** dan **>7 hari**,
+  mengikuti scope cabang pengguna.
+- 🚩 **Banner peringatan** muncul bila ada antrean >7 hari, dengan tombol
+  langsung membuka filter "Menunggu" — supaya penumpukan terlihat, bukan
+  hanya total pendaftar.
+- 👆 Kartu **Antrean >7 hari** bisa diklik untuk memfilter antrean.
+- 🔒 Perhitungan memakai indeks `branch_code`/`submitted_at` yang sudah ada;
+  tidak ada kolom baru dan tidak mengubah data.
+
 ## v2.92.0 — 12 November 2026 (FirstWork: sinyal anti-fraud No. HP & file KTP)
 
 - 🚩 **No. HP ganda** — saat pengiriman, nomor yang sudah dipakai pendaftaran

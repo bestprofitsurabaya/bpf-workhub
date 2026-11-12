@@ -1613,6 +1613,20 @@ def register_first_work_routes(app):
                     + ((' AND branch_code=%s') if scope else ''),
                     ([scope] if scope else []))
                 stats['today'] = int((cursor.fetchone() or {}).get('n') or 0)
+                # v2.93.0: umur antrean — pendaftar yang masih 'submitted'
+                # dan sudah menunggu >3 / >7 hari (scope cabang yang sama).
+                cursor.execute(
+                    "SELECT "
+                    "SUM(status='submitted' AND DATEDIFF(CURDATE(), "
+                    "DATE(submitted_at))>=3) AS over3, "
+                    "SUM(status='submitted' AND DATEDIFF(CURDATE(), "
+                    "DATE(submitted_at))>=7) AS over7 "
+                    "FROM first_work_submissions"
+                    + ((' WHERE branch_code=%s') if scope else ''),
+                    ([scope] if scope else []))
+                aging = cursor.fetchone() or {}
+                stats['pending_over_3d'] = int(aging.get('over3') or 0)
+                stats['pending_over_7d'] = int(aging.get('over7') or 0)
             finally:
                 cursor.close()
 

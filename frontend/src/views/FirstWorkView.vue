@@ -486,12 +486,22 @@ onMounted(() => {
     <div v-if="err" class="alert alert-error">{{ err }}</div>
     <div v-if="msg" class="alert alert-success">{{ msg }}</div>
 
+    <!-- v2.93.0: pendaftar yang menunggu terlalu lama -->
+    <div v-if="(stats.pending_over_7d || 0) > 0" class="fw-callout fw-callout-warn">
+      ⚠️ {{ stats.pending_over_7d }} pendaftar sudah menunggu lebih dari 7 hari.
+      <button type="button" class="fw-link" @click="pickStatus('submitted')">Buka antrean</button>
+    </div>
+
     <div class="fw-stats">
       <div class="fw-stat"><span>Total</span><b>{{ stats.total || 0 }}</b></div>
       <div class="fw-stat fw-amber"><span>Menunggu</span><b>{{ stats.submitted || 0 }}</b></div>
       <div class="fw-stat fw-green"><span>Terverifikasi</span><b>{{ stats.verified || 0 }}</b></div>
       <div class="fw-stat fw-red"><span>Ditolak</span><b>{{ stats.rejected || 0 }}</b></div>
       <div class="fw-stat"><span>Hari Ini</span><b>{{ stats.today || 0 }}</b></div>
+      <div class="fw-stat fw-amber"><span>Antrean &gt;3 hari</span><b>{{ stats.pending_over_3d || 0 }}</b></div>
+      <div class="fw-stat fw-red fw-stat-click" @click="pickStatus('submitted')">
+        <span>Antrean &gt;7 hari</span><b>{{ stats.pending_over_7d || 0 }}</b>
+      </div>
       <div class="fw-stat fw-amber"><span>Referensi Baru</span><b>{{ stats.needs_review || 0 }}</b></div>
     </div>
 
@@ -867,6 +877,10 @@ onMounted(() => {
 .fw-edit-grid { display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); margin: 8px 0; }
 .fw-event { font-size: 11px; padding: 6px 0; border-bottom: 1px dashed var(--border); }
 .fw-event-warn b { color: #b45309; }
+/* v2.93.0: peringatan antrean menua */
+.fw-callout-warn { border-color: #f59e0b; background: rgba(245, 158, 11, .1); color: #92400e; }
+.fw-stat-click { cursor: pointer; }
+.fw-stat-click:hover { border-color: #dc2626; }
 .fw-event span { color: var(--text-3); margin-left: 6px; }
 .fw-hint { font-size: 10px; color: var(--text-3); }
 .fw-sync { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-bottom: 14px; font-size: 12px; }
