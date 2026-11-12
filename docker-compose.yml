@@ -68,6 +68,9 @@ services:
       - ./fonts:/app/fonts
       # v2.48.0: PWA mobile — bind mount supaya edit file tidak perlu rebuild image
       - ./mobile:/app/mobile:ro
+      # v2.98.0: guard deploy — versi repo (CHANGELOG) dibandingkan dengan versi
+      # image. Bila repo lebih baru, request non-health ditolak 503 sampai rebuild.
+      - ./CHANGELOG.md:/app/deploy/CHANGELOG.md:ro
       # v2.69.0: gate OTP agen Subsidi Tepat — endpoint /api/subsidy/otp/*
       # menulis perintah di sini; supervisor di HOST (otp_supervisor.mjs)
       # mengeksekusi login/verify/pull & menulis balik agent_state.json
@@ -75,6 +78,8 @@ services:
     environment:
       - FLASK_DEBUG=0
       - TZ=Asia/Jakarta
+      # block = tolak request saat image tertinggal; warn = hanya log; off = mati
+      - DEPLOY_GUARD=${DEPLOY_GUARD:-block}
       - DB_HOST=db
       - DB_USER=${DB_USER:-bpf_user}
       # Password dari .env (satu sumber: MYSQL_PASSWORD untuk user aplikasi)

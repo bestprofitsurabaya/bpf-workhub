@@ -7,6 +7,19 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.98.0 — 12 November 2026 (Guard deploy: tolak request saat image tertinggal dari repo)
+
+- 🛡️ **Guard deploy** — server membandingkan versi kode yang berjalan dengan
+  entri teratas `CHANGELOG.md` repo (mount read-only `/app/deploy/CHANGELOG.md`).
+  Bila versi repo lebih baru, request non-health ditolak **503** dengan pesan
+  rebuild, sehingga container yang tertinggal tidak lagi diam-diam menyajikan
+  perilaku lama (insiden 12 Nov: image v2.97.0 masih melayani request setelah
+  repo naik ke v2.97.1).
+- ⚙️ `DEPLOY_GUARD=block|warn|off` (default `block`); `/api/health` dan aset
+  statis tetap dilayani agar monitoring dan halaman error tetap dapat dimuat.
+- 🧪 Tes `tests/test_deploy_guard.py`: versi sama/lebih baru/rollback, mode
+  warn/off, file pembanding hilang, dan health tetap 200 saat guard memblokir.
+
 ## v2.97.1 — 12 November 2026 (FirstWork: counter ID per cabang ter-scope + ID resmi di form publik)
 
 - 🔐 **Counter ID per cabang kini benar-benar ter-scope** — daftar counter di

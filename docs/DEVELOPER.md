@@ -167,6 +167,12 @@ docker exec bpf-workhub-web python3 /app/scripts/check_version_stamps.py
 
 Health yang sehat: `checks.database = ok`, `checks.redis = ok`, dan semua pool cabang `ready`.
 
+> **Guard deploy (v2.98.0):** container me-mount `./CHANGELOG.md` read-only dan
+> menolak request non-health dengan **503** bila versi image lebih lama dari
+> versi repo. Bila muncul pesan "Deploy belum sinkron", rebuild image — restart
+> container saja tidak cukup. `DEPLOY_GUARD=warn` mencatat tanpa memblokir
+> (darurat), `DEPLOY_GUARD=off` mematikan guard.
+
 ### Mulai cepat per masalah
 
 | Gejala | Cek pertama |

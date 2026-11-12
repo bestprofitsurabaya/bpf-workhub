@@ -489,6 +489,10 @@ from modules.routes_profile import register_profile_routes                   # v
 from modules.approvals import register_approval_routes
 from modules.transcoder import register_transcoder_routes
 from modules.pdfkit import register_pdfkit_routes
+from modules.deploy_guard import install_deploy_guard  # v2.98.0
+
+# v2.98.0: tolak request bila image lebih lama dari CHANGELOG repo (mount).
+install_deploy_guard(app)
 
 register_driver_routes(app, socketio)
 register_auth_routes(app)
