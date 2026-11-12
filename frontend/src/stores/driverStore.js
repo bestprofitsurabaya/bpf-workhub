@@ -111,11 +111,13 @@ export const useDriverStore = defineStore('driver', {
           } catch { /* retry nanti */ }
         }
         // 4) Overtime Driver offline → POST /api/overtime/driver/submit
+        // api() mengembalikan body JSON langsung (bukan {ok, data}); memakai
+        // {ok, data} membuat item tidak pernah terhapus → terkirim berulang.
         const overtimes = await getAllFromQueue('overtime_queue')
         for (const item of overtimes) {
           try {
-            const { ok, data } = await api('/api/overtime/driver/submit', { method: 'POST', body: item.data })
-            if (ok && data?.status === 'success') { await deleteFromQueue('overtime_queue', item.id); sent++ }
+            const data = await api('/api/overtime/driver/submit', { method: 'POST', body: item.data })
+            if (data?.status === 'success') { await deleteFromQueue('overtime_queue', item.id); sent++ }
           } catch { /* retry nanti */ }
         }
         this.lastSync = new Date().toISOString()

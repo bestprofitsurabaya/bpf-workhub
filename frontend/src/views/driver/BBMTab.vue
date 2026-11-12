@@ -25,7 +25,7 @@ const PHOTO_FIELDS = [
   { key: 'foto_odo_sebelum', label: 'Foto ODO Sebelum', required: true },
   { key: 'foto_nota_odo_sesudah', label: 'Nota + ODO Sesudah', required: true },
   { key: 'foto_struk', label: 'Foto Struk', required: true },
-  { key: 'foto_struk_dispenser', label: 'Foto Dispenser', required: false, onlyNonRekanan: true },
+  { key: 'foto_struk_dispenser', label: 'Foto Dispenser', required: true, onlyNonRekanan: true },
 ]
 
 function applyProfile() {
@@ -135,6 +135,17 @@ function requiredPhotos() {
 async function submit() {
   if (!form.value.nopol || !(form.value.nominal > 0) || !(form.value.odo_km > 0)) {
     emit('toast', '⚠️ Nopol, nominal, dan ODO wajib diisi', 'error'); return
+  }
+  // Foto bertanda * wajib ada di klien: server sengaja menerima foto kosong
+  // untuk jalur offline, jadi tanpa cek ini klaim bisa tersimpan tanpa bukti.
+  const missingPhotos = requiredPhotos().filter((f) => !photos.value[f.key])
+  if (missingPhotos.length) {
+    emit('toast', '⚠️ Foto wajib belum lengkap: ' + missingPhotos.map((f) => f.label).join(', '), 'error')
+    return
+  }
+  if (Object.values(wmState.value).includes('processing')) {
+    emit('toast', '⏳ Tunggu watermark foto selesai diproses', 'warning')
+    return
   }
   const isLpj = !!store.activeLpj
   const payload = buildPayload()

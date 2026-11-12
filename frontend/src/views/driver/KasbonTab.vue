@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import { useDriverStore } from '../../stores/driverStore'
 import { api } from '../../api'
 import ConfirmDialog from '../../components/ConfirmDialog.vue'
@@ -8,7 +8,9 @@ const confirmRef = ref(null)
 const ask = (message, opts) => confirmRef.value?.open(message, opts) ?? Promise.resolve(false)
 
 const store = useDriverStore()
-const emit = defineEmits(['toast'])
+const emit = defineEmits(['toast', 'switchTab'])
+// refresh naik setiap tab Kasbon dibuka (tab tetap ter-mount karena v-show).
+const props = defineProps({ refresh: { type: Number, default: 0 } })
 
 const baseAmount = ref(0)
 const submitting = ref(false)
@@ -97,6 +99,7 @@ function barColor(c) {
   return p >= 60 ? 'var(--primary)' : p >= 30 ? 'var(--warning)' : '#94a3b8'
 }
 
+watch(() => props.refresh, () => loadData())
 onMounted(loadData)
 </script>
 
@@ -159,8 +162,8 @@ onMounted(loadData)
         <div class="muted" style="font-size:9px;text-align:center;margin-top:2px;">📝 Draft → ✅ GA → 💰 Finance → 🤝 Serah → 📋 LPJ → 🎉 Done</div>
       </template>
     </div>
+    <ConfirmDialog ref="confirmRef" />
   </div>
-  <ConfirmDialog ref="confirmRef" />
 </template>
 
 <style scoped>

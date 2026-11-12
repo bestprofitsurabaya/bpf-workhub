@@ -7,6 +7,24 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.98.2 — 12 November 2026 (Perbaikan tab driver: Kasbon, OT, antrean overtime)
+
+- 🩹 **Tab Kasbon tidak lagi tumpang tindih dengan tab lain.** Komponen ini punya
+  dua root node sehingga `v-show` di DriverView tidak berfungsi — isi Kasbon
+  ikut tampil di tab BBM/Trip/OT/Rapor. Root kini tunggal dan `switchTab`
+  dideklarasikan di `emits`, jadi tombol **Isi LPJ** benar-benar berpindah ke
+  tab BBM.
+- 🔁 **Antrean overtime offline tidak lagi terkirim berulang.** `syncAll()`
+  membaca hasil `api()` sebagai `{ok, data}` padahal `api()` mengembalikan body
+  JSON langsung; item antrean tidak pernah terhapus dan terkirim tiap 30 detik.
+- 📷 **Foto wajib BBM/LPJ ditegakkan di klien.** Foto ODO sebelum, nota+ODO
+  sesudah, struk, dan dispenser (non-rekanan) harus dipilih sebelum kirim;
+  pengiriman ditahan selama watermark masih diproses.
+- 🔄 **Data Kasbon dimuat ulang setiap tab dibuka** (daftar LPJ pending dan
+  riwayat tidak lagi basi karena tab tetap ter-mount).
+- 🧭 **Tab tersimpan divalidasi**: nilai `driverTab` lama/tak dikenal jatuh ke
+  BBM, bukan layar kosong.
+
 ## v2.98.1 — 12 November 2026 (Status guard deploy di health & Pengaturan)
 
 - 📊 **`/api/health`** kini memuat `checks.deploy` — versi image berjalan, versi

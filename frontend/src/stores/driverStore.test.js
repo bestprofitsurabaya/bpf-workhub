@@ -61,6 +61,19 @@ describe('driver store', () => {
     vi.unstubAllGlobals()
   })
 
+  it('syncAll menghapus antrean overtime setelah server sukses', async () => {
+    const s = useDriverStore()
+    idb.getAllFromQueue.mockImplementation((store) => {
+      if (store === 'overtime_queue') return Promise.resolve([{ id: 11, data: { tanggal: '2026-11-12' }, timestamp: 'x' }])
+      return Promise.resolve([])
+    })
+    apiMock.mockResolvedValueOnce({ status: 'success', display_id: 'OT-1' })
+    const n = await s.syncAll()
+    expect(n).toBe(1)
+    expect(apiMock).toHaveBeenCalledWith('/api/overtime/driver/submit', expect.objectContaining({ method: 'POST' }))
+    expect(idb.deleteFromQueue).toHaveBeenCalledWith('overtime_queue', 11)
+  })
+
   it('pushNotification menambah notifikasi & menaikkan unread', () => {
     const s = useDriverStore()
     s.pushNotification({ id: 1, message: 'Klaim disetujui GA', type: 'claim', action: 'approved' })

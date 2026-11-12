@@ -21,7 +21,6 @@ const router = useRouter()
 
 const brandIcon = '/static/icon-192.png'
 
-const tab = ref(localStorage.getItem('driverTab') || 'bbm')
 const dark = ref(localStorage.getItem('bpf_dark') === '1')
 const toasts = ref([])
 const helpOpen = ref(false)
@@ -47,6 +46,10 @@ const TABS = [
   { key: 'overtime', label: 'OT', icon: '⏰' },
   { key: 'rapor', label: 'Rapor', icon: '📊' },
 ]
+// Valuasi tab tersimpan: kunci lama/tak dikenal tidak boleh membuat layar kosong.
+const storedTab = localStorage.getItem('driverTab')
+const tab = ref(TABS.some((t) => t.key === storedTab) ? storedTab : 'bbm')
+const kasbonRefresh = ref(0)
 
 // v2.73.0 — konfirmasi serah terima kendaraan (confirmed_by_driver).
 // Import identitas dari sesi di backend; body hanya kirim nopol.
@@ -102,7 +105,10 @@ function toast(text, type = '') {
 function switchTab(key) {
   tab.value = key
   localStorage.setItem('driverTab', key)
-  if (key === 'kasbon') store.loadDailyCode()
+  if (key === 'kasbon') {
+    kasbonRefresh.value++
+    store.loadDailyCode()
+  }
 }
 
 function toggleDark() {
@@ -220,7 +226,7 @@ onBeforeUnmount(() => {
       <!-- Konten tab -->
       <main class="d-content">
         <BBMTab v-show="tab === 'bbm'" @toast="toast" />
-        <KasbonTab v-show="tab === 'kasbon'" @toast="toast" @switch-tab="switchTab" />
+        <KasbonTab v-show="tab === 'kasbon'" :refresh="kasbonRefresh" @toast="toast" @switch-tab="switchTab" />
         <TripTab v-show="tab === 'trip'" @toast="toast" />
         <OvertimeDriverTab v-show="tab === 'overtime'" @toast="toast" />
         <RaporTab v-show="tab === 'rapor'" @toast="toast" />

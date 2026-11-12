@@ -23,13 +23,15 @@ vi.mock('../../utils/gps', () => ({
 }))
 
 let pendingRows = [] // v2.73.0 — assignment yang belum dikonfirmasi (default kosong)
+let pendingLpjRows = [] // kasbon berstatus FUNDS_WITH_DRIVER
 
 function mockApi() {
   apiMock.mockImplementation((path, opts = {}) => {
     if (path === '/api/driver/me') return Promise.resolve({ name: 'RIVAN', nopol: 'L 1 AB', vehicle_type: 'AVANZA', bbm_type: 'PERTALITE', is_active: true })
     if (path === '/api/cash/daily-code') return Promise.resolve({ code: 300, manual_mode: false })
     if (path === '/api/notifications') return Promise.resolve({ notifications: [], unread: 0 })
-    if (path === '/api/cash/history' || path === '/api/cash/pending-lpj') return Promise.resolve([])
+    if (path === '/api/cash/history') return Promise.resolve([])
+    if (path === '/api/cash/pending-lpj') return Promise.resolve(pendingLpjRows)
     if (path === '/api/assignments/pending') return Promise.resolve(pendingRows)
     if (path === '/api/assignments/confirm') return Promise.resolve({ status: 'success', msg: 'Konfirmasi L 1 AB berhasil! ✅' })
     if (path.includes('/api/appointments/driver-today')) return Promise.resolve([])
@@ -51,14 +53,19 @@ async function mountView() {
 }
 
 describe('DriverView', () => {
-  beforeEach(() => { vi.clearAllMocks(); pendingRows = []; localStorage.setItem('bpf_onboarded:rivan', '1') })
+  beforeEach(() => {
+    vi.clearAllMocks(); pendingRows = []; pendingLpjRows = []
+    localStorage.setItem('bpf_onboarded:rivan', '1')
+    localStorage.setItem('driverTab', 'bbm')
+  })
   afterEach(() => { vi.unstubAllGlobals() })
 
-  it('menampilkan shell PWA driver dengan 4 tab navigasi', async () => {
+  it('menampilkan shell PWA driver dengan 5 tab navigasi', async () => {
     const w = await mountView()
     expect(w.text()).toContain('BBM')
     expect(w.text()).toContain('Kasbon')
     expect(w.text()).toContain('Trip')
+    expect(w.text()).toContain('OT')
     expect(w.text()).toContain('Rapor')
     expect(w.text()).toContain('🟢 Online')
     w.unmount()
@@ -93,8 +100,45 @@ describe('DriverView', () => {
   })
 })
 
+describe('Visibilitas tab & alur LPJ', () => {
+  beforeEach(() => {
+    vi.clearAllMocks(); pendingRows = []; pendingLpjRows = []
+    localStorage.setItem('bpf_onboarded:rivan', '1')
+    localStorage.setItem('driverTab', 'bbm')
+  })
+  afterEach(() => { vi.unstubAllGlobals() })
+
+  it('tab Kasbon tidak ikut tampil saat tab BBM aktif (root tunggal)', async () => {
+    const w = await mountView()
+    const kasbonPage = w.findAll('.tab-page').find((p) => p.text().includes('Ajukan Kasbon'))
+    expect(kasbonPage).toBeTruthy()
+    expect(kasbonPage.attributes('style') || '').toContain('display: none')
+    w.unmount()
+  })
+
+  it('tombol Isi LPJ berpindah ke tab BBM', async () => {
+    pendingLpjRows = [{ id: 4, display_id: 'C-9', total_amount: 150000, daily_code: 300, nopol: 'L 1 AB' }]
+    const w = await mountView()
+    const kasbonBtn = w.findAll('.d-nav-item').find((b) => b.text().includes('Kasbon'))
+    await kasbonBtn.trigger('click')
+    await flushPromises()
+    const lpjBtn = w.findAll('button').find((b) => b.text().includes('Isi LPJ'))
+    expect(lpjBtn).toBeTruthy()
+    await lpjBtn.trigger('click')
+    await flushPromises()
+    const bbmPage = w.findAll('.tab-page').find((p) => p.text().includes('Jenis BBM'))
+    expect(bbmPage.attributes('style') || '').not.toContain('display: none')
+    expect(w.findAll('.tab-page').find((p) => p.text().includes('Ajukan Kasbon')).attributes('style')).toContain('display: none')
+    w.unmount()
+  })
+})
+
 describe('Konfirmasi serah terima kendaraan (v2.73.0)', () => {
-  beforeEach(() => { vi.clearAllMocks(); pendingRows = []; localStorage.setItem('bpf_onboarded:rivan', '1') })
+  beforeEach(() => {
+    vi.clearAllMocks(); pendingRows = []; pendingLpjRows = []
+    localStorage.setItem('bpf_onboarded:rivan', '1')
+    localStorage.setItem('driverTab', 'bbm')
+  })
   afterEach(() => { vi.unstubAllGlobals() })
 
   it('banner serah terima tampil bila ada assignment yang belum dikonfirmasi', async () => {
