@@ -7,6 +7,18 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.90.0 — 12 November 2026 (FirstWork: alat ukur scan + OCR KTP)
+
+- 🧪 **Harness evaluasi** `scripts/eval_first_work_ktp.py` — mengukur laju
+  sukses scan, akurasi NIK & nama (mentah vs hasil scan), dan latency.
+- 🎭 Mode sintetis membuat KTP palsu ber-ground-truth dengan variasi rotasi,
+  blur, pencahayaan, dan kompresi JPEG; mode korpus menerima foto KTP nyata
+  ber-consent lewat `--corpus` + `truth.json`.
+- 📊 Output JSON + ringkasan konsol, sehingga perubahan pipeline OCR bisa
+  dibandingkan sebelum/sesudah — bukan diklaim tanpa angka.
+- 🔒 Harness tidak menyimpan data pribadi: mode sintetis memakai identitas
+  palsu, mode korpus hanya membaca folder yang diberikan admin.
+
 ## v2.89.0 — 12 November 2026 (FirstWork: OCR bantu isi NIK & nama — tetap diperiksa manusia)
 
 - 🔍 **Tombol "Isi NIK & Nama otomatis"** di hasil scan — memanggil
