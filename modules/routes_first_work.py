@@ -1953,7 +1953,11 @@ def register_first_work_routes(app):
 
     # ---------------- LINK FORM PER CABANG (v2.82.0) ----------------
     @app.route('/api/first-work/branch-forms')
-    @role_required(ADMIN_ROLES)
+    # v2.86.1: akses 'traineer' ditambah — trainer butuh endpoint ini untuk
+    # mendapatkan tautan form publik ber-token cabangnya sendiri (scope via
+    # _scope_branch). Sebelumnya admin-only → trainer dapat fallback link tanpa
+    # token → tautan itu lalu ditolak (v2.84.0+ wajib token).
+    @role_required(['admin', 'traineer'])
     def api_first_work_branch_forms():
         """Tautan form publik MILIK TIAP CABANG (ber-token).
 

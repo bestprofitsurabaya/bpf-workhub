@@ -7,6 +7,19 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.86.1 — 12 November 2026 (FirstWork: fix tautan dashboard trainer — endpoint branch-forms kini bisa diakses traineer)
+
+- 🖥️ **Fix tautan form publik dari dashboard Traineer** — endpoint
+  `GET /api/first-work/branch-forms` sebelumnya `@admin`-only, sehingga
+  request dari role **traineer** gagal → frontend fallback membangun tautan
+  **tanpa token** (`?cabang=JKT`) → akhirnya ditolak (v2.84.0+ wajib token).
+- Sekarang `@role_required(['admin', 'traineer'])` — trainer mendapat tautan
+  form publik ber-token cabangnya sendiri (scope via `_scope_branch`).
+- Halaman penolakan penuh (`Tautan Form Tidak Valid`) tetap berlaku untuk
+  tautan tanpa token / token tidak cocok.
+
+---
+
 ## v2.86.0 — 12 November 2026 (FirstWork: audit publik — tautan cabang tidak sah kini ditolak jelas)
 
 - 🔍 **Audit semua cabang selesai & backend diverifikasi** — seluruh 12 cabang
