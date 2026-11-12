@@ -15,6 +15,11 @@ const linkBranch = (linkParams.get('cabang') || linkParams.get('branch') || '').
 const linkToken = (linkParams.get('t') || linkParams.get('token') || '').trim()
 const branchLabel = ref('')
 const resolvedBranch = ref(linkBranch)
+// v2.86.0: status keabsahan tautan. 'loading' → 'ok' (tautan sah) atau
+// 'invalid' (ditolak server) — tautan tidak sah dirender sebagai halaman
+// penolakan penuh, TANPA form dan TANPA branding cabang mana pun.
+const linkState = ref('loading')
+const linkError = ref('')
 
 // Kode provinsi pada 2 digit pertama NIK.
 const PROVINSI = {
@@ -169,14 +174,21 @@ async function loadReferrers() {
     const response = await fetch('/api/first-work/referrers' + query, { headers: { Accept: 'application/json' } })
     const data = await response.json()
     if (!response.ok) {
-      error.value = data.error || 'Tautan form tidak valid untuk cabang ini.'
+      // v2.86.0: tautan ditolak server (token salah/kosong, cabang tak dikenal)
+      // → halaman penolakan penuh, bukan form dengan branding default.
+      linkState.value = 'invalid'
+      linkError.value = data.error || 'Tautan form tidak valid untuk cabang ini.'
       referrers.value = []
       return
     }
     referrers.value = data.referrers || []
     branchLabel.value = data.branch_name || ''
     resolvedBranch.value = data.branch || linkBranch
+    linkState.value = 'ok'
   } catch {
+    // Koneksi gagal — tidak bisa memastikan tautan sah; jangan tampilkan form.
+    linkState.value = 'invalid'
+    linkError.value = 'Gagal memuat data cabang. Periksa koneksi internet lalu muat ulang halaman.'
     referrers.value = []
   } finally {
     metaLoading.value = false
@@ -270,6 +282,10 @@ function goTo(index) {
 }
 
 async function submit() {
+  if (linkState.value !== 'ok') {
+    error.value = 'Tautan form tidak valid. Minta tautan resmi dari Traineer/Admin.'
+    return
+  }
   for (let i = 0; i < STEPS.length; i += 1) {
     const message = stepError(i)
     if (message) { step.value = i; error.value = message; return }
@@ -349,9 +365,25 @@ onBeforeUnmount(() => clearTimeout(checkTimer))
       <div class="fw-brand">
         <img :src="brandIcon" alt="BPF" />
         <h1>Absensi FirstWork</h1>
-        <p>PT Bestprofit Futures · {{ branchLabel || 'Surabaya' }}</p>
+        <!-- v2.86.0: tanpa fallback 'Surabaya' — nama cabang hanya tampil bila
+             tautan terverifikasi server, dan disembunyikan saat tautan ditolak. -->
+        <p v-if="linkState !== 'invalid'">PT Bestprofit Futures · {{ branchLabel || '…' }}</p>
       </div>
 
+      <!-- v2.86.0: halaman penolakan penuh untuk tautan tidak sah —
+           tanpa form, tanpa langkah, tanpa branding cabang. -->
+      <div v-if="linkState === 'invalid'" class="fw-reject">
+        <div class="fw-reject-ico">⛔</div>
+        <h2>Tautan Form Tidak Valid</h2>
+        <p class="fw-reject-msg">{{ linkError }}</p>
+        <p class="fw-note">
+          Gunakan tautan atau QR resmi dari Traineer/Admin cabang tujuan Anda.
+          Setiap cabang memiliki tautan yang berbeda dan tidak dapat dipakai
+          antar cabang.
+        </p>
+      </div>
+
+      <template v-else>
       <div v-if="done" class="fw-success">
         <div class="fw-check">✅</div>
         <h2>Terima kasih, {{ done.nama }}!</h2>
@@ -516,6 +548,7 @@ onBeforeUnmount(() => clearTimeout(checkTimer))
             kebijakan retensi: foto KTP dihapus otomatis setelah proses selesai.
           </p>
       </form>
+      </template>
     </div>
   </div>
 </template>
@@ -604,5 +637,10 @@ onBeforeUnmount(() => clearTimeout(checkTimer))
 .fw-consent input { margin-top: 2px; flex: none; width: 16px; height: 16px; accent-color: var(--primary, #7c3aed); }
 .fw-consent:has(input:checked) { border-color: var(--primary, #7c3aed); }
 .fw-nav { display: flex; gap: 8px; margin-top: 6px; }
+/* v2.86.0: halaman penolakan penuh tautan form tidak sah */
+.fw-reject { text-align: center; padding: 28px 16px; display: grid; gap: 8px; justify-items: center; }
+.fw-reject-ico { font-size: 34px; }
+.fw-reject h2 { margin: 0; font-size: 16px; }
+.fw-reject-msg { margin: 0; font-size: 12px; color: var(--text-3); line-height: 1.6; }
 .fw-next { flex: 1; justify-content: center; }
 </style>

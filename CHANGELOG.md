@@ -7,6 +7,23 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.86.0 — 12 November 2026 (FirstWork: audit publik — tautan cabang tidak sah kini ditolak jelas)
+
+- 🔍 **Audit semua cabang selesai & backend diverifikasi** — seluruh 12 cabang
+  aktif lolos validasi token (200 + nama cabang benar, JKT = Kantor Pusat Equity
+  Tower, JKT2 = Pacific Place Mall, SBY = Surabaya, dst.), tautan tanpa token → 403,
+  cabang asing → 400.
+- 🖥️ **Fix UI: tautan form tidak sah kini halaman penolakan penuh** — URL publik
+  `/app/first-work-form?cabang=<KODE>` (tanpa token / token salah) tidak lagi
+  menampilkan form aktif dengan branding default, melainkan halaman jelas
+  *"Tautan Form Tidak Valid"* + arahan meminta tautan resmi dari Traineer/Admin
+  cabang tujuan. Subtitle header tidak lagi memakai fallback "Surabaya" — nama
+  cabang hanya ditampilkan setelah tautan terverifikasi server (token valid).
+- ✅ **Pengujian** — full pytest suite hijau (1181 passed, 6 skipped); backend matrix
+  dipastikan live via curl untuk 12 cabang + tanpa token + cabang tidak dikenal.
+
+---
+
 ## v2.85.0 — 12 November 2026 (FirstWork: kepatuhan UU PDP — persetujuan, retensi KTP, rate limit Redis)
 
 Sistem kini menyimpan NIK, nama, no. HP, dan foto KTP pendaftar — tiga gap
