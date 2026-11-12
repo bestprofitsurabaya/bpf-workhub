@@ -10,7 +10,17 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 ## 🔁 Handoff 12 Nov 2026 — Meja kerja BBM, Kasbon & Laporan (v2.99.0 → v2.104.0)
 
-**Live:** v2.104.0 (sebelum deploy: working tree NAS + sudah di-commit).
+**Live:** **v2.104.0** — image dibangun ulang dari working tree, container
+`bpf-workhub-web` di-recreate, `/api/health` → `state=ok`,
+`repo_version = running_version = v2.104.0`, `stale=false`. Commit `10dda8f`
+di repo NAS (push ke origin menyusul).
+
+**Audit:** `docs/internal/AUDIT_BBM_WORKSPACE_20261112.md` — 6 temuan, 4
+diperbaiki di v2.104.0 (A-01 GA lihat tab BBM kosong, A-02 default cakupan HO
+≠ desain, A-03 definisi LPJ diduplikasi, A-04/A-05 testid & tab tujuan),
+A-06 test basi SettingsView diperbaiki; A-07 (antrean mismatch belum punya
+data produksi) & A-08 (dana di driver tak punya aksi langsung) diterima dengan
+alasan eksplisit.
 
 **Gelombang yang diselesaikan sesi ini (v2.99.1 → v2.103.0, dari sesi
 sebelumnya):**
@@ -70,8 +80,11 @@ sebelumnya):**
    frontend — sebagian besar route SPA/agen, **belum** diverifikasi satu per
    satu; jangan pernah menghapus tanpa cek mobile/agen/skrip).
 
-**Verifikasi rilis terakhir:** **1231 pytest** (6 skip) + **307 vitest** hijau;
-stamp 7 titik ✅ `v2.104.0`. Catatan: data SBY/BDG saat ini tidak punya
+**Verifikasi rilis terakhir:** **1244 pytest** (6 skip) + **307 vitest** hijau;
+stamp 7 titik ✅ `v2.104.0`. Probe live setelah deploy: GA kini bisa
+`/api/finance/bbm` (200), `?type=BOGUS` → 400, isolasi cabang admin BDG
+(sendiri 200 / SBY 403 / ALL 403 / ZZZ 400), PDF Rekap memuat baris meta
+(Dasar · Cabang · Dibuat). Catatan: data SBY/BDG saat ini tidak punya
 antrean menua (semua `archived`/`completed`), jadi panel menampilkan "tidak ada
 antrean" — itu benar, bukan bug.
 

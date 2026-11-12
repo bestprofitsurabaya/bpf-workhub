@@ -224,7 +224,7 @@ Yang bisa (dan belum) ditambahkan: pengingat/tagihan ke driver, atau
 - **Tes baru:** `tests/test_branch_scope.py` (11), `tests/test_bbm_action_queue.py` (12),
   `tests/test_finance_bbm_workspace.py` (+1), `frontend/src/components/BbmWorkspaceKpi.test.js` (4),
   `frontend/src/views/CashView.test.js` (+5), `frontend/src/views/ExpensesView.test.js` (+1).
-- **Suite penuh:** 1231 pytest (6 skip) + 307 vitest hijau.
+- **Suite penuh:** 1244 pytest (6 skip) + 307 vitest hijau.
 - **Deploy:** image dibangun ulang dari working tree, container `bpf-workhub-web`
   recreate, `/api/health` → `state=ok`, `repo_version=running_version=v2.104.0`.
 

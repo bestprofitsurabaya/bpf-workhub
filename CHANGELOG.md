@@ -39,7 +39,9 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
   dibuat — file export bisa diaudit sendiri tanpa membuka UI.
 - 🧪 Tes: `tests/test_bbm_action_queue.py` (10 — ambang, cutoff, baris nyata,
   batas payload, mismatch membaca verdict yang sudah ada), `BbmWorkspaceKpi`
-  (4), `CashView` (5 baru), `ExpensesView` (1 baru). Full: **1231 pytest +
+  (4), `CashView` (5 baru), `ExpensesView` (1 baru), `branch_scope` (11 baru —
+  modul ini tadinya **tanpa tes** padahal ia penjaga satu-satunya di jalur
+  laporan lintas-cabang). Full: **1244 pytest +
   307 vitest** hijau.
 - 🐛 Test basi diperbaiki: `SettingsView` menyangkar 8 seksi padahal sudah 9
   (seksi *Deploy* masuk sejak v2.98.1) — selama ini merah di suite penuh.
