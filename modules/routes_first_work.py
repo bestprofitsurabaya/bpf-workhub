@@ -1845,12 +1845,12 @@ def register_first_work_routes(app):
             body = request.get_json(silent=True) or {}
             action = _clean(body.get('action'), 20).lower()
             note = _clean(body.get('note'), 500)
-            if action not in ('verify', 'reject'):
+            if action not in ('verify', 'reject', 'reopen'):
                 return jsonify({'status': 'error',
-                                'msg': 'Aksi harus verify atau reject'}), 400
-            if action == 'reject' and not note:
+                                'msg': 'Aksi harus verify, reject, atau reopen'}), 400
+            if action in ('reject', 'reopen') and not note:
                 return jsonify({'status': 'error',
-                                'msg': 'Alasan penolakan wajib diisi'}), 400
+                                'msg': 'Alasan penolakan/pembatalan wajib diisi'}), 400
 
             conn = get_master_connection()
             if not conn:
@@ -1864,20 +1864,37 @@ def register_first_work_routes(app):
                     return jsonify({'status': 'error', 'msg': 'Data tidak ditemukan'}), 404
                 if not _row_allowed(row, conn):
                     return jsonify({'status': 'error', 'msg': 'Data di luar cabang Anda'}), 403
-                new_status = 'verified' if action == 'verify' else 'rejected'
                 actor = session.get('full_name') or session.get('user_name') or ''
-                cursor.execute("""
-                    UPDATE first_work_submissions
-                    SET status=%s, verification_note=%s, verified_by=%s,
-                        verified_at=NOW()
-                    WHERE id=%s
-                """, (new_status, note, actor, submission_id))
+                if action == 'reopen':
+                    # v2.97.0: buka verifikasi — hanya untuk baris yang sudah
+                    # diverifikasi/ditolak, dan wajib beralasan.
+                    if row.get('status') not in ('verified', 'rejected'):
+                        return jsonify({'status': 'error',
+                                        'msg': 'Hanya data terverifikasi/ditolak '
+                                               'yang bisa dibuka'}), 400
+                    new_status = 'submitted'
+                    event_name = 'unverify'
+                    cursor.execute("""
+                        UPDATE first_work_submissions
+                        SET status=%s, verification_note=NULL, verified_by=NULL,
+                            verified_at=NULL
+                        WHERE id=%s
+                    """, (new_status, submission_id))
+                else:
+                    new_status = 'verified' if action == 'verify' else 'rejected'
+                    event_name = new_status
+                    cursor.execute("""
+                        UPDATE first_work_submissions
+                        SET status=%s, verification_note=%s, verified_by=%s,
+                            verified_at=NOW()
+                        WHERE id=%s
+                    """, (new_status, note, actor, submission_id))
                 cursor.execute("""
                     INSERT INTO first_work_events
                         (submission_id, event, status_from, status_to, note,
                          actor, actor_role, ip)
                     VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
-                """, (submission_id, new_status, row.get('status'), new_status,
+                """, (submission_id, event_name, row.get('status'), new_status,
                       note, actor, session.get('user_role', ''), client_ip()))
                 conn.commit()
             finally:
@@ -1915,9 +1932,9 @@ def register_first_work_routes(app):
             action = _clean(body.get('action'), 20).lower()
             note = _clean(body.get('note'), 500)
             raw_ids = body.get('ids')
-            if action not in ('verify', 'reject'):
+            if action not in ('verify', 'reject', 'reopen'):
                 return jsonify({'status': 'error',
-                                'msg': 'Aksi harus verify atau reject'}), 400
+                                'msg': 'Aksi harus verify, reject, atau reopen'}), 400
             if not isinstance(raw_ids, list) or not raw_ids:
                 return jsonify({'status': 'error',
                                 'msg': 'Pilih minimal satu data'}), 400
@@ -1940,6 +1957,12 @@ def register_first_work_routes(app):
                 return jsonify({'status': 'error', 'msg': 'DB error'}), 500
             scope = _scope_branch(conn)
             new_status = 'verified' if action == 'verify' else 'rejected'
+            if action == 'reopen':
+                new_status = 'submitted'
+                source_statuses = ('verified', 'rejected')
+            else:
+                source_statuses = ('submitted',)
+            event_name = 'bulk_reopen' if action == 'reopen' else 'bulk_' + action
             actor = session.get('full_name') or session.get('user_name') or ''
             cursor = conn.cursor(dictionary=True)
             updated = 0
@@ -1948,28 +1971,39 @@ def register_first_work_routes(app):
                 cursor.execute(
                     "SELECT id, status, branch_code FROM first_work_submissions "
                     "WHERE id IN (" + placeholders + ")", ids)
+                placeholders_in = ','.join(['%s'] * len(source_statuses))
                 eligible = [
                     row['id'] for row in (cursor.fetchall() or [])
-                    if row.get('status') == 'submitted'
+                    if row.get('status') in source_statuses
                     and (not scope or row.get('branch_code') == scope)
                 ]
                 for submission_id in eligible:
-                    cursor.execute("""
-                        UPDATE first_work_submissions
-                        SET status=%s, verification_note=%s, verified_by=%s,
-                            verified_at=NOW()
-                        WHERE id=%s AND status='submitted'
-                    """, (new_status, note, actor, submission_id))
+                    if action == 'reopen':
+                        cursor.execute(
+                            "UPDATE first_work_submissions SET status=%s, "
+                            "verification_note=NULL, verified_by=NULL, "
+                            "verified_at=NULL WHERE id=%s AND status IN "
+                            "(" + placeholders_in + ")",
+                            [new_status, submission_id] + list(source_statuses))
+                    else:
+                        cursor.execute(
+                            "UPDATE first_work_submissions SET status=%s, "
+                            "verification_note=%s, verified_by=%s, "
+                            "verified_at=NOW() WHERE id=%s AND status IN "
+                            "(" + placeholders_in + ")",
+                            [new_status, note, actor, submission_id]
+                            + list(source_statuses))
                     if not cursor.rowcount:
                         continue
                     cursor.execute("""
                         INSERT INTO first_work_events
                             (submission_id, event, status_from, status_to, note,
                              actor, actor_role, ip)
-                        VALUES (%s,%s,'submitted',%s,%s,%s,%s,%s)
-                    """, (submission_id, 'bulk_' + action, new_status,
-                          'Massal: ' + note, actor, session.get('user_role', ''),
-                          client_ip()))
+                        VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
+                    """, (submission_id, event_name,
+                          'verified/rejected' if action == 'reopen' else 'submitted',
+                          new_status, 'Massal: ' + note, actor,
+                          session.get('user_role', ''), client_ip()))
                     updated += 1
                 conn.commit()
             finally:

@@ -35,8 +35,7 @@ const bulkIds = ref([])
 const bulkNote = ref('')
 const bulkBusy = ref(false)
 const allPageSelected = computed(() => {
-  const pending = rows.value.filter((r) => r.status === 'submitted')
-  return pending.length > 0 && pending.every((r) => bulkIds.value.includes(r.id))
+  return rows.value.length > 0 && rows.value.every((r) => bulkIds.value.includes(r.id))
 })
 const editFields = reactive({ nama: '', nik: '', pendidikan: '', no_hp: '', referrer_id: '' })
 
@@ -110,6 +109,8 @@ const EVENT_LABELS = {
   bulk_reject: 'Ditolak massal',
   ktp_link: 'Tautan unduh KTP dibuat',
   ktp_download: 'KTP diunduh via tautan',
+  unverify: 'Verifikasi dibuka kembali',
+  bulk_reopen: 'Verifikasi dibuka massal',
   first_work_id_config: 'Pengaturan ID Fingerprint/BPF',
 }
 function eventLabel(name) {
@@ -152,9 +153,7 @@ async function load(target = 1) {
 }
 
 function toggleAllBulk(checked) {
-  bulkIds.value = checked
-    ? rows.value.filter((r) => r.status === 'submitted').map((r) => r.id)
-    : []
+  bulkIds.value = checked ? rows.value.map((r) => r.id) : []
 }
 
 async function runBulk(action) {
@@ -163,7 +162,8 @@ async function runBulk(action) {
     err.value = 'Catatan minimal 5 karakter agar jejak audit jelas.'
     return
   }
-  const label = action === 'verify' ? 'verifikasi' : 'tolak'
+  const label = action === 'verify' ? 'verifikasi'
+    : action === 'reject' ? 'tolak' : 'buka verifikasi'
   if (!window.confirm(`Yakin ${label} ${bulkIds.value.length} pendaftar? Tiap baris tercatat di riwayat.`)) return
   bulkBusy.value = true
   err.value = ''
@@ -232,8 +232,10 @@ function closeDetail() {
 
 async function doVerify(action) {
   if (!detail.value) return
-  if (action === 'reject' && !verifyNote.value.trim()) {
-    err.value = 'Alasan penolakan wajib diisi.'
+  if ((action === 'reject' || action === 'reopen') && !verifyNote.value.trim()) {
+    err.value = action === 'reject'
+      ? 'Alasan penolakan wajib diisi.'
+      : 'Alasan pembatalan verifikasi wajib diisi.'
     return
   }
   busy.value = true
@@ -243,7 +245,9 @@ async function doVerify(action) {
       method: 'POST',
       body: { action, note: verifyNote.value.trim() },
     })
-    msg.value = action === 'verify' ? 'Data diverifikasi.' : 'Data ditolak.'
+    msg.value = action === 'verify' ? 'Data diverifikasi.'
+      : action === 'reject' ? 'Data ditolak.'
+      : 'Verifikasi dibuka kembali (status menunggu).'
     closeDetail()
     await load(page.value)
   } catch (e) {
@@ -713,6 +717,8 @@ onMounted(() => {
                 @click="runBulk('verify')">✅ Verifikasi terpilih</button>
         <button class="btn btn-sm" :disabled="!bulkIds.length || bulkBusy"
                 @click="runBulk('reject')">✕ Tolak terpilih</button>
+        <button class="btn btn-sm" :disabled="!bulkIds.length || bulkBusy"
+                @click="runBulk('reopen')">↩️ Buka verifikasi</button>
       </div>
 
       <div v-if="loading" class="fw-empty">⏳ Memuat data…</div>
@@ -739,8 +745,7 @@ onMounted(() => {
           <tbody>
             <tr v-for="row in rows" :key="row.id">
               <td v-if="canVerify" class="fw-check">
-                <input type="checkbox" :value="row.id" v-model="bulkIds"
-                       :disabled="row.status !== 'submitted'" />
+                <input type="checkbox" :value="row.id" v-model="bulkIds" />
               </td>
               <td>
                 <b>{{ row.nama }}</b>
@@ -874,6 +879,8 @@ onMounted(() => {
 
       <div class="fw-actions">
         <button v-if="canVerify" class="btn" :disabled="busy" @click="downloadKtp(detail)">🪪 Unduh KTP</button>
+        <button v-if="canVerify && detail.status !== 'submitted'" class="btn"
+                :disabled="busy" @click="doVerify('reopen')">↩️ Buka verifikasi</button>
         <a v-if="detail.merged_doc_url" class="btn" :href="detail.merged_doc_url" target="_blank" rel="noopener">📄 Dokumen Gabungan</a>
       </div>
 

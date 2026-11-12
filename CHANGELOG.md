@@ -7,6 +7,17 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.97.0 — 12 November 2026 (FirstWork: buka verifikasi / unverify)
+
+- ↩️ **Buka verifikasi** — baris `verified`/`rejected` dapat dikembalikan ke
+  `submitted` dengan alasan wajib. `verified_by`, `verified_at`, dan catatan
+  verifikasi dikosongkan; alasan tersimpan sebagai event `unverify`.
+- 🧾 **Massal** — aksi “Buka verifikasi” tersedia di bar aksi massal; hanya
+  baris berstatus verified/rejected yang disentuh, sisanya dilewati dan
+  dilaporkan. Event per baris bernama `bulk_reopen`.
+- 🔁 Status hasil buka-verifikasi kembali masuk antrean dan terhitung di
+  statistik umur antrean.
+
 ## v2.96.0 — 12 November 2026 (FirstWork: unduhan KTP lewat tautan 5 menit)
 
 - 🔗 **Tautan unduh KTP berumur pendek** — tombol “Unduh KTP” kini membuat
