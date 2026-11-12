@@ -7,6 +7,20 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.95.0 — 12 November 2026 (FirstWork: counter ID per cabang, opsional)
+
+- 🏢 **Counter ID Fingerprint/BPF per cabang** — admin dapat menetapkan angka
+  awal sendiri untuk tiap cabang. Cabang yang belum diatur tetap memakai
+  counter global, sehingga format nomor dan data lama tidak berubah.
+- 🛡️ **Pengaman nomor ganda** — alokasi tetap mengecek pemakaian lintas cabang;
+  bila nomor dari counter cabang ternyata sudah terpakai, counter lanjut sampai
+  nomor bebas. Nomor registrasi tidak berubah.
+- ⛔ **Tidak boleh mundur** — angka awal ditolak bila lebih kecil dari posisi
+  counter cabang saat ini atau menabrak nomor yang sudah dipakai cabang itu.
+- 🔐 Pengaturan counter cabang hanya untuk **admin**; traineer tetap bisa
+  melihat angka berikutnya dan memakai pengaturan global.
+- 🧾 Perubahan counter dicatat di log aktivitas.
+
 ## v2.94.0 — 12 November 2026 (FirstWork: verifikasi/tolak massal untuk antrean migrasi)
 
 - ✅ **Aksi massal** di tab Data: centang baris (atau "pilih semua di halaman"),

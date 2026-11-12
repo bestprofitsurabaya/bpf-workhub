@@ -43,6 +43,8 @@ const editFields = reactive({ nama: '', nik: '', pendidikan: '', no_hp: '', refe
 // v2.83.0: ID Fingerprint & ID BPF — tampil di tabel, diedit traineer/admin,
 // angka awal & pemetaan kolom counter sheet bisa diatur.
 const idCfg = ref(null)
+// v2.95.0: counter ID opsional per cabang (kosong = ikut counter global).
+const branchCounters = ref([])
 const idForm = reactive({
   fingerprint_series: 'B',
   bpf_series: 'C',
@@ -277,11 +279,38 @@ async function loadIdConfig() {
   try {
     const data = await api('/api/first-work/id-config')
     idCfg.value = data
+    branchCounters.value = data.branches || []
     idForm.fingerprint_series = data.fingerprint_series || 'B'
     idForm.bpf_series = data.bpf_series || 'C'
   } catch (e) {
     idCfg.value = null
     err.value = e.message || 'Gagal memuat pengaturan ID.'
+  }
+}
+
+// v2.95.0: simpan counter khusus satu cabang (admin).
+async function saveBranchCounter(branch) {
+  const body = {}
+  if (branch.start_fingerprint) body.start_fingerprint = branch.start_fingerprint
+  if (branch.start_bpf) body.start_bpf = branch.start_bpf
+  if (!Object.keys(body).length) {
+    err.value = 'Isi minimal satu angka awal untuk cabang ini.'
+    return
+  }
+  busy.value = true
+  err.value = ''
+  try {
+    const data = await api(`/api/first-work/id-config/branch/${branch.branch_code}`, {
+      method: 'PUT',
+      body,
+    })
+    idCfg.value = data.data
+    branchCounters.value = data.data.branches || []
+    msg.value = data.msg || 'Counter cabang disimpan.'
+  } catch (e) {
+    err.value = e.message || 'Gagal menyimpan counter cabang.'
+  } finally {
+    busy.value = false
   }
 }
 
@@ -603,6 +632,46 @@ onMounted(() => {
         </div>
       </div>
       <p v-else class="fw-empty">⏳ Memuat pengaturan ID…</p>
+
+      <div v-if="idCfg && branchCounters.length" class="fw-branch-counters">
+        <h4>Counter ID per cabang</h4>
+        <p class="fw-note">
+          “Ikut global” berarti cabang memakai counter bersama. Setelah diatur,
+          cabang memakai counter sendiri — nomor yang sudah terpakai tetap
+          dilewati, jadi tidak ada ID ganda antar cabang. Angka awal tidak boleh
+          mundur atau menabrak nomor yang sudah dipakai cabang itu.
+        </p>
+        <div class="fw-table-wrap">
+          <table class="fw-table">
+            <thead>
+              <tr><th>Cabang</th><th>FP berikutnya</th><th>BPF berikutnya</th><th>Set angka awal</th><th></th></tr>
+            </thead>
+            <tbody>
+              <tr v-for="b in branchCounters" :key="b.branch_code">
+                <td>
+                  <b>{{ b.branch_code }}</b>
+                  <div class="fw-sub">{{ b.branch_name }}</div>
+                  <small v-if="!b.has_counter" class="fw-hint">ikut global</small>
+                </td>
+                <td class="nowrap">{{ b.next_fingerprint }}</td>
+                <td class="nowrap">{{ b.next_bpf }}</td>
+                <td>
+                  <div class="fw-id-inputs">
+                    <input class="input" v-model="b.start_fingerprint" inputmode="numeric"
+                           :placeholder="'FP: ' + b.next_fingerprint" />
+                    <input class="input" v-model="b.start_bpf" inputmode="numeric"
+                           :placeholder="'BPF: ' + b.next_bpf" />
+                  </div>
+                </td>
+                <td>
+                  <button class="btn btn-sm btn-primary" :disabled="busy"
+                          @click="saveBranchCounter(b)">Simpan</button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
 
       <div class="fw-actions">
         <button class="btn btn-primary" :disabled="busy" @click="saveIdConfig">💾 Simpan Pengaturan ID</button>
@@ -947,6 +1016,10 @@ onMounted(() => {
 .fw-bulk-count { font-size: 12px; font-weight: 600; color: var(--text-2); }
 .fw-bulk-note { flex: 1 1 240px; min-width: 200px; }
 .fw-check { width: 28px; }
+/* v2.95.0: counter per cabang */
+.fw-branch-counters { margin-top: 18px; }
+.fw-id-inputs { display: flex; gap: 6px; }
+.fw-id-inputs .input { width: 110px; }
 /* v2.93.0: peringatan antrean menua */
 .fw-callout-warn { border-color: #f59e0b; background: rgba(245, 158, 11, .1); color: #92400e; }
 .fw-stat-click { cursor: pointer; }

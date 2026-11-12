@@ -162,6 +162,21 @@ def ensure_first_work_schema(conn=None):
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
         """, 'first_work_id_counters')
 
+        # --- counter ID per cabang (v2.95.0) ---
+        # Baris di sini bersifat OPSIONAL: bila sebuah cabang belum punya baris,
+        # alokasi memakai counter global di atas (perilaku lama). Nomor tetap
+        # dicek unik lintas cabang sebelum dipakai.
+        _run(cursor, """
+            CREATE TABLE IF NOT EXISTS first_work_branch_counters (
+                branch_code VARCHAR(10) NOT NULL,
+                series VARCHAR(4) NOT NULL,
+                last_value INT NOT NULL DEFAULT 0,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    ON UPDATE CURRENT_TIMESTAMP,
+                PRIMARY KEY (branch_code, series)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        """, 'first_work_branch_counters')
+
         # --- tautan form per cabang (v2.82.0) ---
         # Satu cabang = satu token unik. Token ini membuat tautan form cabang A
         # tidak bisa dipakai mengirim isian atas nama cabang B (data pribadi

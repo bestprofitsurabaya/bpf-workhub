@@ -304,6 +304,17 @@ def _id_state(conn):
         cursor.execute('SELECT series, last_value FROM first_work_id_counters')
         counters = {row['series']: int(row['last_value'] or 0)
                     for row in (cursor.fetchall() or [])}
+        cursor.execute(
+            'SELECT branch_code, series, last_value FROM first_work_branch_counters')
+        branch_counters = {(row['branch_code'], row['series']): int(row['last_value'] or 0)
+                           for row in (cursor.fetchall() or [])}
+        cursor.execute("""
+            SELECT branch_code, MAX(fingerprint_no) AS max_fp,
+                   MAX(bpf_no) AS max_bp
+            FROM first_work_submissions GROUP BY branch_code
+        """)
+        branch_usage = {row['branch_code']: row for row in (cursor.fetchall() or [])}
+        branches = _branches(conn)
         cursor.execute("""
             SELECT
                 MAX(fingerprint_no) AS max_fingerprint,
@@ -317,6 +328,27 @@ def _id_state(conn):
     finally:
         cursor.close()
     usage = {k: int(v or 0) for k, v in usage.items()}
+    branch_state = []
+    for branch in branches or []:
+        code = str(branch.get('code') or '').strip().upper()
+        if not code:
+            continue
+        fp_key = (code, cfg['fingerprint_series'])
+        bp_key = (code, cfg['bpf_series'])
+        used = branch_usage.get(code) or {}
+        branch_state.append({
+            'branch_code': code,
+            'branch_name': branch.get('name') or code,
+            'has_counter': fp_key in branch_counters or bp_key in branch_counters,
+            'next_fingerprint': (branch_counters[fp_key]
+                                 if fp_key in branch_counters
+                                 else counters.get(cfg['fingerprint_series'], 0)) + 1,
+            'next_bpf': (branch_counters[bp_key]
+                         if bp_key in branch_counters
+                         else counters.get(cfg['bpf_series'], 0)) + 1,
+            'max_fingerprint': int(used.get('max_fp') or 0) or None,
+            'max_bpf': int(used.get('max_bp') or 0) or None,
+        })
     return {
         'fingerprint_series': cfg['fingerprint_series'],
         'bpf_series': cfg['bpf_series'],
@@ -328,6 +360,7 @@ def _id_state(conn):
         'missing_fingerprint': usage.get('missing_fingerprint') or 0,
         'missing_bpf': usage.get('missing_bpf') or 0,
         'total': usage.get('total') or 0,
+        'branches': branch_state,
     }
 
 
@@ -366,8 +399,69 @@ def _id_counter_bump_to(conn, series, value):
         cursor.close()
 
 
-def _next_id_number(conn, series):
-    """Nomor berikutnya untuk satu seri (atomik, pola doc_sequences)."""
+def _branch_counter_get(conn, branch_code, series):
+    """Posisi counter cabang, atau None bila cabang masih ikut counter global."""
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            'SELECT last_value FROM first_work_branch_counters '
+            'WHERE branch_code=%s AND series=%s', (branch_code, series))
+        row = cursor.fetchone()
+        return int(row[0] or 0) if row else None
+    finally:
+        cursor.close()
+
+
+def _branch_counter_next(conn, branch_code, series):
+    """Nomor berikutnya untuk counter cabang (atomik)."""
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "INSERT INTO first_work_branch_counters (branch_code, series, last_value) "
+            "VALUES (%s,%s,LAST_INSERT_ID(1)) "
+            "ON DUPLICATE KEY UPDATE last_value=LAST_INSERT_ID(last_value + 1)",
+            (branch_code, series))
+        cursor.execute('SELECT LAST_INSERT_ID()')
+        return int(cursor.fetchone()[0])
+    finally:
+        cursor.close()
+
+
+def _branch_counter_set(conn, branch_code, series, last_value):
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "INSERT INTO first_work_branch_counters (branch_code, series, last_value) "
+            "VALUES (%s,%s,%s) "
+            "ON DUPLICATE KEY UPDATE last_value=VALUES(last_value)",
+            (branch_code, series, int(last_value)))
+    finally:
+        cursor.close()
+
+
+def _branch_counter_bump_to(conn, branch_code, series, value):
+    """Counter cabang tidak mundur saat nomor historis dibawa masuk."""
+    if _branch_counter_get(conn, branch_code, series) is None:
+        return
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "UPDATE first_work_branch_counters SET "
+            "last_value=GREATEST(last_value, %s) "
+            "WHERE branch_code=%s AND series=%s",
+            (int(value), branch_code, series))
+    finally:
+        cursor.close()
+
+
+def _next_id_number(conn, series, branch_code=None):
+    """Nomor berikutnya untuk satu seri (atomik, pola doc_sequences).
+
+    v2.95.0: bila cabang sudah punya counter sendiri, pakai itu; bila belum,
+    tetap memakai counter global sehingga format & perilaku lama tidak berubah.
+    """
+    if branch_code and _branch_counter_get(conn, branch_code, series) is not None:
+        return _branch_counter_next(conn, branch_code, series)
     cursor = conn.cursor()
     try:
         cursor.execute(
@@ -392,7 +486,7 @@ def _number_taken(cursor, column, value, exclude_id=None):
     return cursor.fetchone() is not None
 
 
-def _assign_id_numbers(conn, cfg=None):
+def _assign_id_numbers(conn, cfg=None, branch_code=None):
     """(fingerprint_no, bpf_no) untuk pengisian baru, lewati nomor yang sudah terpakai.
 
     Nomor dari counter bisa saja sudah dipakai baris historis (mis. traineer
@@ -407,7 +501,7 @@ def _assign_id_numbers(conn, cfg=None):
                                ('bpf_no', cfg['bpf_series'])):
             value = None
             for _ in range(500):
-                candidate = _next_id_number(conn, series)
+                candidate = _next_id_number(conn, series, branch_code)
                 if not _number_taken(cursor, column, candidate):
                     value = candidate
                     break
@@ -1371,7 +1465,7 @@ def register_first_work_routes(app):
             registration_no = _next_reg_no(conn, submitted_at, branch_code)
             # v2.83.0: setiap pengisian baru wajib dapat ID Fingerprint & ID BPF,
             # nomornya mengalir dari counter yang diatur traineer.
-            fingerprint_no, bpf_no = _assign_id_numbers(conn)
+            fingerprint_no, bpf_no = _assign_id_numbers(conn, branch_code=branch_code)
             os.makedirs(UPLOAD_DIR, exist_ok=True)
             filename = save_file(file, 'FWKTP', registration_no, UPLOAD_DIR)
             if not filename:
@@ -2030,6 +2124,77 @@ def register_first_work_routes(app):
                                ip=client_ip())
             return jsonify({'status': 'success',
                             'msg': 'Pengaturan ID Fingerprint & ID BPF disimpan.',
+                            'data': _id_state(conn)})
+        except Exception as e:
+            return jsonify({'status': 'error', 'msg': str(e)}), 500
+        finally:
+            if conn:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+
+    @app.route('/api/first-work/id-config/branch/<branch_code>', methods=['PUT'])
+    @role_required(ADMIN_ROLES)
+    def api_first_work_branch_counter_set(branch_code):
+        """Aktifkan/atur counter ID khusus satu cabang (admin).
+
+        Body: {start_fingerprint: <angka berikutnya>, start_bpf: <angka>}
+        Pengaman: angka awal tidak boleh lebih kecil dari posisi counter cabang
+        saat ini, dan tidak boleh menabrak nomor yang sudah dipakai cabang itu.
+        """
+        conn = None
+        try:
+            code = _clean(branch_code, 10).upper()
+            body = request.get_json(silent=True) or {}
+            start_fp = _valid_id_number(body.get('start_fingerprint'))
+            start_bp = _valid_id_number(body.get('start_bpf'))
+            if start_fp is None and start_bp is None:
+                return jsonify({'status': 'error',
+                                'msg': 'Isi minimal satu angka awal'}), 400
+
+            conn = get_master_connection()
+            if not conn:
+                return jsonify({'status': 'error', 'msg': 'DB error'}), 500
+            cfg = _parse_id_config(_config_get(conn, CONFIG_ID))
+            cursor = conn.cursor(dictionary=True)
+            try:
+                cursor.execute('SELECT code FROM branches WHERE code=%s', (code,))
+                if not cursor.fetchone():
+                    return jsonify({'status': 'error', 'msg': 'Cabang tidak dikenal'}), 404
+                for kind, series, start, column in (
+                        ('ID Fingerprint', cfg['fingerprint_series'], start_fp,
+                         'fingerprint_no'),
+                        ('ID BPF', cfg['bpf_series'], start_bp, 'bpf_no')):
+                    if start is None:
+                        continue
+                    current = _branch_counter_get(conn, code, series)
+                    if current is not None and start - 1 < current:
+                        return jsonify({
+                            'status': 'error',
+                            'msg': f'{kind} tidak boleh mundur; nomor berikutnya '
+                                   f'saat ini {current + 1}'}), 400
+                    cursor.execute(
+                        f'SELECT MAX({column}) AS used FROM first_work_submissions '
+                        'WHERE branch_code=%s', (code,))
+                    used = int((cursor.fetchone() or {}).get('used') or 0)
+                    if used and start <= used:
+                        return jsonify({
+                            'status': 'error',
+                            'msg': f'{kind} {start} sudah terpakai di cabang ini '
+                                   f'(terakhir {used})'}), 400
+                    _branch_counter_set(conn, code, series, start - 1)
+                conn.commit()
+            finally:
+                cursor.close()
+            log_activity_async(None, 'first_work_branch_counter',
+                               session.get('user_role', ''),
+                               session.get('full_name') or session.get('user_name') or '',
+                               new_data={'branch_code': code,
+                                         'start_fingerprint': start_fp,
+                                         'start_bpf': start_bp}, ip=client_ip())
+            return jsonify({'status': 'success',
+                            'msg': f'Counter cabang {code} disimpan.',
                             'data': _id_state(conn)})
         except Exception as e:
             return jsonify({'status': 'error', 'msg': str(e)}), 500
