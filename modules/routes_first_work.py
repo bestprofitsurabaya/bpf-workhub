@@ -19,6 +19,7 @@ import json
 import os
 import re
 import secrets
+import tempfile
 import time
 import uuid
 from datetime import datetime, date
@@ -37,6 +38,8 @@ from modules.helpers import (role_required, log_activity_async, client_ip,
 from modules.routes_overtime import _check_public_url
 # v2.88.0: normalisasi scan KTP di server (auto-orient, trim, watermark, SHA-256).
 from modules.ktp_scan import normalize_ktp
+# v2.89.0: OCR KTP (Tesseract `ind`) — bantuan isi formulir, bukan verifikasi.
+from modules.ktp_ocr import extract_ktp
 
 # ================================================================
 # KONSTANTA
@@ -217,6 +220,16 @@ def _check_ok(ip):
 def _rate_ok(ip):
     """Rate limit submit publik — Redis atomik sejak v2.85.0 (fallback memori)."""
     return redis_rate_hit(f'kirim|{ip}', _SUBMIT_MAX, _SUBMIT_WINDOW, prefix='firstwork')
+
+
+# OCR memakan CPU: kuota kecil agar endpoint publik tidak bisa dipakai
+# menyiksa server. Berbagi pola dengan submit (Redis + fallback memori).
+_OCR_MAX = 6
+_OCR_WINDOW = 600
+
+
+def _ocr_ok(ip):
+    return redis_rate_hit(f'ocr|{ip}', _OCR_MAX, _OCR_WINDOW, prefix='firstwork')
 
 
 def _config_get(conn, key):
@@ -1371,6 +1384,76 @@ def register_first_work_routes(app):
                     pass
             return jsonify({'status': 'error', 'msg': str(e)}), 500
         finally:
+            if conn:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+
+    @app.route('/api/first-work/ocr-ktp', methods=['POST'])
+    def api_first_work_ocr_ktp():
+        """Bantuan OCR: baca NIK & nama dari foto KTP.
+
+        v2.89.0 — hasilnya hanya saran untuk mengisi formulir; pengguna tetap
+        memeriksa. File tidak disimpan: singgah di /tmp lalu dihapus, dan
+        endpoint tetap memerlukan token cabang + rate limit.
+        """
+        conn = None
+        temp_path = ''
+        try:
+            ip = client_ip() or '?'
+            if not _ocr_ok(ip):
+                return jsonify({'status': 'error',
+                                'msg': 'Terlalu banyak percobaan OCR. '
+                                       'Coba lagi beberapa menit lagi.'}), 429
+            file = request.files.get('ktp')
+            if file is None or not file.filename:
+                return jsonify({'status': 'error',
+                                'msg': 'Foto KTP tidak ditemukan'}), 400
+            header = file.stream.read(8)
+            file.stream.seek(0)
+            if not (header.startswith(b'\xff\xd8')
+                    or header.startswith(b'\x89PNG\r\n\x1a\n'[:8])):
+                return jsonify({'status': 'error',
+                                'msg': 'OCR hanya mendukung JPG atau PNG'}), 400
+            file.stream.seek(0, os.SEEK_END)
+            size = file.stream.tell()
+            file.stream.seek(0)
+            if size > MAX_KTP_BYTES:
+                return jsonify({'status': 'error',
+                                'msg': 'Ukuran foto maksimal 5 MB'}), 400
+
+            conn = get_master_connection()
+            if not conn:
+                return jsonify({'status': 'error', 'msg': 'DB error'}), 500
+            branch_code, branch_error = _resolve_form_branch(conn)
+            if branch_error:
+                return jsonify({'status': 'error', 'msg': branch_error}), 400
+            token_error = _enforce_branch_token(conn, branch_code)
+            if token_error:
+                return jsonify({'status': 'error', 'msg': token_error}), 403
+
+            handle, temp_path = tempfile.mkstemp(suffix='.jpg', prefix='ktpocr_')
+            os.close(handle)
+            file.save(temp_path)
+            result = extract_ktp(temp_path)
+            if not result.get('nik') and not result.get('nama'):
+                return jsonify({'status': 'success', 'found': False,
+                                'msg': 'NIK/nama tidak terbaca — silakan isi manual.'})
+            return jsonify({'status': 'success', 'found': True,
+                            'nik': result.get('nik') or '',
+                            'nama': result.get('nama') or '',
+                            'confidence': result.get('confidence') or 0})
+        except RuntimeError as e:
+            return jsonify({'status': 'error', 'msg': str(e)}), 503
+        except Exception as e:
+            return jsonify({'status': 'error', 'msg': str(e)}), 500
+        finally:
+            if temp_path:
+                try:
+                    os.remove(temp_path)
+                except OSError:
+                    pass
             if conn:
                 try:
                     conn.close()

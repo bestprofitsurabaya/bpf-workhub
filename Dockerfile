@@ -24,6 +24,8 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-reco
     default-mysql-client \
     cron \
     poppler-utils \
+    tesseract-ocr \
+    tesseract-ocr-ind \
     ffmpeg \
     ghostscript \
     qpdf \

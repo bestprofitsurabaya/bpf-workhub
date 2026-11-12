@@ -204,6 +204,9 @@ async function loadReferrers() {
 // sebelum dikirim ke server BPF).
 // ============================================================
 const ktpScanned = ref(false)
+const ocrBusy = ref(false)
+const ocrMsg = ref('')
+const ocrNotice = ref('')
 const scanCanvas = ref(null)
 const scanBox = ref(null)
 const scan = reactive({
@@ -578,6 +581,53 @@ function acceptScan() {
   closeScan(false)
 }
 
+// v2.89.0 (P5): OCR bantu isi NIK & nama dari hasil scan. Hasil OCR tetap
+// harus diperiksa pengguna — tidak ada pengisian otomatis yang tak terlihat.
+async function runOcr() {
+  if (!scan.resultBlob || ocrBusy.value) return
+  ocrBusy.value = true
+  ocrMsg.value = ''
+  try {
+    const payload = new FormData()
+    payload.append('ktp', scan.resultBlob, 'ktp-scan.jpg')
+    payload.append('branch', resolvedBranch.value)
+    if (linkToken) payload.append('t', linkToken)
+    const response = await fetch('/api/first-work/ocr-ktp', {
+      method: 'POST', body: payload,
+    })
+    const data = await response.json().catch(() => ({}))
+    if (!response.ok || data.status !== 'success') {
+      throw new Error(data.msg || 'OCR gagal. Isi manual saja.')
+    }
+    if (!data.found) {
+      ocrMsg.value = data.msg || 'NIK/nama tidak terbaca — isi manual.'
+      return
+    }
+    const filled = []
+    if (/^\d{16}$/.test(String(data.nik || '')) && !form.nik) {
+      form.nik = String(data.nik)
+      filled.push('NIK')
+    }
+    if (String(data.nama || '').trim().length >= 3 && !form.nama.trim()) {
+      form.nama = String(data.nama).trim()
+      filled.push('nama')
+    }
+    if (!filled.length) {
+      ocrMsg.value = 'NIK/nama sudah terisi — tidak ditimpa. Periksa kembali.'
+      return
+    }
+    acceptScan()
+    step.value = 0
+    ocrNotice.value = `NIK & nama terisi dari KTP (keyakinan ${data.confidence || 0}%). `
+      + 'Periksa kembali sebelum mengirim.'
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  } catch (e) {
+    ocrMsg.value = e.message || 'OCR gagal. Isi manual saja.'
+  } finally {
+    ocrBusy.value = false
+  }
+}
+
 function useOriginalScan() {
   if (!scan.bitmap || scan.busy) return
   scan.busy = true
@@ -715,6 +765,9 @@ function reset() {
   ktpFile.value = null
   ktpLabel.value = ''
   ktpPreview.value = ''
+  ocrBusy.value = false
+  ocrMsg.value = ''
+  ocrNotice.value = ''
   done.value = null
   error.value = ''
   step.value = 0
@@ -803,6 +856,7 @@ onBeforeUnmount(() => {
 
         <!-- Langkah 1: data diri -->
         <template v-if="step === 0">
+          <div v-if="ocrNotice" class="fw-callout fw-callout-ok">{{ ocrNotice }}</div>
           <div class="fw-field">
             <label>NIK sesuai KTP <span class="req">*</span></label>
             <input class="input" :value="form.nik" inputmode="numeric" autocomplete="off"
@@ -973,6 +1027,11 @@ onBeforeUnmount(() => {
             <ul><li v-for="w in scan.warnings" :key="w">{{ w }}</li></ul>
           </div>
           <p v-else class="fw-scan-ok">✅ Hasil scan cukup jelas.</p>
+          <button type="button" class="btn fw-scan-ocr" :disabled="ocrBusy" @click="runOcr">
+            {{ ocrBusy ? '⏳ Membaca KTP…' : '🔍 Isi NIK & Nama otomatis' }}
+          </button>
+          <p class="fw-scan-hint">Bantuan OCR — selalu periksa hasilnya sebelum kirim.</p>
+          <p v-if="ocrMsg" class="fw-scan-ocrmsg">{{ ocrMsg }}</p>
           <div class="fw-scan-actions">
             <button type="button" class="btn" @click="scan.mode = 'edit'; nextTick(drawScanEditor)">↩ Atur sudut</button>
             <button type="button" class="btn btn-primary" @click="acceptScan">✓ Pakai hasil ini</button>
@@ -1048,6 +1107,7 @@ onBeforeUnmount(() => {
   padding: 10px 12px; margin-bottom: 14px; font-size: 11px; line-height: 1.5;
 }
 .fw-callout-red { border-color: #dc2626; background: rgba(220, 38, 38, .06); color: #b91c1c; }
+.fw-callout-ok { border-color: #16a34a; background: rgba(22, 163, 74, .07); color: #166534; }
 .fw-derived { display: flex; flex-wrap: wrap; gap: 8px; font-size: 11px; font-weight: 600; }
 .fw-restored {
   background: rgba(37, 99, 235, .08); border: 1px solid rgba(37, 99, 235, .3);
@@ -1112,4 +1172,6 @@ onBeforeUnmount(() => {
 .fw-scan-warn ul { margin: 4px 0 0; padding-left: 16px; }
 .fw-scan-ok { margin-top: 8px; font-size: 11px; color: var(--success, #16a34a); }
 .fw-scan-badge { font-size: 10px; font-weight: 700; color: #7c3aed; }
+.fw-scan-ocr { width: 100%; justify-content: center; margin-top: 10px; }
+.fw-scan-ocrmsg { margin: 6px 0 0; font-size: 11px; color: #b45309; }
 </style>

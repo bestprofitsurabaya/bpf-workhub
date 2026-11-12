@@ -7,6 +7,24 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.89.0 — 12 November 2026 (FirstWork: OCR bantu isi NIK & nama — tetap diperiksa manusia)
+
+- 🔍 **Tombol "Isi NIK & Nama otomatis"** di hasil scan — memanggil
+  `POST /api/first-work/ocr-ktp` dengan foto hasil scan, lalu mengisi kolom
+  yang masih kosong. Pengguna langsung diarahkan ke langkah 1 untuk
+  memeriksa; tidak ada pengisian yang tak terlihat.
+- 🧠 **Tesseract 5 + bahasa Indonesia** (`tesseract-ocr`, `tesseract-ocr-ind`)
+  dengan praproses grayscale + autocontrast — mengikuti temuan riset bahwa
+  akurasi KTP naik dari ~40% ke ~65–90% setelah praproses.
+- ✅ **Hanya NIK yang lolos validasi tanggal lahir** yang dikembalikan;
+  Teks tetap bisa salah — karena itu OCR bersifat bantuan, bukan gerbang
+  verifikasi, dan kolom yang sudah terisi tidak pernah ditimpa.
+- 🛡️ **Aman untuk publik**: wajib token cabang, kuota 6 OCR / 10 menit per
+  IP, hanya JPG/PNG maks. 5 MB, file singgah di `/tmp` lalu dihapus — tidak
+  disimpan dan tidak di-log.
+- 🧪 Bila mesin OCR belum tersedia, endpoint mengembalikan 503 dengan pesan
+  jelas; formulir tetap bisa diisi manual (tidak pernah memblokir kiriman).
+
 ## v2.88.0 — 12 November 2026 (FirstWork: normalisasi scan KTP di server + watermark & SHA-256)
 
 - 🖥️ **Versi scan disiapkan server** (`modules/ktp_scan.py`) — orientasi EXIF,
