@@ -7,6 +7,22 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.87.0 — 12 November 2026 (FirstWork: scan KTP di perangkat — foto miring diluruskan, kualitas diperiksa)
+
+- 📷 **Editor scan 4 sudut di form publik** — setelah memilih foto, pengguna
+  menggeser 4 titik ke sudut KTP; browser menghitung homografi dan melakukan
+  *perspective transform* sehingga hasilnya lurus dan terpotong rapi. Foto
+  kamera juga di-auto-rotate mengikuti EXIF. Semua diproses di perangkat —
+  tidak ada unggahan tambahan, tidak memakai layanan pihak ketiga.
+- 🎚️ **Peningkatan kontras 2%–98%** agar tulisan KTP lebih terbaca, tetap
+  berwarna supaya foto & tanda pengenal bisa diperiksa manusia.
+- 🔍 **Pemeriksaan kualitas sebelum kirim** — deteksi kabur (varians
+  Laplacian), pantulan cahaya, terlalu gelap, dan resolusi rendah. Peringatan
+  bersifat informatif: pengguna bisa mengulang atau tetap memakai hasilnya.
+- 🖼️ **Pratinjau hasil scan** ditampilkan di formulir, dengan tombol
+  "Atur sudut" untuk mengulang. Tersedia juga "Foto asli" bila crop gagal.
+- 📄 PDF tetap diterima apa adanya (normalisasi PDF menyusul di server).
+
 ## v2.86.2 — 12 November 2026 (FirstWork: tautan traineer ber-token + export memuat ID Fingerprint/BPF & cabang)
 
 - 🔗 **Fix tuntas tautan form dari dashboard Traineer** — v2.86.1 hanya

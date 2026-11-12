@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 
 const brandIcon = '/static/icon-192.png'
 const PENDIDIKAN = ['SMA', 'SMK', 'MA', 'D3', 'D4', 'S1', 'S2', 'S3']
@@ -195,49 +195,431 @@ async function loadReferrers() {
   }
 }
 
-// Kompres foto KTP di perangkat: gambar diperkecil ke maks. 1600 px & JPEG 85%.
+// ============================================================
+// v2.87.0 — SCAN KTP DI PERANGKAT (P1/P2)
+// Foto miring diluruskan lewat 4 titik sudut (perspective transform),
+// kontras dinaikkan, lalu kualitas diperiksa (kabur / pantulan / gelap).
+// Semua diproses di HP pengguna — tidak ada unggahan tambahan dan tidak
+// memakai layanan pihak ketiga (data KTP tidak keluar dari perangkat
+// sebelum dikirim ke server BPF).
+// ============================================================
+const ktpScanned = ref(false)
+const scanCanvas = ref(null)
+const scanBox = ref(null)
+const scan = reactive({
+  show: false, mode: 'edit', busy: false,
+  url: '', bitmap: null, natural: { w: 0, h: 0 },
+  points: [], warnings: [], resultUrl: '', resultBlob: null,
+  fileName: 'ktp.jpg', dragging: -1,
+})
+
+function revokeUrl(url) {
+  try { if (url) URL.revokeObjectURL(url) } catch { /* noop */ }
+}
+
+// Muat gambar dengan orientasi EXIF diterapkan (foto kamera sering miring 90°).
+function loadBitmap(file) {
+  return new Promise((resolve, reject) => {
+    if (window.createImageBitmap) {
+      createImageBitmap(file, { imageOrientation: 'from-image' })
+        .then(resolve)
+        .catch(() => createImageBitmap(file).then(resolve).catch(() => imageFallback(file, resolve, reject)))
+      return
+    }
+    imageFallback(file, resolve, reject)
+  })
+}
+
+function imageFallback(file, resolve, reject) {
+  const url = URL.createObjectURL(file)
+  const img = new Image()
+  img.onload = () => { URL.revokeObjectURL(url); resolve(img) }
+  img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Gambar tidak bisa dibaca')) }
+  img.src = url
+}
+
+// Kompres foto (dipakai untuk PDF/passthrough & tombol "Foto asli").
 function compressImage(file) {
   return new Promise((resolve) => {
     if (!file.type.startsWith('image/')) { resolve(file); return }
-    const url = URL.createObjectURL(file)
-    const image = new Image()
-    image.onload = () => {
-      URL.revokeObjectURL(url)
+    loadBitmap(file).then((image) => {
       const maxSide = 1600
       const scale = Math.min(1, maxSide / Math.max(image.width, image.height))
       const canvas = document.createElement('canvas')
       canvas.width = Math.max(1, Math.round(image.width * scale))
       canvas.height = Math.max(1, Math.round(image.height * scale))
       canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height)
+      if (image.close) image.close()
       canvas.toBlob((blob) => {
         if (!blob) { resolve(file); return }
         const name = file.name.replace(/\.[^.]+$/, '') + '.jpg'
         resolve(new File([blob], name, { type: 'image/jpeg' }))
       }, 'image/jpeg', 0.85)
-    }
-    image.onerror = () => { URL.revokeObjectURL(url); resolve(file) }
-    image.src = url
+    }).catch(() => resolve(file))
   })
 }
 
 async function pickKtp(event) {
   error.value = ''
   const original = event.target.files?.[0]
+  event.target.value = ''
   if (!original) return
   if (original.size > 12 * 1024 * 1024) {
     error.value = 'Ukuran file maksimal 12 MB.'
-    event.target.value = ''
     return
   }
-  const file = await compressImage(original)
-  if (file.size > 5 * 1024 * 1024) {
-    error.value = 'Ukuran file KTP masih melebihi 5 MB setelah dikompres.'
-    event.target.value = ''
+  if (!original.type.startsWith('image/') && original.type !== 'application/pdf') {
+    error.value = 'File KTP harus berupa JPG, PNG, atau PDF.'
     return
   }
+  // PDF tidak bisa di-warp di browser — kirim apa adanya (dinormalisasi server).
+  if (original.type === 'application/pdf') {
+    if (original.size > 5 * 1024 * 1024) {
+      error.value = 'Ukuran PDF melebihi 5 MB.'
+      return
+    }
+    setKtpFile(original, false)
+    return
+  }
+  try {
+    const bitmap = await loadBitmap(original)
+    openScan(bitmap, original)
+  } catch (e) {
+    error.value = e.message || 'Foto tidak bisa dibaca. Coba file lain.'
+  }
+}
+
+function setKtpFile(file, scanned) {
+  revokeUrl(ktpPreview.value)
   ktpFile.value = file
-  ktpLabel.value = `${file.name} · ${Math.max(1, Math.round(file.size / 1024))} KB`
   ktpPreview.value = file.type.startsWith('image/') ? URL.createObjectURL(file) : ''
+  ktpLabel.value = `${file.name} · ${Math.max(1, Math.round(file.size / 1024))} KB`
+  ktpScanned.value = scanned
+}
+
+function openScan(bitmap, file) {
+  closeScan(true)
+  scan.show = true
+  scan.mode = 'edit'
+  scan.busy = false
+  scan.bitmap = bitmap
+  scan.natural = { w: bitmap.width, h: bitmap.height }
+  // Default: sedikit di dalam tepi foto.
+  scan.points = [
+    { x: 0.06, y: 0.09 }, { x: 0.94, y: 0.09 },
+    { x: 0.94, y: 0.91 }, { x: 0.06, y: 0.91 },
+  ]
+  scan.warnings = []
+  scan.resultBlob = null
+  scan.resultUrl = ''
+  scan.fileName = file?.name || 'ktp.jpg'
+  scan.url = ''
+  nextTick(drawScanEditor)
+}
+
+function drawScanEditor() {
+  const canvas = scanCanvas.value
+  if (!canvas || !scan.bitmap) return
+  const maxW = Math.min(380, Math.max(220, window.innerWidth - 92))
+  const ratio = scan.natural.h / Math.max(1, scan.natural.w)
+  canvas.width = Math.round(maxW)
+  canvas.height = Math.max(120, Math.round(maxW * ratio))
+  const ctx = canvas.getContext('2d')
+  ctx.drawImage(scan.bitmap, 0, 0, canvas.width, canvas.height)
+}
+
+function startDrag(index, event) {
+  event.preventDefault()
+  scan.dragging = index
+  window.addEventListener('pointermove', onDragMove, { passive: false })
+  window.addEventListener('pointerup', endDrag)
+  window.addEventListener('pointercancel', endDrag)
+}
+
+function onDragMove(event) {
+  if (scan.dragging < 0 || !scanBox.value) return
+  event.preventDefault()
+  const rect = scanBox.value.getBoundingClientRect()
+  const x = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width))
+  const y = Math.min(1, Math.max(0, (event.clientY - rect.top) / rect.height))
+  scan.points[scan.dragging] = { x, y }
+}
+
+function endDrag() {
+  scan.dragging = -1
+  window.removeEventListener('pointermove', onDragMove)
+  window.removeEventListener('pointerup', endDrag)
+  window.removeEventListener('pointercancel', endDrag)
+}
+
+// Urutkan 4 titik: TL, TR, BR, BL (berdasarkan sudut dari pusat).
+function orderCorners(points) {
+  const cx = points.reduce((s, p) => s + p.x, 0) / 4
+  const cy = points.reduce((s, p) => s + p.y, 0) / 4
+  const sorted = points.map((p) => ({ ...p }))
+    .sort((a, b) => Math.atan2(a.y - cy, a.x - cx) - Math.atan2(b.y - cy, b.x - cx))
+  let start = 0
+  let best = Infinity
+  sorted.forEach((p, i) => {
+    const sum = p.x + p.y
+    if (sum < best) { best = sum; start = i }
+  })
+  return [...sorted.slice(start), ...sorted.slice(0, start)]
+}
+
+// Selesaikan homografi (dest → src) dengan eliminasi Gauss.
+function solveHomography(src, dst) {
+  const A = []
+  const b = []
+  for (let i = 0; i < 4; i += 1) {
+    const { x, y } = dst[i]
+    const { x: u, y: v } = src[i]
+    A.push([x, y, 1, 0, 0, 0, -x * u, -y * u]); b.push(u)
+    A.push([0, 0, 0, x, y, 1, -x * v, -y * v]); b.push(v)
+  }
+  const n = 8
+  for (let col = 0; col < n; col += 1) {
+    let piv = col
+    for (let r = col + 1; r < n; r += 1) {
+      if (Math.abs(A[r][col]) > Math.abs(A[piv][col])) piv = r
+    }
+    if (Math.abs(A[piv][col]) < 1e-9) return null
+    if (piv !== col) {
+      const tmp = A[col]; A[col] = A[piv]; A[piv] = tmp
+      const tb = b[col]; b[col] = b[piv]; b[piv] = tb
+    }
+    const div = A[col][col]
+    for (let c = col; c < n; c += 1) A[col][c] /= div
+    b[col] /= div
+    for (let r = 0; r < n; r += 1) {
+      if (r === col) continue
+      const f = A[r][col]
+      if (!f) continue
+      for (let c = col; c < n; c += 1) A[r][c] -= f * A[col][c]
+      b[r] -= f * b[col]
+    }
+  }
+  return b
+}
+
+// Warp perspektif + tingkatkan kontras. Sumber dibatasi 2000 px agar hemat memori HP.
+function warpCanvas(bitmap, points) {
+  const ordered = orderCorners(points)
+  const orderedPx = ordered.map((p) => ({ x: p.x * bitmap.width, y: p.y * bitmap.height }))
+  const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y)
+  let outW = Math.round(Math.max(dist(orderedPx[0], orderedPx[1]), dist(orderedPx[3], orderedPx[2])))
+  let outH = Math.round(Math.max(dist(orderedPx[0], orderedPx[3]), dist(orderedPx[1], orderedPx[2])))
+  outW = Math.max(240, outW)
+  outH = Math.max(150, outH)
+  const scaleOut = Math.min(1, 1600 / Math.max(outW, outH))
+  outW = Math.round(outW * scaleOut)
+  outH = Math.round(outH * scaleOut)
+
+  const scaleSrc = Math.min(1, 2000 / Math.max(bitmap.width, bitmap.height))
+  const sw = Math.max(1, Math.round(bitmap.width * scaleSrc))
+  const sh = Math.max(1, Math.round(bitmap.height * scaleSrc))
+  const source = document.createElement('canvas')
+  source.width = sw
+  source.height = sh
+  const sctx = source.getContext('2d', { willReadFrequently: true })
+  sctx.drawImage(bitmap, 0, 0, sw, sh)
+  const srcData = sctx.getImageData(0, 0, sw, sh).data
+  const srcPx = orderedPx.map((p) => ({ x: p.x * scaleSrc, y: p.y * scaleSrc }))
+
+  const dest = document.createElement('canvas')
+  dest.width = outW
+  dest.height = outH
+  const dctx = dest.getContext('2d')
+  const out = dctx.createImageData(outW, outH)
+  const H = solveHomography(srcPx, [
+    { x: 0, y: 0 }, { x: outW, y: 0 }, { x: outW, y: outH }, { x: 0, y: outH },
+  ])
+  if (!H) return { canvas: source, width: sw, height: sh }
+  const [a, b, c, d, e, f, g, h] = H
+  const outData = out.data
+  for (let y = 0; y < outH; y += 1) {
+    for (let x = 0; x < outW; x += 1) {
+      const den = g * x + h * y + 1 || 1e-9
+      const u = Math.min(sw - 1, Math.max(0, (a * x + b * y + c) / den))
+      const v = Math.min(sh - 1, Math.max(0, (d * x + e * y + f) / den))
+      const x0 = u | 0
+      const y0 = v | 0
+      const x1 = Math.min(sw - 1, x0 + 1)
+      const y1 = Math.min(sh - 1, y0 + 1)
+      const fx = u - x0
+      const fy = v - y0
+      const i00 = (y0 * sw + x0) * 4
+      const i10 = (y0 * sw + x1) * 4
+      const i01 = (y1 * sw + x0) * 4
+      const i11 = (y1 * sw + x1) * 4
+      const o = (y * outW + x) * 4
+      for (let ch = 0; ch < 3; ch += 1) {
+        const top = srcData[i00 + ch] * (1 - fx) + srcData[i10 + ch] * fx
+        const bot = srcData[i01 + ch] * (1 - fx) + srcData[i11 + ch] * fx
+        outData[o + ch] = top * (1 - fy) + bot * fy
+      }
+      outData[o + 3] = 255
+    }
+  }
+  dctx.putImageData(out, 0, 0)
+  enhanceCanvas(dest)
+  return { canvas: dest, width: outW, height: outH }
+}
+
+// Peregangan kontras 2%–98% (tetap berwarna agar foto KTP tetap bisa diperiksa).
+function enhanceCanvas(canvas) {
+  const ctx = canvas.getContext('2d', { willReadFrequently: true })
+  const img = ctx.getImageData(0, 0, canvas.width, canvas.height)
+  const data = img.data
+  const hist = new Uint32Array(256)
+  const stride = Math.max(1, Math.floor((canvas.width * canvas.height) / 120000))
+  let total = 0
+  for (let i = 0; i < data.length; i += 4 * stride) {
+    hist[(0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]) | 0] += 1
+    total += 1
+  }
+  const pick = (frac) => {
+    let acc = 0
+    const target = total * frac
+    for (let i = 0; i < 256; i += 1) {
+      acc += hist[i]
+      if (acc >= target) return i
+    }
+    return 255
+  }
+  let low = pick(0.02)
+  let high = pick(0.98)
+  if (high - low < 40) { low = Math.max(0, low - 20); high = Math.min(255, high + 20) }
+  const scale = 255 / Math.max(1, high - low)
+  for (let i = 0; i < data.length; i += 4) {
+    data[i] = Math.min(255, Math.max(0, (data[i] - low) * scale))
+    data[i + 1] = Math.min(255, Math.max(0, (data[i + 1] - low) * scale))
+    data[i + 2] = Math.min(255, Math.max(0, (data[i + 2] - low) * scale))
+  }
+  ctx.putImageData(img, 0, 0)
+}
+
+// Kualitas: ketajaman (varians Laplacian), pantulan, dan pencahayaan.
+function assessCanvas(canvas) {
+  const w = Math.min(360, canvas.width)
+  const h = Math.max(1, Math.round(canvas.height * (w / canvas.width)))
+  const small = document.createElement('canvas')
+  small.width = w
+  small.height = h
+  small.getContext('2d').drawImage(canvas, 0, 0, w, h)
+  const data = small.getContext('2d').getImageData(0, 0, w, h).data
+  const gray = new Float32Array(w * h)
+  let sum = 0
+  let glare = 0
+  for (let i = 0; i < w * h; i += 1) {
+    const o = i * 4
+    const g = 0.299 * data[o] + 0.587 * data[o + 1] + 0.114 * data[o + 2]
+    gray[i] = g
+    sum += g
+    if (g > 248) glare += 1
+  }
+  const mean = sum / (w * h)
+  let lapSum = 0
+  let lapSq = 0
+  let n = 0
+  for (let y = 1; y < h - 1; y += 1) {
+    for (let x = 1; x < w - 1; x += 1) {
+      const i = y * w + x
+      const lap = 4 * gray[i] - gray[i - 1] - gray[i + 1] - gray[i - w] - gray[i + w]
+      lapSum += lap
+      lapSq += lap * lap
+      n += 1
+    }
+  }
+  const variance = n ? lapSq / n - (lapSum / n) ** 2 : 0
+  const glareRatio = glare / (w * h)
+  const warnings = []
+  if (variance < 60) warnings.push('Foto tampak kurang tajam/kabur — tahan HP lebih stabil lalu ulangi bila perlu.')
+  if (glareRatio > 0.06) warnings.push('Ada pantulan cahaya di KTP — miringkan sedikit agar tidak menyilaukan.')
+  if (mean < 55) warnings.push('Pencahayaan terlalu gelap — foto di tempat yang lebih terang.')
+  if (Math.min(canvas.width, canvas.height) < 420) warnings.push('Resolusi hasil scan rendah — dekatkan kamera ke KTP.')
+  return { warnings, metrics: { variance: Math.round(variance), mean: Math.round(mean), glare: Math.round(glareRatio * 100) } }
+}
+
+function confirmScan() {
+  if (!scan.bitmap || scan.busy) return
+  scan.busy = true
+  try {
+    const { canvas } = warpCanvas(scan.bitmap, scan.points)
+    scan.warnings = assessCanvas(canvas).warnings
+    canvas.toBlob((blob) => {
+      scan.busy = false
+      if (!blob) { error.value = 'Gagal memproses foto. Coba lagi.'; return }
+      revokeUrl(scan.resultUrl)
+      scan.resultUrl = URL.createObjectURL(blob)
+      scan.resultBlob = blob
+      scan.mode = 'result'
+    }, 'image/jpeg', 0.9)
+  } catch (e) {
+    scan.busy = false
+    error.value = 'Gagal merapikan foto: ' + (e.message || e)
+  }
+}
+
+function acceptScan() {
+  if (!scan.resultBlob) return
+  if (scan.resultBlob.size > 5 * 1024 * 1024) {
+    error.value = 'Ukuran hasil scan melebihi 5 MB. Coba lagi.'
+    return
+  }
+  const name = String(scan.fileName || 'ktp').replace(/\.[^.]+$/, '') + '-scan.jpg'
+  const file = new File([scan.resultBlob], name, { type: 'image/jpeg' })
+  revokeUrl(ktpPreview.value)
+  ktpFile.value = file
+  ktpPreview.value = scan.resultUrl
+  scan.resultUrl = ''
+  ktpLabel.value = `${name} · ${Math.max(1, Math.round(file.size / 1024))} KB`
+  ktpScanned.value = true
+  closeScan(false)
+}
+
+function useOriginalScan() {
+  if (!scan.bitmap || scan.busy) return
+  scan.busy = true
+  // Bangun file asli dari bitmap (orientasi EXIF sudah diterapkan).
+  const maxSide = 1600
+  const scale = Math.min(1, maxSide / Math.max(scan.bitmap.width, scan.bitmap.height))
+  const canvas = document.createElement('canvas')
+  canvas.width = Math.max(1, Math.round(scan.bitmap.width * scale))
+  canvas.height = Math.max(1, Math.round(scan.bitmap.height * scale))
+  canvas.getContext('2d').drawImage(scan.bitmap, 0, 0, canvas.width, canvas.height)
+  canvas.toBlob((blob) => {
+    scan.busy = false
+    if (!blob) { error.value = 'Gagal memakai foto asli.'; return }
+    if (blob.size > 5 * 1024 * 1024) { error.value = 'Foto asli melebihi 5 MB.'; return }
+    const name = String(scan.fileName || 'ktp').replace(/\.[^.]+$/, '') + '.jpg'
+    const file = new File([blob], name, { type: 'image/jpeg' })
+    revokeUrl(ktpPreview.value)
+    ktpFile.value = file
+    ktpPreview.value = URL.createObjectURL(blob)
+    ktpLabel.value = `${name} · ${Math.max(1, Math.round(file.size / 1024))} KB`
+    ktpScanned.value = false
+    closeScan(true)
+  }, 'image/jpeg', 0.85)
+}
+
+function closeScan(revokeOriginal = true) {
+  endDrag()
+  if (revokeOriginal) revokeUrl(scan.url)
+  revokeUrl(scan.resultUrl)
+  if (scan.bitmap && scan.bitmap.close) {
+    try { scan.bitmap.close() } catch { /* noop */ }
+  }
+  scan.show = false
+  scan.bitmap = null
+  scan.url = ''
+  scan.resultUrl = ''
+  scan.resultBlob = null
+  scan.points = []
+  scan.warnings = []
+  scan.mode = 'edit'
+  scan.busy = false
+  scan.dragging = -1
 }
 
 function stepError(target) {
@@ -356,7 +738,10 @@ onMounted(() => {
   restoreDraft()
   loadReferrers()
 })
-onBeforeUnmount(() => clearTimeout(checkTimer))
+onBeforeUnmount(() => {
+  clearTimeout(checkTimer)
+  if (scan.show) closeScan(true)
+})
 </script>
 
 <template>
@@ -505,12 +890,13 @@ onBeforeUnmount(() => clearTimeout(checkTimer))
               <template v-if="ktpFile">
                 <img v-if="ktpPreview" :src="ktpPreview" alt="Pratinjau KTP" class="fw-thumb" />
                 <span class="fw-file">✅ {{ ktpLabel }}</span>
+                <span v-if="ktpScanned" class="fw-scan-badge">✨ Sudah diluruskan &amp; diperjelas</span>
                 <span class="fw-hint">Tap untuk ganti file</span>
               </template>
               <template v-else>
                 <span class="fw-upload-ico">🪪</span>
                 <span class="fw-file">Foto / Scan KTP</span>
-                <span class="fw-hint">JPG, PNG, atau PDF · maks. 5 MB · foto dikompres otomatis</span>
+                <span class="fw-hint">JPG, PNG, atau PDF · maks. 5 MB · foto miring diluruskan otomatis</span>
               </template>
             </label>
           </div>
@@ -549,6 +935,50 @@ onBeforeUnmount(() => clearTimeout(checkTimer))
           </p>
       </form>
       </template>
+    </div>
+
+    <!-- v2.87.0: editor scan KTP — 4 sudut, warp perspektif, cek kualitas.
+         Diproses sepenuhnya di perangkat; tidak ada unggahan tambahan. -->
+    <div v-if="scan.show" class="fw-scan-overlay" role="dialog" aria-modal="true">
+      <div class="fw-scan-box">
+        <div class="fw-scan-head">
+          <b>Rapikan Foto KTP</b>
+          <button type="button" class="fw-scan-x" aria-label="Tutup" @click="closeScan()">✕</button>
+        </div>
+
+        <template v-if="scan.mode === 'edit'">
+          <p class="fw-scan-hint">Geser 4 titik ke sudut KTP. Hasilnya akan diluruskan otomatis.</p>
+          <div ref="scanBox" class="fw-scan-stage">
+            <canvas ref="scanCanvas" class="fw-scan-canvas" />
+            <svg class="fw-scan-lines" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+              <polygon :points="scan.points.map((p) => `${p.x * 100},${p.y * 100}`).join(' ')" />
+            </svg>
+            <button v-for="(p, i) in scan.points" :key="i" type="button"
+                    class="fw-scan-handle" :style="{ left: `${p.x * 100}%`, top: `${p.y * 100}%` }"
+                    :aria-label="`Sudut ${i + 1}`" @pointerdown="startDrag(i, $event)" />
+          </div>
+          <div class="fw-scan-actions">
+            <button type="button" class="btn" @click="closeScan()">Batal</button>
+            <button type="button" class="btn" :disabled="scan.busy" @click="useOriginalScan">Foto asli</button>
+            <button type="button" class="btn btn-primary" :disabled="scan.busy" @click="confirmScan">
+              {{ scan.busy ? '⏳ Memproses…' : '✓ Rapikan' }}
+            </button>
+          </div>
+        </template>
+
+        <template v-else>
+          <img :src="scan.resultUrl" alt="Hasil scan KTP" class="fw-scan-result" />
+          <div v-if="scan.warnings.length" class="fw-scan-warn">
+            <b>Periksa dulu:</b>
+            <ul><li v-for="w in scan.warnings" :key="w">{{ w }}</li></ul>
+          </div>
+          <p v-else class="fw-scan-ok">✅ Hasil scan cukup jelas.</p>
+          <div class="fw-scan-actions">
+            <button type="button" class="btn" @click="scan.mode = 'edit'; nextTick(drawScanEditor)">↩ Atur sudut</button>
+            <button type="button" class="btn btn-primary" @click="acceptScan">✓ Pakai hasil ini</button>
+          </div>
+        </template>
+      </div>
     </div>
   </div>
 </template>
@@ -643,4 +1073,43 @@ onBeforeUnmount(() => clearTimeout(checkTimer))
 .fw-reject h2 { margin: 0; font-size: 16px; }
 .fw-reject-msg { margin: 0; font-size: 12px; color: var(--text-3); line-height: 1.6; }
 .fw-next { flex: 1; justify-content: center; }
+/* v2.87.0: editor scan KTP (P1/P2) */
+.fw-scan-overlay {
+  position: fixed; inset: 0; z-index: 60; background: rgba(15, 23, 42, .72);
+  display: flex; align-items: center; justify-content: center; padding: 14px;
+}
+.fw-scan-box {
+  width: 100%; max-width: 420px; max-height: 94vh; overflow: auto;
+  background: var(--surface); border-radius: 14px; padding: 14px;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, .3);
+}
+.fw-scan-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.fw-scan-x { border: 0; background: none; font-size: 18px; cursor: pointer; color: var(--text-3); }
+.fw-scan-hint { font-size: 11px; color: var(--text-3); margin: 0 0 8px; }
+.fw-scan-stage {
+  position: relative; touch-action: none; user-select: none;
+  border-radius: 10px; overflow: hidden; background: #0f172a;
+}
+.fw-scan-canvas { display: block; width: 100%; height: auto; }
+.fw-scan-lines { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.fw-scan-lines polygon {
+  fill: rgba(124, 58, 237, .12); stroke: #a78bfa; stroke-width: 1.2;
+  vector-effect: non-scaling-stroke;
+}
+.fw-scan-handle {
+  position: absolute; width: 26px; height: 26px; margin: -13px 0 0 -13px;
+  border-radius: 50%; border: 2px solid #fff; background: #7c3aed;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .4); touch-action: none; cursor: grab; padding: 0;
+}
+.fw-scan-actions { display: flex; gap: 8px; margin-top: 12px; }
+.fw-scan-actions .btn { flex: 1; justify-content: center; }
+.fw-scan-result { width: 100%; border-radius: 10px; border: 1px solid var(--border); }
+.fw-scan-warn {
+  margin-top: 10px; background: rgba(245, 158, 11, .1);
+  border: 1px solid rgba(245, 158, 11, .4); border-radius: 10px;
+  padding: 8px 10px; font-size: 11px; line-height: 1.5;
+}
+.fw-scan-warn ul { margin: 4px 0 0; padding-left: 16px; }
+.fw-scan-ok { margin-top: 8px; font-size: 11px; color: var(--success, #16a34a); }
+.fw-scan-badge { font-size: 10px; font-weight: 700; color: #7c3aed; }
 </style>
