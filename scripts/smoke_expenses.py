@@ -19,7 +19,13 @@ def login(client, role='finance', branch='SBY'):
         s['user_role'] = role
         s['user_name'] = role.upper()
         s['full_name'] = role.upper()
-        s.pop('branch_code', None)
+        # v2.104.0: sesi WAJIB punya branch_code. Sejak isolasi cabang
+        # (v2.99.1) sesi tanpa cabang ditolak 403 — script lama justru
+        # MENGHAPUS branch_code sehingga semua pemeriksaan gagal 403.
+        if branch:
+            s['branch_code'] = branch
+        else:
+            s.pop('branch_code', None)
         s['csrf_token'] = 'x'
 
 
@@ -58,7 +64,7 @@ def main():
                    WHERE po.status IN ('open','partial','closed') AND YEAR(po.order_date)=%s""", (year,))
     po_manual = float(cur.fetchone()['a'])
     cur.execute("""SELECT COALESCE(SUM(total_amount),0) AS a FROM fuel_cash_requests
-                   WHERE status='COMPLETED' AND handover_at IS NOT NULL AND YEAR(handover_at)=%s""", (year,))
+                   WHERE handover_at IS NOT NULL AND YEAR(handover_at)=%s""", (year,))
     kas_manual = float(cur.fetchone()['a'])
     cur.close(); conn.close()
     po_api = sum(d['display']['po'])
@@ -67,7 +73,15 @@ def main():
           f'api={po_api} sql={po_manual}')
     check('angka kasbon cocok SQL manual', abs(kas_api - kas_manual) < 1.0,
           f'api={kas_api} sql={kas_manual}')
-    check('grand_total = totals', abs(sum(d['totals'].values()) - d['grand_total']) < 1.0)
+    # v2.104.0: total realisasi = PO diterima + LPJ sah. Kasbon cair adalah
+    # dana muka (jembatan), BUKAN bagian dari total — assertion lama
+    # menjumlahkan seluruh kategori sehingga selalu salah.
+    check('grand_total = PO + LPJ', abs((d['totals']['po'] + d['totals']['lpj'])
+                                        - d['grand_total']) < 1.0,
+          f"po={d['totals']['po']} lpj={d['totals']['lpj']} grand={d['grand_total']}")
+    check('sisa kasbon = kasbon cair - LPJ sah',
+          abs((d['totals']['kasbon'] - d['totals']['lpj']) - d['sisa_total']) < 1.0,
+          f"kasbon={d['totals']['kasbon']} lpj={d['totals']['lpj']} sisa={d['sisa_total']}")
 
     # --- admin ALL ---
     login(c, 'admin')

@@ -22,12 +22,16 @@ def check(label, cond, extra=''):
     (PASS if cond else FAIL).append(label)
 
 
-def login(client, role='finance'):
+def login(client, role='finance', branch='SBY'):
     with client.session_transaction() as s:
         s['user_role'] = role
         s['user_name'] = role.upper()
         s['full_name'] = role.upper()
-        s.pop('branch_code', None)
+        # v2.104.0: sesi WAJIB punya branch_code (isolasi cabang v2.99.1).
+        if branch:
+            s['branch_code'] = branch
+        else:
+            s.pop('branch_code', None)
         s['csrf_token'] = 'x'
 
 
@@ -66,18 +70,30 @@ def main():
         cur.execute("SELECT is_reported FROM transactions WHERE id=%s", (tx['id'],))
         check('is_reported tetap TRUE setelah download', bool(cur.fetchone()['is_reported']))
 
-    # 2) Rekap PDF bulan berjalan
+    # 2) Rekap PDF — periode diambil dari DATA, bukan dari asumsi "bulan
+    #    berjalan". Klaim final (dibayar/arsip) & LPJ sah tidak selalu ada di
+    #    bulan ini; asumsi bulan berjalan bikin smoke merah tanpa ada bug.
     today = dt.date.today()
-    start = today.replace(day=1).isoformat()
-    end = today.isoformat()
+    from modules import bbm_scope
+    probe = get_rekap_data(start_date='2000-01-01', end_date=today.isoformat())
+    if probe:
+        dates = sorted(str(r.get('created_at') or '')[:10] for r in probe)
+        dates = [d for d in dates if d]
+        start, end = (dates[0], dates[-1]) if dates else (
+            today.replace(day=1).isoformat(), today.isoformat())
+    else:
+        start, end = today.replace(day=1).isoformat(), today.isoformat()
+    print(f"	info: periode rekap dari data = {start} s/d {end} ({len(probe)} baris)")
     rv = c.get(f'/admin/rekap/pdf?start_date={start}&end_date={end}')
     check('rekap PDF → 200', rv.status_code == 200, str(rv.status_code))
     check('rekap content-type application/pdf', 'application/pdf' in rv.headers.get('Content-Type', ''))
     check('rekap magic %PDF', rv.get_data()[:5] == b'%PDF-')
-
-    # rekap kosong → redirect aman
+    # v2.104.0: rekap kosong kini menjawab 404 + pesan jelas (bukan redirect
+    # diam-diam yang membuat pengguna mengira PDF rusak) — expectation lama
+    # masih menyebut 302.
     rv = c.get('/admin/rekap/pdf?start_date=1999-01-01&end_date=1999-01-02')
-    check('rekap periode kosong → redirect', rv.status_code in (302, 200), str(rv.status_code))
+    check('rekap periode kosong → 404 + pesan', rv.status_code == 404
+          and 'Tidak ada data' in rv.get_data(as_text=True), str(rv.status_code))
 
     # 3) filter tx_type (restorasi) — verifikasi kontra SQL manual
     rows_all = get_rekap_data(start_date=start, end_date=end)
@@ -87,10 +103,15 @@ def main():
           all(r.get('transaction_type') == 'CASH_LPJ' for r in rows_kas), f'{len(rows_kas)} baris')
     check('engine tx_type=CLAIM murni klaim',
           all(r.get('transaction_type') == 'CLAIM' for r in rows_claim), f'{len(rows_claim)} baris')
-    cur.execute("""SELECT COUNT(*) n FROM transactions
-                   WHERE transaction_type='CASH_LPJ'
-                     AND status IN ('verified','archived','os_finance','verified_ga','rejected')
-                     AND DATE(created_at)>=%s AND DATE(created_at)<=%s""", (start, end))
+    # v2.104.0: bandingkan dengan definisi RESMI (modules/bbm_scope.py) —
+    # daftar status manual lama (v2.71) sudah tidak sama dengan engine
+    # sejak definisi tunggal v2.101.0, jadi perbandingan ini perlu ikut
+    # sumber kebenaran agar tidak menyimpang diam-diam.
+    cur.execute(f"""SELECT COUNT(*) n FROM transactions
+                    WHERE {bbm_scope.REKAP_SCOPE_SQL}
+                      AND transaction_type='CASH_LPJ'
+                      AND (is_dummy=0 OR is_dummy IS NULL)
+                      AND DATE(created_at)>=%s AND DATE(created_at)<=%s""", (start, end))
     n_sql = int(cur.fetchone()['n'])
     check('jumlah kasbon engine = SQL manual', len(rows_kas) == n_sql, f'engine={len(rows_kas)} sql={n_sql}')
 
@@ -103,20 +124,23 @@ def main():
     print(f"	info: rows_all={len(rows_all)} kasbon={len(rows_kas)} klaim={len(rows_claim)} rejected={n_rej}")
 
     # 5) PDF rekap dengan filter type: 200+PDF bila ada baris,
-    #    302 (redirect "Tidak ada data") bila claim kosong — bukan error.
+    #    404 + "Tidak ada data" bila kosong — bukan error, bukan redirect.
     rv = c.get(f'/admin/rekap/pdf?start_date={start}&end_date={end}&type=CASH_LPJ')
     if len(rows_kas) > 0:
         check('rekap ?type=CASH_LPJ → 200 pdf',
               rv.status_code == 200 and rv.get_data()[:5] == b'%PDF-', str(rv.status_code))
     else:
-        check('rekap ?type=CASH_LPJ kosong → redirect "Tidak ada data"', rv.status_code == 302,
+        check('rekap ?type=CASH_LPJ kosong → 404 "Tidak ada data"',
+              rv.status_code == 404 and 'Tidak ada data' in rv.get_data(as_text=True),
               str(rv.status_code))
     rv = c.get(f'/admin/rekap/pdf?start_date={start}&end_date={end}&type=CLAIM')
     if len(rows_claim) > 0:
         check('rekap ?type=CLAIM → 200 pdf',
               rv.status_code == 200 and rv.get_data()[:5] == b'%PDF-', str(rv.status_code))
     else:
-        check('rekap ?type=CLAIM kosong → redirect', rv.status_code == 302, str(rv.status_code))
+        check('rekap ?type=CLAIM kosong → 404 "Tidak ada data"',
+              rv.status_code == 404 and 'Tidak ada data' in rv.get_data(as_text=True),
+              str(rv.status_code))
 
     print()
     print(f'RESULT  PASS={len(PASS)}  FAIL={len(FAIL)}')

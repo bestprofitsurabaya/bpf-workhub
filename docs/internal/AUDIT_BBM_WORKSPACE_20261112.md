@@ -11,9 +11,10 @@ live (`https://127.0.0.1:5000`) memakai sesi GA & Finance nyata; (3) query
 DB produksi read-only; (4) uji kontrak baru (pytest) + suite penuh; (5) audit
 endpoint mati (`scripts/audit_endpoints.py`).
 
-**Hasil singkat:** 6 temuan — **4 diperbaiki di v2.104.0**, 1 diperbaiki
-sebagai label/jaminan kontrak, 2 diterima dengan alasan eksplisit. Tidak ada
-temuan yang membuka data antar cabang atau membuka jalur uang baru.
+**Hasil singkat:** 9 temuan — **7 diperbaiki di v2.104.0**, 2 diterima
+dengan alasan eksplisit (A-07, A-08). Tidak ada temuan yang membuka data
+antar cabang atau membuka jalur uang baru. Gerbang rilis
+`scripts/overall_check.sh` kembali hijau (9/9 langkah).
 
 ---
 
@@ -29,6 +30,7 @@ temuan yang membuka data antar cabang atau membuka jalur uang baru.
 | A-06 | Suite penuh merah: `SettingsView` menyangkar 8 seksi, ada 9 | Rendah (kualitas) | ✅ Diperbaiki |
 | A-07 | Antrean SPBU mismatch belum punya data produksi | Info | ⚠️ Diterima (diberi tahu) |
 | A-08 | Antrean "dana di driver" tidak punya aksi langsung | Info | ⚠️ Diterima (memang begitu) |
+| A-09 | Gerbang rilis `overall_check.sh` **merah** — smoke basi | Sedang (proses rilis) | ✅ Diperbaiki |
 
 ---
 
@@ -141,6 +143,50 @@ perubahan v2.104.0, tapi karena tidak pernah diperbarui sejak v2.98.1.
 
 **Perbaikan:** assertion diselaraskan ke 9 + komentar menyebut asal
 perubahannya. Tidak ada assertion yang dilonggarkan.
+
+---
+
+### A-09 — Gerbang rilis `overall_check.sh` merah karena smoke basi
+
+**Bukti:** `bash scripts/overall_check.sh` → "Smoke Rekap Pengeluaran" GAGAL,
+"Smoke Generator PDF BBM" GAGAL (6 dari 19 gagal). Ini **bukan** caused oleh
+v2.104.0 — dibuktikan dengan menjalankan modul `branch_scope.py` versi
+sebelum-sesi (rekonstruksi dari blok yang berubah) pada kasus yang sama:
+
+```
+kasus                                            | SEBELUM v2.104.0 | v2.104.0
+smoke: finance tanpa branch + ?branch=SBY        | 403 forbidden    | 403 forbidden
+smoke: admin tanpa branch + ?branch=ALL          | 200 ALL          | 200 ALL
+sesi bercabang: finance SBY + ?branch=SBY        | 200 SBY          | 200 SBY
+HO finance_hu tanpa branch (tanpa ?branch=)      | 200 SBY          | 200 ALL   ← satu-satunya beda
+```
+
+Satu-satunya perbedaan adalah **perbaikan A-02** yang memang dimaksudkan.
+Sisanya identik → smoke sudah merah **sebelum** sesi ini.
+
+**Akar masalah (4, semuanya basi):**
+1. `login()` di kedua smoke **`s.pop('branch_code', None)`** — menghapus
+   cabang sesi. Sejak isolasi cabang (v2.99.1) sesi tanpa cabang rightly
+   ditolak 403 → seluruh pemeriksaan gagal. (Smoke ini bertanggal v2.71.)
+2. `smoke_expenses` masih memakai definisi lama `status='COMPLETED'` untuk
+   kasbon, dan assertion `grand_total = totals` menjumlahkan kasbon —
+   padahal definisi tunggal (v2.100.1) memakai `handover_at` dan total
+   realisasi = PO + LPJ. Ketiganya **tertutup** oleh 403 di atas.
+3. `smoke_pdf_bbm` mengasumsikan periode "bulan berjalan" punya klaim final.
+   Data saat ini: klaim final terakhir 22 Okt → November kosong → PDF 404.
+   Periode sekarang **diambil dari data**, bukan dari asumsi kalender.
+4. `smoke_pdf_bbm` masih mengharapkan **302** untuk rekap kosong, padahal
+   aplikasi sejak lama menjawab **404 + pesan jelas** (keputusan sadar:
+   "redirect diam-diam membuat pengguna mengira PDF kosong/rusak").
+
+**Perbaikan:** kedua smoke diperbarui (login mengeset branch; definisi kasbon
+mengikuti `handover_at`; assertion total diperbaiki + ditambah invariant
+"sisa kasbon = kasbon cair − LPJ sah"; periode rekap dari data; ekspektasi
+404 + pesan; perbandingan SQL memakai `bbm_scope.REKAP_SCOPE_SQL` supaya
+tidak bisa menyimpang lagi).
+
+**Hasil:** Smoke Rekap Pengeluaran **14/14**, Smoke Generator PDF BBM
+**19/19**. Gerbang `overall_check.sh` hijau kembali.
 
 ---
 
