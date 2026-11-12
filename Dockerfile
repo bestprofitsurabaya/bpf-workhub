@@ -33,13 +33,16 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-reco
 # poppler-utils (pdfinfo/pdfsig/pdftotext) dipakai untuk memeriksa sifat PDF
 # & mendeteksi dokumen bertanda tangan sebelum dikompres.
 
-# Setup cron: cleanup foto overtime > 6 bulan
+# Setup cron: cleanup foto overtime > 6 bulan + retensi KTP FirstWork (v2.85.0,
+# UU PDP: foto KTP dihapus 90 hari setelah keputusan verifikasi, tercatat audit)
 COPY scripts/overtime-cleanup.sh /app/scripts/overtime-cleanup.sh
+COPY scripts/first_work_ktp_retention.py /app/scripts/first_work_ktp_retention.py
 RUN chmod +x /app/scripts/overtime-cleanup.sh && \
     echo '*/30 * * * * /bin/sh /app/scripts/overtime-cleanup.sh >> /var/log/overtime-cleanup.log 2>&1' > /etc/cron.d/overtime-cleanup && \
+    echo '10 4 * * * python3 /app/scripts/first_work_ktp_retention.py >> /var/log/first-work-ktp-retention.log 2>&1' >> /etc/cron.d/overtime-cleanup && \
     chmod 0644 /etc/cron.d/overtime-cleanup && \
     crontab /etc/cron.d/overtime-cleanup && \
-    touch /var/log/overtime-cleanup.log
+    touch /var/log/overtime-cleanup.log /var/log/first-work-ktp-retention.log
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt \

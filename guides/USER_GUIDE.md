@@ -1,4 +1,4 @@
-# 📖 Panduan Pengguna BPF WorkHub v2.84.0
+# 📖 Panduan Pengguna BPF WorkHub v2.85.0
 
 > **Siapa pun kamu — sopir, OB, admin, atau pimpinan — panduan ini ditulis untuk kamu.**
 > Tidak perlu paham teknis. Cukup ikuti langkah-langkah sesuai bagianmu.
@@ -537,6 +537,7 @@ Semua perubahan papan berjalan realtime — saat driver menyelesaikan tugas, sta
 - Tab **ID Fingerprint & ID BPF** (Traineer/Admin): pilih kolom counter sumber tiap ID dan **atur angka awal** (nomor berikutnya yang terbit). Nomor yang sudah terpakai tidak diterbitkan dua kali.
 - Chip **🕒 Menunggu** membuka antrean yang perlu diverifikasi; chip lain memfilter status. Angka antrean juga tampil sebagai badge di menu sidebar.
 - **✅ Verifikasi** atau **✕ Tolak** — alasan penolakan wajib; setiap keputusan tercatat di riwayat.
+- Pendaftar **wajib mencentang persetujuan pemrosesan data pribadi** sebelum kirim — isian tanpa persetujuan ditolak dan tercatat begitu juga setiap persetujuan yang sah. Foto KTP otomatis dihapus sistem **90 hari** setelah keputusan verifikasi/penolakan (UU PDP).
 - **⬇️ Ekspor CSV** mengikuti filter yang aktif. Finance & GA HR hanya bisa melihat.
 - **Lupa PIN?** Ganti sendiri lewat **Profil Saya** (ikon 👤) — butuh PIN saat ini, dan PIN baru harus kuat (123456/angka berulang ditolak sistem).
 

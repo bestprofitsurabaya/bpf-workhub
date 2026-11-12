@@ -38,6 +38,7 @@
 | `overtime_driver` | Sesi lembur Driver (Google Sheet/Apps Script) | `overtime_driver` | ✅ Form PDF |
 | `overtime_ob` | Sesi lembur OB/Security | `overtime_ob_security` | ✅ Form PDF |
 | `applicants` | Data pelamar kerja (data pribadi) | `applicants` | — |
+| `first_work_ktp` | Foto KTP pendaftar Absensi FirstWork (data pribadi spesifik) | `first_work_submissions.ktp_file` + `uploads/first_work/` | — |
 | *PDF & file lain* | Lampiran & dokumen per kasus | `uploads/` | lihat kelas di atas |
 
 ---
@@ -56,6 +57,7 @@
 | Overtime Driver | 5 tahun | Data kepegawaian/klaim lembur | Tidak ada otomatis |
 | Overtime OB/Security | 5 tahun | Data kepegawaian/klaim lembur | Tidak ada otomatis |
 | Pelamar kerja | **2 tahun** (730 hari) | Data pribadi — UU PDP data minimization | Tidak ada otomatis |
+| **Foto KTP FirstWork** (v2.85.0) | **90 hari sejak keputusan verifikasi** (`verified`/`rejected`) — diatur `system_config.first_work_ktp_retention_days` | Data pribadi spesifik (foto identitas) — UU PDP: hapus setelah tujuan pemrosesan tercapai | ✅ **Cron hapus otomatis harian** (`scripts/first_work_ktp_retention.py`): file lokal + referensi Drive dibereskan, tiap pemusnahan tercatat event `ktp_purge` |
 | Foto overtime (> 6 bln) | 180 hari | Bukti visual sudah lewat masa gugat | ✅ Cron hapus otomatis (lama) |
 
 > ⚠️ Foto/lampiran yang menyertai transaksi BBM/air adalah bagian dari

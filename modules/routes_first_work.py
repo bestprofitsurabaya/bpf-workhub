@@ -30,8 +30,10 @@ from flask import (request, jsonify, session, send_file, make_response)
 # cabang sesi; admin cabang lain tidak punya tabel ini, jadi pakai master dan
 # batasi baris lewat _scope_branch().
 from modules.config import get_master_connection
+# v2.85.0: import counter Redis (lihat helpers.redis_rate_hit — kini memakai
+# helper ini untuk limit submit & cek NIK).
 from modules.helpers import (role_required, log_activity_async, client_ip,
-                             generate_display_id, save_file)
+                             generate_display_id, save_file, redis_rate_hit)
 from modules.routes_overtime import _check_public_url
 
 # ================================================================
@@ -57,10 +59,9 @@ CONFIG_KTP_TOKEN = 'first_work_ktp_token'
 CONFIG_LAST_SYNC = 'first_work_last_sync'
 CONFIG_ID = 'first_work_id_config'   # v2.83.0: pemetaan seri counter sheet
 
-# Rate limit publik: 10 submit / 10 menit per IP.
+# Rate limit publik: 10 submit / 10 menit per IP (Redis sejak v2.85.0).
 _SUBMIT_MAX = 10
 _SUBMIT_WINDOW = 600
-_submit_log = {}
 
 # Header sheet -> kunci internal. Header dinormalisasi: lowercase, alnum saja.
 HEADER_MAP = {
@@ -196,7 +197,6 @@ def _serialize(row):
     return out
 
 
-_check_log = {}
 _CHECK_WINDOW = 60
 # v2.82.0: 20 -> 10 cek/menit. Endpoint ini menjawab "NIK terdaftar atau
 # tidak", jadi kuota longgar = alat enumerasi data pribadi.
@@ -204,26 +204,17 @@ _CHECK_MAX = 10
 
 
 def _check_ok(ip):
-    """Rate limit ringan khusus cek NIK (tidak memakai kuota submit)."""
-    now = time.time()
-    stamps = [t for t in _check_log.get(ip, []) if now - t < _CHECK_WINDOW]
-    if len(stamps) >= _CHECK_MAX:
-        _check_log[ip] = stamps
-        return False
-    stamps.append(now)
-    _check_log[ip] = stamps
-    return True
+    """Rate limit ringan khusus cek NIK (tidak memakai kuota submit).
+
+    v2.85.0: pindah ke counter Redis (INCR+EXPIRE atomik, fallback memori) —
+    penghitung tidak lagi hilang tiap restart container.
+    """
+    return redis_rate_hit(f'nikcek|{ip}', _CHECK_MAX, _CHECK_WINDOW, prefix='firstwork')
 
 
 def _rate_ok(ip):
-    now = time.time()
-    stamps = [t for t in _submit_log.get(ip, []) if now - t < _SUBMIT_WINDOW]
-    if len(stamps) >= _SUBMIT_MAX:
-        _submit_log[ip] = stamps
-        return False
-    stamps.append(now)
-    _submit_log[ip] = stamps
-    return True
+    """Rate limit submit publik — Redis atomik sejak v2.85.0 (fallback memori)."""
+    return redis_rate_hit(f'kirim|{ip}', _SUBMIT_MAX, _SUBMIT_WINDOW, prefix='firstwork')
 
 
 def _config_get(conn, key):
@@ -438,6 +429,15 @@ def format_reg_no(branch_code, submitted_at, seq):
     code = (branch_code or 'SBY').strip().upper() or 'SBY'
     date_part = (submitted_at or datetime.now()).strftime('%Y%m%d')
     return f'FW-{code}-{date_part}-{int(seq):04d}'
+
+
+def _consent_given(value):
+    """True bila nilai field `consent` menunjukkan persetujuan eksplisit.
+
+    Whitelist ketat: nilai yang tidak persis menandakan persetujuan dianggap
+    menolak (UU PDP — persetujuan harus afirmatif, bukan diam berarti setuju).
+    """
+    return str(value or '').strip().lower() in ('1', 'true', 'yes', 'ya')
 
 
 def _next_reg_no(conn, submitted_at, branch_code='SBY'):
@@ -1170,6 +1170,13 @@ def register_first_work_routes(app):
                 return jsonify({'status': 'error',
                                 'msg': 'Nomor Handphone tidak valid'}), 400
 
+            # v2.85.0 (UU PDP): persetujuan pemrosesan data pribadi wajib
+            # eksplisit dan tercatat — tidak ada pengiriman tanpa consent.
+            if not _consent_given(request.form.get('consent')):
+                return jsonify({'status': 'error',
+                                'msg': 'Persetujuan pemrosesan data pribadi '
+                                       'wajib dicentang sebelum mengirim.'}), 400
+
             file = request.files.get('ktp')
             if file is None or not file.filename:
                 return jsonify({'status': 'error',
@@ -1283,6 +1290,14 @@ def register_first_work_routes(app):
                          actor, actor_role, ip)
                     VALUES (%s,'created','','submitted','Kirim form publik',
                             'public','public',%s)
+                """, (submission_id, ip))
+                # v2.85.0: jejak persetujuan — timestamp = created_at event ini.
+                cursor.execute("""
+                    INSERT INTO first_work_events
+                        (submission_id, event, note, actor, actor_role, ip)
+                    VALUES (%s,'consent',
+                            'Persetujuan pemrosesan data pribadi (UU PDP) '
+                            'dicatat saat pengiriman form','public','public',%s)
                 """, (submission_id, ip))
                 conn.commit()
             finally:

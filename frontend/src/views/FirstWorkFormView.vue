@@ -42,6 +42,8 @@ const ktpLabel = ref('')
 const ktpPreview = ref('')
 const error = ref('')
 const submitting = ref(false)
+// v2.85.0: persetujuan pemrosesan data pribadi (UU PDP) wajib sebelum kirim.
+const consent = ref(false)
 const done = ref(null)
 const step = ref(0)
 const restored = ref(false)
@@ -243,6 +245,9 @@ function stepError(target) {
     return ''
   }
   if (!ktpFile.value) return 'Upload Identitas (KTP) wajib dilampirkan.'
+  if (!consent.value) {
+    return 'Centang persetujuan pemrosesan data pribadi terlebih dahulu.'
+  }
   return ''
 }
 
@@ -279,6 +284,7 @@ async function submit() {
   else payload.append('referrer_id', form.referrer_id)
   payload.append('branch', resolvedBranch.value)
   if (linkToken) payload.append('t', linkToken)
+  payload.append('consent', '1')
   payload.append('ktp', ktpFile.value)
 
   const csrf = localStorage.getItem('bpf_csrf') || sessionStorage.getItem('bpf_csrf')
@@ -314,6 +320,7 @@ function reset() {
   done.value = null
   error.value = ''
   step.value = 0
+  consent.value = false
   restored.value = false
   resetNikCheck()
   clearDraft()
@@ -486,19 +493,28 @@ onBeforeUnmount(() => clearTimeout(checkTimer))
           </div>
         </template>
 
-        <div class="fw-nav">
-          <button v-if="step > 0" type="button" class="btn" @click="goBack">← Kembali</button>
-          <button v-if="step < STEPS.length - 1" type="submit" class="btn btn-primary fw-next">
-            Lanjut →
-          </button>
-          <button v-else type="submit" class="btn btn-primary fw-next" :disabled="submitting">
-            {{ submitting ? '⏳ Mengirim…' : '📤 Kirim Absensi' }}
-          </button>
-        </div>
-        <p class="fw-note">
-          Form ini terbuka untuk umum dan tidak memerlukan login. Data Anda hanya
-          dipakai untuk proses rekrutmen PT Bestprofit Futures.
-        </p>
+          <label class="fw-consent">
+            <input type="checkbox" v-model="consent" />
+            <span>Saya menyatakan data yang saya isi adalah benar dan saya
+            <b>menyetujui penggunaan data pribadi saya</b> (NIK, nama, No. HP,
+            foto KTP) oleh PT Bestprofit Futures untuk proses rekrutmen
+            FirstWork ini.</span>
+          </label>
+
+          <div class="fw-nav">
+            <button v-if="step > 0" type="button" class="btn" @click="goBack">← Kembali</button>
+            <button v-if="step < STEPS.length - 1" type="submit" class="btn btn-primary fw-next">
+              Lanjut →
+            </button>
+            <button v-else type="submit" class="btn btn-primary fw-next" :disabled="submitting || !consent">
+              {{ submitting ? '⏳ Mengirim…' : '📤 Kirim Absensi' }}
+            </button>
+          </div>
+          <p class="fw-note">
+            Form ini terbuka untuk umum dan tidak memerlukan login. Data Anda hanya
+            dipakai untuk proses rekrutmen PT Bestprofit Futures dan disesuai
+            kebijakan retensi: foto KTP dihapus otomatis setelah proses selesai.
+          </p>
       </form>
     </div>
   </div>
@@ -575,13 +591,18 @@ onBeforeUnmount(() => clearTimeout(checkTimer))
   border-radius: 9px; padding: 8px 10px; font-size: 11px; margin-bottom: 12px;
 }
 .fw-link { background: none; border: 0; padding: 0; color: #2563eb; font-size: 11px; cursor: pointer; text-decoration: underline; }
-.fw-review {
-  background: var(--bg); border: 1px solid var(--border); border-radius: 12px;
+.fw-review { background: var(--bg); border: 1px solid var(--border); border-radius: 12px;
   padding: 12px 14px; display: grid; gap: 8px; margin-bottom: 12px;
 }
 .fw-review h4 { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--text-3); }
 .fw-review span { display: block; font-size: 10px; color: var(--text-3); }
 .fw-review b { font-size: 12px; }
+/* v2.85.0: persetujuan pemrosesan data pribadi (UU PDP) */
+.fw-consent { display: flex; gap: 10px; align-items: flex-start; cursor: pointer;
+  background: var(--bg); border: 1px solid var(--border); border-radius: 10px;
+  padding: 10px 12px; font-size: 11.5px; line-height: 1.5; margin-bottom: 4px; }
+.fw-consent input { margin-top: 2px; flex: none; width: 16px; height: 16px; accent-color: var(--primary, #7c3aed); }
+.fw-consent:has(input:checked) { border-color: var(--primary, #7c3aed); }
 .fw-nav { display: flex; gap: 8px; margin-top: 6px; }
 .fw-next { flex: 1; justify-content: center; }
 </style>

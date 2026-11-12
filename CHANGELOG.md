@@ -7,6 +7,31 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.85.0 — 12 November 2026 (FirstWork: kepatuhan UU PDP — persetujuan, retensi KTP, rate limit Redis)
+
+Sistem kini menyimpan NIK, nama, no. HP, dan foto KTP pendaftar — tiga gap
+kepatuhan UU PDP dari audit v2.82 ditutup.
+
+- ✍️ **Persetujuan eksplisit wajib** — checkbox persetujuan pemrosesan data
+  pribadi di langkah terakhir form publik; pengiriman tanpa persetujuan
+  ditolak 400 *sebelum* menyentuh DB, dan setiap pengiriman sah mencatat
+  event `consent` (timestamp = waktu setuju). Prinsip UU PDP: persetujuan
+  harus afirmatif — diam bukan berarti setuju.
+- 🗄️ **Retensi foto KTP** — cron harian (`scripts/first_work_ktp_retention.py`)
+  menghapus foto KTP lokal **dan** referensi Drive 90 hari setelah keputusan
+  verifikasi/penolakan; masa simpan bisa diubah lewat
+  `system_config.first_work_ktp_retention_days`; tiap pemusnahan tercatat
+  sebagai event `ktp_purge`. Kebijakan resmi ditulis di
+  `docs/internal/RETENTION_POLICY.md` (kelas `first_work_ktp`).
+- 🛡️ **Rate limit pindah ke Redis** — kuota submit publik (10/10 menit) dan
+  cek NIK (10/menit) kini counter `INCR+EXPIRE` atomik
+  (`helpers.redis_rate_hit`) dengan fallback memori; penghitung tidak lagi
+  hilang setiap container restart.
+- ✅ **Pengujian** — `tests/test_first_work_pdp.py`: consent afirmatif,
+  penolakan tanpa consent sebelum DB, dan penegakan kuota fallback.
+
+---
+
 ## v2.84.0 — 12 November 2026 (FirstWork: semua cabang wajib tautan ber-token)
 
 Kebijakan v2.82.0 masih menerima tautan lama cabang utama (SBY) tanpa token

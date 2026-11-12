@@ -1189,6 +1189,46 @@ def login_success(ip, username=''):
 
 
 # ============================================================
+# Counter kuota request (v2.85.0) — Redis INCR+EXPIRE atomik (fixed window)
+# dengan fallback memori proses. Dipakai endpoint publik first-work agar
+# batas anti-spam bertahan lintas restart & antar proses, bukan hilang
+# tiap container restart (temuan audit UU PDP: rate limit in-memory).
+# ============================================================
+_counter_mem = {}
+_counter_lua = None
+
+
+def redis_rate_hit(key, limit, window, prefix='rl'):
+    """Satu hit pada kuota `limit` per `window` detik. Return True bila masih boleh.
+
+    Redis path: script Lua INCR+EXPIRE (atomik — bila gagal di tengah, kunci
+    tetap ber-TTL, tidak ada penghitung yatim yang mengunci selamanya).
+    Fallback memori: daftar timestamp per proses (perilaku lama).
+    """
+    global _counter_lua
+    r = _get_redis()
+    if r:
+        try:
+            if _counter_lua is None:
+                _counter_lua = r.register_script("""
+                    local c = redis.call('INCR', KEYS[1])
+                    if c == 1 then redis.call('EXPIRE', KEYS[1], ARGV[1]) end
+                    return c
+                """)
+            count = int(_counter_lua(keys=[f'bpf_rl:{prefix}:{key}'],
+                                     args=[int(window)]))
+            return count <= int(limit)
+        except Exception:
+            pass
+    now = time.time()
+    stamps = [t for t in _counter_mem.get(key, []) if now - t < window]
+    allowed = len(stamps) < limit
+    stamps.append(now)
+    _counter_mem[key] = stamps
+    return allowed
+
+
+# ============================================================
 # Rate limiting verifikasi PIN (ISO/IEC 27001 A.8.5 · anti brute-force).
 # v2.73.0: /api/verify-pin (legacy v1.0) dihapus — penghitung ini kini
 # dipakai jalur /api/step-up. Terpisah dari login agar lockout satu jalur
