@@ -70,7 +70,7 @@ class TestFillVector:
         assert _fill_vector(None) == [0.0] * MONTHS
 
     def test_kategori_kontrak(self):
-        assert CATEGORIES == ('po', 'kasbon')
+        assert CATEGORIES == ('po', 'kasbon', 'lpj')
         assert EXPENSE_ROLES == ['finance', 'admin']
 
 
@@ -159,10 +159,26 @@ def test_bentuk_response_vektor_12(client, monkeypatch):
     assert len(d['display']['po']) == 12 and len(d['display']['kasbon']) == 12
     assert d['display']['po'][1] == 400000.0
     assert d['display']['kasbon'][6] == 150000.0
-    assert d['display']['total'][1] == 450000.0
-    assert d['totals'] == {'po': 500000.0, 'kasbon': 200000.0}
-    assert d['grand_total'] == 700000.0
+    assert d['display']['lpj'] == [0.0] * 12
+    # Total realisasi = PO diterima + LPJ (kasbon bukan pengeluaran final).
+    assert d['display']['total'][1] == 400000.0
+    assert d['totals'] == {'po': 500000.0, 'kasbon': 200000.0, 'lpj': 0.0}
+    assert d['grand_total'] == 500000.0
+    assert d['sisa_total'] == 200000.0
+    assert 'kasbon' in d['basis'] and 'excluded' in d['basis']
     assert not d['errors']
+
+
+def test_detail_kategori_tidak_dikenal_ditolak(client):
+    _login(client)
+    rv = client.get('/api/expenses/detail?year=2026&month=2&branch=SBY&category=gaji')
+    assert rv.status_code == 400
+
+
+def test_detail_bulan_tidak_valid_ditolak(client):
+    _login(client)
+    rv = client.get('/api/expenses/detail?year=2026&month=13&branch=SBY&category=po')
+    assert rv.status_code == 400
 
 
 def test_scope_all_menggabungkan_cabang(client, monkeypatch):
@@ -176,4 +192,5 @@ def test_scope_all_menggabungkan_cabang(client, monkeypatch):
     # 2 cabang (SBY + BDG) memakai conn hasil patch yang sama → nilai dua kali
     assert d['display']['po'][0] == 600000.0
     assert d['display']['name'] == 'Semua Cabang'
+    assert d['grand_total'] == 600000.0
     assert {b['code'] for b in d['branches']} == {'SBY', 'BDG'}

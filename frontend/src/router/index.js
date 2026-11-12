@@ -27,9 +27,9 @@ const routes = [
       { path: 'chief-driver', name: 'chief-driver', component: () => import('../views/dashboard/ChiefDriverDashboard.vue'), meta: { roles: ['chief_driver', 'ga', 'admin'] } },
       { path: 'trips', name: 'trips', component: () => import('../views/TripsView.vue'), meta: { roles: ['ga', 'admin'] } },
       { path: 'assignments', name: 'assignments', component: () => import('../views/AssignmentsView.vue'), meta: { roles: ['ga', 'admin'] } },
-      { path: 'rekap', name: 'rekap', component: () => import('../views/RekapView.vue'), meta: { roles: ['admin'] } },
+      { path: 'rekap', name: 'rekap', component: () => import('../views/RekapView.vue'), meta: { roles: ['ga', 'finance', 'admin'] } },
       { path: 'cash', name: 'cash', component: () => import('../views/CashView.vue'), meta: { roles: ['ga', 'finance', 'admin'] } },
-      { path: 'analytics', name: 'analytics', component: () => import('../views/AnalyticsView.vue'), meta: { roles: ['ga', 'admin'] } },
+      { path: 'analytics', name: 'analytics', component: () => import('../views/AnalyticsView.vue'), meta: { roles: ['ga', 'finance', 'admin'] } },
       { path: 'users', name: 'users', component: () => import('../views/UsersView.vue'), meta: { roles: ['admin'] } },
       { path: 'approvals', name: 'approvals', component: () => import('../views/ApprovalsView.vue'), meta: { roles: ['chief_driver', 'ga', 'ga_hr'] } },
       { path: 'access-review', name: 'access-review', component: () => import('../views/AccessReviewView.vue'), meta: { roles: ['admin'] } },
@@ -41,7 +41,7 @@ const routes = [
       // Pengadaan / PO (v2.70.0) — master supplier + purchase order + penerimaan
       { path: 'procurement', name: 'procurement', component: () => import('../views/ProcurementView.vue'), meta: { roles: ['ga', 'admin'] } },
       // Rekap Pengeluaran (v2.71.0) — lintas modul, angka terukur saja
-      { path: 'expenses', name: 'expenses', component: () => import('../views/ExpensesView.vue'), meta: { roles: ['admin'] } },
+      { path: 'expenses', name: 'expenses', component: () => import('../views/ExpensesView.vue'), meta: { roles: ['finance', 'admin'] } },
       // Form overtime user OB & Security (v2.39) — dari dalam aplikasi (login)
       { path: 'overtime-me', name: 'overtime-me', component: () => import('../views/OvertimeMeView.vue'), meta: { roles: ['ob', 'security'] } },
       // Rekrutmen (v2.80) — receptionist mengelola, traineer hanya melihat.

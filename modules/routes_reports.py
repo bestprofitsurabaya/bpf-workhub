@@ -60,8 +60,12 @@ def register_report_routes(app):
                                   driver=filters['driver'] if filters['driver'] else None,
                                   tx_type=filters['type'] if filters['type'] else None)
             if not data:
-                flash('Tidak ada data', 'warning')
-                return redirect(url_for('admin_rekap'))
+                # SPA memanggil ini di tab baru; redirect diam-diam membuat
+                # pengguna mengira PDF kosong/rusak. Beri pesan yang jelas.
+                return make_response(
+                    'Tidak ada data pada filter ini. Ubah periode/driver/nopol '
+                    'lalu coba lagi.', 404,
+                    {'Content-Type': 'text/plain; charset=utf-8'})
             ts = []
             ts.append(f"DRIVER: {filters['driver'].upper()}" if filters['driver'] else "DRIVER: ALL")
             ts.append(f"NOPOL: {filters['nopol'].upper()}" if filters['nopol'] else "NOPOL: ALL")

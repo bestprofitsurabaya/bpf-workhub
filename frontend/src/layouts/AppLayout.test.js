@@ -87,7 +87,10 @@ describe('AppLayout — P1 navigasi', () => {
     expect(nav).toContain('Dashboard Finance')
     expect(nav).toContain('BBM, Kasbon & SPBU')
     expect(nav).toContain('Air Minum')
-    for (const hidden of ['Dashboard GA', 'Log Perjalanan', 'Pengadaan (PO)', 'Rekap Pengeluaran', 'Analytics', 'ACC Atasan']) {
+    expect(nav).toContain('Rekap Klaim BBM')
+    expect(nav).toContain('Realisasi Pengeluaran')
+    expect(nav).toContain('Analisis BBM & Armada')
+    for (const hidden of ['Dashboard GA', 'Log Perjalanan', 'Pengadaan (PO)', 'ACC Atasan']) {
       expect(nav).not.toContain(hidden)
     }
     w.unmount()

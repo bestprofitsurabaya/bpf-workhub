@@ -20,6 +20,9 @@ def register_transaction_api(app):
             start_date = request.args.get('start_date', '')
             end_date = request.args.get('end_date', '')
             bbm_type = request.args.get('bbm_type', '')
+            driver = request.args.get('driver', '').strip()
+            nopol = request.args.get('nopol', '').strip()
+            tx_type = request.args.get('type', '').strip()
 
             conn = get_db_connection()
             if not conn: return jsonify({'error': 'DB error'}), 500
@@ -39,11 +42,21 @@ def register_transaction_api(app):
                 params.extend([f"%{search}%", f"%{search}%"])
             if bbm_type:
                 where.append("bbm_type = %s"); params.append(bbm_type)
+            if driver:
+                where.append("driver_name LIKE %s"); params.append(f"%{driver.upper()}%")
+            if nopol:
+                where.append("nopol LIKE %s"); params.append(f"%{nopol.upper()}%")
+            if tx_type:
+                where.append("COALESCE(transaction_type,'CLAIM') = %s"); params.append(tx_type)
 
             wc = " AND ".join(where)
             cursor.execute(f"SELECT COUNT(*) as total FROM transactions WHERE {wc}", params)
             total = cursor.fetchone()['total']
-            cursor.execute(f"SELECT COALESCE(SUM(nominal),0) as total_nominal FROM transactions WHERE {wc}", params)
+            cursor.execute(
+                f"SELECT COALESCE(SUM(nominal),0) as total_nominal, "
+                f"COALESCE(SUM(liter),0) as total_liter, "
+                f"ROUND(AVG(NULLIF(km_per_liter,0)),2) as avg_kml "
+                f"FROM transactions WHERE {wc}", params)
             s = cursor.fetchone()
             cursor.execute(f"SELECT * FROM transactions WHERE {wc} ORDER BY created_at DESC LIMIT %s OFFSET %s", params + [limit, (page-1)*limit])
             data = cursor.fetchall()
@@ -56,7 +69,11 @@ def register_transaction_api(app):
             return jsonify({
                 'data': data, 'total': total, 'page': page, 'limit': limit,
                 'total_pages': max(1, (total + limit - 1) // limit),
-                'summary': {'total_nominal': float(s['total_nominal'])}
+                'summary': {
+                    'total_nominal': float(s['total_nominal']),
+                    'total_liter': float(s['total_liter'] or 0),
+                    'avg_kml': float(s['avg_kml'] or 0),
+                }
             })
         except Exception as e:
             print(f'[ERROR] api_archive_transactions: {e}')
@@ -389,10 +406,19 @@ def register_transaction_api(app):
     @role_required(['ga', 'finance', 'admin'])
     def api_vehicle_health():
         try:
+            start_date = request.args.get('start_date', '').strip()
+            end_date = request.args.get('end_date', '').strip()
             conn = get_db_connection()
             if not conn: return jsonify({'error': 'DB error'}), 500
             cursor = conn.cursor(dictionary=True)
-            cursor.execute("""SELECT t.nopol, t.vehicle_type, COUNT(t.id) as total_tx, ROUND(AVG(NULLIF(t.km_per_liter,0)), 2) as avg_kml, MAX(t.created_at) as last_activity, SUM(t.nominal) as total_nominal, COALESCE(SUM(t.jumlah_appointment),0) as total_appt, (SELECT va.driver_name FROM vehicle_assignments va WHERE va.nopol = t.nopol AND va.is_current = 1 ORDER BY va.id DESC LIMIT 1) as current_driver FROM transactions t WHERE t.status = 'archived' AND (t.is_dummy=0 OR t.is_dummy IS NULL) GROUP BY t.nopol, t.vehicle_type ORDER BY avg_kml DESC""")
+            where = ["t.status = 'archived'", "(t.is_dummy=0 OR t.is_dummy IS NULL)"]
+            params = []
+            if start_date:
+                where.append('DATE(t.created_at) >= %s'); params.append(start_date)
+            if end_date:
+                where.append('DATE(t.created_at) <= %s'); params.append(end_date)
+            clause = ' AND '.join(where)
+            cursor.execute(f"""SELECT t.nopol, t.vehicle_type, COUNT(t.id) as total_tx, ROUND(AVG(NULLIF(t.km_per_liter,0)), 2) as avg_kml, MAX(t.created_at) as last_activity, SUM(t.nominal) as total_nominal, COALESCE(SUM(t.jumlah_appointment),0) as total_appt, (SELECT va.driver_name FROM vehicle_assignments va WHERE va.nopol = t.nopol AND va.is_current = 1 ORDER BY va.id DESC LIMIT 1) as current_driver FROM transactions t WHERE {clause} GROUP BY t.nopol, t.vehicle_type ORDER BY avg_kml DESC""", params)
             units = cursor.fetchall()
             for unit in units:
                 kml = unit['avg_kml'] if unit['avg_kml'] else 10
@@ -402,7 +428,11 @@ def register_transaction_api(app):
                 unit['health_score'] = health
                 unit['status'] = 'good' if health >= 70 else ('warning' if health >= 40 else 'danger')
             cursor.close(); conn.close()
-            return jsonify({'units': units, 'total_active_units': len(units), 'avg_fleet_health': round(sum(u['health_score'] for u in units)/len(units)) if units else 0})
+            return jsonify({'units': units, 'total_units_with_data': len(units),
+                            'total_active_units': len(units),  # kompatibilitas
+                            'avg_fleet_health': round(sum(u['health_score'] for u in units)/len(units)) if units else 0,
+                            'period': {'start_date': start_date or None, 'end_date': end_date or None},
+                            'formula': '60% efisiensi (km/L ÷ 14) + 20% kebaruan aktivitas + 20% volume transaksi; km/L kosong dianggap 10'})
         except Exception as e:
             print(f'[ERROR] api_vehicle_health: {e}')
             return jsonify({'error': 'Terjadi kesalahan server'}), 500
@@ -456,6 +486,15 @@ def register_transaction_api(app):
             if not end_date:
                 end_date = datetime.now().strftime('%Y-%m-%d')
 
+            # Jumlah hari dalam periode — rata-rata per hari WAJIB memakai ini,
+            # bukan konstanta 30 (sebelumnya salah untuk periode 7/90 hari).
+            try:
+                _d1 = datetime.strptime(start_date, '%Y-%m-%d').date()
+                _d2 = datetime.strptime(end_date, '%Y-%m-%d').date()
+                range_days = max(1, (_d2 - _d1).days + 1)
+            except (TypeError, ValueError):
+                range_days = 30
+
             # Build WHERE clause
             where = ["status='archived'", "(is_dummy=0 OR is_dummy IS NULL)",
                      "DATE(created_at) >= %s", "DATE(created_at) <= %s"]
@@ -480,21 +519,27 @@ def register_transaction_api(app):
             monthly = cursor.fetchall()
             cursor.execute(f"SELECT driver_name, nopol, SUM(nominal) as total, COUNT(*) as tx_count FROM transactions WHERE {wc} GROUP BY driver_name, nopol ORDER BY total DESC LIMIT 5", params)
             top_drivers = cursor.fetchall()
+            # Grafik frekuensi HARUS berdasarkan frekuensi, bukan top nominal.
+            cursor.execute(f"SELECT driver_name, COUNT(*) as c FROM transactions WHERE {wc} GROUP BY driver_name ORDER BY c DESC LIMIT 5", params)
+            freq_drivers = cursor.fetchall()
             cursor.execute("SELECT COUNT(*) as c FROM drivers WHERE is_active=1"); total_drivers = cursor.fetchone()['c']
             cursor.execute(f"SELECT COALESCE(SUM(jumlah_appointment),0) as c FROM transactions WHERE {wc}", params); total_appt = int(cursor.fetchone()['c'])
             cursor.execute(f"SELECT driver_name, COUNT(*) as c FROM transactions WHERE {wc} GROUP BY driver_name ORDER BY c DESC LIMIT 1", params)
             top_driver_row = cursor.fetchone()
             cursor.execute(f"SELECT COUNT(*) as c FROM transactions WHERE {wc}", params); total_claims = cursor.fetchone()['c']
-            cursor.execute("SELECT nopol, ROUND(AVG(NULLIF(km_per_liter,0)),2) as avg_kml FROM transactions WHERE status='archived' AND (is_dummy=0 OR is_dummy IS NULL) AND km_per_liter > 0 GROUP BY nopol ORDER BY avg_kml DESC")
+            # Efisiensi mengikuti periode yang dipilih (sebelumnya semua waktu).
+            cursor.execute("SELECT nopol, ROUND(AVG(NULLIF(km_per_liter,0)),2) as avg_kml FROM transactions WHERE status='archived' AND (is_dummy=0 OR is_dummy IS NULL) AND km_per_liter > 0 AND DATE(created_at) >= %s AND DATE(created_at) <= %s GROUP BY nopol ORDER BY avg_kml DESC", [start_date, end_date])
             eff = cursor.fetchall()
             cash_total = 0; cash_amount = 0
             if not tx_type or tx_type == 'CASH_LPJ':
-                cash_where = "status='COMPLETED'"
+                # Kasbon dihitung saat dana benar-benar diserahkan (handover_at),
+                # sama dengan basis Rekap Pengeluaran.
+                cash_where = "status='COMPLETED' AND handover_at IS NOT NULL"
                 cash_params = []
                 if start_date:
-                    cash_where += " AND DATE(created_at) >= %s"; cash_params.append(start_date)
+                    cash_where += " AND DATE(handover_at) >= %s"; cash_params.append(start_date)
                 if end_date:
-                    cash_where += " AND DATE(created_at) <= %s"; cash_params.append(end_date)
+                    cash_where += " AND DATE(handover_at) <= %s"; cash_params.append(end_date)
                 cursor.execute(f"SELECT COUNT(*) as c FROM fuel_cash_requests WHERE {cash_where}", cash_params)
                 cash_total = cursor.fetchone()['c']
                 cursor.execute(f"SELECT COALESCE(SUM(total_amount),0) as amount FROM fuel_cash_requests WHERE {cash_where}", cash_params)
@@ -502,15 +547,16 @@ def register_transaction_api(app):
             cursor.close(); conn.close()
             return jsonify({
                 'finance': {
-                    'total_month': float(fin['total_month']), 'total_tx': fin['total_tx'], 'avg_per_day': round(float(fin['total_month'])/30), 'avg_per_tx': round(float(fin['total_month'])/fin['total_tx']) if fin['total_tx'] > 0 else 0,
+                    'total_month': float(fin['total_month']), 'total_tx': fin['total_tx'], 'days': range_days,
+                    'avg_per_day': round(float(fin['total_month'])/range_days), 'avg_per_tx': round(float(fin['total_month'])/fin['total_tx']) if fin['total_tx'] > 0 else 0,
                     'monthly_labels': [m['month'] for m in monthly], 'monthly_amounts': [float(m['total']) for m in monthly],
                     'top_drivers': [{'driver_name': t['driver_name'], 'nopol': t['nopol'], 'total': float(t['total']), 'tx_count': t['tx_count']} for t in top_drivers]
                 },
                 'ga': {
                     'total_drivers': total_drivers, 'total_claims': total_claims,
                     'total_appt': total_appt, 'top_driver': top_driver_row['driver_name'] if top_driver_row else '-',
-                    'freq_labels': [t['driver_name'] for t in top_drivers],
-                    'freq_values': [t['tx_count'] for t in top_drivers],
+                    'freq_labels': [t['driver_name'] for t in freq_drivers],
+                    'freq_values': [t['c'] for t in freq_drivers],
                     'appt_vs_claim': []
                 },
                 'cash': {

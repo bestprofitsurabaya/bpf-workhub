@@ -82,9 +82,9 @@ const MENU_GROUPS = [
   {
     label: 'Laporan & Analisis',
     items: [
-      { label: 'Rekap', path: '/rekap', icon: '📋', roles: ['admin'] },
-      { label: 'Rekap Pengeluaran', path: '/expenses', icon: '📊', roles: ['admin'] },
-      { label: 'Analytics', path: '/analytics', icon: '📈', roles: ['ga', 'admin'] },
+      { label: 'Rekap Klaim BBM', path: '/rekap', icon: '📋', roles: ['ga', 'finance', 'admin'] },
+      { label: 'Realisasi Pengeluaran', path: '/expenses', icon: '📊', roles: ['finance', 'admin'] },
+      { label: 'Analisis BBM & Armada', path: '/analytics', icon: '📈', roles: ['ga', 'finance', 'admin'] },
     ],
   },
   {

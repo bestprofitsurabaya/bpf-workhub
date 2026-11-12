@@ -7,6 +7,26 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.99.0 — 12 November 2026 (Laporan & analisis: definisi, rekonsiliasi, drill-down)
+
+- 🧾 **Identitas laporan di tiga halaman.** Rekap, Realisasi Pengeluaran, dan
+  Analisis kini menampilkan periode, cakupan cabang, sumber tabel, dasar hitung,
+  pengecualian, waktu dibuat, dan jumlah baris — bukan lagi angka tanpa konteks.
+- 💰 **Realisasi Pengeluaran memakai jembatan kas**, bukan satu total menyesatkan:
+  Kasbon cair − Realisasi LPJ = Sisa dana; Total realisasi = Pembelian diterima +
+  LPJ. Air minum & overtime ditampilkan sebagai pengecualian yang disengaja.
+  Rentang bulan (default YTD), porsi per cabang, drill-down transaksi sumber,
+  dan ekspor CSV ditambahkan.
+- 📋 **Rekap Klaim BBM** kini punya filter driver/nopol/jenis, KPI liter & km/L,
+  preset periode, ekspor CSV, serta PDF yang mengikuti filter dan memberi pesan
+  jelas bila tidak ada data.
+- 📈 **Analisis BBM & Armada**: rata-rata per hari memakai jumlah hari periode
+  (bukan 30), grafik frekuensi benar-benar berdasarkan frekuensi, efisiensi dan
+  Fleet Health mengikuti periode, kartu kasbon menampilkan nominal, dan label
+  metrik diperjelas.
+- 👥 **Akses disamakan**: GA/Finance dapat membuka Rekap Klaim BBM; Finance dapat
+  membuka Realisasi Pengeluaran dan Analisis, sesuai role endpoint.
+
 ## v2.98.2 — 12 November 2026 (Perbaikan tab driver: Kasbon, OT, antrean overtime)
 
 - 🩹 **Tab Kasbon tidak lagi tumpang tindih dengan tab lain.** Komponen ini punya

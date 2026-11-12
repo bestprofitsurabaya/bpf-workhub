@@ -13,7 +13,7 @@ vi.mock('../api', () => ({ api: apiMock }))
 
 const RESP = {
   finance: {
-    total_month: 8232900, total_tx: 12, avg_per_day: 274430, avg_per_tx: 686075,
+    total_month: 8232900, total_tx: 12, avg_per_day: 274430, avg_per_tx: 686075, days: 30,
     monthly_labels: ['2026-07', '2026-08'], monthly_amounts: [1000000, 7232900],
     top_drivers: [{ driver_name: 'RIVAN', nopol: 'L 1234 AB', total: 3000000, tx_count: 4 }],
   },
@@ -34,11 +34,12 @@ describe('AnalyticsView', () => {
     await flushPromises()
     expect(w.text()).toContain('Total Nominal (Periode)')
     expect(w.text()).toContain('Rp 8.232.900')
-    expect(w.text()).toContain('Jumlah Transaksi')
-    expect(w.text()).toContain('Driver Teratas')
+    expect(w.text()).toContain('Klaim Terarsip')
+    expect(w.text()).toContain('Driver Paling Sering Klaim')
     expect(w.text()).toContain('RIVAN')
     expect(w.text()).toContain('Kendaraan Paling Efisien')
-    expect(w.text()).toContain('Kasbon Selesai (LPJ)')
+    expect(w.text()).toContain('Kasbon BBM Cair')
+    expect(w.text()).toContain('Rp 500.000')
     expect(w.text()).toContain('Rata-rata Efisiensi (km/L)')
   })
 
