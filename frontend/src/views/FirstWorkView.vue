@@ -108,6 +108,8 @@ const EVENT_LABELS = {
   ktp_reuse: '⚠️ File KTP identik dengan pendaftaran lain',
   bulk_verify: 'Diverifikasi massal',
   bulk_reject: 'Ditolak massal',
+  ktp_link: 'Tautan unduh KTP dibuat',
+  ktp_download: 'KTP diunduh via tautan',
   first_work_id_config: 'Pengaturan ID Fingerprint/BPF',
 }
 function eventLabel(name) {
@@ -382,20 +384,12 @@ async function openIdTab() {
 async function downloadKtp(row) {
   err.value = ''
   try {
-    const response = await fetch(`/api/first-work/${row.id}/ktp`)
-    if (!response.ok) {
-      const data = await response.json().catch(() => ({}))
-      throw new Error(data.error || 'File KTP tidak tersedia')
-    }
-    const blob = await response.blob()
-    const url = URL.createObjectURL(blob)
-    const anchor = document.createElement('a')
-    anchor.href = url
-    anchor.download = `KTP_${row.registration_no}`
-    anchor.click()
-    URL.revokeObjectURL(url)
+    // v2.96.0: unduhan lewat tautan bertanda tangan berumur 5 menit.
+    const data = await api(`/api/first-work/${row.id}/ktp-link`, { method: 'POST' })
+    window.open(data.url, '_blank', 'noopener')
+    msg.value = 'Tautan unduh dibuat (berlaku 5 menit) dan tercatat di riwayat.'
   } catch (e) {
-    err.value = e.message
+    err.value = e.message || 'Gagal membuat tautan unduh KTP.'
   }
 }
 

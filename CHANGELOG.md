@@ -7,6 +7,20 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.96.0 — 12 November 2026 (FirstWork: unduhan KTP lewat tautan 5 menit)
+
+- 🔗 **Tautan unduh KTP berumur pendek** — tombol “Unduh KTP” kini membuat
+  tautan bertanda tangan HMAC yang berlaku **5 menit** dan hanya untuk satu
+  baris, lalu membukanya di tab baru. Tautan mati sendiri setelah kedaluwarsa.
+- 🧾 **Jejak audit** — pembuatan tautan (`ktp_link`) dan setiap unduhan
+  (`ktp_download`) dicatat di riwayat baris, lengkap dengan IP dan aktor.
+- 🚫 Tautan tidak dapat ditebak/diubah: tanda tangan diverifikasi dengan
+  `hmac.compare_digest`; token kedaluwarsa ditolak (410) tanpa menyentuh file.
+- 🔒 Respons tetap `no-store`, `nosniff`, dan dikirim sebagai attachment;
+  unduhan lewat sesi (`/ktp`) tetap tersedia untuk kompatibilitas.
+- ⚠️ Tautan masih dapat dipakai berulang selama 5 menit (belum sekali-pakai)
+  karena tidak menambah tabel token; ini batas yang disengaja.
+
 ## v2.95.0 — 12 November 2026 (FirstWork: counter ID per cabang, opsional)
 
 - 🏢 **Counter ID Fingerprint/BPF per cabang** — admin dapat menetapkan angka

@@ -14,6 +14,7 @@ Role lihat: `traineer`, `finance`, `ga_hr`, `admin` (termasuk `admin_master`).
 import base64
 import csv
 import hashlib
+import hmac
 import io
 import json
 import os
@@ -934,6 +935,30 @@ def _flag_reuse_signals(conn, submission_id):
     finally:
         cursor.close()
     conn.commit()
+
+
+def _resolve_ktp_file(conn, row):
+    """Pastikan file KTP tersedia (lokal/bridge) + versi scan.
+
+    Return dict {path, filename, scan} atau None bila file tidak ada.
+    """
+    submission_id = row.get('id')
+    filename = row.get('ktp_file') or ''
+    path = os.path.join(UPLOAD_DIR, os.path.basename(filename)) if filename else ''
+    if not (filename and os.path.isfile(path)):
+        filename = _fetch_ktp_from_bridge(conn, row)
+        conn.commit()
+        path = os.path.join(UPLOAD_DIR, os.path.basename(filename or ''))
+    if not (filename and os.path.isfile(path)):
+        return None
+    scan_path = _ensure_ktp_scan(conn, row, path)
+    if scan_path:
+        try:
+            _flag_reuse_signals(conn, submission_id)
+        except Exception as reuse_error:
+            print(f'[first-work-reuse] {reuse_error}')
+    return {'path': scan_path or path, 'filename': filename,
+            'scan': bool(scan_path)}
 
 
 def _fetch_ktp_from_bridge(conn, row):
@@ -2283,6 +2308,136 @@ def register_first_work_routes(app):
                     pass
 
     # ---------------- KTP ----------------
+    # v2.96.0: tautan unduh KTP berumur pendek (5 menit), menggantikan
+    # ketergantungan pada sesi panjang untuk berbagi ke perangkat lain.
+    KTP_LINK_TTL = 300
+
+    def _ktp_signature(submission_id, expires):
+        secret = str(app.secret_key or '').encode()
+        message = f'{submission_id}.{expires}'.encode()
+        return hmac.new(secret, message, hashlib.sha256).hexdigest()[:32]
+
+    @app.route('/api/first-work/<int:submission_id>/ktp-link', methods=['POST'])
+    @role_required(EDIT_ROLES)
+    def api_first_work_ktp_link(submission_id):
+        conn = None
+        try:
+            conn = get_master_connection()
+            if not conn:
+                return jsonify({'error': 'DB error'}), 500
+            cursor = conn.cursor(dictionary=True)
+            try:
+                cursor.execute("SELECT * FROM first_work_submissions WHERE id=%s",
+                               (submission_id,))
+                row = cursor.fetchone()
+            finally:
+                cursor.close()
+            if not row:
+                return jsonify({'error': 'Data tidak ditemukan'}), 404
+            if not _row_allowed(row, conn):
+                return jsonify({'error': 'Data di luar cabang Anda'}), 403
+
+            expires = int(time.time()) + KTP_LINK_TTL
+            signature = _ktp_signature(submission_id, expires)
+            raw = f'{submission_id}.{expires}.{signature}'
+            token = base64.urlsafe_b64encode(raw.encode()).decode().rstrip('=')
+            actor = session.get('full_name') or session.get('user_name') or ''
+            cursor = conn.cursor()
+            try:
+                cursor.execute("""
+                    INSERT INTO first_work_events
+                        (submission_id, event, note, actor, actor_role, ip)
+                    VALUES (%s,'ktp_link',%s,%s,%s,%s)
+                """, (submission_id, f'Tautan unduh {KTP_LINK_TTL // 60} menit dibuat',
+                      actor, session.get('user_role', ''), client_ip()))
+                conn.commit()
+            finally:
+                cursor.close()
+            return jsonify({'status': 'success',
+                            'url': '/api/first-work/ktp-download?token=' + token,
+                            'expires_in': KTP_LINK_TTL})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+        finally:
+            if conn:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+
+    @app.route('/api/first-work/ktp-download')
+    def api_first_work_ktp_download():
+        """Unduh KTP lewat token bertanda tangan + kedaluwarsa (tanpa sesi)."""
+        conn = None
+        try:
+            token = _clean(request.args.get('token'), 300)
+            if not token:
+                return jsonify({'error': 'Token tidak ada'}), 400
+            try:
+                padded = token + '=' * (-len(token) % 4)
+                raw = base64.urlsafe_b64decode(padded.encode()).decode()
+                sid_text, exp_text, signature = raw.split('.', 2)
+                submission_id = int(sid_text)
+                expires = int(exp_text)
+            except Exception:
+                return jsonify({'error': 'Token tidak valid'}), 400
+            if not hmac.compare_digest(signature,
+                                       _ktp_signature(submission_id, expires)):
+                return jsonify({'error': 'Token tidak valid'}), 400
+            if expires < int(time.time()):
+                return jsonify({'error': 'Tautan kedaluwarsa, buat tautan baru'}), 410
+
+            conn = get_master_connection()
+            if not conn:
+                return jsonify({'error': 'DB error'}), 500
+            cursor = conn.cursor(dictionary=True)
+            try:
+                cursor.execute("SELECT * FROM first_work_submissions WHERE id=%s",
+                               (submission_id,))
+                row = cursor.fetchone()
+            finally:
+                cursor.close()
+            if not row:
+                return jsonify({'error': 'Data tidak ditemukan'}), 404
+
+            resolved = _resolve_ktp_file(conn, row)
+            if not resolved:
+                return jsonify({'error': 'File KTP tidak tersedia'}), 404
+            ext = '.jpg' if resolved['scan'] else os.path.splitext(resolved['filename'])[1]
+            resp = send_file(
+                resolved['path'], as_attachment=True,
+                download_name=f"KTP_{row['registration_no']}"
+                              f"{'_scan' if resolved['scan'] else ''}{ext}")
+            resp.headers['X-Content-Type-Options'] = 'nosniff'
+            resp.headers['Cache-Control'] = 'no-store'
+            cursor = conn.cursor()
+            try:
+                cursor.execute("""
+                    INSERT INTO first_work_events
+                        (submission_id, event, note, actor, actor_role, ip)
+                    VALUES (%s,'ktp_download',%s,'tautan 5 menit','link',%s)
+                """, (submission_id, 'Unduh via tautan berumur pendek',
+                      client_ip()))
+                conn.commit()
+            finally:
+                cursor.close()
+            log_activity_async(None, 'first_work_ktp_download', 'link',
+                               'tautan 5 menit',
+                               new_data={'submission_id': submission_id,
+                                         'registration_no': row.get('registration_no'),
+                                         'scan': resolved['scan'],
+                                         'sha256': (row.get('ktp_sha256') or '')[:16]},
+                               ip=client_ip())
+            return resp
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+        finally:
+            if conn:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+
     @app.route('/api/first-work/<int:submission_id>/ktp')
     @role_required(EDIT_ROLES)
     def api_first_work_ktp(submission_id):
@@ -2303,25 +2458,15 @@ def register_first_work_routes(app):
             if not _row_allowed(row, conn):
                 return jsonify({'error': 'Data di luar cabang Anda'}), 403
 
-            filename = row.get('ktp_file') or ''
-            path = os.path.join(UPLOAD_DIR, os.path.basename(filename)) if filename else ''
-            if not (filename and os.path.isfile(path)):
-                filename = _fetch_ktp_from_bridge(conn, row)
-                conn.commit()
-                path = os.path.join(UPLOAD_DIR, os.path.basename(filename))
-            if not os.path.isfile(path):
-                return jsonify({'error': 'File KTP tidak tersedia'}), 404
             # v2.88.0: sajikan versi scan (lurus + kontras + watermark) bila
             # tersedia; file asli tetap disimpan sebagai bukti.
-            scan_path = _ensure_ktp_scan(conn, row, path)
-            if scan_path:
-                try:
-                    _flag_reuse_signals(conn, submission_id)
-                except Exception as reuse_error:
-                    print(f'[first-work-reuse] {reuse_error}')
-            serve_path = scan_path or path
+            resolved = _resolve_ktp_file(conn, row)
+            if not resolved:
+                return jsonify({'error': 'File KTP tidak tersedia'}), 404
+            scan_path = resolved['path'] if resolved['scan'] else None
+            serve_path = resolved['path']
             suffix = '_scan' if scan_path else ''
-            ext = '.jpg' if scan_path else os.path.splitext(filename)[1]
+            ext = '.jpg' if scan_path else os.path.splitext(resolved['filename'])[1]
             resp = send_file(serve_path, as_attachment=True,
                              download_name=f"KTP_{row['registration_no']}"
                                            f"{suffix}{ext}")
