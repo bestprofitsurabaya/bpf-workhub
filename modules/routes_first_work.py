@@ -1900,7 +1900,8 @@ def register_first_work_routes(app):
             cursor = conn.cursor(dictionary=True)
             try:
                 cursor.execute("""
-                    SELECT s.registration_no, s.submitted_at, s.nama, s.nik,
+                    SELECT s.registration_no, s.branch_code, s.fingerprint_no,
+                           s.bpf_no, s.submitted_at, s.nama, s.nik,
                            s.nik_raw, s.nik_valid, s.pendidikan_raw,
                            s.pendidikan_norm, s.referensi_raw, r.name AS referrer_name,
                            s.no_hp, s.status, s.verification_note, s.verified_by,
@@ -1914,13 +1915,19 @@ def register_first_work_routes(app):
 
             output = io.StringIO()
             writer = csv.writer(output)
-            writer.writerow(['No. Registrasi', 'Waktu Kirim', 'Nama', 'NIK',
+            # v2.86.2: ID Fingerprint, ID BPF, dan cabang ikut diekspor —
+            # kolom ini yang dipakai untuk rekonsiliasi migrasi sheet dan
+            # mencegah baris antar cabang tertukar saat diarsipkan.
+            writer.writerow(['No. Registrasi', 'Cabang', 'ID Fingerprint', 'ID BPF',
+                             'Waktu Kirim', 'Nama', 'NIK',
                              'NIK Valid', 'Pendidikan', 'Referensi', 'No. HP',
                              'Status', 'Catatan Verifikasi', 'Diverifikasi Oleh',
                              'Waktu Verifikasi'])
             for row in rows:
                 writer.writerow([
-                    row.get('registration_no'), row.get('submitted_at'),
+                    row.get('registration_no'), row.get('branch_code'),
+                    row.get('fingerprint_no'), row.get('bpf_no'),
+                    row.get('submitted_at'),
                     row.get('nama'), _nik_for_export(row, allow_full_nik),
                     'Ya' if row.get('nik_valid') else 'Tidak',
                     row.get('pendidikan_raw') or row.get('pendidikan_norm'),

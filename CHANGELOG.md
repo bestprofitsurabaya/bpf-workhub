@@ -7,6 +7,21 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.86.2 — 12 November 2026 (FirstWork: tautan traineer ber-token + export memuat ID Fingerprint/BPF & cabang)
+
+- 🔗 **Fix tuntas tautan form dari dashboard Traineer** — v2.86.1 hanya
+  membuka endpoint `branch-forms` di backend, tetapi `FirstWorkView.vue`
+  masih memanggilnya **hanya untuk admin** (`onMounted`). Akibatnya traineer
+  tetap jatuh ke tautan tokenless `?cabang=...` yang lalu ditolak.
+  Sekarang `loadBranchForms()` dipanggil untuk semua role yang boleh
+  memverifikasi (traineer & admin).
+- 🚫 **Tidak ada lagi fallback tautan tanpa token** — bila tautan ber-token
+  belum termuat, tombol tautan/QR nonaktif (dan `Salin Link` memberi pesan),
+  bukan membagikan tautan yang pasti ditolak backend.
+- 📤 **Ekspor CSV memuat `Cabang`, `ID Fingerprint`, `ID BPF`** — sebelumnya
+  ketiga kolom ini hilang sehingga hasil ekspor tidak bisa direkonsiliasi
+  dengan sheet migrasi dan baris antar cabang rawan tertukar.
+
 ## v2.86.1 — 12 November 2026 (FirstWork: fix tautan dashboard trainer — endpoint branch-forms kini bisa diakses traineer)
 
 - 🖥️ **Fix tautan form publik dari dashboard Traineer** — endpoint

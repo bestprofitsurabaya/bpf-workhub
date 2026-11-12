@@ -55,9 +55,10 @@ const branchForms = ref([])
 const formLink = computed(() => {
   const scope = scopeBranch.value
   const entry = branchForms.value.find((b) => b.branch_code === scope)
-  if (entry?.form_path) return window.location.origin + entry.form_path
-  const query = scope ? `?cabang=${encodeURIComponent(scope)}` : ''
-  return `${window.location.origin}/app/first-work-form${query}`
+  // v2.86.2: tautan form WAJIB ber-token. Jangan pernah fallback ke tautan
+  // tokenless — backend menolaknya (v2.84.0+) dan traineer akan membagikan
+  // tautan mati. Kosong = tombol tautan/QR dinonaktifkan, bukan tautan salah.
+  return entry?.form_path ? window.location.origin + entry.form_path : ''
 })
 const subtitle = computed(() => {
   const scope = scopeBranch.value
@@ -311,6 +312,10 @@ async function downloadKtp(row) {
 }
 
 async function copyFormLink() {
+  if (!formLink.value) {
+    err.value = 'Tautan form ber-token belum termuat — muat ulang halaman.'
+    return
+  }
   await copyLink(formLink.value, 'Link form publik')
 }
 
@@ -445,14 +450,17 @@ async function toggleReferrer(row) {
 onMounted(() => {
   loadMeta()
   load(1)
-  if (isAdmin.value) loadBranchForms()
+  // v2.86.2: traineer juga butuh tautan ber-token (bukan hanya admin) —
+  // sebelumnya fetch dilewati untuk traineer sehingga tautan jatuh ke
+  // fallback tokenless yang lalu ditolak backend.
+  if (canVerify.value) loadBranchForms()
 })
 </script>
 
 <template>
   <div class="fw-view">
     <PageHeader icon="📝" title="Absensi FirstWork" :subtitle="subtitle">
-      <a v-if="canVerify" class="btn" :href="formLink" target="_blank" rel="noopener">↗ Buka Form Publik</a>
+      <a v-if="canVerify && formLink" class="btn" :href="formLink" target="_blank" rel="noopener">↗ Buka Form Publik</a>
       <button v-if="canVerify" class="btn" @click="copyFormLink">🔗 Salin Link</button>
       <button v-if="canVerify" class="btn" @click="showQr(formLink, 'Form FirstWork ' + (scopeBranch || 'SBY'))">▦ QR</button>
       <a class="btn" :href="exportUrl" target="_blank" rel="noopener">⬇️ Ekspor CSV</a>
@@ -564,7 +572,7 @@ onMounted(() => {
       <div v-if="loading" class="fw-empty">⏳ Memuat data…</div>
       <div v-else-if="!rows.length" class="fw-empty">
         <p style="margin:0 0 6px;">Tidak ada pengisian untuk filter ini.</p>
-        <a v-if="canVerify" class="btn btn-sm" :href="formLink" target="_blank" rel="noopener">↗ Buka form publik</a>
+        <a v-if="canVerify && formLink" class="btn btn-sm" :href="formLink" target="_blank" rel="noopener">↗ Buka form publik</a>
         <p v-else style="margin:0;">Data cabang Anda akan muncul di sini setelah pendaftar mengisi form.</p>
       </div>
       <div v-else class="fw-table-wrap">
