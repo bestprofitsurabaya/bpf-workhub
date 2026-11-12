@@ -7,6 +7,25 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.88.0 — 12 November 2026 (FirstWork: normalisasi scan KTP di server + watermark & SHA-256)
+
+- 🖥️ **Versi scan disiapkan server** (`modules/ktp_scan.py`) — orientasi EXIF,
+  pemotongan margin latar seragam, kontras, dan penajaman ringan. File asli
+  tetap disimpan sebagai bukti; yang disajikan ke traineer adalah versi scan.
+- 📄 **PDF didukung** — halaman pertama dirender via poppler (`pdftoppm`,
+  200 dpi) lalu menjalani pipeline yang sama, sehingga KTP hasil scan PDF
+  juga rapi.
+- 💧 **Watermark internal** tipis di pojok bawah (`INTERNAL · REKRUTMEN BPF`
+  + nomor registrasi) — membantu penelusuran bila terjadi kebocoran, tanpa
+  menutupi NIK/foto.
+- 🔑 **SHA-256 hasil scan** disimpan di `first_work_submissions.ktp_sha256`
+  untuk verifikasi integritas; kolom `ktp_scan_file` menyimpan turunannya.
+- ♻️ **Retensi 90 hari ikut menghapus file turunan** dan mengosongkan
+  `ktp_scan_file`/`ktp_sha256` — tidak ada salinan KTP yang tertinggal.
+- ⚡ Normalisasi dibuat *best-effort*: kegagalan pemrosesan tidak pernah
+  menggagalkan pengiriman form; data lama dinormalisasi saat pertama dibuka
+  (lazy), tanpa migrasi massal.
+
 ## v2.87.0 — 12 November 2026 (FirstWork: scan KTP di perangkat — foto miring diluruskan, kualitas diperiksa)
 
 - 📷 **Editor scan 4 sudut di form publik** — setelah memilih foto, pengguna

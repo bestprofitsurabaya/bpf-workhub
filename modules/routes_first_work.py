@@ -35,6 +35,8 @@ from modules.config import get_master_connection
 from modules.helpers import (role_required, log_activity_async, client_ip,
                              generate_display_id, save_file, redis_rate_hit)
 from modules.routes_overtime import _check_public_url
+# v2.88.0: normalisasi scan KTP di server (auto-orient, trim, watermark, SHA-256).
+from modules.ktp_scan import normalize_ktp
 
 # ================================================================
 # KONSTANTA
@@ -727,6 +729,44 @@ def _save_ktp_bytes(conn, row, data, mime):
     return filename
 
 
+def _ensure_ktp_scan(conn, row, src_path):
+    """Buat/pakai versi scan KTP ternormalisasi (v2.88.0).
+
+    Hasil: file JPEG lurus + kontras + watermark, plus SHA-256 di
+    `ktp_sha256`. Gagal normalisasi TIDAK boleh menggagalkan pengiriman atau
+    penyajian KTP — pemanggil tetap memakai file asli.
+    """
+    if not src_path or not os.path.isfile(src_path):
+        return ''
+    existing = str((row or {}).get('ktp_scan_file') or '')
+    if existing:
+        candidate = os.path.join(UPLOAD_DIR, os.path.basename(existing))
+        if os.path.isfile(candidate):
+            return candidate
+    try:
+        result = normalize_ktp(
+            src_path, UPLOAD_DIR,
+            label=str((row or {}).get('registration_no') or ''))
+    except Exception as e:
+        print(f'[first-work-scan] normalisasi dilewati: {e}')
+        return ''
+    if not result:
+        return ''
+    if (row or {}).get('id'):
+        cursor = conn.cursor()
+        try:
+            cursor.execute(
+                "UPDATE first_work_submissions SET ktp_scan_file=%s, "
+                "ktp_sha256=%s WHERE id=%s",
+                (result['file'], result['sha256'], row['id']))
+            conn.commit()
+        finally:
+            cursor.close()
+    row['ktp_scan_file'] = result['file']
+    row['ktp_sha256'] = result['sha256']
+    return os.path.join(UPLOAD_DIR, result['file'])
+
+
 def _fetch_ktp_from_bridge(conn, row):
     """Ambil file KTP lama via Apps Script (?ktp=&token=). Return filename."""
     file_id = _drive_file_id(row.get('ktp_drive_url') or row.get('photoid_url'))
@@ -1303,6 +1343,17 @@ def register_first_work_routes(app):
             finally:
                 cursor.close()
 
+            # v2.88.0: siapkan versi scan (watermark + SHA-256) sejak awal —
+            # best-effort: kegagalan normalisasi tidak membatalkan pengiriman.
+            try:
+                _ensure_ktp_scan(
+                    conn,
+                    {'id': submission_id, 'registration_no': registration_no,
+                     'ktp_scan_file': ''},
+                    os.path.join(UPLOAD_DIR, filename))
+            except Exception as scan_error:
+                print(f'[first-work-scan] submit: {scan_error}')
+
             log_activity_async(None, 'first_work_submit', 'public', nama,
                                new_data={'registration_no': registration_no}, ip=ip)
             return jsonify({
@@ -1842,9 +1893,15 @@ def register_first_work_routes(app):
                 path = os.path.join(UPLOAD_DIR, os.path.basename(filename))
             if not os.path.isfile(path):
                 return jsonify({'error': 'File KTP tidak tersedia'}), 404
-            resp = send_file(path, as_attachment=True,
+            # v2.88.0: sajikan versi scan (lurus + kontras + watermark) bila
+            # tersedia; file asli tetap disimpan sebagai bukti.
+            scan_path = _ensure_ktp_scan(conn, row, path)
+            serve_path = scan_path or path
+            suffix = '_scan' if scan_path else ''
+            ext = '.jpg' if scan_path else os.path.splitext(filename)[1]
+            resp = send_file(serve_path, as_attachment=True,
                              download_name=f"KTP_{row['registration_no']}"
-                                           f"{os.path.splitext(filename)[1]}")
+                                           f"{suffix}{ext}")
             # v2.82.0: KTP = dokumen identitas. Jangan di-cache, jangan dirender
             # inline, dan setiap unduhan masuk jejak audit.
             resp.headers['X-Content-Type-Options'] = 'nosniff'
@@ -1853,7 +1910,9 @@ def register_first_work_routes(app):
                                session.get('user_role', ''),
                                session.get('full_name') or session.get('user_name') or '',
                                new_data={'submission_id': submission_id,
-                                         'registration_no': row.get('registration_no')},
+                                         'registration_no': row.get('registration_no'),
+                                         'scan': bool(scan_path),
+                                         'sha256': (row.get('ktp_sha256') or '')[:16]},
                                ip=client_ip())
             return resp
         except ValueError as e:

@@ -146,6 +146,13 @@ def ensure_first_work_schema(conn=None):
                 ADD INDEX IF NOT EXISTS idx_fw_bpf (bpf_no)
         """, 'first_work_submissions.id_columns')
 
+        # v2.88.0: versi scan KTP (lurus + watermark) dan hash integritasnya.
+        _run(cursor, """
+            ALTER TABLE first_work_submissions
+                ADD COLUMN IF NOT EXISTS ktp_scan_file VARCHAR(255) DEFAULT '' AFTER ktp_file,
+                ADD COLUMN IF NOT EXISTS ktp_sha256 CHAR(64) DEFAULT '' AFTER ktp_scan_file
+        """, 'first_work_submissions.ktp_scan_columns')
+
         _run(cursor, """
             CREATE TABLE IF NOT EXISTS first_work_id_counters (
                 series VARCHAR(4) NOT NULL PRIMARY KEY,

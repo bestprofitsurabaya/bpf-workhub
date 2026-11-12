@@ -46,7 +46,7 @@ def purge_expired_ktp(conn, days, dry_run=False):
     cursor = conn.cursor(dictionary=True)
     try:
         cursor.execute("""
-            SELECT id, registration_no, ktp_file,
+            SELECT id, registration_no, ktp_file, ktp_scan_file,
                    COALESCE(verified_at, updated_at) AS decided_at
             FROM first_work_submissions
             WHERE ktp_file <> ''
@@ -63,15 +63,23 @@ def purge_expired_ktp(conn, days, dry_run=False):
         if dry_run:
             purged.append((row['registration_no'], filename, row['decided_at']))
             continue
-        path = os.path.join(UPLOAD_DIR, os.path.basename(filename))
-        try:
-            if os.path.exists(path):
-                os.remove(path)
-            else:
-                missing += 1
-        except OSError as e:
-            errors += 1
-            print(f'[ktp-retention] gagal hapus {path}: {e}')
+        # v2.88.0: file asli DAN hasil scan (watermark) sama-sama dipurge.
+        failed = False
+        for name in (filename, row.get('ktp_scan_file') or ''):
+            if not name:
+                continue
+            path = os.path.join(UPLOAD_DIR, os.path.basename(name))
+            try:
+                if os.path.exists(path):
+                    os.remove(path)
+                else:
+                    missing += 1
+            except OSError as e:
+                errors += 1
+                print(f'[ktp-retention] gagal hapus {path}: {e}')
+                failed = True
+                break
+        if failed:
             continue
         cursor = conn.cursor()
         try:
@@ -79,7 +87,8 @@ def purge_expired_ktp(conn, days, dry_run=False):
             # masa retensi, KTP tidak lagi dilayani dari sumber mana pun.
             cursor.execute("""
                 UPDATE first_work_submissions
-                SET ktp_file='', ktp_drive_url='', photoid_url=''
+                SET ktp_file='', ktp_scan_file='', ktp_sha256='',
+                    ktp_drive_url='', photoid_url=''
                 WHERE id=%s
             """, (row['id'],))
             cursor.execute("""
