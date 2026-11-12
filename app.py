@@ -561,9 +561,14 @@ except Exception as _tc_err:
 # tidak perlu lagi dikecualikan dari proteksi CSRF (defense-in-depth).
 # v2.47.1: /api/assignments/confirm ikut dilepas dari daftar pengecualian —
 # endpointnya kini wajib sesi driver (lihat modules/routes_api_assignments.py).
+# v2.83.0: /api/first-work/public dikecualikan — form publik dikunjungi orang
+# tanpa login, tapi traineer/admin yang kebetulan masih bersesi login bisa
+# membawa token CSRF basi dari SPA lama dan terlantung 400 tanpa alasan jelas.
+# Endpoint tetap aman: rate limit per IP + validasi isi file + tanpa akses data.
 CSRF_EXEMPT_PREFIXES = (
     '/socket.io', '/api/get-feedback',
     '/api/vehicle-allowed-bbm', '/uploads/',
+    '/api/first-work/public',
 )
 
 @app.context_processor

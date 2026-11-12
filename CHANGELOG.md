@@ -7,6 +7,92 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.84.0 — 12 November 2026 (FirstWork: semua cabang wajib tautan ber-token)
+
+Kebijakan v2.82.0 masih menerima tautan lama cabang utama (SBY) tanpa token
+demi kompatibilitas. Isian lewat tautan lama tidak terpembedakan dari tautan
+resmi, jadi pembedaan antar cabang tidak 100% ketat.
+
+- 🔒 **Semua cabang kini wajib token** — tautan/QR lama SBY tanpa token
+  ditolak 403 dengan pesan "Minta tautan terbaru ke Traineer/Admin".
+  Token salah atau milik cabang lain tetap ditolak seperti sebelumnya.
+- 🔗 **Tautan resmi per cabang** tersedia di Absensi FirstWork →
+  Referensi & Sync (tombol salin), contoh:
+  `/app/first-work-form?cabang=SBY&t=…`.
+- 📱 **QR statis per cabang** — tombol ▦ QR di header & tabel cabang membuat
+  QR tautan ber-token langsung di browser (unduh PNG / cetak). QR dibuat
+  lokal, bukan lewat layanan QR online, karena URL memuat token rahasia.
+  Token bersifat permanen sehingga QR yang sudah dicetak tetap sah.
+- ✅ **Pengujian diperbarui** — test yang dulu menegaskan kompatibilitas
+  tautan lama kini menegaskan penolakannya.
+
+---
+
+## v2.83.0 — 12 November 2026 (FirstWork: ID Fingerprint & ID BPF)
+
+Setiap pengisian form kini mendapat **ID Fingerprint** dan **ID BPF** — dua
+nomor yang dulu hanya hidup di dua kolom counter Google Spreadsheet (kolom
+`28161` & `6495`) dan terbuang saat migrasi.
+
+- 🔢 **Kolom baru `fingerprint_no` & `bpf_no`** di `first_work_submissions`
+  (unik lintas baris) + tabel `first_work_id_counters` untuk penerbitan nomor
+  atomik (pola `LAST_INSERT_ID` yang sama dengan nomor registrasi).
+- 🧮 **Backfill 1.831 baris historis** — counter kolom B sudah tersimpan sejak
+  v2.80.0 (`sheet_seq`), counter kolom C yang dulu dibuang dipulihkan dari
+  staging `first_work_sheet_stage`. Script `scripts/first_work_backfill_ids.py`
+  mengisi keduanya sesuai pemetaan aktif dan melanjutkan counter dari nomor
+  terakhir sheet. ID yang sudah dikoreksi traineer tidak pernah ditimpa.
+- ⚙️ **Bisa dikonfigurasi** — panel **ID Fingerprint & ID BPF** (tab baru untuk
+  Traineer/Admin) memilih kolom counter mana yang menjadi sumber tiap ID dan
+  mengatur **angka awal** kapan saja (nomor berikutnya yang terbit). Nomor yang
+  sudah terpakai tidak akan diterbitkan dua kali.
+- ✏️ **Koreksi per baris oleh Traineer/Admin** — kedua ID bisa diubah langsung
+  dari modal detail (`PATCH /api/first-work/<id>/ids`), tervalidasi unik dan
+  tercatat di riwayat.
+- 🔄 **Sync sheet ikut membawa kedua counter** — `_normalize_sheet_row` tidak
+  lagi membuang kolom kedua; baris baru dari sheet otomatis ber-ID, dan counter
+  tidak pernah mundur (`GREATEST`).
+- ✅ **Pengujian** — `tests/test_first_work_ids.py` memverifikasi pemetaan seri,
+  kedua counter tersimpan, dan validasi angka.
+
+---
+
+## v2.82.0 — 11 November 2026 (FirstWork: isolasi cabang + perlindungan data pribadi)
+
+Audit standar untuk fitur **Absensi FirstWork** yang menyimpan data pribadi
+(NIK, nama, no. HP, foto KTP). Tiga kelas masalah ditutup: data pribadi yang
+bisa dibaca terlalu luas, isian yang bisa nyasar ke cabang lain, dan form yang
+sama untuk semua cabang.
+
+- 🏢 **Tidak ada lagi "fallback diam-diam" ke SBY** — tautan dengan cabang yang
+  tidak dikenal/nonaktif (`?cabang=MLGG`, cabang dipalsukan) kini ditolak 400.
+  Dulu isian orang bisa masuk ke antrean SBY tanpa ada yang tahu.
+- 🔗 **Satu cabang = satu tautan form ber-token** (`/app/first-work-form?cabang=X&t=…`).
+  Tabel baru `first_work_branch_forms` menyimpan token unik per cabang; cabang
+  non-default wajib memakai tokennya, dan token cabang lain ditolak. Tautan lama
+  cabang utama tetap jalan (tanpa token) agar data historis tidak putus.
+- 🔢 **Nomor registrasi memuat cabang** — `FW-<CABANG>-YYYYMMDD-####`, urutan
+  per cabang. Registrasi cabang berbeda tidak pernah bernomor sama sehingga
+  tidak mungkin tertukar saat dicetak/diarsipkan. Data lama tidak diubah.
+- 🧑‍💼 **Referrer tidak bisa lintas cabang** — `referrer_id` dari cabang lain
+  ditolak, dan daftar referrer/admin hanya menampilkan cabang sendiri. Admin
+  Pusat wajib menyebut cabang saat menambah referrer (tidak lagi otomatis SBY).
+- 📋 **Daftar akun di panel referrer ikut ter-scope** — admin cabang tidak lagi
+  menerima seluruh daftar user semua cabang.
+- 🪪 **Foto KTP tertutup** — `/uploads/first_work/*` hanya untuk Traineer/Admin
+  (dulu cukup sesi login apa pun, termasuk driver/OB). Unduhan KTP kini tercatat
+  di audit log, `no-store`, dan `nosniff`.
+- 📤 **Ekspor CSV** — `no-store`, unduhan diaudit, dan NIK penuh hanya untuk
+  Traineer/Admin; Finance & GA HR menerima NIK tersamar.
+- 🔍 **Cek NIK diperketat** — 10 cek/menit per IP (dari 20) dan respons
+  `no-store`, karena endpoint ini menjawab "NIK terdaftar atau tidak".
+- 🧹 **Audit log tanpa PII** — koreksi admin mencatat nama field yang diubah,
+  bukan nilai NIK/HP.
+- ✅ **Pengujian** — 22 unit test baru (`tests/test_first_work_isolation.py`)
+  untuk resolusi cabang, token, penomoran, referrer, dan penyamaran NIK.
+
+---
+
 ## v2.81.0 — 11 November 2026 (Profil Saya: ganti nama & PIN sendiri)
 
 Sebelumnya mengganti nama atau PIN selalu lewat Admin, sehingga user di cabang

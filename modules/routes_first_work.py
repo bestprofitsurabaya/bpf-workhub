@@ -18,6 +18,7 @@ import io
 import json
 import os
 import re
+import secrets
 import time
 import uuid
 from datetime import datetime, date
@@ -54,6 +55,7 @@ MAX_KTP_BYTES = 5 * 1024 * 1024
 CONFIG_SHEET_URL = 'first_work_sheet_url'
 CONFIG_KTP_TOKEN = 'first_work_ktp_token'
 CONFIG_LAST_SYNC = 'first_work_last_sync'
+CONFIG_ID = 'first_work_id_config'   # v2.83.0: pemetaan seri counter sheet
 
 # Rate limit publik: 10 submit / 10 menit per IP.
 _SUBMIT_MAX = 10
@@ -87,6 +89,17 @@ HEADER_MAP = {
 HONORIFIC_RE = re.compile(
     r'^(kak|kaka|bu|ibu|pak|bapak|mas|mbak|mba|sdr|sdri|saudara|saudari)\s+',
     re.IGNORECASE)
+
+# ================================================================
+# ID FINGERPRINT & ID BPF (v2.83.0)
+# ================================================================
+# Sheet punya dua kolom counter, dikenali dari HEADER header-nya:
+#   seri 'B' -> header '28161' -> kunci internal sheet_seq1
+#   seri 'C' -> header '6495'  -> kunci internal sheet_seq2
+# Pemetaan seri -> ID Fingerprint / ID BPF disimpan di system_config
+# (CONFIG_ID) dan bisa diatur traineer/admin kapan saja.
+SERIES_FIELDS = {'B': 'sheet_seq1', 'C': 'sheet_seq2'}
+DEFAULT_ID_CONFIG = {'fingerprint_series': 'B', 'bpf_series': 'C'}
 
 
 # ================================================================
@@ -185,7 +198,9 @@ def _serialize(row):
 
 _check_log = {}
 _CHECK_WINDOW = 60
-_CHECK_MAX = 20
+# v2.82.0: 20 -> 10 cek/menit. Endpoint ini menjawab "NIK terdaftar atau
+# tidak", jadi kuota longgar = alat enumerasi data pribadi.
+_CHECK_MAX = 10
 
 
 def _check_ok(ip):
@@ -232,10 +247,208 @@ def _config_set(conn, key, value):
         cursor.close()
 
 
-def _next_reg_no(conn, submitted_at):
-    """Nomor registrasi FW-YYYYMMDD-#### (atomik via doc_sequences)."""
+def _parse_id_config(raw):
+    """Config mentah (JSON string) -> pemetaan tervalidasi.
+
+    Seri selalu berpasangan B/C: bila pemetaan menunjuk seri yang sama atau
+    seri tak dikenal, fallback ke default agar pengisian baru tetap dapat ID.
+    """
+    cfg = dict(DEFAULT_ID_CONFIG)
+    try:
+        data = json.loads(raw) if raw else {}
+    except (ValueError, TypeError):
+        data = {}
+    if not isinstance(data, dict):
+        data = {}
+    fp = str(data.get('fingerprint_series') or cfg['fingerprint_series']).strip().upper()[:1]
+    bp = str(data.get('bpf_series') or cfg['bpf_series']).strip().upper()[:1]
+    if fp in SERIES_FIELDS:
+        cfg['fingerprint_series'] = fp
+    if bp in SERIES_FIELDS and bp != cfg['fingerprint_series']:
+        cfg['bpf_series'] = bp
+    if cfg['bpf_series'] == cfg['fingerprint_series']:
+        cfg['bpf_series'] = 'C' if cfg['fingerprint_series'] == 'B' else 'B'
+    return cfg
+
+
+def _sheet_series_value(normalized, series):
+    """Nilai counter seri B/C dari satu baris sheet ternormalisasi."""
+    if not normalized or series not in SERIES_FIELDS:
+        return None
+    text = _clean(normalized.get(SERIES_FIELDS[series]), 20)
+    if not text.isdigit():
+        return None
+    return int(text)
+
+
+def _valid_id_number(value):
+    """String/angka bebas -> int > 0 yang aman disimpan, selain itu None."""
+    try:
+        number = int(str(value or '').strip())
+    except (TypeError, ValueError):
+        return None
+    return number if 0 < number <= 2_000_000_000 else None
+
+
+def _id_state(conn):
+    """Ringkasan config + counter + pemakaian untuk UI traineer/admin."""
+    cfg = _parse_id_config(_config_get(conn, CONFIG_ID))
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute('SELECT series, last_value FROM first_work_id_counters')
+        counters = {row['series']: int(row['last_value'] or 0)
+                    for row in (cursor.fetchall() or [])}
+        cursor.execute("""
+            SELECT
+                MAX(fingerprint_no) AS max_fingerprint,
+                MAX(bpf_no) AS max_bpf,
+                SUM(fingerprint_no IS NULL) AS missing_fingerprint,
+                SUM(bpf_no IS NULL) AS missing_bpf,
+                COUNT(*) AS total
+            FROM first_work_submissions
+        """)
+        usage = cursor.fetchone() or {}
+    finally:
+        cursor.close()
+    usage = {k: int(v or 0) for k, v in usage.items()}
+    return {
+        'fingerprint_series': cfg['fingerprint_series'],
+        'bpf_series': cfg['bpf_series'],
+        'series_labels': {'B': 'Kolom B (header 28161)', 'C': 'Kolom C (header 6495)'},
+        'next_fingerprint': counters.get(cfg['fingerprint_series'], 0) + 1,
+        'next_bpf': counters.get(cfg['bpf_series'], 0) + 1,
+        'max_fingerprint': usage.get('max_fingerprint') or None,
+        'max_bpf': usage.get('max_bpf') or None,
+        'missing_fingerprint': usage.get('missing_fingerprint') or 0,
+        'missing_bpf': usage.get('missing_bpf') or 0,
+        'total': usage.get('total') or 0,
+    }
+
+
+def _id_counter_get(conn, series):
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            'SELECT last_value FROM first_work_id_counters WHERE series=%s', (series,))
+        row = cursor.fetchone()
+        return int(row[0] or 0) if row else 0
+    finally:
+        cursor.close()
+
+
+def _id_counter_set(conn, series, last_value):
+    """Set posisi counter: angka BERIKUTNYA yang terbit = last_value + 1."""
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "INSERT INTO first_work_id_counters (series, last_value) VALUES (%s,%s) "
+            "ON DUPLICATE KEY UPDATE last_value=VALUES(last_value)",
+            (series, int(last_value)))
+    finally:
+        cursor.close()
+
+
+def _id_counter_bump_to(conn, series, value):
+    """Counter tidak boleh mundur saat sync membawa nomor lama dari sheet."""
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "INSERT INTO first_work_id_counters (series, last_value) VALUES (%s,%s) "
+            "ON DUPLICATE KEY UPDATE last_value=GREATEST(last_value, VALUES(last_value))",
+            (series, int(value)))
+    finally:
+        cursor.close()
+
+
+def _next_id_number(conn, series):
+    """Nomor berikutnya untuk satu seri (atomik, pola doc_sequences)."""
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "INSERT INTO first_work_id_counters (series, last_value) "
+            "VALUES (%s, LAST_INSERT_ID(1)) "
+            "ON DUPLICATE KEY UPDATE last_value=LAST_INSERT_ID(last_value + 1)",
+            (series,))
+        cursor.execute('SELECT LAST_INSERT_ID()')
+        return int(cursor.fetchone()[0])
+    finally:
+        cursor.close()
+
+
+def _number_taken(cursor, column, value, exclude_id=None):
+    if exclude_id:
+        cursor.execute(
+            f'SELECT 1 FROM first_work_submissions WHERE {column}=%s AND id<>%s LIMIT 1',
+            (value, exclude_id))
+    else:
+        cursor.execute(
+            f'SELECT 1 FROM first_work_submissions WHERE {column}=%s LIMIT 1', (value,))
+    return cursor.fetchone() is not None
+
+
+def _assign_id_numbers(conn, cfg=None):
+    """(fingerprint_no, bpf_no) untuk pengisian baru, lewati nomor yang sudah terpakai.
+
+    Nomor dari counter bisa saja sudah dipakai baris historis (mis. traineer
+    men-set angka awal yang mundur, atau pemetaan ditukar). Maka tiap nomor
+    dicek; kalau terpakai, counter naik terus sampai ketemu nomor bebas.
+    """
+    cfg = cfg or _parse_id_config(_config_get(conn, CONFIG_ID))
+    cursor = conn.cursor()
+    result = {}
+    try:
+        for column, series in (('fingerprint_no', cfg['fingerprint_series']),
+                               ('bpf_no', cfg['bpf_series'])):
+            value = None
+            for _ in range(500):
+                candidate = _next_id_number(conn, series)
+                if not _number_taken(cursor, column, candidate):
+                    value = candidate
+                    break
+            result[column] = value
+    finally:
+        cursor.close()
+    return result['fingerprint_no'], result['bpf_no']
+
+
+def _apply_ids_to_row(cursor, submission_id, fingerprint_no, bpf_no):
+    """Set/timpa ID satu baris (dipakai route edit & backfill)."""
+    sets, params = [], []
+    if fingerprint_no is not None:
+        sets.append('fingerprint_no=%s')
+        params.append(fingerprint_no)
+    if bpf_no is not None:
+        sets.append('bpf_no=%s')
+        params.append(bpf_no)
+    if not sets:
+        return False
+    params.append(submission_id)
+    cursor.execute(
+        'UPDATE first_work_submissions SET ' + ', '.join(sets) + ' WHERE id=%s', params)
+    return True
+
+
+
+def format_reg_no(branch_code, submitted_at, seq):
+    """Format nomor registrasi: FW-<CABANG>-YYYYMMDD-#### (v2.82.0).
+
+    Kode cabang WAJIB ada di nomor: dua registrasi dari cabang berbeda tidak
+    boleh tampak sama, sehingga tidak mungkin tertukar saat dicetak/diarsipkan.
+    """
+    code = (branch_code or 'SBY').strip().upper() or 'SBY'
     date_part = (submitted_at or datetime.now()).strftime('%Y%m%d')
-    key = f'FW|{date_part}'
+    return f'FW-{code}-{date_part}-{int(seq):04d}'
+
+
+def _next_reg_no(conn, submitted_at, branch_code='SBY'):
+    """Nomor registrasi FW-<CABANG>-YYYYMMDD-####.
+
+    Urutan (doc_sequences) dipisah per cabang + tanggal, jadi nomor cabang A
+    tidak pernah menghabiskan/berbagi nomor cabang B.
+    """
+    code = (branch_code or 'SBY').strip().upper() or 'SBY'
+    date_part = (submitted_at or datetime.now()).strftime('%Y%m%d')
+    key = f'FW|{code}|{date_part}'
     cursor = conn.cursor()
     try:
         cursor.execute(
@@ -243,7 +456,7 @@ def _next_reg_no(conn, submitted_at):
             "ON DUPLICATE KEY UPDATE seq = LAST_INSERT_ID(seq + 1)", (key,))
         cursor.execute("SELECT LAST_INSERT_ID()")
         seq = int(cursor.fetchone()[0])
-        return f'FW-{date_part}-{seq:04d}'
+        return format_reg_no(code, submitted_at, seq)
     finally:
         cursor.close()
 
@@ -285,19 +498,129 @@ def _branches(conn):
         cursor.close()
 
 
-def _request_branch(conn, value=None, branches=None):
-    """Cabang tujuan form publik dari link (?cabang=MLG); default SBY.
+def _explicit_branch_value(value=None):
+    """Nilai cabang yang DISENGAJA dikirim (link/form), '' bila tidak ada."""
+    if value:
+        return _clean(value, 10).upper()
+    for candidate in (request.args.get('cabang'), request.args.get('branch'),
+                      request.form.get('branch'), request.form.get('cabang')):
+        if candidate:
+            return _clean(candidate, 10).upper()
+    return ''
 
-    Nilai di luar master `branches` ditolak ke SBY supaya data tidak pernah
-    masuk ke cabang yang tidak valid.
+
+def _default_branch_code(branches):
+    codes = [str(b.get('code') or '').strip().upper() for b in (branches or [])]
+    return 'SBY' if 'SBY' in codes else (codes[0] if codes else 'SBY')
+
+
+def _resolve_form_branch(conn, branches=None, value=None):
+    """Tentukan cabang form publik. Return (code, error).
+
+    v2.82.0 — TIDAK ADA fallback diam-diam: cabang yang disebut eksplisit tapi
+    tidak terdaftar/tidak aktif ditolak (400), bukan dipindahkan ke SBY. Dulu
+    tautan `?cabang=MLGG` (salah ketik) atau `?cabang=JKT` yang dipalsukan
+    membuat data pribadi orang masuk ke antrean cabang lain tanpa terlihat.
+
+    Tanpa parameter cabang sama sekali = tautan lama -> cabang utama (SBY).
     """
     rows = branches if branches is not None else _branches(conn)
     codes = [str(row.get('code') or '').strip().upper() for row in rows]
-    code = (value or request.args.get('cabang') or request.args.get('branch')
-            or request.form.get('branch') or '').strip().upper()
-    if code in codes:
-        return code
-    return 'SBY' if 'SBY' in codes else (codes[0] if codes else 'SBY')
+    explicit = _explicit_branch_value(value)
+    if explicit:
+        if explicit not in codes:
+            return None, (f'Cabang "{explicit}" tidak dikenal atau tidak aktif. '
+                          'Minta tautan form yang benar ke Traineer/Admin.')
+        return explicit, ''
+    return _default_branch_code(rows), ''
+
+
+def _request_branch(conn, value=None, branches=None):
+    """Kompatibilitas: kode cabang valid atau None (tanpa fallback diam-diam)."""
+    code, _error = _resolve_form_branch(conn, branches=branches, value=value)
+    return code
+
+
+def _branch_form_tokens(conn):
+    """Peta branch_code -> {form_token, active} (tabel boleh belum ada)."""
+    try:
+        cursor = conn.cursor(dictionary=True)
+        try:
+            cursor.execute(
+                'SELECT branch_code, form_token, active FROM first_work_branch_forms')
+            return {str(r.get('branch_code') or '').upper(): r
+                    for r in (cursor.fetchall() or [])}
+        finally:
+            cursor.close()
+    except Exception:
+        return {}
+
+
+def _form_token_from_request():
+    """Token form cabang dari tautan (?t= / ?token=) atau body form."""
+    for candidate in (request.args.get('t'), request.args.get('token'),
+                      request.form.get('t'), request.form.get('token')):
+        if candidate:
+            return _clean(candidate, 200)
+    return ''
+
+
+def _token_error(branch_code, supplied, token_row, default_code='SBY'):
+    """Error string bila token cabang tidak sah; '' bila boleh lanjut.
+
+    Kebijakan v2.84.0 — WAJIB token SEMUA cabang (sebelumnya cabang default
+    boleh tanpa token demi tautan lama; kebijakan itu dicabut karena isian
+    lewat tautan lama tidak terpembedakan dari tautan resmi):
+    - Token cocok -> diterima.
+    - Token salah / milik cabang lain -> ditolak (anti pemalsuan).
+    - Cabang mana pun tanpa token -> ditolak dengan pesan meminta tautan baru.
+    """
+    if not token_row or not token_row.get('active'):
+        return ''
+    stored = str(token_row.get('form_token') or '')
+    if supplied and stored and secrets.compare_digest(str(supplied), stored):
+        return ''
+    return (f'Tautan form tidak valid untuk cabang {branch_code}. '
+            'Minta tautan terbaru ke Traineer/Admin.')
+
+
+def _enforce_branch_token(conn, branch_code, branches=None):
+    rows = branches if branches is not None else _branches(conn)
+    return _token_error(branch_code, _form_token_from_request(),
+                        _branch_form_tokens(conn).get(branch_code),
+                        _default_branch_code(rows))
+
+
+def _form_path(branch_code, token=''):
+    """Path form publik milik satu cabang (relatif, host diisi frontend)."""
+    code = (branch_code or 'SBY').strip().upper() or 'SBY'
+    path = f'/app/first-work-form?cabang={code}'
+    return path + (f'&t={token}' if token else '')
+
+
+def _referrer_in_branch(ref_row, branch_code):
+    """Referrer milik cabang itu (NULL/legacy = SBY) — cegah atribusi silang."""
+    ref_branch = str((ref_row or {}).get('branch_code') or 'SBY').strip().upper()
+    return ref_branch == (str(branch_code or '').strip().upper() or 'SBY')
+
+
+def _referrer_allowed(ref_row, conn=None):
+    """Scope admin untuk baris first_work_referrers (NULL dianggap SBY)."""
+    scope = _scope_branch(conn)
+    if scope is None:
+        return True
+    ref_branch = str((ref_row or {}).get('branch_code') or 'SBY').strip().upper()
+    return ref_branch == scope
+
+
+def _mask_nik(value):
+    digits = _digits(value)
+    return f'{digits[:6]}\u2022\u2022\u2022\u2022{digits[-4:]}' if len(digits) == 16 else (digits or '')
+
+
+def _nik_for_export(row, allow_full):
+    raw = row.get('nik') or row.get('nik_raw') or ''
+    return raw if allow_full else _mask_nik(raw)
 
 
 # ================================================================
@@ -538,7 +861,11 @@ def _normalize_sheet_row(headers, row, row_index):
     normalized = {
         'source_uid': source_uid,
         'sheet_row': row_index + 2,
+        # v2.83.0: kedua counter sheet dipertahankan (dulu seq2 dibuang) agar
+        # ID Fingerprint & ID BPF bisa di-backfill dari data historis.
         'sheet_seq': _clean(raw.get('sheet_seq1') or raw.get('sheet_seq2'), 20),
+        'sheet_seq1': _clean(raw.get('sheet_seq1'), 20),
+        'sheet_seq2': _clean(raw.get('sheet_seq2'), 20),
         'submitted_at': submitted_at,
         'email': _clean(raw.get('email'), 150),
         'nik': nik,
@@ -596,6 +923,10 @@ def _serialize_for_db(normalized):
 def _upsert_submission(conn, normalized, referrer_index):
     referrer_id, referrer_norm, needs_review = resolve_referrer(
         conn, normalized.get('referensi_raw'), referrer_index)
+    # v2.83.0: ID Fingerprint/BPF mengalir dari pemetaan seri counter sheet.
+    cfg = _parse_id_config(_config_get(conn, CONFIG_ID))
+    sheet_fingerprint = _sheet_series_value(normalized, cfg['fingerprint_series'])
+    sheet_bpf = _sheet_series_value(normalized, cfg['bpf_series'])
     cursor = conn.cursor(dictionary=True)
     try:
         cursor.execute(
@@ -614,7 +945,7 @@ def _upsert_submission(conn, normalized, referrer_index):
         try:
             cursor.execute("""
                 UPDATE first_work_submissions SET
-                    email=VALUES(email), nik=%s, nik_raw=%s, nik_valid=%s,
+                    email=%s, nik=%s, nik_raw=%s, nik_valid=%s,
                     nama=%s, pendidikan_raw=%s, pendidikan_norm=%s,
                     referensi_raw=%s, referensi_norm=%s,
                     referrer_id=COALESCE(referrer_id, %s),
@@ -622,9 +953,11 @@ def _upsert_submission(conn, normalized, referrer_index):
                     no_hp=%s, no_hp_norm=%s,
                     ktp_drive_url=%s, photoid_url=%s,
                     merged_doc_id=%s, merged_doc_url=%s, merge_status=%s,
-                    sheet_row=%s, sheet_seq=%s
+                    sheet_row=%s, sheet_seq=%s,
+                    fingerprint_no=COALESCE(fingerprint_no, %s),
+                    bpf_no=COALESCE(bpf_no, %s)
                 WHERE id=%s
-            """.replace('email=VALUES(email)', 'email=%s'), (
+            """, (
                 fields['email'], fields['nik'], fields['nik_raw'], fields['nik_valid'],
                 fields['nama'], fields['pendidikan_raw'], fields['pendidikan_norm'],
                 fields['referensi_raw'], fields['referensi_norm'],
@@ -632,13 +965,21 @@ def _upsert_submission(conn, normalized, referrer_index):
                 fields['no_hp'], fields['no_hp_norm'],
                 fields['ktp_drive_url'], fields['photoid_url'],
                 fields['merged_doc_id'], fields['merged_doc_url'], fields['merge_status'],
-                fields['sheet_row'], fields['sheet_seq'], existing['id'],
+                fields['sheet_row'], fields['sheet_seq'],
+                # COALESCE: ID yang sudah diatur traineer tidak ditimpa resync.
+                sheet_fingerprint, sheet_bpf, existing['id'],
             ))
+            # Counter mengikuti nomor tertinggi yang dilihat dari sheet.
+            if sheet_fingerprint:
+                _id_counter_bump_to(conn, cfg['fingerprint_series'], sheet_fingerprint)
+            if sheet_bpf:
+                _id_counter_bump_to(conn, cfg['bpf_series'], sheet_bpf)
         finally:
             cursor.close()
         return 'updated'
 
-    registration_no = _next_reg_no(conn, fields['submitted_at'])
+    registration_no = _next_reg_no(conn, fields['submitted_at'],
+                                   fields.get('branch_code') or 'SBY')
     cursor = conn.cursor()
     try:
         cursor.execute("""
@@ -648,9 +989,9 @@ def _upsert_submission(conn, normalized, referrer_index):
                  pendidikan_raw, pendidikan_norm, referensi_raw, referensi_norm,
                  referrer_id, referrer_needs_review, no_hp, no_hp_norm, branch_code,
                  ktp_drive_url, photoid_url, merged_doc_id, merged_doc_url,
-                 merge_status, status)
+                 merge_status, status, fingerprint_no, bpf_no)
             VALUES (%s,'sheet',%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,
-                    %s,%s,%s,%s,%s,'submitted')
+                    %s,%s,%s,%s,%s,'submitted',%s,%s)
         """, (
             registration_no, fields['source_uid'], fields['sheet_row'],
             fields['sheet_seq'], fields['submitted_at'], fields['email'],
@@ -660,6 +1001,7 @@ def _upsert_submission(conn, normalized, referrer_index):
             referrer_id, needs_review, fields['no_hp'], fields['no_hp_norm'],
             fields['branch_code'], fields['ktp_drive_url'], fields['photoid_url'],
             fields['merged_doc_id'], fields['merged_doc_url'], fields['merge_status'],
+            sheet_fingerprint, sheet_bpf,
         ))
         submission_id = cursor.lastrowid
         cursor.execute("""
@@ -667,6 +1009,10 @@ def _upsert_submission(conn, normalized, referrer_index):
                 (submission_id, event, status_from, status_to, note, actor, actor_role)
             VALUES (%s,'created','','submitted','Migrasi Sheet','system','system')
         """, (submission_id,))
+        if sheet_fingerprint:
+            _id_counter_bump_to(conn, cfg['fingerprint_series'], sheet_fingerprint)
+        if sheet_bpf:
+            _id_counter_bump_to(conn, cfg['bpf_series'], sheet_bpf)
     finally:
         cursor.close()
     return 'inserted'
@@ -741,7 +1087,14 @@ def register_first_work_routes(app):
             if not conn:
                 return jsonify({'error': 'DB error'}), 500
             branches = _branches(conn)
-            branch = _request_branch(conn, branches=branches)
+            branch, branch_error = _resolve_form_branch(conn, branches=branches)
+            if branch_error:
+                conn.close()
+                return jsonify({'error': branch_error}), 400
+            token_error = _enforce_branch_token(conn, branch, branches=branches)
+            if token_error:
+                conn.close()
+                return jsonify({'error': token_error}), 403
             rows = _load_referrers(conn, active_only=True, branch=branch)
             info = next((b for b in branches if b['code'] == branch), None)
             conn.close()
@@ -761,7 +1114,9 @@ def register_first_work_routes(app):
                             'msg': 'Terlalu banyak pengecekan. Coba lagi sebentar.'}), 429
         nik, _raw = normalize_nik(request.args.get('nik'))
         if len(nik) != 16:
-            return jsonify({'status': 'success', 'valid': False, 'exists': False})
+            resp = jsonify({'status': 'success', 'valid': False, 'exists': False})
+            resp.headers['Cache-Control'] = 'no-store'
+            return resp
         conn = None
         try:
             conn = get_master_connection()
@@ -774,7 +1129,10 @@ def register_first_work_routes(app):
                 count = int((cursor.fetchone() or [0])[0] or 0)
             finally:
                 cursor.close()
-            return jsonify({'status': 'success', 'valid': True, 'exists': count > 0})
+            resp = jsonify({'status': 'success', 'valid': True, 'exists': count > 0})
+            # Data pribadi: jangan pernah disimpan di cache browser/proxy.
+            resp.headers['Cache-Control'] = 'no-store'
+            return resp
         except Exception as e:
             return jsonify({'status': 'error', 'msg': str(e)}), 500
         finally:
@@ -821,6 +1179,16 @@ def register_first_work_routes(app):
             if not conn:
                 return jsonify({'status': 'error', 'msg': 'DB error'}), 500
 
+            # v2.82.0: cabang ditentukan SEBELUM apa pun ditulis. Cabang asing
+            # ditolak (bukan dipindah ke SBY), dan cabang non-default wajib
+            # membawa token form miliknya.
+            branch_code, branch_error = _resolve_form_branch(conn)
+            if branch_error:
+                return jsonify({'status': 'error', 'msg': branch_error}), 400
+            token_error = _enforce_branch_token(conn, branch_code)
+            if token_error:
+                return jsonify({'status': 'error', 'msg': token_error}), 403
+
             # Duplikat NIK: tolak dengan pesan tanpa membocorkan data orang lain.
             cursor = conn.cursor(dictionary=True)
             try:
@@ -840,7 +1208,7 @@ def register_first_work_routes(app):
                 cursor = conn.cursor(dictionary=True)
                 try:
                     cursor.execute(
-                        "SELECT id, name FROM first_work_referrers "
+                        "SELECT id, name, branch_code FROM first_work_referrers "
                         "WHERE id=%s AND active=1", (int(referrer_id_raw),))
                     ref = cursor.fetchone()
                 finally:
@@ -848,6 +1216,11 @@ def register_first_work_routes(app):
                 if not ref:
                     return jsonify({'status': 'error',
                                     'msg': 'Referensi tidak valid. Pilih dari daftar.'}), 400
+                # Referrer cabang lain tidak boleh menempel pada isian cabang ini
+                # (dulu cukup menebak referrer_id untuk mencampur atribusi).
+                if not _referrer_in_branch(ref, branch_code):
+                    return jsonify({'status': 'error',
+                                    'msg': 'Referensi bukan milik cabang form ini.'}), 400
                 referrer_id = ref['id']
                 referensi_raw = ref['name']
             else:
@@ -873,7 +1246,10 @@ def register_first_work_routes(app):
                                 'msg': 'Ukuran file KTP maksimal 5 MB'}), 400
 
             submitted_at = datetime.now()
-            registration_no = _next_reg_no(conn, submitted_at)
+            registration_no = _next_reg_no(conn, submitted_at, branch_code)
+            # v2.83.0: setiap pengisian baru wajib dapat ID Fingerprint & ID BPF,
+            # nomornya mengalir dari counter yang diatur traineer.
+            fingerprint_no, bpf_no = _assign_id_numbers(conn)
             os.makedirs(UPLOAD_DIR, exist_ok=True)
             filename = save_file(file, 'FWKTP', registration_no, UPLOAD_DIR)
             if not filename:
@@ -882,7 +1258,6 @@ def register_first_work_routes(app):
                                 'msg': 'Gagal menyimpan file KTP. Coba lagi.'}), 400
 
             source_uid = 'form-' + uuid.uuid4().hex
-            branch_code = _request_branch(conn)
             cursor = conn.cursor()
             try:
                 cursor.execute("""
@@ -891,15 +1266,15 @@ def register_first_work_routes(app):
                          nik, nik_raw, nik_valid, nama, pendidikan_raw,
                          pendidikan_norm, referensi_raw, referensi_norm,
                          referrer_id, referrer_needs_review, no_hp, no_hp_norm,
-                         branch_code, ktp_file, status)
+                         branch_code, ktp_file, status, fingerprint_no, bpf_no)
                     VALUES (%s,'form',%s,%s,%s,%s,1,%s,%s,%s,%s,%s,
-                            %s,%s,%s,%s,%s,%s,'submitted')
+                            %s,%s,%s,%s,%s,%s,'submitted',%s,%s)
                 """, (
                     registration_no, source_uid, submitted_at, nik, nik_raw,
                     nama, pendidikan, normalize_pendidikan(pendidikan),
                     referensi_raw, normalize_name(referensi_raw),
                     referrer_id, referrer_needs_review, no_hp_raw, no_hp,
-                    branch_code, filename,
+                    branch_code, filename, fingerprint_no, bpf_no,
                 ))
                 submission_id = cursor.lastrowid
                 cursor.execute("""
@@ -1250,9 +1625,170 @@ def register_first_work_routes(app):
                 cursor.close()
             log_activity_async(None, 'first_work_edit', session.get('user_role', ''),
                                session.get('full_name') or session.get('user_name') or '',
-                               old_data={'id': submission_id}, new_data=body,
+                               old_data={'id': submission_id},
+                               new_data={'fields': sorted(body.keys())},
                                ip=client_ip())
             return jsonify({'status': 'success', 'msg': 'Data diperbarui.'})
+        except Exception as e:
+            return jsonify({'status': 'error', 'msg': str(e)}), 500
+        finally:
+            if conn:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+
+    # ---------------- ID FINGERPRINT & ID BPF (v2.83.0) ----------------
+    @app.route('/api/first-work/id-config', methods=['GET'])
+    @role_required(EDIT_ROLES)
+    def api_first_work_id_config():
+        """Pemetaan seri counter + angka berikutnya (untuk panel traineer)."""
+        conn = None
+        try:
+            conn = get_master_connection()
+            if not conn:
+                return jsonify({'error': 'DB error'}), 500
+            return jsonify(_id_state(conn))
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+        finally:
+            if conn:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+
+    @app.route('/api/first-work/id-config', methods=['PUT'])
+    @role_required(EDIT_ROLES)
+    def api_first_work_id_config_set():
+        """Atur pemetaan seri & angka awal ID Fingerprint / ID BPF.
+
+        Body: {fingerprint_series: 'B'|'C', bpf_series: 'B'|'C',
+               start_fingerprint: <angka awal>, start_bpf: <angka awal>}
+        Angka awal = nomor yang akan terbit BERIKUTNYA; kolom boleh kosong
+        bila hanya pemetaan yang ingin diubah.
+        """
+        conn = None
+        try:
+            body = request.get_json(silent=True) or {}
+            fp_series = str(body.get('fingerprint_series') or '').strip().upper()[:1]
+            bp_series = str(body.get('bpf_series') or '').strip().upper()[:1]
+            if fp_series not in SERIES_FIELDS or bp_series not in SERIES_FIELDS:
+                return jsonify({'status': 'error',
+                                'msg': 'Seri counter harus B atau C'}), 400
+            if fp_series == bp_series:
+                return jsonify({'status': 'error',
+                                'msg': 'ID Fingerprint dan ID BPF tidak boleh '
+                                       'memakai kolom counter yang sama'}), 400
+            start_fp = _valid_id_number(body.get('start_fingerprint'))
+            start_bp = _valid_id_number(body.get('start_bpf'))
+
+            conn = get_master_connection()
+            if not conn:
+                return jsonify({'status': 'error', 'msg': 'DB error'}), 500
+            cursor = conn.cursor()
+            try:
+                _config_set(conn, CONFIG_ID, json.dumps({
+                    'fingerprint_series': fp_series,
+                    'bpf_series': bp_series,
+                }))
+                # Angka awal: counter diset ke (angka awal - 1) supaya nomor
+                # berikutnya yang terbit persis angka yang diminta traineer.
+                if start_fp:
+                    _id_counter_set(conn, fp_series, start_fp - 1)
+                if start_bp:
+                    _id_counter_set(conn, bp_series, start_bp - 1)
+                conn.commit()
+            finally:
+                cursor.close()
+            log_activity_async(None, 'first_work_id_config',
+                               session.get('user_role', ''),
+                               session.get('full_name') or session.get('user_name') or '',
+                               new_data={'fingerprint_series': fp_series,
+                                         'bpf_series': bp_series,
+                                         'start_fingerprint': start_fp,
+                                         'start_bpf': start_bp},
+                               ip=client_ip())
+            return jsonify({'status': 'success',
+                            'msg': 'Pengaturan ID Fingerprint & ID BPF disimpan.',
+                            'data': _id_state(conn)})
+        except Exception as e:
+            return jsonify({'status': 'error', 'msg': str(e)}), 500
+        finally:
+            if conn:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+
+    @app.route('/api/first-work/<int:submission_id>/ids', methods=['PATCH'])
+    @role_required(EDIT_ROLES)
+    def api_first_work_edit_ids(submission_id):
+        """Koreksi ID Fingerprint / ID BPF satu baris oleh traineer/admin."""
+        conn = None
+        try:
+            body = request.get_json(silent=True) or {}
+            fp = _valid_id_number(body.get('fingerprint_no'))
+            bp = _valid_id_number(body.get('bpf_no'))
+            if 'fingerprint_no' in body and fp is None and body.get('fingerprint_no') is not None:
+                return jsonify({'status': 'error',
+                                'msg': 'ID Fingerprint harus angka > 0'}), 400
+            if 'bpf_no' in body and bp is None and body.get('bpf_no') is not None:
+                return jsonify({'status': 'error',
+                                'msg': 'ID BPF harus angka > 0'}), 400
+            if 'fingerprint_no' not in body and 'bpf_no' not in body:
+                return jsonify({'status': 'error',
+                                'msg': 'Tidak ada perubahan'}), 400
+
+            conn = get_master_connection()
+            if not conn:
+                return jsonify({'status': 'error', 'msg': 'DB error'}), 500
+            cursor = conn.cursor(dictionary=True)
+            try:
+                cursor.execute("SELECT * FROM first_work_submissions WHERE id=%s",
+                               (submission_id,))
+                row = cursor.fetchone()
+                if not row:
+                    return jsonify({'status': 'error',
+                                    'msg': 'Data tidak ditemukan'}), 404
+                if not _row_allowed(row, conn):
+                    return jsonify({'status': 'error',
+                                    'msg': 'Data di luar cabang Anda'}), 403
+                # Unik lintas baris: satu nomor ID hanya milik satu pengisian.
+                if fp is not None and fp != row.get('fingerprint_no') and \
+                        _number_taken(cursor, 'fingerprint_no', fp, submission_id):
+                    return jsonify({'status': 'error',
+                                    'msg': f'ID Fingerprint {fp} sudah dipakai '
+                                           'pengisian lain'}), 409
+                if bp is not None and bp != row.get('bpf_no') and \
+                        _number_taken(cursor, 'bpf_no', bp, submission_id):
+                    return jsonify({'status': 'error',
+                                    'msg': f'ID BPF {bp} sudah dipakai '
+                                           'pengisian lain'}), 409
+                _apply_ids_to_row(cursor, submission_id, fp, bp)
+                cursor.execute("""
+                    INSERT INTO first_work_events
+                        (submission_id, event, status_from, status_to, note,
+                         actor, actor_role, ip)
+                    VALUES (%s,'edit_ids',%s,%s,%s,%s,%s,%s)
+                """, (submission_id, row.get('status'), row.get('status'),
+                      f"ID Fingerprint={fp if fp is not None else row.get('fingerprint_no')} · "
+                      f"ID BPF={bp if bp is not None else row.get('bpf_no')}",
+                      session.get('full_name') or session.get('user_name') or '',
+                      session.get('user_role', ''), client_ip()))
+                conn.commit()
+            finally:
+                cursor.close()
+            log_activity_async(None, 'first_work_edit_ids',
+                               session.get('user_role', ''),
+                               session.get('full_name') or session.get('user_name') or '',
+                               old_data={'id': submission_id,
+                                         'fingerprint_no': row.get('fingerprint_no'),
+                                         'bpf_no': row.get('bpf_no')},
+                               new_data={'fingerprint_no': fp, 'bpf_no': bp},
+                               ip=client_ip())
+            return jsonify({'status': 'success',
+                            'msg': 'ID Fingerprint & ID BPF diperbarui.'})
         except Exception as e:
             return jsonify({'status': 'error', 'msg': str(e)}), 500
         finally:
@@ -1291,9 +1827,20 @@ def register_first_work_routes(app):
                 path = os.path.join(UPLOAD_DIR, os.path.basename(filename))
             if not os.path.isfile(path):
                 return jsonify({'error': 'File KTP tidak tersedia'}), 404
-            return send_file(path, as_attachment=True,
+            resp = send_file(path, as_attachment=True,
                              download_name=f"KTP_{row['registration_no']}"
                                            f"{os.path.splitext(filename)[1]}")
+            # v2.82.0: KTP = dokumen identitas. Jangan di-cache, jangan dirender
+            # inline, dan setiap unduhan masuk jejak audit.
+            resp.headers['X-Content-Type-Options'] = 'nosniff'
+            resp.headers['Cache-Control'] = 'no-store'
+            log_activity_async(None, 'first_work_ktp_download',
+                               session.get('user_role', ''),
+                               session.get('full_name') or session.get('user_name') or '',
+                               new_data={'submission_id': submission_id,
+                                         'registration_no': row.get('registration_no')},
+                               ip=client_ip())
+            return resp
         except ValueError as e:
             return jsonify({'error': str(e)}), 400
         except Exception as e:
@@ -1315,6 +1862,9 @@ def register_first_work_routes(app):
             if not conn:
                 return jsonify({'error': 'DB error'}), 500
             scope = _scope_branch(conn)
+            # NIK penuh hanya untuk role yang memang memverifikasi identitas;
+            # finance/GA HR menerima NIK tersamar di CSV (minimalisasi data).
+            allow_full_nik = session.get('user_role') in EDIT_ROLES
             where, params = [], []
             if scope:
                 where.append('s.branch_code=%s')
@@ -1356,7 +1906,7 @@ def register_first_work_routes(app):
             for row in rows:
                 writer.writerow([
                     row.get('registration_no'), row.get('submitted_at'),
-                    row.get('nama'), row.get('nik') or row.get('nik_raw'),
+                    row.get('nama'), _nik_for_export(row, allow_full_nik),
                     'Ya' if row.get('nik_valid') else 'Tidak',
                     row.get('pendidikan_raw') or row.get('pendidikan_norm'),
                     row.get('referrer_name') or row.get('referensi_raw'),
@@ -1367,8 +1917,56 @@ def register_first_work_routes(app):
             response = make_response('\ufeff' + output.getvalue())
             response.headers['Content-Type'] = 'text/csv; charset=utf-8'
             response.headers['Content-Disposition'] = \
-                'attachment; filename=first_work_export.csv'
+                f"attachment; filename=first_work_export_{(scope or 'SEMUA')}.csv"
+            # v2.82.0: CSV berisi NIK & no. HP — jangan di-cache, dan unduhan
+            # dicatat sebagai akses data pribadi.
+            response.headers['Cache-Control'] = 'no-store'
+            log_activity_async(None, 'first_work_export', session.get('user_role', ''),
+                               session.get('full_name') or session.get('user_name') or '',
+                               new_data={'rows': len(rows), 'scope': scope or 'SEMUA',
+                                         'nik_full': allow_full_nik},
+                               ip=client_ip())
             return response
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+        finally:
+            if conn:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+
+    # ---------------- LINK FORM PER CABANG (v2.82.0) ----------------
+    @app.route('/api/first-work/branch-forms')
+    @role_required(ADMIN_ROLES)
+    def api_first_work_branch_forms():
+        """Tautan form publik MILIK TIAP CABANG (ber-token).
+
+        Satu cabang = satu tautan ber-token, sehingga tautan cabang A tidak bisa
+        dipakai mengirim isian atas nama cabang B. Admin cabang hanya menerima
+        tautan cabangnya sendiri; Admin Pusat menerima semua cabang.
+        """
+        conn = None
+        try:
+            conn = get_master_connection()
+            if not conn:
+                return jsonify({'error': 'DB error'}), 500
+            scope = _scope_branch(conn)
+            tokens = _branch_form_tokens(conn)
+            out = []
+            for branch in _branches(conn):
+                code = str(branch.get('code') or '').strip().upper()
+                if not code or (scope and code != scope):
+                    continue
+                token_row = tokens.get(code) or {}
+                token = str(token_row.get('form_token') or '')
+                out.append({
+                    'branch_code': code,
+                    'branch_name': branch.get('name') or code,
+                    'token_active': bool(token_row.get('active')),
+                    'form_path': _form_path(code, token) if token else '',
+                })
+            return jsonify({'branches': out, 'scope_branch': scope})
         except Exception as e:
             return jsonify({'error': str(e)}), 500
         finally:
@@ -1433,10 +2031,21 @@ def register_first_work_routes(app):
                     ORDER BY r.active DESC, r.name
                 """, params)
                 rows = cursor.fetchall() or []
-                cursor.execute("""
-                    SELECT id, username, full_name, role, branch_code
-                    FROM users ORDER BY full_name
-                """)
+                # v2.82.0: daftar akun untuk memetakan referrer WAJIB se-scope.
+                # Dulu seluruh user semua cabang dikirim ke admin cabang.
+                if scope:
+                    cursor.execute("""
+                        SELECT id, username, full_name, role, branch_code
+                        FROM users
+                        WHERE branch_code=%s
+                           OR (%s='SBY' AND (branch_code IS NULL OR branch_code=''))
+                        ORDER BY full_name
+                    """, (scope, scope))
+                else:
+                    cursor.execute("""
+                        SELECT id, username, full_name, role, branch_code
+                        FROM users ORDER BY full_name
+                    """)
                 users = cursor.fetchall() or []
             finally:
                 cursor.close()
@@ -1466,7 +2075,17 @@ def register_first_work_routes(app):
             cursor = conn.cursor(dictionary=True)
             try:
                 scope = _scope_branch(conn)
-                branch_code = 'SBY' if (not scope or scope == _NO_BRANCH) else scope
+                if scope is None:
+                    # Admin Pusat wajib menyebut cabang tujuan dengan eksplisit;
+                    # jangan diam-diam menaruh referrer di SBY.
+                    branch_code = _clean(body.get('branch_code') or 'SBY', 10).upper() or 'SBY'
+                    valid = [str(b.get('code') or '').strip().upper()
+                             for b in _branches(conn)]
+                    if branch_code not in valid:
+                        return jsonify({'status': 'error',
+                                        'msg': f'Cabang {branch_code} tidak dikenal.'}), 400
+                else:
+                    branch_code = 'SBY' if scope == _NO_BRANCH else scope
                 cursor.execute(
                     "INSERT INTO first_work_referrers (name, user_id, branch_code) "
                     "VALUES (%s,%s,%s) "
@@ -1496,6 +2115,20 @@ def register_first_work_routes(app):
             conn = get_master_connection()
             if not conn:
                 return jsonify({'status': 'error', 'msg': 'DB error'}), 500
+            # Sebelum diubah: pastikan referrer ini milik cabang si admin.
+            check = conn.cursor(dictionary=True)
+            try:
+                check.execute(
+                    "SELECT id, branch_code FROM first_work_referrers WHERE id=%s",
+                    (referrer_id,))
+                target = check.fetchone()
+            finally:
+                check.close()
+            if not target:
+                return jsonify({'status': 'error', 'msg': 'Referrer tidak ditemukan'}), 404
+            if not _referrer_allowed(target, conn):
+                return jsonify({'status': 'error',
+                                'msg': 'Referrer ini milik cabang lain.'}), 403
             updates, params = [], []
             if 'name' in body:
                 name = _clean(body.get('name'), 100).upper()

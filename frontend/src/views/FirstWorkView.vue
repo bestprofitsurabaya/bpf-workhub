@@ -1,5 +1,6 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
+import QRCode from 'qrcode'
 import { api } from '../api'
 import { useAuthStore } from '../stores/auth'
 import PageHeader from '../components/PageHeader.vue'
@@ -31,6 +32,16 @@ const showDetail = ref(false)
 const verifyNote = ref('')
 const editFields = reactive({ nama: '', nik: '', pendidikan: '', no_hp: '', referrer_id: '' })
 
+// v2.83.0: ID Fingerprint & ID BPF — tampil di tabel, diedit traineer/admin,
+// angka awal & pemetaan kolom counter sheet bisa diatur.
+const idCfg = ref(null)
+const idForm = reactive({
+  fingerprint_series: 'B',
+  bpf_series: 'C',
+  start_fingerprint: '',
+  start_bpf: '',
+})
+
 const adminRefs = ref([])
 const adminUsers = ref([])
 const newRef = reactive({ name: '', user_id: '' })
@@ -38,7 +49,16 @@ const syncInfo = ref(null)
 
 // Form publik punya path sendiri (/first-work-form) supaya halaman ini tetap
 // menampilkan data — bukan form — untuk semua role yang membukanya.
-const formLink = `${window.location.origin}/app/first-work-form`
+// v2.82.0: tiap cabang punya tautan ber-token sendiri; tautan cabang A tidak
+// bisa dipakai mengirim isian atas nama cabang B.
+const branchForms = ref([])
+const formLink = computed(() => {
+  const scope = scopeBranch.value
+  const entry = branchForms.value.find((b) => b.branch_code === scope)
+  if (entry?.form_path) return window.location.origin + entry.form_path
+  const query = scope ? `?cabang=${encodeURIComponent(scope)}` : ''
+  return `${window.location.origin}/app/first-work-form${query}`
+})
 const subtitle = computed(() => {
   const scope = scopeBranch.value
     ? `Pendaftar & verifikasi — ${branchName.value || 'cabang ' + scopeBranch.value}`
@@ -131,6 +151,8 @@ async function openDetail(row) {
       pendidikan: data.data.pendidikan_raw || '',
       no_hp: data.data.no_hp || '',
       referrer_id: data.data.referrer_id || '',
+      fingerprint_no: data.data.fingerprint_no ?? '',
+      bpf_no: data.data.bpf_no ?? '',
     })
     showDetail.value = true
   } catch (e) {
@@ -190,6 +212,84 @@ async function saveEdit() {
   }
 }
 
+// v2.83.0: muat konfigurasi ID (pemetaan seri + angka berikutnya).
+async function loadIdConfig() {
+  try {
+    const data = await api('/api/first-work/id-config')
+    idCfg.value = data
+    idForm.fingerprint_series = data.fingerprint_series || 'B'
+    idForm.bpf_series = data.bpf_series || 'C'
+  } catch (e) {
+    idCfg.value = null
+    err.value = e.message || 'Gagal memuat pengaturan ID.'
+  }
+}
+
+// v2.83.0: simpan pemetaan + angka awal ID Fingerprint / ID BPF.
+async function saveIdConfig() {
+  if (idForm.fingerprint_series === idForm.bpf_series) {
+    err.value = 'ID Fingerprint dan ID BPF tidak boleh memakai kolom counter yang sama.'
+    return
+  }
+  busy.value = true
+  err.value = ''
+  try {
+    const body = {
+      fingerprint_series: idForm.fingerprint_series,
+      bpf_series: idForm.bpf_series,
+    }
+    if (String(idForm.start_fingerprint).trim() !== '') {
+      body.start_fingerprint = Number(String(idForm.start_fingerprint).trim())
+    }
+    if (String(idForm.start_bpf).trim() !== '') {
+      body.start_bpf = Number(String(idForm.start_bpf).trim())
+    }
+    const data = await api('/api/first-work/id-config', { method: 'PUT', body })
+    idCfg.value = data.data || idCfg.value
+    idForm.start_fingerprint = ''
+    idForm.start_bpf = ''
+    msg.value = data.msg || 'Pengaturan ID disimpan.'
+    await load(page.value)
+  } catch (e) {
+    err.value = e.message || 'Gagal menyimpan pengaturan ID.'
+  } finally {
+    busy.value = false
+  }
+}
+
+// v2.83.0: koreksi ID satu baris dari modal detail.
+async function saveIds() {
+  if (!detail.value) return
+  busy.value = true
+  err.value = ''
+  try {
+    const body = {}
+    if (String(editFields.fingerprint_no).trim() !== '') {
+      body.fingerprint_no = Number(String(editFields.fingerprint_no).trim())
+    } else {
+      body.fingerprint_no = null
+    }
+    if (String(editFields.bpf_no).trim() !== '') {
+      body.bpf_no = Number(String(editFields.bpf_no).trim())
+    } else {
+      body.bpf_no = null
+    }
+    await api(`/api/first-work/${detail.value.id}/ids`, { method: 'PATCH', body })
+    msg.value = 'ID Fingerprint & ID BPF diperbarui.'
+    await openDetail(detail.value)
+    await load(page.value)
+  } catch (e) {
+    err.value = e.message || 'Gagal menyimpan ID.'
+  } finally {
+    busy.value = false
+  }
+}
+
+async function openIdTab() {
+  tab.value = 'ids'
+  await loadIdConfig()
+}
+
 async function downloadKtp(row) {
   err.value = ''
   try {
@@ -211,12 +311,67 @@ async function downloadKtp(row) {
 }
 
 async function copyFormLink() {
+  await copyLink(formLink.value, 'Link form publik')
+}
+
+async function loadBranchForms() {
   try {
-    await navigator.clipboard.writeText(formLink)
-    msg.value = 'Link form publik disalin: ' + formLink
+    const data = await api('/api/first-work/branch-forms')
+    branchForms.value = data.branches || []
   } catch {
-    msg.value = 'Link form publik: ' + formLink
+    branchForms.value = []
   }
+}
+
+async function copyLink(url, label = 'Link form cabang') {
+  try {
+    await navigator.clipboard.writeText(url)
+    msg.value = `${label} disalin: ${url}`
+  } catch {
+    msg.value = `${label}: ${url}`
+  }
+}
+
+// v2.84.0: QR statis per cabang. Token cabang bersifat permanen, jadi QR yang
+// dicetak tetap sah sampai token dirotasi manual oleh admin. QR dibuat lokal
+// di browser — URL berisi token rahasia, tidak boleh dikirim ke layanan QR
+// pihak ketiga.
+const qrModal = reactive({ show: false, label: '', url: '', dataUrl: '', file: '' })
+
+function branchUrl(entry) {
+  return entry?.form_path ? window.location.origin + entry.form_path : ''
+}
+
+async function showQr(url, label) {
+  if (!url) { err.value = 'Link form belum tersedia — muat ulang halaman.'; return }
+  Object.assign(qrModal, {
+    show: true, label, url, dataUrl: '',
+    file: 'qr-firstwork-' + (label.toLowerCase().replace(/[^a-z0-9]+/g, '-')) + '.png',
+  })
+  try {
+    qrModal.dataUrl = await QRCode.toDataURL(url, { width: 420, margin: 2 })
+  } catch (e) {
+    err.value = 'Gagal membuat QR: ' + (e.message || e)
+    qrModal.show = false
+  }
+}
+
+function showBranchQr(entry) {
+  showQr(branchUrl(entry), 'Form FirstWork ' + (entry?.branch_code || ''))
+}
+
+function printQr() {
+  const win = window.open('', '_blank', 'width=520,height=680')
+  if (!win) { err.value = 'Popup diblokir browser. Gunakan Unduh PNG.'; return }
+  win.document.write(
+    '<html><head><title>' + qrModal.label + '</title></head>' +
+    '<body style="text-align:center;font-family:sans-serif;margin:24px">' +
+    '<h3 style="margin:0 0 4px">' + qrModal.label + '</h3>' +
+    '<p style="margin:0 0 12px;font-size:12px">Scan untuk mengisi Absensi FirstWork</p>' +
+    '<img src="' + qrModal.dataUrl + '" style="width:360px" onload="window.focus();window.print()" />' +
+    '<p style="font-size:10px;color:#555;word-break:break-all">' + qrModal.url + '</p>' +
+    '</body></html>')
+  win.document.close()
 }
 
 async function runSync(dryRun) {
@@ -240,6 +395,7 @@ async function runSync(dryRun) {
 
 async function openAdmin() {
   tab.value = 'admin'
+  if (isAdmin.value) loadBranchForms()
   if (adminRefs.value.length) return
   try {
     const data = await api('/api/first-work/referrers/manage')
@@ -289,6 +445,7 @@ async function toggleReferrer(row) {
 onMounted(() => {
   loadMeta()
   load(1)
+  if (isAdmin.value) loadBranchForms()
 })
 </script>
 
@@ -297,6 +454,7 @@ onMounted(() => {
     <PageHeader icon="📝" title="Absensi FirstWork" :subtitle="subtitle">
       <a v-if="canVerify" class="btn" :href="formLink" target="_blank" rel="noopener">↗ Buka Form Publik</a>
       <button v-if="canVerify" class="btn" @click="copyFormLink">🔗 Salin Link</button>
+      <button v-if="canVerify" class="btn" @click="showQr(formLink, 'Form FirstWork ' + (scopeBranch || 'SBY'))">▦ QR</button>
       <a class="btn" :href="exportUrl" target="_blank" rel="noopener">⬇️ Ekspor CSV</a>
       <button v-if="isAdmin" class="btn" :disabled="busy" @click="runSync(true)">🧪 Cek Sync</button>
       <button v-if="isAdmin" class="btn btn-primary" :disabled="busy" @click="runSync(false)">🔄 Sync Sheet</button>
@@ -316,7 +474,68 @@ onMounted(() => {
 
     <div class="fw-tabs">
       <button class="fw-tab" :class="{ active: tab === 'data' }" @click="tab = 'data'">Data Pengisian</button>
+      <button v-if="canVerify" class="fw-tab" :class="{ active: tab === 'ids' }" @click="openIdTab">
+        ID Fingerprint &amp; ID BPF
+      </button>
       <button v-if="isAdmin" class="fw-tab" :class="{ active: tab === 'admin' }" @click="openAdmin">Referensi &amp; Sync</button>
+    </div>
+
+    <!-- ============ TAB ID (v2.83.0) ============ -->
+    <div v-if="canVerify && tab === 'ids'" class="card card-pad">
+      <h3 style="margin-top:0;">ID Fingerprint &amp; ID BPF</h3>
+      <p class="fw-note" style="margin-top:0;">
+        Setiap pengisian form otomatis mendapat ID Fingerprint dan ID BPF. Nomor
+        mengalir dari counter yang diatur di sini. Data historis dari Google
+        Spreadsheet sudah membawa nomornya masing-masing.
+      </p>
+
+      <div v-if="idCfg" class="fw-id-grid">
+        <div class="fw-id-box">
+          <b>ID Fingerprint</b>
+          <div class="fw-id-meta">
+            Terbit berikutnya: <b>{{ idCfg.next_fingerprint }}</b><br />
+            Nomor terakhir terpakai: {{ idCfg.max_fingerprint ?? '—' }}<br />
+            Belum ber-ID: {{ idCfg.missing_fingerprint }} dari {{ idCfg.total }}
+          </div>
+          <label class="fw-id-label">Sumber counter</label>
+          <select class="select" v-model="idForm.fingerprint_series">
+            <option v-for="(label, code) in idCfg.series_labels" :key="code" :value="code">
+              Kolom {{ code }} — {{ label }}
+            </option>
+          </select>
+          <label class="fw-id-label">Set angka awal (nomor berikutnya)</label>
+          <input class="input" v-model="idForm.start_fingerprint" inputmode="numeric"
+                 :placeholder="'Sekarang: ' + idCfg.next_fingerprint" />
+        </div>
+        <div class="fw-id-box">
+          <b>ID BPF</b>
+          <div class="fw-id-meta">
+            Terbit berikutnya: <b>{{ idCfg.next_bpf }}</b><br />
+            Nomor terakhir terpakai: {{ idCfg.max_bpf ?? '—' }}<br />
+            Belum ber-ID: {{ idCfg.missing_bpf }} dari {{ idCfg.total }}
+          </div>
+          <label class="fw-id-label">Sumber counter</label>
+          <select class="select" v-model="idForm.bpf_series">
+            <option v-for="(label, code) in idCfg.series_labels" :key="code" :value="code">
+              Kolom {{ code }} — {{ label }}
+            </option>
+          </select>
+          <label class="fw-id-label">Set angka awal (nomor berikutnya)</label>
+          <input class="input" v-model="idForm.start_bpf" inputmode="numeric"
+                 :placeholder="'Sekarang: ' + idCfg.next_bpf" />
+        </div>
+      </div>
+      <p v-else class="fw-empty">⏳ Memuat pengaturan ID…</p>
+
+      <div class="fw-actions">
+        <button class="btn btn-primary" :disabled="busy" @click="saveIdConfig">💾 Simpan Pengaturan ID</button>
+        <button class="btn" :disabled="busy" @click="loadIdConfig">↩️ Muat Ulang</button>
+      </div>
+      <p class="fw-note">
+        Angka awal = nomor yang akan terbit untuk pengisian berikutnya. Kolom
+        angka awal boleh dibiarkan kosong bila hanya pemetaan counter yang
+        ingin diubah. Nomor yang sudah terpakai tidak akan diterbitkan dua kali.
+      </p>
     </div>
 
     <!-- ============ TAB DATA ============ -->
@@ -353,6 +572,8 @@ onMounted(() => {
           <thead>
             <tr>
               <th>Pendaftar</th>
+              <th>ID Fingerprint</th>
+              <th>ID BPF</th>
               <th>Pendidikan</th>
               <th>Referensi</th>
               <th>Waktu Kirim</th>
@@ -368,6 +589,8 @@ onMounted(() => {
                   <code>{{ row.registration_no }}</code> · NIK {{ maskNik(row.nik) }} · {{ row.no_hp || '—' }}
                 </div>
               </td>
+              <td class="nowrap">{{ row.fingerprint_no ?? '—' }}</td>
+              <td class="nowrap">{{ row.bpf_no ?? '—' }}</td>
               <td>{{ row.pendidikan_norm || row.pendidikan_raw || '—' }}</td>
               <td>
                 {{ row.referrer_name || row.referensi_raw || '—' }}
@@ -403,7 +626,33 @@ onMounted(() => {
         </div>
       </div>
 
-      <h3 style="margin-top:0;">Master Referensi</h3>
+      <h3 style="margin-top:0;">Link Form per Cabang</h3>
+      <p class="fw-note" style="margin-top:0;">
+        Setiap cabang punya tautan ber-token sendiri. Isian yang masuk lewat
+        tautan cabang A tidak pernah tercatat atas nama cabang B.
+      </p>
+      <div class="fw-table-wrap">
+        <table class="fw-table">
+          <thead><tr><th>Cabang</th><th>Link</th><th></th></tr></thead>
+          <tbody>
+            <tr v-for="b in branchForms" :key="b.branch_code">
+              <td><b>{{ b.branch_code }}</b><div class="fw-sub">{{ b.branch_name }}</div></td>
+              <td class="fw-link-cell">
+                <code v-if="b.form_path">{{ b.form_path }}</code>
+                <span v-else class="fw-hint">Token belum tersedia — restart aplikasi.</span>
+              </td>
+              <td>
+                <button class="btn btn-sm" :disabled="!b.form_path"
+                        @click="showBranchQr(b)">▦ QR</button>
+                <button class="btn btn-sm" :disabled="!b.form_path"
+                        @click="copyLink(branchUrl(b))">🔗 Salin</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Master Referensi</h3>
       <div class="fw-filters">
         <input class="input" v-model="newRef.name" placeholder="Nama referrer baru (cth: IFAH)" />
         <select class="select" v-model="newRef.user_id">
@@ -455,6 +704,8 @@ onMounted(() => {
         <div><span>Referensi</span><b>{{ detail.referrer_name || detail.referensi_raw || '—' }}</b>
           <small v-if="detail.referrer_needs_review">Belum dipetakan ke master</small></div>
         <div><span>No. HP</span><b>{{ detail.no_hp || '—' }}</b></div>
+        <div><span>ID Fingerprint</span><b>{{ detail.fingerprint_no ?? '—' }}</b></div>
+        <div><span>ID BPF</span><b>{{ detail.bpf_no ?? '—' }}</b></div>
         <div><span>Waktu Kirim</span><b>{{ fmtDT(detail.submitted_at) }}</b></div>
         <div><span>Status</span><b>{{ detail.status_label }}</b></div>
         <div><span>Sumber</span><b>{{ detail.source === 'sheet' ? 'Migrasi Sheet' : 'Form publik' }}</b></div>
@@ -474,6 +725,17 @@ onMounted(() => {
           <button class="btn btn-primary" :disabled="busy" @click="doVerify('verify')">✅ Verifikasi</button>
           <button class="btn" :disabled="busy" @click="doVerify('reject')">✕ Tolak</button>
         </div>
+      </div>
+
+      <div v-if="canVerify" class="fw-edit">
+        <h4>ID Fingerprint &amp; ID BPF (traineer/admin)</h4>
+        <div class="fw-edit-grid">
+          <input class="input" v-model="editFields.fingerprint_no" inputmode="numeric"
+                 placeholder="ID Fingerprint (angka)" />
+          <input class="input" v-model="editFields.bpf_no" inputmode="numeric"
+                 placeholder="ID BPF (angka)" />
+        </div>
+        <button class="btn btn-primary" :disabled="busy" @click="saveIds">💾 Simpan ID</button>
       </div>
 
       <div v-if="isAdmin" class="fw-edit">
@@ -497,6 +759,24 @@ onMounted(() => {
           <b>{{ e.event }}</b> · {{ e.status_to || '-' }} · {{ e.actor || 'sistem' }}
           <span>{{ fmtDT(e.created_at) }}</span>
           <div v-if="e.note" class="fw-hint">{{ e.note }}</div>
+        </div>
+      </div>
+    </Modal>
+
+    <!-- ============ QR STATIS (v2.84.0) ============ -->
+    <Modal v-if="qrModal.show" :title="qrModal.label" @close="qrModal.show = false">
+      <div class="fw-qr">
+        <img v-if="qrModal.dataUrl" :src="qrModal.dataUrl" alt="QR form pengisian" />
+        <p v-else class="fw-empty">⏳ Menyiapkan QR…</p>
+        <code class="fw-qr-url">{{ qrModal.url }}</code>
+        <p class="fw-note">
+          QR ini statis — bisa dicetak &amp; ditempel di lokasi pendaftaran.
+          Di dalamnya ada token cabang, jadi jangan dibagikan ke cabang lain.
+        </p>
+        <div class="fw-actions" style="justify-content:center;">
+          <a v-if="qrModal.dataUrl" class="btn btn-primary" :href="qrModal.dataUrl"
+             :download="qrModal.file">⬇️ Unduh PNG</a>
+          <button v-if="qrModal.dataUrl" class="btn" @click="printQr">🖨️ Cetak</button>
         </div>
       </div>
     </Modal>
@@ -568,4 +848,19 @@ onMounted(() => {
 .fw-sync-grid { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 6px; font-size: 11px; color: var(--text-2); }
 .fw-samples { margin-top: 8px; font-size: 11px; color: var(--text-3); display: grid; gap: 2px; }
 .fw-note { margin-top: 10px; font-size: 11px; color: var(--text-3); }
+.fw-link-cell { max-width: 420px; overflow-wrap: anywhere; }
+.fw-link-cell code { font-size: 10px; }
+/* v2.83.0: panel ID Fingerprint & ID BPF */
+.fw-id-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); margin: 12px 0; }
+.fw-id-box {
+  border: 1px solid var(--border); border-radius: 12px; padding: 14px;
+  display: grid; gap: 8px; align-content: start;
+}
+.fw-id-box b { font-size: 13px; }
+.fw-id-meta { font-size: 11px; color: var(--text-2); display: grid; gap: 2px; }
+.fw-id-label { display: block; font-size: 10px; color: var(--text-3); text-transform: uppercase; letter-spacing: .03em; margin-top: 4px; }
+/* v2.84.0: QR statis */
+.fw-qr { display: grid; justify-items: center; gap: 10px; }
+.fw-qr img { width: 300px; max-width: 80vw; border: 1px solid var(--border); border-radius: 10px; padding: 8px; background: #fff; }
+.fw-qr-url { font-size: 10px; overflow-wrap: anywhere; text-align: center; color: var(--text-2); }
 </style>

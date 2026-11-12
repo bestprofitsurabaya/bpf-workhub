@@ -8,7 +8,11 @@ Tabel:
 - first_work_events      : riwayat aksi (submit, verifikasi, koreksi)
 - first_work_referrers   : master nama pengundang/pemberi informasi lowongan
 - first_work_sheet_stage : staging mentah migrasi sheet (audit/remigrasi)
+- first_work_branch_forms: token form publik per cabang (v2.82.0)
+- first_work_id_counters : counter ID Fingerprint & ID BPF (v2.83.0)
 """
+import secrets
+
 from modules.config import get_db_connection
 
 
@@ -129,6 +133,61 @@ def ensure_first_work_schema(conn=None):
                 UNIQUE KEY uq_fws_uid (source_uid)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
         """, 'first_work_sheet_stage')
+
+        # --- ID Fingerprint & ID BPF (v2.83.0) ---
+        # Setiap pengisian form wajib punya ID Fingerprint & ID BPF. Keduanya
+        # mengalir dari dua kolom counter sheet (header '28161' = seri B,
+        # '6495' = seri C) dan pemetaannya bisa diatur traineer.
+        _run(cursor, """
+            ALTER TABLE first_work_submissions
+                ADD COLUMN IF NOT EXISTS fingerprint_no INT NULL AFTER sheet_seq,
+                ADD COLUMN IF NOT EXISTS bpf_no INT NULL AFTER fingerprint_no,
+                ADD INDEX IF NOT EXISTS idx_fw_fingerprint (fingerprint_no),
+                ADD INDEX IF NOT EXISTS idx_fw_bpf (bpf_no)
+        """, 'first_work_submissions.id_columns')
+
+        _run(cursor, """
+            CREATE TABLE IF NOT EXISTS first_work_id_counters (
+                series VARCHAR(4) NOT NULL PRIMARY KEY,
+                last_value INT NOT NULL DEFAULT 0,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    ON UPDATE CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        """, 'first_work_id_counters')
+
+        # --- tautan form per cabang (v2.82.0) ---
+        # Satu cabang = satu token unik. Token ini membuat tautan form cabang A
+        # tidak bisa dipakai mengirim isian atas nama cabang B (data pribadi
+        # tidak tertukar), dan menjadi dasar tautan form yang berbeda per cabang.
+        _run(cursor, """
+            CREATE TABLE IF NOT EXISTS first_work_branch_forms (
+                branch_code VARCHAR(10) NOT NULL PRIMARY KEY,
+                form_token VARCHAR(64) NOT NULL,
+                active TINYINT(1) NOT NULL DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY uq_fwbf_token (form_token)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        """, 'first_work_branch_forms')
+        try:
+            cursor.execute("SELECT code FROM branches WHERE is_active=1")
+            active_codes = [str((row[0] if isinstance(row, tuple) else row) or '').strip().upper()
+                            for row in (cursor.fetchall() or [])]
+            seeded = 0
+            for code in [c for c in active_codes if c]:
+                cursor.execute(
+                    'SELECT form_token FROM first_work_branch_forms WHERE branch_code=%s',
+                    (code,))
+                if cursor.fetchone():
+                    continue
+                cursor.execute(
+                    'INSERT INTO first_work_branch_forms (branch_code, form_token) '
+                    'VALUES (%s, %s)', (code, secrets.token_urlsafe(24)))
+                seeded += 1
+            if seeded:
+                print(f'[first-work-schema] token form cabang: {seeded} baru')
+        except Exception as e:
+            print(f'[first-work-schema] token form cabang dilewati: {e}')
 
         # --- seed referrer dari data pelamar (nama upline) ---
         # Nama referrer historis ada di applicants.upline; belum tentu punya akun.
