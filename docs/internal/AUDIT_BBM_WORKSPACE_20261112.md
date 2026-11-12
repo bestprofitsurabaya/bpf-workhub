@@ -11,7 +11,7 @@ live (`https://127.0.0.1:5000`) memakai sesi GA & Finance nyata; (3) query
 DB produksi read-only; (4) uji kontrak baru (pytest) + suite penuh; (5) audit
 endpoint mati (`scripts/audit_endpoints.py`).
 
-**Hasil singkat:** 9 temuan — **7 diperbaiki di v2.104.0**, 2 diterima
+**Hasil singkat:** 10 temuan — **8 diperbaiki di v2.104.0**, 2 diterima
 dengan alasan eksplisit (A-07, A-08). Tidak ada temuan yang membuka data
 antar cabang atau membuka jalur uang baru. Gerbang rilis
 `scripts/overall_check.sh` kembali hijau (9/9 langkah).
@@ -31,6 +31,7 @@ antar cabang atau membuka jalur uang baru. Gerbang rilis
 | A-07 | Antrean SPBU mismatch belum punya data produksi | Info | ⚠️ Diterima (diberi tahu) |
 | A-08 | Antrean "dana di driver" tidak punya aksi langsung | Info | ⚠️ Diterima (memang begitu) |
 | A-09 | Gerbang rilis `overall_check.sh` **merah** — smoke basi | Sedang (proses rilis) | ✅ Diperbaiki |
+| A-10 | Stamp versi di DB tertinggal di v2.97.0 (UI menampilkan versi lama) | Rendah (konsistensi) | ✅ Diperbaiki |
 
 ---
 
@@ -187,6 +188,33 @@ tidak bisa menyimpang lagi).
 
 **Hasil:** Smoke Rekap Pengeluaran **14/14**, Smoke Generator PDF BBM
 **19/19**. Gerbang `overall_check.sh` hijau kembali.
+
+---
+
+### A-10 — Stamp versi di DB tertinggal di v2.97.0
+
+**Bukti:** `scripts/check_version_stamps.py --with-db` → "DB master
+(system_config) = v2.97.0" dan "DB branches.system_version = v2.97.0",
+padahal kodenya v2.104.0.
+
+**Analisis:** dua titik DB ini **tidak** ikut ter-update saat versi kode
+dinaikkan. `write_branch_identity()` hanya menulis `system_config` di DB
+*cabang*; `branches.system_version` (master) hanya berubah kalau Admin
+mengedit cabang lewat UI, dan `system_config` master hanya berubah kalau
+Admin menyimpan form Identitas. Akibatnya UI Pengaturan → Identitas/Cabang
+menampilkan versi lama (v2.97.0) sementara sistem berjalan v2.104.0.
+
+Tidak ada yang membaca nilai ini untuk keputusan bisnis (deploy guard
+membandingkan CHANGELOG, PDF memakai konstanta kode), jadi ini soal
+**kebenaran tampilan**, bukan security.
+
+**Perbaikan:** `scripts/sync_version_stamp.py` (baru, idempoten) —
+menyinkronkan kedua titik dari `IDENTITY_DEFAULTS` (sumber kebenaran di kode,
+bukan versi yang diketik manual) sehingga otomatis ikut setiap bump versi.
+Nilai identitas lain (nama perusahaan, alamat, telepon) tidak disentuh:
+`save_company_identity` hanya menulis key yang ada di `values`.
+
+Setelah sinkron: **9/9 titik stamp (7 file + 2 DB) = v2.104.0.**
 
 ---
 
