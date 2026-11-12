@@ -297,23 +297,62 @@ def _valid_id_number(value):
     return number if 0 < number <= 2_000_000_000 else None
 
 
-def _id_state(conn):
-    """Ringkasan config + counter + pemakaian untuk UI traineer/admin."""
+def _counter_branch_scope(conn=None):
+    """Cabang yang counter-nya boleh dilihat sesi ini (None = semua cabang).
+
+    v2.97.1: panel counter ID dulu mengirim SEMUA cabang ke setiap traineer /
+    admin cabang. Sekarang: Admin Pusat → semua cabang; admin cabang → cabang
+    sendiri (+ `managed_branches`); role lain → cabang sesi saja; sesi tanpa
+    cabang → daftar kosong (fail-closed, bukan semua cabang).
+    """
+    own = (session.get('branch_code') or '').strip().upper()
+    if session.get('user_role') == 'admin':
+        try:
+            from modules.admin_scope import admin_branches
+            codes, all_branches = admin_branches(conn)
+            if all_branches:
+                return None
+            codes = [str(c or '').strip().upper() for c in (codes or [])
+                     if str(c or '').strip()]
+            if codes:
+                return codes
+        except Exception:
+            pass
+    return [own] if own else []
+
+
+def _id_state(conn, branch_codes=None):
+    """Ringkasan config + counter + pemakaian untuk UI traineer/admin.
+
+    v2.97.1: `branch_codes` membatasi daftar cabang & angka pemakaian yang
+    dikirim — None = semua cabang (Admin Pusat), list = cabang milik sesi.
+    """
     cfg = _parse_id_config(_config_get(conn, CONFIG_ID))
+    allowed = (None if branch_codes is None else
+               {str(c or '').strip().upper() for c in branch_codes
+                if str(c or '').strip()})
+    where, params = '', ()
+    if allowed is not None:
+        if allowed:
+            where = (' WHERE branch_code IN ('
+                     + ','.join(['%s'] * len(allowed)) + ')')
+            params = tuple(sorted(allowed))
+        else:
+            where = ' WHERE 1=0'
     cursor = conn.cursor(dictionary=True)
     try:
         cursor.execute('SELECT series, last_value FROM first_work_id_counters')
         counters = {row['series']: int(row['last_value'] or 0)
                     for row in (cursor.fetchall() or [])}
         cursor.execute(
-            'SELECT branch_code, series, last_value FROM first_work_branch_counters')
+            'SELECT branch_code, series, last_value FROM first_work_branch_counters'
+            + where, params)
         branch_counters = {(row['branch_code'], row['series']): int(row['last_value'] or 0)
                            for row in (cursor.fetchall() or [])}
         cursor.execute("""
             SELECT branch_code, MAX(fingerprint_no) AS max_fp,
                    MAX(bpf_no) AS max_bp
-            FROM first_work_submissions GROUP BY branch_code
-        """)
+            FROM first_work_submissions""" + where + " GROUP BY branch_code", params)
         branch_usage = {row['branch_code']: row for row in (cursor.fetchall() or [])}
         branches = _branches(conn)
         cursor.execute("""
@@ -323,8 +362,7 @@ def _id_state(conn):
                 SUM(fingerprint_no IS NULL) AS missing_fingerprint,
                 SUM(bpf_no IS NULL) AS missing_bpf,
                 COUNT(*) AS total
-            FROM first_work_submissions
-        """)
+            FROM first_work_submissions""" + where, params)
         usage = cursor.fetchone() or {}
     finally:
         cursor.close()
@@ -333,6 +371,8 @@ def _id_state(conn):
     for branch in branches or []:
         code = str(branch.get('code') or '').strip().upper()
         if not code:
+            continue
+        if allowed is not None and code not in allowed:
             continue
         fp_key = (code, cfg['fingerprint_series'])
         bp_key = (code, cfg['bpf_series'])
@@ -350,12 +390,29 @@ def _id_state(conn):
             'max_fingerprint': int(used.get('max_fp') or 0) or None,
             'max_bpf': int(used.get('max_bp') or 0) or None,
         })
+    # Angka ringkas di atas tabel: untuk satu cabang pakai counter efektif
+    # cabang itu (bila sudah punya), bukan counter global cabang lain.
+    single = next(iter(allowed)) if allowed and len(allowed) == 1 else None
+    fp_key = (single, cfg['fingerprint_series']) if single else None
+    bp_key = (single, cfg['bpf_series']) if single else None
+    if single:
+        next_fp = (branch_counters[fp_key] if fp_key in branch_counters
+                   else counters.get(cfg['fingerprint_series'], 0)) + 1
+        next_bp = (branch_counters[bp_key] if bp_key in branch_counters
+                   else counters.get(cfg['bpf_series'], 0)) + 1
+    elif allowed is not None and not allowed:
+        # Sesi tanpa cabang: jangan bocorkan angka counter global.
+        next_fp = next_bp = 0
+    else:
+        next_fp = counters.get(cfg['fingerprint_series'], 0) + 1
+        next_bp = counters.get(cfg['bpf_series'], 0) + 1
     return {
         'fingerprint_series': cfg['fingerprint_series'],
         'bpf_series': cfg['bpf_series'],
         'series_labels': {'B': 'Kolom B (header 28161)', 'C': 'Kolom C (header 6495)'},
-        'next_fingerprint': counters.get(cfg['fingerprint_series'], 0) + 1,
-        'next_bpf': counters.get(cfg['bpf_series'], 0) + 1,
+        'branch_scope': sorted(allowed) if allowed is not None else None,
+        'next_fingerprint': next_fp,
+        'next_bpf': next_bp,
         'max_fingerprint': usage.get('max_fingerprint') or None,
         'max_bpf': usage.get('max_bpf') or None,
         'missing_fingerprint': usage.get('missing_fingerprint') or 0,
@@ -1558,6 +1615,11 @@ def register_first_work_routes(app):
                 'registration_no': registration_no,
                 'nama': nama,
                 'submitted_at': submitted_at.strftime('%Y-%m-%d %H:%M:%S'),
+                # v2.97.1: kedua ID ditampilkan sebagai umpan balik di layar
+                # sukses — pelamar butuh nomornya untuk didaftarkan ke mesin
+                # fingerprint bersama Traineer cabang.
+                'fingerprint_no': fingerprint_no,
+                'bpf_no': bpf_no,
             })
         except Exception as e:
             if conn:
@@ -2114,13 +2176,17 @@ def register_first_work_routes(app):
     @app.route('/api/first-work/id-config', methods=['GET'])
     @role_required(EDIT_ROLES)
     def api_first_work_id_config():
-        """Pemetaan seri counter + angka berikutnya (untuk panel traineer)."""
+        """Pemetaan seri counter + angka berikutnya (untuk panel traineer).
+
+        v2.97.1: hanya cabang milik sesi (admin cabang) / cabang sesi
+        (traineer). Admin Pusat melihat semua cabang.
+        """
         conn = None
         try:
             conn = get_master_connection()
             if not conn:
                 return jsonify({'error': 'DB error'}), 500
-            return jsonify(_id_state(conn))
+            return jsonify(_id_state(conn, _counter_branch_scope(conn)))
         except Exception as e:
             return jsonify({'error': str(e)}), 500
         finally:
@@ -2131,7 +2197,7 @@ def register_first_work_routes(app):
                     pass
 
     @app.route('/api/first-work/id-config', methods=['PUT'])
-    @role_required(EDIT_ROLES)
+    @role_required(ADMIN_ROLES)
     def api_first_work_id_config_set():
         """Atur pemetaan seri & angka awal ID Fingerprint / ID BPF.
 
@@ -2139,6 +2205,10 @@ def register_first_work_routes(app):
                start_fingerprint: <angka awal>, start_bpf: <angka awal>}
         Angka awal = nomor yang akan terbit BERIKUTNYA; kolom boleh kosong
         bila hanya pemetaan yang ingin diubah.
+
+        v2.97.1: pengaturan ini GLOBAL (berlaku untuk semua cabang yang masih
+        ikut counter global), jadi hanya Admin Pusat. Admin cabang & traineer
+        mengatur/melihat counter cabangnya lewat endpoint branch di bawah.
         """
         conn = None
         try:
@@ -2158,6 +2228,13 @@ def register_first_work_routes(app):
             conn = get_master_connection()
             if not conn:
                 return jsonify({'status': 'error', 'msg': 'DB error'}), 500
+            from modules.admin_scope import is_ho_admin
+            if not is_ho_admin(conn):
+                return jsonify({
+                    'status': 'error',
+                    'msg': 'Pengaturan counter global (semua cabang) hanya untuk '
+                           'Admin Pusat. Admin cabang mengatur counter cabangnya '
+                           'sendiri di tabel Counter ID per cabang.'}), 403
             cursor = conn.cursor()
             try:
                 _config_set(conn, CONFIG_ID, json.dumps({
@@ -2183,7 +2260,7 @@ def register_first_work_routes(app):
                                ip=client_ip())
             return jsonify({'status': 'success',
                             'msg': 'Pengaturan ID Fingerprint & ID BPF disimpan.',
-                            'data': _id_state(conn)})
+                            'data': _id_state(conn, _counter_branch_scope(conn))})
         except Exception as e:
             return jsonify({'status': 'error', 'msg': str(e)}), 500
         finally:
@@ -2216,6 +2293,14 @@ def register_first_work_routes(app):
             if not conn:
                 return jsonify({'status': 'error', 'msg': 'DB error'}), 500
             cfg = _parse_id_config(_config_get(conn, CONFIG_ID))
+            # v2.97.1: admin cabang hanya boleh mengatur counter cabangnya
+            # sendiri (+ managed_branches); Admin Pusat boleh semua cabang.
+            from modules.admin_scope import admin_can_operate_branch
+            if not admin_can_operate_branch(code, conn):
+                return jsonify({
+                    'status': 'error',
+                    'msg': 'Counter cabang lain hanya bisa diatur oleh admin '
+                           'cabang tersebut atau Admin Pusat.'}), 403
             cursor = conn.cursor(dictionary=True)
             try:
                 cursor.execute('SELECT code FROM branches WHERE code=%s', (code,))
@@ -2254,7 +2339,7 @@ def register_first_work_routes(app):
                                          'start_bpf': start_bp}, ip=client_ip())
             return jsonify({'status': 'success',
                             'msg': f'Counter cabang {code} disimpan.',
-                            'data': _id_state(conn)})
+                            'data': _id_state(conn, _counter_branch_scope(conn))})
         except Exception as e:
             return jsonify({'status': 'error', 'msg': str(e)}), 500
         finally:

@@ -782,6 +782,17 @@ function copyRegNo() {
   navigator.clipboard?.writeText(done.value.registration_no).catch(() => {})
 }
 
+// v2.97.1: salin kedua nomor identitas kerja sekaligus (untuk diserahkan ke
+// Traineer saat pendaftaran mesin fingerprint).
+function copyWorkIds() {
+  if (!done.value) return
+  const lines = []
+  if (done.value.fingerprint_no) lines.push(`ID Fingerprint: ${done.value.fingerprint_no}`)
+  if (done.value.bpf_no) lines.push(`ID BPF: ${done.value.bpf_no}`)
+  if (done.value.registration_no) lines.push(`No. Registrasi: ${done.value.registration_no}`)
+  if (lines.length) navigator.clipboard?.writeText(lines.join('\n')).catch(() => {})
+}
+
 function maskNik(nik) {
   const text = String(nik || '')
   return text.length === 16 ? `${text.slice(0, 6)}••••${text.slice(-4)}` : text
@@ -823,16 +834,58 @@ onBeforeUnmount(() => {
 
       <template v-else>
       <div v-if="done" class="fw-success">
-        <div class="fw-check">✅</div>
-        <h2>Terima kasih, {{ done.nama }}!</h2>
+        <div class="fw-check">🎉</div>
+        <h2>Selamat, {{ done.nama }}!</h2>
+        <p class="fw-lead">
+          Data FirstWork Anda sudah kami terima. Kedua nomor identitas kerja di
+          bawah ini sudah terbit — tanda Anda resmi mulai bekerja sebagai
+          karyawan PT Bestprofit Futures.
+        </p>
+
+        <div v-if="done.fingerprint_no || done.bpf_no" class="fw-id-card">
+          <div class="fw-id-card-title">Nomor Identitas Kerja Anda</div>
+          <div class="fw-id-pair">
+            <div>
+              <span>ID Fingerprint</span>
+              <b>{{ done.fingerprint_no ?? '—' }}</b>
+            </div>
+            <div>
+              <span>ID BPF</span>
+              <b>{{ done.bpf_no ?? '—' }}</b>
+            </div>
+          </div>
+          <p class="fw-id-card-note">
+            Simpan baik-baik kedua nomor ini — dipakai untuk absensi selama Anda
+            bekerja dan tidak diterbitkan ulang. Jangan bagikan ke orang lain.
+          </p>
+          <button type="button" class="btn fw-wide" @click="copyWorkIds">📋 Salin Kedua ID</button>
+        </div>
+
         <div class="fw-info">
           <div><span>No. Registrasi</span><b>{{ done.registration_no }}</b></div>
           <div><span>Waktu Kirim</span><b>{{ done.submitted_at }}</b></div>
           <div><span>Status</span><b>Menunggu verifikasi Traineer</b></div>
         </div>
+
+        <div class="fw-next-steps">
+          <h3>Langkah selanjutnya</h3>
+          <ol>
+            <li>Simpan kedua ID di atas (screenshot atau catat).</li>
+            <li>
+              Hubungi Traineer{{ branchLabel ? ' cabang ' + branchLabel : '' }}
+              dan tunjukkan kedua ID Anda.
+            </li>
+            <li>
+              Traineer akan membantu mendaftarkan ID Fingerprint &amp; ID BPF Anda
+              ke mesin fingerprint, supaya kehadiran Anda tercatat sejak hari
+              pertama.
+            </li>
+          </ol>
+        </div>
+
         <p class="fw-note">
-          Simpan nomor registrasi di atas. Data Anda akan diverifikasi oleh Traineer
-          sebelum diproses lebih lanjut.
+          Kehadiran baru terekam setelah kedua ID terdaftar di mesin fingerprint.
+          Bila ada kendala, hubungi Traineer — jangan mengisi form ini lagi.
         </p>
         <button class="btn fw-wide" @click="copyRegNo">📋 Salin No. Registrasi</button>
         <button class="btn btn-primary fw-wide" @click="reset">📝 Isi Data Lain</button>
@@ -1075,6 +1128,33 @@ onBeforeUnmount(() => {
 }
 .fw-info span { display: block; font-size: 11px; color: var(--text-3); }
 .fw-info b { font-size: 14px; }
+/* v2.97.1: umpan balik nomor identitas kerja di layar sukses form publik */
+.fw-lead { margin: 8px 0 14px; font-size: 12.5px; line-height: 1.6; color: var(--text-2); }
+.fw-id-card {
+  text-align: left; border: 1px solid var(--success, #16a34a); border-radius: 12px;
+  padding: 14px; margin: 4px 0 16px; background: rgba(22, 163, 74, .05);
+}
+.fw-id-card-title {
+  font-size: 10px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase;
+  color: #166534; margin-bottom: 8px;
+}
+.fw-id-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.fw-id-pair > div {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+  padding: 10px 8px; text-align: center;
+}
+.fw-id-pair span { display: block; font-size: 10px; color: var(--text-3); }
+.fw-id-pair b { display: block; font-size: 20px; letter-spacing: .02em; margin-top: 2px; }
+.fw-id-card-note { margin: 10px 0 0; font-size: 11px; line-height: 1.55; color: var(--text-2); }
+.fw-id-card .fw-wide { margin-top: 10px; }
+.fw-next-steps {
+  text-align: left; border: 1px solid var(--border); border-radius: 12px;
+  padding: 12px 14px; margin-top: 14px; background: var(--bg);
+}
+.fw-next-steps h3 { font-size: 12px; margin: 0 0 8px; }
+.fw-next-steps ol { margin: 0; padding-left: 18px; font-size: 11.5px; line-height: 1.6; color: var(--text-2); }
+.fw-next-steps li + li { margin-top: 5px; }
+@media (max-width: 420px) { .fw-id-pair { grid-template-columns: 1fr; } }
 .fw-upload {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   min-height: 118px; border: 2px dashed var(--border); border-radius: 12px;

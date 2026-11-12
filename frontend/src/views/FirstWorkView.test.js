@@ -25,6 +25,16 @@ async function mountRole(role) {
       return Promise.resolve({ data: ROWS, stats: { total: 1, submitted: 1 }, total: 1, page: 1, scope_branch: 'MLG' })
     }
     if (path === '/api/first-work/meta') return Promise.resolve({ referrers: [] })
+    // v2.97.1: tautan form butuh entri ber-token untuk cabang sesi; mock kosong
+    // membuat tombol "Buka Form Publik" tidak pernah dirender.
+    if (path === '/api/first-work/branch-forms') {
+      return Promise.resolve({
+        branches: [{
+          branch_code: 'MLG', branch_name: 'Cabang Malang',
+          form_path: '/app/first-work-form?cabang=MLG&t=tok-mlg',
+        }],
+      })
+    }
     return Promise.resolve({})
   })
   const w = mount(FirstWorkView, { global: { stubs: { RouterLink: { template: '<a><slot /></a>' } } } })

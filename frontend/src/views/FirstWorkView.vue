@@ -8,6 +8,9 @@ import Modal from '../components/Modal.vue'
 
 const auth = useAuthStore()
 const isAdmin = computed(() => auth.role === 'admin')
+// v2.97.1: pengaturan counter GLOBAL hanya Admin Pusat; counter per cabang
+// hanya admin cabang milik cabang itu (server menolak 403 di luar cakupannya).
+const isHoAdmin = computed(() => auth.isHoAdmin)
 const canVerify = computed(() => ['traineer', 'admin'].includes(auth.role))
 const branchName = computed(() => auth.user?.branch_name || auth.user?.branch_code || '')
 
@@ -602,13 +605,14 @@ onMounted(() => {
             Belum ber-ID: {{ idCfg.missing_fingerprint }} dari {{ idCfg.total }}
           </div>
           <label class="fw-id-label">Sumber counter</label>
-          <select class="select" v-model="idForm.fingerprint_series">
+          <select class="select" v-model="idForm.fingerprint_series" :disabled="!isHoAdmin">
             <option v-for="(label, code) in idCfg.series_labels" :key="code" :value="code">
               Kolom {{ code }} — {{ label }}
             </option>
           </select>
           <label class="fw-id-label">Set angka awal (nomor berikutnya)</label>
           <input class="input" v-model="idForm.start_fingerprint" inputmode="numeric"
+                 :disabled="!isHoAdmin"
                  :placeholder="'Sekarang: ' + idCfg.next_fingerprint" />
         </div>
         <div class="fw-id-box">
@@ -619,13 +623,14 @@ onMounted(() => {
             Belum ber-ID: {{ idCfg.missing_bpf }} dari {{ idCfg.total }}
           </div>
           <label class="fw-id-label">Sumber counter</label>
-          <select class="select" v-model="idForm.bpf_series">
+          <select class="select" v-model="idForm.bpf_series" :disabled="!isHoAdmin">
             <option v-for="(label, code) in idCfg.series_labels" :key="code" :value="code">
               Kolom {{ code }} — {{ label }}
             </option>
           </select>
           <label class="fw-id-label">Set angka awal (nomor berikutnya)</label>
           <input class="input" v-model="idForm.start_bpf" inputmode="numeric"
+                 :disabled="!isHoAdmin"
                  :placeholder="'Sekarang: ' + idCfg.next_bpf" />
         </div>
       </div>
@@ -639,10 +644,19 @@ onMounted(() => {
           dilewati, jadi tidak ada ID ganda antar cabang. Angka awal tidak boleh
           mundur atau menabrak nomor yang sudah dipakai cabang itu.
         </p>
+        <p v-if="!isAdmin" class="fw-note">
+          Hanya admin cabang yang dapat mengubah counter cabangnya; Anda hanya
+          dapat melihat counter cabang sendiri. Admin Pusat dapat mengatur semua
+          cabang.
+        </p>
         <div class="fw-table-wrap">
           <table class="fw-table">
             <thead>
-              <tr><th>Cabang</th><th>FP berikutnya</th><th>BPF berikutnya</th><th>Set angka awal</th><th></th></tr>
+              <tr>
+                <th>Cabang</th><th>FP berikutnya</th><th>BPF berikutnya</th>
+                <th v-if="isAdmin">Set angka awal</th>
+                <th v-if="isAdmin"></th>
+              </tr>
             </thead>
             <tbody>
               <tr v-for="b in branchCounters" :key="b.branch_code">
@@ -653,7 +667,7 @@ onMounted(() => {
                 </td>
                 <td class="nowrap">{{ b.next_fingerprint }}</td>
                 <td class="nowrap">{{ b.next_bpf }}</td>
-                <td>
+                <td v-if="isAdmin">
                   <div class="fw-id-inputs">
                     <input class="input" v-model="b.start_fingerprint" inputmode="numeric"
                            :placeholder="'FP: ' + b.next_fingerprint" />
@@ -661,7 +675,7 @@ onMounted(() => {
                            :placeholder="'BPF: ' + b.next_bpf" />
                   </div>
                 </td>
-                <td>
+                <td v-if="isAdmin">
                   <button class="btn btn-sm btn-primary" :disabled="busy"
                           @click="saveBranchCounter(b)">Simpan</button>
                 </td>
@@ -672,13 +686,17 @@ onMounted(() => {
       </div>
 
       <div class="fw-actions">
-        <button class="btn btn-primary" :disabled="busy" @click="saveIdConfig">💾 Simpan Pengaturan ID</button>
+        <button v-if="isHoAdmin" class="btn btn-primary" :disabled="busy" @click="saveIdConfig">💾 Simpan Pengaturan ID</button>
         <button class="btn" :disabled="busy" @click="loadIdConfig">↩️ Muat Ulang</button>
       </div>
       <p class="fw-note">
         Angka awal = nomor yang akan terbit untuk pengisian berikutnya. Kolom
         angka awal boleh dibiarkan kosong bila hanya pemetaan counter yang
         ingin diubah. Nomor yang sudah terpakai tidak akan diterbitkan dua kali.
+        <template v-if="!isHoAdmin">
+          Pengaturan global (kolom counter & angka awal bersama) hanya dapat
+          diubah Admin Pusat.
+        </template>
       </p>
     </div>
 

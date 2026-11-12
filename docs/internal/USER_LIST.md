@@ -1,4 +1,4 @@
-# 📋 Daftar User & Role — BPF WorkHub v2.97.0
+# 📋 Daftar User & Role — BPF WorkHub v2.97.1
 
 Dokumen ini menjelaskan semua role yang didukung sistem, siapa yang memakainya, dan apa yang bisa dilakukan masing-masing.
 
@@ -463,7 +463,7 @@ sebagai PIN baru).
 | Branch Code | Multi-cabang: user dikaitkan dengan cabang tertentu |
 | Access Review | Review hak akses triwulanan (Jan/Apr/Jul/Okt) — akun tanpa login > 90 hari diklasifikasi "basi" & bisa dinonaktifkan Admin |
 | ACC Berjenjang (v2.36.0) | Pengajuan wajib ACC atasan dulu: kasbon & klaim BBM → Chief Driver lalu GA; overtime → GA HR lalu Admin. Admin bisa mengatur atasan khusus per user (kolom "Atasan" di Manajemen User); pengaju tidak bisa memutus pengajuannya sendiri; penolakan wajib alasan & tercatat di audit log |
-| Admin per-cabang (v2.37.0) | `admin_master` = Admin Pusat (flag `admin_all_branches=1`); `admin_<kode>` = Admin cabang (terkunci ke cabangnya). 1 admin utk 2 cabang: `users.managed_branches` = `SBY,BDG`. Promosi ke pusat: `users.admin_all_branches = 1`. Aksi lintas cabang (switch, docseq cabang lain, arsip audit, access review) ditolak 403 bagi admin cabang |
+| Admin per-cabang (v2.37.0) | `admin_master` = Admin Pusat (flag `admin_all_branches=1`); `admin_<kode>` = Admin cabang (terkunci ke cabangnya). 1 admin utk 2 cabang: `users.managed_branches` = `SBY,BDG`. Promosi ke pusat: `users.admin_all_branches = 1`. Aksi lintas cabang (switch, docseq cabang lain, arsip audit, access review) ditolak 403 bagi admin cabang. **Counter ID FirstWork (v2.97.1):** admin cabang hanya mengatur counter cabangnya (+ managed); pengaturan counter global khusus Admin Pusat; traineer hanya melihat cabangnya |
 | Edit/hapus air minum (v2.37.0) | Fitur opsional per cabang (`system_config.water_edit_enabled`, default nonaktif). Aktif → Finance edit (pending/verified) & hapus permanen pengajuan; keduanya wajib step-up PIN + snapshot data lama tersimpan di audit log |
 
 ---

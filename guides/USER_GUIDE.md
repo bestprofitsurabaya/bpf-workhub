@@ -1,4 +1,4 @@
-# 📖 Panduan Pengguna BPF WorkHub v2.97.0
+# 📖 Panduan Pengguna BPF WorkHub v2.97.1
 
 > **Siapa pun kamu — sopir, OB, admin, atau pimpinan — panduan ini ditulis untuk kamu.**
 > Tidak perlu paham teknis. Cukup ikuti langkah-langkah sesuai bagianmu.
@@ -532,9 +532,9 @@ Semua perubahan papan berjalan realtime — saat driver menyelesaikan tugas, sta
 
 - Form publik **ber-token per cabang**: `/app/first-work-form?cabang=<KODE>&t=<token>` (tanpa login) dipakai pendaftar first work: NIK, nama, pendidikan, referensi, No. HP, dan foto KTP. Halaman `/app/first-work` sendiri selalu menampilkan **data** pengisian.
 - **Setiap cabang punya tautan + QR sendiri.** Ambil dari tabel *Referensi & Sync* (admin) atau tombol **↗ Buka Form Publik / 🔗 Salin Link / ▦ QR** di header. QR statis bisa **diunduh PNG** atau langsung **dicetak** dan ditempel di lokasi pendaftaran — QR tetap sah selamanya sampai token dirotasi admin. Isian lewat tautan cabang lain langsung ditolak; tautan tanpa token juga ditolak. **Tautan yang tidak sah** (token salah/kosong, cabang tidak dikenal) kini menampilkan halaman penolakan jelas *"Tautan Form Tidak Valid"* — form tidak pernah tampil untuk cabang yang bukan milik tautan tersebut, tanpa tampil branding cabang apa pun.
-- Setiap pengisian otomatis mendapat **ID Fingerprint** dan **ID BPF** — nomor dari kolom counter Google Spreadsheet, berlanjut dari data terakhir (1.831 data historis sudah membawa nomornya).
+- Setiap pengisian otomatis mendapat **ID Fingerprint** dan **ID BPF** — nomor dari kolom counter Google Spreadsheet, berlanjut dari data terakhir (1.831 data historis sudah membawa nomornya). Kedua ID langsung tampil di layar sukses pendaftar sebagai **nomor identitas kerja**, disertai arahan menyimpannya lalu mendaftarkannya ke mesin fingerprint bersama Traineer cabang.
 - Kolom **ID Fingerprint & ID BPF** tampil di tabel data; **Detail** menampilkan NIK, referensi, No. HP, riwayat, tombol **🪪 Unduh KTP**, dan kotak koreksi kedua ID tersebut (Traineer/Admin).
-- Tab **ID Fingerprint & ID BPF** (Traineer/Admin): pilih kolom counter sumber tiap ID dan **atur angka awal** (nomor berikutnya yang terbit). Nomor yang sudah terpakai tidak diterbitkan dua kali.
+- Tab **ID Fingerprint & ID BPF**: pilih kolom counter sumber tiap ID dan **atur angka awal** (nomor berikutnya yang terbit). Nomor yang sudah terpakai tidak diterbitkan dua kali. **Pengaturan global** (kolom counter & angka awal bersama) hanya untuk **Admin Pusat**; **admin cabang** mengatur counter cabangnya sendiri dan hanya melihat cabangnya; **traineer** hanya melihat angka cabangnya (tanpa hak ubah).
 - Chip **🕒 Menunggu** membuka antrean yang perlu diverifikasi; chip lain memfilter status. Angka antrean juga tampil sebagai badge di menu sidebar.
 - **✅ Verifikasi** atau **✕ Tolak** — alasan penolakan wajib; setiap keputusan tercatat di riwayat.
 - Pendaftar **wajib mencentang persetujuan pemrosesan data pribadi** sebelum kirim — isian tanpa persetujuan ditolak dan tercatat begitu juga setiap persetujuan yang sah. Foto KTP otomatis dihapus sistem **90 hari** setelah keputusan verifikasi/penolakan (UU PDP).

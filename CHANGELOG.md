@@ -7,6 +7,25 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.97.1 — 12 November 2026 (FirstWork: counter ID per cabang ter-scope + ID resmi di form publik)
+
+- 🔐 **Counter ID per cabang kini benar-benar ter-scope** — daftar counter di
+  tab ID Fingerprint & ID BPF hanya memuat cabang milik pengguna. Sebelumnya
+  seluruh cabang beserta counter-nya terkirim ke traineer cabang mana pun.
+- 👮 **Hak pengaturan** — admin cabang hanya dapat mengatur counter cabangnya
+  sendiri (+ `managed_branches`); Admin Pusat mengatur semua cabang. Traineer
+  hanya melihat (read-only), tidak punya tombol/izin mengubah.
+- 🌐 **Pengaturan global hanya Admin Pusat** — pemetaan kolom counter & angka
+  awal bersama ditolak 403 untuk admin cabang/traineer karena berlaku lintas
+  cabang (cabang yang belum punya counter memakai angka itu).
+- 🧾 Angka ringkas (terbit berikutnya, nomor terpakai, belum ber-ID) ikut
+  ter-scope ke cabang pengguna; sesi tanpa cabang tidak menerima daftar/angka
+  apa pun (fail-closed).
+- 🎉 **Umpan balik ID di form publik** — layar sukses menampilkan ID Fingerprint
+  & ID BPF sebagai nomor identitas kerja, dengan kalimat humanis bahwa pelamar
+  resmi mulai bekerja, tombol salin kedua ID, serta arahan mendaftarkan kedua
+  ID ke mesin fingerprint dibantu Traineer cabang.
+
 ## v2.97.0 — 12 November 2026 (FirstWork: buka verifikasi / unverify)
 
 - ↩️ **Buka verifikasi** — baris `verified`/`rejected` dapat dikembalikan ke
