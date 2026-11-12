@@ -66,6 +66,7 @@ Catatan penting:
 
 - **SBY = cabang default** → datanya hidup di DB master, bukan di `bpf_branch_sby` (DB itu tidak ada). Dokumen lama pernah menulis daftar 9 cabang yang sebagian sudah tidak ada (`mlb`, `pnk`, `stt`, `tgl`, `vbi`) — jangan dipakai lagi. Penegasan konvensi: docstring `modules/branch_db_map.py` (latar 14 Sep 2026).
 - Master + 11 DB cabang masing-masing berisi **54 tabel** yang setara (ensure-schema menjaga paritas saat startup).
+- **Tabel FirstWork hidup di DB master** (fitur terpusat, dibaca lintas cabang oleh admin): `first_work_submissions` (1 baris = 1 pendaftar; kolom `fingerprint_no` & `bpf_no` unik), `first_work_events` (audit), `first_work_referrers` (master pengundang), `first_work_sheet_stage` (staging migrasi sheet), `first_work_branch_forms` (token form publik per cabang), `first_work_id_counters` (counter seri B/C untuk ID Fingerprint & ID BPF). Modul: `modules/routes_first_work.py` + `modules/first_work_schema.py`; form publik `/app/first-work-form?cabang=<KODE>&t=<token>` (wajib token semua cabang sejak v2.84.0); QR statis dibuat lokal di browser `FirstWorkView.vue`.
 - Cabang **PLM dihapus 23 Okt 2026**: row `branches` + DB `bpf_branch_plm` didrop; dump terakhirnya disimpan `/srv/bpf-workhub/backups_migrasi/branch_plm_last_backup_20261023_030001.sql.gz`; kode dokumen pelamar `PLM-` tetap berlaku (kode dokumen, bukan cabang).
 - Transaksi (BBM, SubsidiTepat, air minum) hidup **di DB cabang**; identitas user, cabang, log audit pusat, registry dokumen, `system_config` — di master (termasuk milik SBY).
 

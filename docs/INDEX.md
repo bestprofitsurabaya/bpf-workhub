@@ -2,7 +2,7 @@
 
 Rak buku dokumentasi. Pilih lorong sesuai peranmu — tiap dokumen punya pembaca yang jelas. Dokumen yang sudah usang dipindah ke bagian arsip atau ditandai *snapshot*; jangan dijadikan acuan untuk pengambilan keputusan sekarang.
 
-Terakhir dirapikan: **3 November 2026** (era v2.77.0). Dokumen inti yang sudah dikroscek ulang ke server: `README.md` dan `docs/DEVELOPER.md`.
+Terakhir dirapikan: **12 November 2026** (era v2.84.0). Dokumen inti yang sudah dikroscek ulang ke server: `README.md` dan `docs/DEVELOPER.md`.
 
 ---
 
@@ -63,6 +63,7 @@ Hasil pemeriksaan tertanggal; masih bagus sebagai landasan kenapa suatu keputusa
 | [`AUDIT_FITUR_TERBENAM_20261026.md`](internal/AUDIT_FITUR_TERBENAM_20261026.md) | 26 Okt 2026 — fitur yang tersembunyi & rencananya |
 | [`AUDIT_PDF_BBM_20261026.md`](internal/AUDIT_PDF_BBM_20261026.md) | 26 Okt 2026 — mesin PDF klaim BBM |
 | [`AUDIT_UI_FINANCE_20261028.md`](internal/AUDIT_UI_FINANCE_20261028.md) | 28 Okt 2026 — perbaikan UI finance (lihat `tests/test_finance_ui_audit_v275.py`) |
+| [`AUDIT_FIRSTWORK_BRANCH_20261111.md`](internal/AUDIT_FIRSTWORK_BRANCH_20261111.md) | 11 Nov 2026 — isolasi cabang & perlindungan data pribadi FirstWork (lihat `tests/test_first_work_isolation.py`) |
 | [`USABILITY_TEST_P5.md`](internal/USABILITY_TEST_P5.md) | Catatan sesi usability P5 |
 | [`RECEPTIONIST_EVENT_LEDGER_PLAN.md`](internal/RECEPTIONIST_EVENT_LEDGER_PLAN.md) | Rencana event ledger receptionist |
 

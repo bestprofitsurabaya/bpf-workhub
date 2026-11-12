@@ -4,7 +4,7 @@
  * menampilkan data lama setelah verifikasi/kehadiran sampai refresh manual.
  * v2.38.0: cache bump saja — stamp SPA v2.38.0 (migrasi worker gevent di backend).
  */
-const CACHE = 'bpf-spa-20261103-v2.77.0';
+const CACHE = 'bpf-spa-20261112-v2.84.0';
 const SHELL = ['/app/index.html'];
 
 self.addEventListener('install', (event) => {

@@ -1,4 +1,4 @@
-# 📋 Daftar User & Role — BPF WorkHub v2.77.0
+# 📋 Daftar User & Role — BPF WorkHub v2.84.0
 
 Dokumen ini menjelaskan semua role yang didukung sistem, siapa yang memakainya, dan apa yang bisa dilakukan masing-masing.
 
@@ -338,8 +338,15 @@ membuat akun.
 
 **Fitur Khusus:**
 - Absensi FirstWork: verifikasi/tolak pendaftar, unduh KTP, lihat riwayat
+- Setiap pengisian punya **ID Fingerprint & ID BPF** — bisa dikoreksi per baris, angka awalnya bisa diatur lewat tab ID
+- Tautan + **QR statis** form publik milik cabangnya (token per cabang; tautan tanpa token ditolak)
 - Rekrutmen (read-only): seluruh pelamar kerja cabangnya, filter tanggal/upline/user/status
 - Tanpa akses edit/verifikasi pelamar, PDF, atau data cabang lain
+
+**Akun:** satu per cabang — `traineer_<kode>` (mis. `traineer_sby`, `traineer_mlg`) —
+semua 12 cabang aktif sudah punya akun (Nov 2026). PIN awal default
+`123456` dan **wajib diganti lewat Profil Saya** (sistem menolak PIN lemah
+sebagai PIN baru).
 
 **Halaman:** Absensi FirstWork (`/app/first-work`) · Rekrutmen (`/app/receptionist`)
 

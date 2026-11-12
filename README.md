@@ -2,7 +2,7 @@
 
 Sistem operasional digital untuk **PT Bestprofit Futures** — Kantor Pusat Jakarta, dipakai oleh kantor pusat dan cabang-cabangnya di Indonesia.
 
-> **Versi 2.77.0 · November 2026** — riwayat lengkap: [CHANGELOG.md](CHANGELOG.md)
+> **Versi 2.84.0 · November 2026** — riwayat lengkap: [CHANGELOG.md](CHANGELOG.md)
 
 BPF WorkHub lahir dari masalah yang sudah bertahun-tahun jadi kebiasaan: pengeluaran BBM driver, kasbon, lembur, dan pembelian air minum tercatat di kertas dan Google Sheet — lampiran foto sukar dilacak, rekap sering tidak sinkron, dan dokumen penting terselip di mana-mana. Aplikasi ini menggantikannya dengan satu tempat: yang di lapangan mengirim lewat HP, yang memverifikasi bekerja lewat dashboard, dan semuanya tercatat penuh dengan audit trail.
 
@@ -43,7 +43,7 @@ Konvensi akun — **satu orang per divisi di satu cabang** → `{divisi}_{cabang
 | 🔄 **Penugasan driver** | Serah terima, tukar driver, riwayat per trip |
 | 📋 **Procurement · Asset · Expense** | Pengadaan, inventaris aset, dan pencatatan pengeluaran |
 | 🪪 **Receptionist** | Pipeline pelamar (daftar hadir otomatis) dan in-out karyawan, sinkron otomatis dari aplikasi dan Google Sheet |
-| 🎯 **Traineer** | Pembinaan trainee per cabang |
+| 🎯 **Absensi FirstWork** | Form publik ber-token per cabang (QR statis bisa dicetak) — pendaftar first work mengisi NIK, foto KTP, dan referensi; menerima **ID Fingerprint & ID BPF** otomatis yang angka awalnya diatur Traineer; verifikasi, koreksi, dan ekspor CSV di dashboard |
 | 📰 **News Scraper** | Berita tentang BPF dikumpulkan dari portal berita → publish ke WordPress tiap cabang (cron 06/10/14/18 WIB, hanya artikel berumur ≤ 1 hari) |
 | 🎬 **Transcoder** | YouTube → audio/video untuk materi internal (ffmpeg + yt-dlp) |
 | 📄 **PDF Kit** | Kompres PDF dua mesin: lossy Ghostscript + lossless qpdf — sadar dokumen bertanda tangan |

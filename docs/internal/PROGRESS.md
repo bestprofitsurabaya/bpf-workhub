@@ -2,13 +2,38 @@
 
 File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks saat sesi baru dimulai.
 
-**Terakhir diperbarui:** 2026-11-03<br>
+**Terakhir diperbarui:** 2026-11-12<br>
 **Branch:** `main`<br>
-**Versi terbaru:** v2.77.0 (3 Nov — OTP SubsidiTepat: anti request ganda, supervisor verifikasi status, cooldown resend; siklus OTP end-to-end OK — kode diverifikasi → token → 192 transaksi SPBU terimpor) · v2.76.0 (3 Nov — Menu bar seragam: Dashboard Finance `Ringkasan|Air Minum`, `/cash` `BBM|Kasbon & LPJ|SubsidiTepat`, `/water` `Pengajuan|Master Merk`; Data SPBU/BA/OTP dipulihkan + banner basi) · v2.75.0 (28 Okt — Audit UI role Finance: read-walk 25 endpoint selaras, guard tulis step-up teruji 428, 1 fix kecil daily-code wajib sesi) · v2.74.0 (27 Okt — Pentest Hardening: endpoint penugasan/master ditutup, PIN di-hash PBKDF2 + lazy-upgrade, anti-SSRF PDF, CSRF compare_digest + HSTS) · v2.73.0 (26 Okt — Assignment Konfirmasi & Swap: hidupkan fitur terbenam + cleanup legacy) · v2.72.0 (26 Okt — restorasi fitur rekap BBM yang tenggelam + STATUS/penolakan & filter tipe) · v2.71.0 (26 Okt — wave-20 Pengeluaran Rekap lintas modul) · v2.70.0 (25 Okt — wave-19 modul Pengadaan/ERP) · v2.69.0 (23 Okt — agen Subsidi Tepat login OTP dari dashboard Finance)
+**Versi terbaru:** v2.84.0 (12 Nov — semua cabang wajib tautan ber-token + QR statis lokal) · v2.83.0 (12 Nov — ID Fingerprint & ID BPF: backfill 1.831 baris, panel traineer, koreksi per baris) · v2.82.0 (11 Nov — audit isolasi cabang FirstWork: token per cabang, KTP tertutup, NIK disamarkan) · v2.81.0 (11 Nov — Profil Saya) · v2.80.0 (11 Nov — Absensi FirstWork + migrasi 1.831 baris sheet) · v2.77.0 (3 Nov — OTP SubsidiTepat: anti request ganda, supervisor verifikasi status, cooldown resend; siklus OTP end-to-end OK — kode diverifikasi → token → 192 transaksi SPBU terimpor)
 
 ---
 
-## 🔁 Handoff sesi berikutnya (3 Nov 2026 — baca ini dulu!)
+## 🔁 Handoff sesi berikutnya (12 Nov 2026 — baca ini dulu!)
+
+- **Absensi FirstWork lengkap (v2.80–v2.84):** 1.831 baris historis Google Sheet
+  termigrasi + KTP lama ditarik via Apps Script; form publik ber-token per
+  cabang; **semua cabang kini WAJIB token** (tautan lama SBY tanpa token ditolak
+  403 — QR statis baru harus disebarkan, generator QR ada di dashboard).
+  **ID Fingerprint & ID BPF** mengalir dari counter `first_work_id_counters`
+  (seri B = kolom sheet `28161`, seri C = `6495`; default Fingerprint=B,
+  BPF=C — bisa ditukar di panel ID), backfill via
+  `scripts/first_work_backfill_ids.py`, counter lanjut di 29992 / 8326.
+  37 pytest hijau (`test_first_work_isolation.py` + `test_first_work_ids.py`).
+- **Akun traineer semua cabang dibuat (12 Nov):** `traineer_<kode>` × 12 cabang
+  aktif, PIN awal `123456` (permintaan pemilik sistem, sadar risiko), wajib
+  ganti lewat Profil Saya — fungsi ganti PIN ter-audit end-to-end (PIN salah
+  ditolak, PIN lemah ditolak kebijakan, PIN kuat sukses, PIN lama mati).
+  Akun test (`traineer_smg_uji` dll.) dinonaktifkan. Sisa risiko diakui:
+  PIN default seragam — minta tiap traineer ganti PIN di hari pertama.
+- **Keamanan berikutnya (disepakati, belum dikerjakan):** consent checkbox di
+  form publik + retensi/penghapusan KTP + rate limit ke Redis (UU PDP trio).
+- **Stamp versi** dikencangkan ke v2.84.0 (7 titik) — sebelumnya tertinggal
+  v2.77.0 sejak beberapa rilis.
+- **⚠️ Infra note:** SSH sering tersendat menit-menitan (docker exec kadang telat menjawab; `import app` di dalam pytest kadang menunggu DB jauh lebih lama) — solusi: jalankan bertahap dengan `timeout`, jangan panik; kebanyakan lulus di percobaan berikutnya. Jangan menulis test unit yang men-trigger `import app` penuh — verifikasi header via live probe.
+
+---
+
+## 🔁 Handoff 3 Nov 2026 (v2.77.0)
 
 - **Wave terbaru (v2.77.0 — OTP SubsidiTepat anti-double & supervisor jujur status):** backend sekarang menolak minta login baru saat agen `starting`/`waiting_otp` + cooldown resend 180 s; supervisor memvalidasi `STATUS: OTP_SENT`/rate-limit sebelum menulis `waiting_otp`; request ganda tidak membunuh sesi OTP aktif. Siklus OTP selesai: kode diverifikasi → token baru → 150 transaksi SPBU ditarik & diimpor (status akhir: 192 transaksi terimpor).
 
