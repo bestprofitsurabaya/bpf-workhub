@@ -2,7 +2,7 @@
 
 Sistem operasional digital untuk **PT Bestprofit Futures** — Kantor Pusat Jakarta, dipakai oleh kantor pusat dan cabang-cabangnya di Indonesia.
 
-> **Versi 2.93.0 · November 2026** — riwayat lengkap: [CHANGELOG.md](CHANGELOG.md)
+> **Versi 2.94.0 · November 2026** — riwayat lengkap: [CHANGELOG.md](CHANGELOG.md)
 
 BPF WorkHub lahir dari masalah yang sudah bertahun-tahun jadi kebiasaan: pengeluaran BBM driver, kasbon, lembur, dan pembelian air minum tercatat di kertas dan Google Sheet — lampiran foto sukar dilacak, rekap sering tidak sinkron, dan dokumen penting terselip di mana-mana. Aplikasi ini menggantikannya dengan satu tempat: yang di lapangan mengirim lewat HP, yang memverifikasi bekerja lewat dashboard, dan semuanya tercatat penuh dengan audit trail.
 

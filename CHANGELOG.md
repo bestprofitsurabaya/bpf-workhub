@@ -7,6 +7,20 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.94.0 — 12 November 2026 (FirstWork: verifikasi/tolak massal untuk antrean migrasi)
+
+- ✅ **Aksi massal** di tab Data: centang baris (atau "pilih semua di halaman"),
+  isi satu catatan bersama, lalu verifikasi/tolak sekaligus — maksimal **100
+  baris per permintaan**.
+- 🔒 **Pengaman**: hanya baris berstatus `submitted` di cabang pengguna yang
+  disentuh; baris lain dilewati dan dilaporkan jumlahnya. Catatan minimal 5
+  karakter wajib, dan setiap baris mendapat event audit `bulk_verify` /
+  `bulk_reject` beserta aktor dan IP.
+- 🧾 Event massal tampil di riwayat detail dengan label tersendiri, sehingga
+  verifikasi massal tidak menyamar sebagai verifikasi perorangan.
+- 📋 Dipakai untuk membereskan backlog migrasi (1.799 baris >7 hari) secara
+  sadar dan tercatat — bukan verifikasi otomatis tanpa keputusan manusia.
+
 ## v2.93.0 — 12 November 2026 (FirstWork: visibilitas umur antrean verifikasi)
 
 - ⏳ **Statistik antrean menua** — daftar FirstWork kini menghitung pendaftar

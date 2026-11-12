@@ -30,6 +30,14 @@ const detail = ref(null)
 const events = ref([])
 const showDetail = ref(false)
 const verifyNote = ref('')
+// v2.94.0: verifikasi/tolak massal untuk membereskan antrean migrasi.
+const bulkIds = ref([])
+const bulkNote = ref('')
+const bulkBusy = ref(false)
+const allPageSelected = computed(() => {
+  const pending = rows.value.filter((r) => r.status === 'submitted')
+  return pending.length > 0 && pending.every((r) => bulkIds.value.includes(r.id))
+})
 const editFields = reactive({ nama: '', nik: '', pendidikan: '', no_hp: '', referrer_id: '' })
 
 // v2.83.0: ID Fingerprint & ID BPF — tampil di tabel, diedit traineer/admin,
@@ -96,6 +104,8 @@ const EVENT_LABELS = {
   ktp_purge: 'KTP dipurge (retensi)',
   phone_reuse: '⚠️ No. HP juga dipakai pendaftaran lain',
   ktp_reuse: '⚠️ File KTP identik dengan pendaftaran lain',
+  bulk_verify: 'Diverifikasi massal',
+  bulk_reject: 'Ditolak massal',
   first_work_id_config: 'Pengaturan ID Fingerprint/BPF',
 }
 function eventLabel(name) {
@@ -129,10 +139,44 @@ async function load(target = 1) {
     total.value = data.total || 0
     page.value = data.page || target
     scopeBranch.value = data.scope_branch ?? null
+    bulkIds.value = []
   } catch (e) {
     err.value = e.message || 'Gagal memuat data.'
   } finally {
     loading.value = false
+  }
+}
+
+function toggleAllBulk(checked) {
+  bulkIds.value = checked
+    ? rows.value.filter((r) => r.status === 'submitted').map((r) => r.id)
+    : []
+}
+
+async function runBulk(action) {
+  if (!bulkIds.value.length) { err.value = 'Pilih data dulu.'; return }
+  if (bulkNote.value.trim().length < 5) {
+    err.value = 'Catatan minimal 5 karakter agar jejak audit jelas.'
+    return
+  }
+  const label = action === 'verify' ? 'verifikasi' : 'tolak'
+  if (!window.confirm(`Yakin ${label} ${bulkIds.value.length} pendaftar? Tiap baris tercatat di riwayat.`)) return
+  bulkBusy.value = true
+  err.value = ''
+  try {
+    const data = await api('/api/first-work/bulk-verify', {
+      method: 'POST',
+      body: { ids: bulkIds.value, action, note: bulkNote.value.trim() },
+    })
+    msg.value = `${data.updated} data diperbarui`
+      + (data.skipped ? `, ${data.skipped} dilewati (bukan status menunggu).` : '.')
+    bulkIds.value = []
+    bulkNote.value = ''
+    await load(page.value)
+  } catch (e) {
+    err.value = e.message || 'Gagal memproses massal.'
+  } finally {
+    bulkBusy.value = false
   }
 }
 
@@ -594,6 +638,20 @@ onMounted(() => {
         <button class="btn" type="button" @click="resetFilters">Reset</button>
       </form>
 
+      <div v-if="canVerify && rows.length" class="fw-bulk">
+        <label class="fw-bulk-all">
+          <input type="checkbox" :checked="allPageSelected" @change="toggleAllBulk($event.target.checked)" />
+          Pilih semua di halaman
+        </label>
+        <span class="fw-bulk-count">{{ bulkIds.length }} dipilih</span>
+        <input class="input fw-bulk-note" v-model="bulkNote" maxlength="500"
+               placeholder="Catatan bersama (wajib) — cth: verifikasi data migrasi sheet" />
+        <button class="btn btn-primary btn-sm" :disabled="!bulkIds.length || bulkBusy"
+                @click="runBulk('verify')">✅ Verifikasi terpilih</button>
+        <button class="btn btn-sm" :disabled="!bulkIds.length || bulkBusy"
+                @click="runBulk('reject')">✕ Tolak terpilih</button>
+      </div>
+
       <div v-if="loading" class="fw-empty">⏳ Memuat data…</div>
       <div v-else-if="!rows.length" class="fw-empty">
         <p style="margin:0 0 6px;">Tidak ada pengisian untuk filter ini.</p>
@@ -604,6 +662,7 @@ onMounted(() => {
         <table class="fw-table">
           <thead>
             <tr>
+              <th v-if="canVerify" class="fw-check"></th>
               <th>Pendaftar</th>
               <th>ID Fingerprint</th>
               <th>ID BPF</th>
@@ -616,6 +675,10 @@ onMounted(() => {
           </thead>
           <tbody>
             <tr v-for="row in rows" :key="row.id">
+              <td v-if="canVerify" class="fw-check">
+                <input type="checkbox" :value="row.id" v-model="bulkIds"
+                       :disabled="row.status !== 'submitted'" />
+              </td>
               <td>
                 <b>{{ row.nama }}</b>
                 <div class="fw-sub">
@@ -877,6 +940,13 @@ onMounted(() => {
 .fw-edit-grid { display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); margin: 8px 0; }
 .fw-event { font-size: 11px; padding: 6px 0; border-bottom: 1px dashed var(--border); }
 .fw-event-warn b { color: #b45309; }
+/* v2.94.0: verifikasi massal */
+.fw-bulk { display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+  padding: 10px; margin-bottom: 10px; border: 1px solid var(--border); border-radius: 8px; }
+.fw-bulk-all { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+.fw-bulk-count { font-size: 12px; font-weight: 600; color: var(--text-2); }
+.fw-bulk-note { flex: 1 1 240px; min-width: 200px; }
+.fw-check { width: 28px; }
 /* v2.93.0: peringatan antrean menua */
 .fw-callout-warn { border-color: #f59e0b; background: rgba(245, 158, 11, .1); color: #92400e; }
 .fw-stat-click { cursor: pointer; }

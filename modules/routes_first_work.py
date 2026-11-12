@@ -1780,6 +1780,98 @@ def register_first_work_routes(app):
                 except Exception:
                     pass
 
+    # ---------------- VERIFIKASI MASSAL (v2.94.0) ----------------
+    @app.route('/api/first-work/bulk-verify', methods=['POST'])
+    @role_required(EDIT_ROLES)
+    def api_first_work_bulk_verify():
+        """Verifikasi/tolak banyak baris sekaligus (maks 100 per permintaan).
+
+        Hanya baris berstatus 'submitted' di cabang pengguna yang disentuh;
+        tiap baris tetap mendapat event audit sendiri. Catatan wajib supaya
+        aksi massal tidak terjadi tanpa alasan yang tercatat.
+        """
+        conn = None
+        try:
+            body = request.get_json(silent=True) or {}
+            action = _clean(body.get('action'), 20).lower()
+            note = _clean(body.get('note'), 500)
+            raw_ids = body.get('ids')
+            if action not in ('verify', 'reject'):
+                return jsonify({'status': 'error',
+                                'msg': 'Aksi harus verify atau reject'}), 400
+            if not isinstance(raw_ids, list) or not raw_ids:
+                return jsonify({'status': 'error',
+                                'msg': 'Pilih minimal satu data'}), 400
+            if len(note) < 5:
+                return jsonify({'status': 'error',
+                                'msg': 'Catatan minimal 5 karakter agar jejak audit jelas'}), 400
+            ids = []
+            for value in raw_ids:
+                text = str(value).strip()
+                if text.isdigit() and int(text) > 0 and int(text) not in ids:
+                    ids.append(int(text))
+            if not ids:
+                return jsonify({'status': 'error', 'msg': 'ID tidak valid'}), 400
+            if len(ids) > 100:
+                return jsonify({'status': 'error',
+                                'msg': 'Maksimal 100 data per permintaan'}), 400
+
+            conn = get_master_connection()
+            if not conn:
+                return jsonify({'status': 'error', 'msg': 'DB error'}), 500
+            scope = _scope_branch(conn)
+            new_status = 'verified' if action == 'verify' else 'rejected'
+            actor = session.get('full_name') or session.get('user_name') or ''
+            cursor = conn.cursor(dictionary=True)
+            updated = 0
+            try:
+                placeholders = ','.join(['%s'] * len(ids))
+                cursor.execute(
+                    "SELECT id, status, branch_code FROM first_work_submissions "
+                    "WHERE id IN (" + placeholders + ")", ids)
+                eligible = [
+                    row['id'] for row in (cursor.fetchall() or [])
+                    if row.get('status') == 'submitted'
+                    and (not scope or row.get('branch_code') == scope)
+                ]
+                for submission_id in eligible:
+                    cursor.execute("""
+                        UPDATE first_work_submissions
+                        SET status=%s, verification_note=%s, verified_by=%s,
+                            verified_at=NOW()
+                        WHERE id=%s AND status='submitted'
+                    """, (new_status, note, actor, submission_id))
+                    if not cursor.rowcount:
+                        continue
+                    cursor.execute("""
+                        INSERT INTO first_work_events
+                            (submission_id, event, status_from, status_to, note,
+                             actor, actor_role, ip)
+                        VALUES (%s,%s,'submitted',%s,%s,%s,%s,%s)
+                    """, (submission_id, 'bulk_' + action, new_status,
+                          'Massal: ' + note, actor, session.get('user_role', ''),
+                          client_ip()))
+                    updated += 1
+                conn.commit()
+            finally:
+                cursor.close()
+
+            log_activity_async(None, 'first_work_bulk_' + action,
+                               session.get('user_role', ''), actor,
+                               new_data={'ids': ids, 'updated': updated,
+                                         'note': note}, ip=client_ip())
+            return jsonify({'status': 'success', 'updated': updated,
+                            'skipped': len(ids) - updated,
+                            'msg': f'{updated} data diperbarui.'})
+        except Exception as e:
+            return jsonify({'status': 'error', 'msg': str(e)}), 500
+        finally:
+            if conn:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+
     # ---------------- EDIT (ADMIN) ----------------
     @app.route('/api/first-work/<int:submission_id>', methods=['PATCH'])
     @role_required(ADMIN_ROLES)
