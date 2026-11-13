@@ -12,6 +12,7 @@ import BbmKasbonPanel from '../components/BbmKasbonPanel.vue'
 import BbmActionQueue from '../components/BbmActionQueue.vue'
 import BbmWorkspaceKpi from '../components/BbmWorkspaceKpi.vue'
 import VoucherPanel from '../components/VoucherPanel.vue'
+import FlowGuide from '../components/FlowGuide.vue'
 import { formatDateTime } from '../utils/format.js'
 
 // Fase 1 (v2.100.0): tiga laporan lama dirender di dalam meja kerja ini.
@@ -131,7 +132,7 @@ const isGa = ['ga', 'admin'].includes(auth.role)
 const isFinance = ['finance', 'admin'].includes(auth.role)
 const canEditDaily = isFinance
 
-// Menu bar modul: BBM | Kasbon & LPJ | SubsidiTepat (SPBU + OTP).
+// Menu bar modul: BBM | Kasbon & LPJ | Voucher Rekanan | Subsidi Tepat | Laporan.
 // Deep link ?tab=kasbon dipakai kartu prioritas Dashboard Finance.
 const _params = new URLSearchParams(window.location.search)
 const _requestedTab = _params.get('tab')
@@ -383,7 +384,9 @@ onMounted(load)
 <template>
   <div>
     <PageHeader icon="⛽" title="BBM, Kasbon &amp; SPBU"
-                subtitle="Satu pusat kerja klaim BBM, kasbon/LPJ, dan data SPBU SubsidiTepat" />
+                subtitle="Klaim BBM, voucher SPBU mitra, kasbon/LPJ, data Subsidi Tepat, dan laporan — pilih tab sesuai pekerjaan" />
+
+    <FlowGuide audience="staff" />
 
     <BbmActionQueue :reload-key="queueReloadKey" @open="openQueue" @act="onQueueAction" />
 
@@ -394,29 +397,29 @@ onMounted(load)
       <button type="button" role="tab" :aria-selected="activeSection === 'bbm'" :class="{ active: activeSection === 'bbm' }"
               data-testid="workspace-tab-bbm" @click="activeSection = 'bbm'">
         <span class="workspace-tab-icon" aria-hidden="true">⛽</span>
-        <span class="workspace-tab-text">BBM<small>Klaim &amp; pencairan</small></span>
+        <span class="workspace-tab-text">BBM<small>Klaim tunai driver</small></span>
         <span class="workspace-tab-count" aria-label="klaim menunggu">{{ queueBadges.bbm_verify_pending || 0 }} klaim</span>
       </button>
       <button type="button" role="tab" :aria-selected="activeSection === 'kasbon'" :class="{ active: activeSection === 'kasbon' }"
               data-testid="workspace-tab-kasbon" @click="activeSection = 'kasbon'">
         <span class="workspace-tab-icon" aria-hidden="true">🧾</span>
-        <span class="workspace-tab-text">Kasbon &amp; LPJ<small>Kode harian &amp; LPJ driver</small></span>
+        <span class="workspace-tab-text">Kasbon &amp; LPJ<small>Uang muka &amp; bukti LPJ</small></span>
         <span class="workspace-tab-count" aria-label="kasbon menunggu">{{ queueBadges.cash_pending || 0 }} kasbon</span>
       </button>
       <button type="button" role="tab" :aria-selected="activeSection === 'voucher'" :class="{ active: activeSection === 'voucher' }"
               data-testid="workspace-tab-voucher" @click="activeSection = 'voucher'">
         <span class="workspace-tab-icon" aria-hidden="true">🎟️</span>
-        <span class="workspace-tab-text">Voucher Rekanan<small>Pemakaian &amp; tagihan SPBU</small></span>
+        <span class="workspace-tab-text">Voucher Rekanan<small>Tagihan SPBU mitra</small></span>
       </button>
       <button v-if="isFinance" type="button" role="tab" :aria-selected="activeSection === 'subsidy'" :class="{ active: activeSection === 'subsidy' }"
               data-testid="workspace-tab-subsidy" @click="activeSection = 'subsidy'">
         <span class="workspace-tab-icon" aria-hidden="true">🛡️</span>
-        <span class="workspace-tab-text">SubsidiTepat<small>Data SPBU &amp; akses OTP</small></span>
+        <span class="workspace-tab-text">Subsidi Tepat<small>Data SPBU (Finance)</small></span>
       </button>
       <button type="button" role="tab" :aria-selected="activeSection === 'laporan'" :class="{ active: activeSection === 'laporan' }"
               data-testid="workspace-tab-laporan" @click="activeSection = 'laporan'">
         <span class="workspace-tab-icon" aria-hidden="true">📈</span>
-        <span class="workspace-tab-text">Laporan<small>Rekap, realisasi, analisis</small></span>
+        <span class="workspace-tab-text">Laporan<small>Rekap &amp; analisis</small></span>
       </button>
     </nav>
 

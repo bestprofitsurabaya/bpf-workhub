@@ -22,8 +22,10 @@ const PENDING = {
   foto_odo_sebelum: 'odo.jpg',
   foto_nota_odo_sesudah: null,
   foto_struk: null,
+  ml_anomaly_flag: 0,
 }
 const UNSETTLED = { ...PENDING, id: 2, display_id: 'BBM-SBY-20261113-0002' }
+let anomalyPending = false
 
 function mockApi() {
   apiMock.mockImplementation((path, opts = {}) => {
@@ -35,13 +37,14 @@ function mockApi() {
         config: { value: 130000, partner: 'SPBU 54.601.01' },
       })
     }
-    if (path === '/api/voucher/pending') return Promise.resolve({ data: [PENDING] })
+    if (path === '/api/voucher/pending') return Promise.resolve({ data: [anomalyPending ? { ...PENDING, ml_anomaly_flag: 1 } : PENDING] })
     if (path === '/api/voucher/unsettled') return Promise.resolve({ data: [UNSETTLED] })
     if (path === '/api/voucher/settlements') {
       if (opts.method === 'POST') return Promise.resolve({ status: 'success', msg: 'Tagihan dibuat' })
       return Promise.resolve([])
     }
     if (path === '/api/voucher/verify/1') return Promise.resolve({ status: 'success', msg: 'Voucher diverifikasi GA' })
+    if (path === '/api/queue/anomaly-clear/1') return Promise.resolve({ status: 'success', msg: 'Anomali dikonfirmasi' })
     return Promise.resolve({})
   })
 }
@@ -61,6 +64,7 @@ async function mountView(role = 'finance') {
 describe('VoucherPanel — meja kerja voucher rekanan', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    anomalyPending = false
     vi.stubGlobal('confirm', vi.fn(() => true))
   })
 
@@ -99,6 +103,18 @@ describe('VoucherPanel — meja kerja voucher rekanan', () => {
     const post = apiMock.mock.calls.find(([p, o]) => p === '/api/voucher/settlements' && o?.method === 'POST')
     expect(post).toBeTruthy()
     expect(post[1].body.tx_ids).toEqual([2])
+    w.unmount()
+  })
+
+  it('voucher anomali memakai Verifikasi penuh: bersihkan lalu verifikasi', async () => {
+    anomalyPending = true
+    const w = await mountView('ga')
+    const btn = w.find('[data-testid="voucher-verify-1"]')
+    expect(btn.text()).toContain('Verifikasi penuh')
+    await btn.trigger('click')
+    await flushPromises()
+    expect(apiMock).toHaveBeenCalledWith('/api/queue/anomaly-clear/1', { method: 'POST' })
+    expect(apiMock).toHaveBeenCalledWith('/api/voucher/verify/1', { method: 'POST' })
     w.unmount()
   })
 

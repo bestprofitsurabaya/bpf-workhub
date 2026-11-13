@@ -15,12 +15,23 @@ from modules.security import rate_limit
 from modules.admin_scope import (is_ho_admin, scope_denied_response,
                                  admin_branches, ho_only)
 
-_DUMMY_TX_SQL = """INSERT IGNORE INTO transactions
+_DUMMY_TXS = [
+    ('AKHAD', 'L 1413 CBI', 'AVANZA', 'PERTALITE', 200000, 20.00, 10000, 12936,
+     'rekanan', 'archived', 12.50, 3, 'Jl. Raya Darmo 45, Surabaya'),
+    ('AHMAT', 'B 2628 SRP', 'INNOVA', 'PERTAMAX', 270000, 20.00, 13500, 71126,
+     'rekanan', 'archived', 10.20, 5, 'Jl. Ahmad Yani 120, Surabaya'),
+]
+
+# v2.108.2: dulu `INSERT IGNORE` tanpa kunci unik — setiap klik "Buat Data
+# Demo" menambah 2 baris lagi (MLG sampai 4 baris). Sekarang benar-benar
+# idempoten: baris yang sama (is_dummy + driver + nopol) tidak digandakan.
+_DUMMY_TX_SQL = """INSERT INTO transactions
     (driver_name, nopol, vehicle_type, bbm_type, nominal, liter, price_per_liter,
      odo_km, spbu_type, status, km_per_liter, jumlah_appointment, is_dummy, gps_address)
-    VALUES
-    ('AKHAD','L 1413 CBI','AVANZA','PERTALITE',200000,20.00,10000,12936,'rekanan','archived',12.50,3,1,'Jl. Raya Darmo 45, Surabaya'),
-    ('AHMAT','B 2628 SRP','INNOVA','PERTAMAX',270000,20.00,13500,71126,'rekanan','archived',10.20,5,1,'Jl. Ahmad Yani 120, Surabaya')"""
+    SELECT %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,1,%s FROM DUAL
+    WHERE NOT EXISTS (
+        SELECT 1 FROM transactions
+        WHERE is_dummy=1 AND driver_name=%s AND nopol=%s)"""
 
 
 def register_branch_routes(app):
@@ -118,8 +129,11 @@ def register_branch_routes(app):
                 conn.close()
                 return jsonify({'status': 'error', 'msg': res['error']}), 400
             cursor = conn.cursor()
-            cursor.execute(_DUMMY_TX_SQL)
-            dummy_tx = cursor.rowcount
+            dummy_tx = 0
+            for row in _DUMMY_TXS:
+                cursor.execute(_DUMMY_TX_SQL, row + (row[0], row[1]))
+                if cursor.rowcount and cursor.rowcount > 0:
+                    dummy_tx += cursor.rowcount
             conn.commit()
             cursor.close()
             conn.close()
@@ -130,6 +144,56 @@ def register_branch_routes(app):
                                ip=request.remote_addr, branch_code=code)
             return jsonify({'status': 'success',
                             'msg': f'Data demo cabang {code}: {res["created"]} rute baru, {dummy_tx} transaksi dummy'})
+        except Exception as e:
+            return jsonify({'status': 'error', 'msg': str(e)}), 500
+
+    @app.route('/api/branches/<code>/clean-demo', methods=['POST'])
+    @ho_only
+    @rate_limit(limit=10, window=60, scope='clean-demo')
+    def api_branches_clean_demo(code):
+        """Bersihkan data demo di DB cabang tertentu — pasangan seed-demo.
+
+        v2.108.2: sebelumnya hanya ada pembersihan untuk cabang SESI, padahal
+        penanaman bisa per cabang. Akibatnya Admin Pusat bisa menanam demo ke
+        MLG tetapi tidak bisa membersihkannya tanpa mengganti cabang aktif
+        (dan pergantian cabang mengubah seluruh tampilan). Sekarang simetris.
+
+        Hanya menyentuh baris demo: appointment `DEMO-*` dan transaksi
+        `is_dummy=1`. Data asli tidak disentuh.
+        """
+        try:
+            from scripts.seed_demo_routes import clean_demo_appointments
+            branch = bm.get_branch(code)
+            if not branch or not branch.get('is_active'):
+                return jsonify({'status': 'error',
+                                'msg': 'Cabang tidak ditemukan / nonaktif'}), 404
+            conn = get_db_connection(branch_code=code)
+            if not conn:
+                return jsonify({'status': 'error',
+                                'msg': 'DB cabang tidak tersedia — klik 🗄️ DB dulu'}), 400
+            try:
+                res = clean_demo_appointments(conn=conn, commit=False)
+                cursor = conn.cursor()
+                try:
+                    cursor.execute("DELETE FROM transactions WHERE is_dummy=1")
+                    dummy_tx = cursor.rowcount
+                    cursor.execute(
+                        "INSERT INTO system_config (config_key, config_value) "
+                        "VALUES ('dummy_data_enabled','false') "
+                        "ON DUPLICATE KEY UPDATE config_value=VALUES(config_value)")
+                finally:
+                    cursor.close()
+                conn.commit()
+            finally:
+                conn.close()
+            actor = session.get('full_name') or session.get('user_name') or 'Admin'
+            log_activity_async(0, 'branch_clean_demo', 'admin', actor,
+                               old_data={'code': code, 'routes': res['deleted'],
+                                         'transactions': dummy_tx},
+                               ip=request.remote_addr, branch_code=code)
+            return jsonify({'status': 'success',
+                            'msg': f'Data demo cabang {code} dibersihkan: '
+                                   f'{res["deleted"]} rute, {dummy_tx} transaksi dummy'})
         except Exception as e:
             return jsonify({'status': 'error', 'msg': str(e)}), 500
 

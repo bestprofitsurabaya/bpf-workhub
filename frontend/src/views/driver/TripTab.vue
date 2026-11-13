@@ -26,7 +26,11 @@ const savingVisit = ref(false)
 
 const VISIT_LABELS = { ditemui: '😊 Ditemui', prospek: '🤝 Prospek', gagal: '❌ Gagal' }
 
-watch(() => store.profile, (p) => { if (p) nopol.value = p.nopol || '' }, { immediate: true })
+watch(() => store.profile, (p) => {
+  if (!p) return
+  nopol.value = p.nopol || ''
+  if (!kmAwal.value) kmAwal.value = Number(p.last_odo_km || p.initial_odo_km || 0)
+}, { immediate: true })
 
 function addRow(data = {}) {
   rows.value.push({
@@ -282,7 +286,12 @@ onUnmounted(() => { if (saveTimer) clearTimeout(saveTimer) })
       <div class="field"><label>Jam Tiba</label><input class="input" type="time" v-model="jamTiba" /></div>
     </div>
     <div class="row">
-      <div class="field"><label>KM Awal <span class="req">*</span></label><input class="input" type="number" v-model.number="kmAwal" min="0" placeholder="0" /></div>
+      <div class="field"><label>KM Awal <span class="req">*</span></label>
+        <input class="input" type="number" v-model.number="kmAwal" min="0" placeholder="0" />
+        <div v-if="store.profile?.last_odo_km || store.profile?.initial_odo_km" class="muted" style="font-size:10px;">
+          Acuan {{ Number(store.profile?.last_odo_km || store.profile?.initial_odo_km || 0).toLocaleString('id-ID') }} km
+        </div>
+      </div>
       <div class="field"><label>KM Akhir</label><input class="input" type="number" v-model.number="kmAkhir" min="0" placeholder="0" /></div>
     </div>
 

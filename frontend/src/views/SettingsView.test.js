@@ -10,7 +10,7 @@ vi.mock('../stores/auth', () => ({
 }))
 
 const DRIVERS = [{ name: 'RIVAN', nopol: 'L 1', vehicle_type: 'AVANZA', bbm_type: 'PERTALITE', is_active: true }]
-const VEHICLES = [{ id: 1, vehicle_type: 'AVANZA', brand: 'Toyota', fuel_capacity: 45, is_active: true }]
+const VEHICLES = [{ id: 1, nopol: 'B 2628 SRP', vehicle_type: 'AVANZA', brand: 'Toyota', fuel_capacity: 45, initial_odo_km: 81441, is_active: true }]
 const BBMS = [{ id: 1, name: 'PERTALITE', price_per_liter: 10000, is_active: true }]
 
 // Status fitur edit/hapus air minum (v2.37.0) — diubah per test.

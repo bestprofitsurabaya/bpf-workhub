@@ -27,7 +27,7 @@ let pendingLpjRows = [] // kasbon berstatus FUNDS_WITH_DRIVER
 
 function mockApi() {
   apiMock.mockImplementation((path, opts = {}) => {
-    if (path === '/api/driver/me') return Promise.resolve({ name: 'RIVAN', nopol: 'L 1 AB', vehicle_type: 'AVANZA', bbm_type: 'PERTALITE', is_active: true })
+    if (path === '/api/driver/me') return Promise.resolve({ name: 'RIVAN', nopol: 'L 1 AB', vehicle_type: 'AVANZA', bbm_type: 'PERTALITE', is_active: true, initial_odo_km: 81441, last_odo_km: 81441 })
     if (path === '/api/cash/daily-code') return Promise.resolve({ code: 300, manual_mode: false })
     if (path === '/api/voucher/config') return Promise.resolve({ value: 130000, partner: 'SPBU 54.601.01', daily_code: 700, nominal: 130700 })
     if (path === '/api/notifications') return Promise.resolve({ notifications: [], unread: 0 })
@@ -79,6 +79,13 @@ describe('DriverView', () => {
     expect(w.text()).toContain('Aplikasi Driver')
     await w.findAll('button').find((b) => b.text().includes('Glosarium')).trigger('click')
     expect(w.text()).toContain('LPJ')
+    w.unmount()
+  })
+
+  it('menampilkan KM awal kendaraan sebagai acuan ODO', async () => {
+    const w = await mountView()
+    expect(w.text()).toContain('Acuan 81.441 km')
+    expect(w.text()).toContain('ODO terakhir')
     w.unmount()
   })
 

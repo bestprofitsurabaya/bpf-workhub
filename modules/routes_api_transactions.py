@@ -560,6 +560,8 @@ def register_transaction_api(app):
             # Efisiensi mengikuti periode yang dipilih (sebelumnya semua waktu).
             cursor.execute("SELECT nopol, ROUND(AVG(NULLIF(km_per_liter,0)),2) as avg_kml FROM transactions WHERE status='archived' AND (is_dummy=0 OR is_dummy IS NULL) AND km_per_liter > 0 AND DATE(created_at) >= %s AND DATE(created_at) <= %s GROUP BY nopol ORDER BY avg_kml DESC", [start_date, end_date])
             eff = cursor.fetchall()
+            cursor.execute(f"SELECT COUNT(*) as c FROM transactions WHERE {wc} AND ml_anomaly_flag=1", params)
+            anomaly_count = int((cursor.fetchone() or {}).get('c') or 0)
             cash_total = 0; cash_amount = 0
             if not tx_type or tx_type == 'CASH_LPJ':
                 # Kasbon dihitung saat dana benar-benar diserahkan (handover_at),
@@ -599,7 +601,7 @@ def register_transaction_api(app):
                     'best_vehicle': eff[0]['nopol'] if eff else '-',
                     'worst_vehicle': eff[-1]['nopol'] if eff else '-',
                     'avg_kml': round(sum([float(e['avg_kml']) for e in eff])/len(eff),1) if eff else 0,
-                    'anomaly_count': 0,
+                    'anomaly_count': anomaly_count,
                     'eff_labels': [e['nopol'] for e in eff],
                     'eff_values': [float(e['avg_kml']) for e in eff],
                     'service_alerts': []

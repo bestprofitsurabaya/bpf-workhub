@@ -261,19 +261,22 @@ def register_voucher_routes(app):
                 return jsonify({'status': 'error', 'msg': 'DB error'}), 500
             cur = conn.cursor(dictionary=True)
             cur.execute(
-                "SELECT status, ml_anomaly_flag FROM transactions "
+                "SELECT status, ml_anomaly_flag, anomaly_cleared_by FROM transactions "
                 "WHERE id=%s AND transaction_type='CLAIM' "
                 "AND COALESCE(voucher_value, 0) > 0", (tx_id,))
             row = cur.fetchone()
             if not row:
                 cur.close()
                 return jsonify({'status': 'error', 'msg': 'Transaksi voucher tidak ditemukan'}), 404
-            if row.get('ml_anomaly_flag'):
-                # Tetap boleh diverifikasi GA, tetapi harus lewat pemeriksaan
-                # penuh (bukan tombol cepat) — samakan dengan klaim BBM.
+            # v2.108.0 (audit F1): flag anomali bukan jalan buntu. GA harus
+            # memeriksa bukti lalu menandainya lewat /api/queue/anomaly-clear
+            # (step-up PIN). Setelah anomaly_cleared_by terisi, verifikasi biasa
+            # boleh melanjutkan — sama seperti klaim BBM.
+            if row.get('ml_anomaly_flag') and not (row.get('anomaly_cleared_by') or '').strip():
                 cur.close()
                 return jsonify({'status': 'error',
-                                'msg': 'Voucher ber-flag anomali — periksa foto bukti terlebih dahulu.'}), 409
+                                'code': 'ANOMALY_NEEDS_CLEAR',
+                                'msg': 'Voucher ber-flag anomali — periksa foto bukti, lalu gunakan Verifikasi penuh.'}), 409
             cur.execute(
                 "UPDATE transactions SET status='verified_ga', ga_approved_by=%s, "
                 "ga_approved_at=NOW(), approved_by_user=%s "

@@ -112,7 +112,7 @@ class FakeConn:
             dict(TX, id=1, display_id='V-1', nominal=130700),
             dict(TX, id=2, display_id='V-2', nominal=130700),
         ]
-        self.verify_row = {'status': 'pending', 'ml_anomaly_flag': 0}
+        self.verify_row = {'status': 'pending', 'ml_anomaly_flag': 0, 'anomaly_cleared_by': None}
         self.cancel_row = {'status': 'draft'}
         self.summary_row = {
             'pending_count': 1, 'pending_amount': 130700,
@@ -243,9 +243,24 @@ def test_ga_memverifikasi_voucher_pending(client):
 
 
 def test_voucher_anomali_tidak_bisa_diverifikasi_cepat(client):
-    client.conn.verify_row = {'status': 'pending', 'ml_anomaly_flag': 1}
+    client.conn.verify_row = {'status': 'pending', 'ml_anomaly_flag': 1,
+                              'anomaly_cleared_by': None}
     login(client, 'ga', 'GA SBY')
-    assert client.post('/api/voucher/verify/1').status_code == 409
+    r = client.post('/api/voucher/verify/1')
+    assert r.status_code == 409
+    assert r.get_json().get('code') == 'ANOMALY_NEEDS_CLEAR'
+
+
+def test_voucher_anomali_sudah_dibersihkan_bisa_diverifikasi(client):
+    # Audit F1: setelah GA memeriksa penuh (anomaly_cleared_by terisi),
+    # verifikasi tidak boleh buntu lagi.
+    client.conn.verify_row = {'status': 'pending', 'ml_anomaly_flag': 1,
+                              'anomaly_cleared_by': 'GA SBY'}
+    login(client, 'ga', 'GA SBY')
+    r = client.post('/api/voucher/verify/1')
+    assert r.status_code == 200
+    update = [q for q, p in client.conn.queries if q.startswith('UPDATE transactions SET status=')]
+    assert update and "status='verified_ga'" in update[0]
 
 
 def test_buat_tagihan_menolak_daftar_kosong(client):

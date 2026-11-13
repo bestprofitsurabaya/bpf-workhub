@@ -16,6 +16,9 @@ CREATE TABLE IF NOT EXISTS vehicles (
     brand VARCHAR(50) DEFAULT 'Toyota',
     fuel_capacity DECIMAL(10,2) DEFAULT 45,
     bbm_default VARCHAR(50) DEFAULT 'PERTALITE',
+    -- v2.108.0: odometer saat kendaraan mulai dipakai (kendaraan operasional
+    -- sudah berjalan sebelum masuk sistem). Acuan awal aplikasi driver.
+    initial_odo_km INT NOT NULL DEFAULT 0,
     description TEXT,
     is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

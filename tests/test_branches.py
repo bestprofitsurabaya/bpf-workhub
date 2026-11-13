@@ -410,12 +410,15 @@ class TestBranchSeedDemo:
         d = r.get_json()
         assert d['status'] == 'success'
         assert d['msg'].startswith('Data demo cabang MLG')
-        # 20 rute DEMO dibuat + transaksi dummy di INSERT (periksa SEMUA cursor)
+        # 20 rute DEMO dibuat + 2 transaksi dummy (satu statement per baris).
+        # v2.108.2: INSERT IGNORE diganti NOT EXISTS agar benar-benar idempoten.
         all_log = [e for cur in conn.cursors for e in cur.log]
         inserts = [sql for sql, _ in all_log if 'INSERT INTO appointments' in sql]
         assert len(inserts) == 20
-        tx = [sql for sql, _ in all_log if 'INSERT IGNORE INTO transactions' in sql]
-        assert len(tx) == 1
+        assert not [sql for sql, _ in all_log if 'INSERT IGNORE INTO transactions' in sql]
+        tx = [sql for sql, _ in all_log if 'INSERT INTO transactions' in sql]
+        assert len(tx) == 2
+        assert all('NOT EXISTS' in sql for sql in tx)
 
     def test_seed_demo_cabang_nonaktif_ditolak(self, monkeypatch):
         import modules.routes_branches as rb

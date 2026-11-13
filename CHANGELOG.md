@@ -7,6 +7,107 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.108.2 — 13 November 2026 (Hapus data uji & demo per cabang)
+
+Dua keluhan lapangan sekaligus: data uji tidak bisa dibuang, dan Admin Pusat
+tidak bisa merapikan data demo di cabang lain.
+
+**Data uji FirstWork bisa dihapus (admin & traineer).** Modul FirstWork sama
+sekali tidak punya jalur hapus — satu kiriman uji ("UJI COBA", HP
+081234567890) menetap selamanya dan hanya bisa dibuang lewat SQL manual,
+padahal traineer yang menjalankan gladi resik justru yang membuatnya.
+Sekarang ada `DELETE /api/first-work/<id>`:
+
+- Wajib konfirmasi eksplisit `{"confirm": "HAPUS"}`.
+- Cabang dikunci seperti endpoint lain: traineer/admin cabang hanya data
+  cabangnya; Admin Pusat (`admin_master` atau flag `admin_all_branches=1`)
+  semua cabang.
+- Traineer hanya boleh menghapus data **belum final** (`submitted`/`rejected`).
+  Data `verified` adalah arsip resmi — hanya Admin yang boleh menghapus.
+- File KTP ikut dihapus dari disk, dibatasi ke folder unggahan (tidak bisa
+  keluar lewat nama file aneh).
+- Jejak audit ditulis lebih dulu ke `activity_logs` dengan NIK/HP tersamar.
+
+Di UI, tombol 🗑️ Hapus Data muncul di detail FirstWork sesuai hak di atas.
+
+**Demo per cabang: bersihkan tanpa ganti cabang.** Penanaman demo sudah bisa
+per cabang (🧪 Demo), tetapi pembersihannya hanya berlaku untuk cabang sesi —
+Admin Pusat bisa menanam ke MLG tetapi tidak bisa membersihkannya dari
+Pengaturan. Sekarang ada `POST /api/branches/<code>/clean-demo` (Admin Pusat)
+dan tombol 🧹 Demo di baris cabang. Hanya baris demo yang disentuh
+(`DEMO-*`, `is_dummy=1`).
+
+**Seed demo benar-benar idempoten.** `INSERT IGNORE` dipakai tanpa kunci unik,
+jadi setiap klik "Buat Data Demo" menambah 2 transaksi dummy lagi (MLG sempat
+punya 4 baris). Diganti `INSERT ... SELECT ... WHERE NOT EXISTS`, dan tes lama
+yang mengunci perilaku `INSERT IGNORE` ikut diperbarui.
+
+Tes: `tests/test_first_work_delete.py` (15) dan
+`tests/test_branch_clean_demo.py` (10).
+
+---
+
+## v2.108.1 — 13 November 2026 (Validasi server trip & bukti foto)
+
+Uji skenario form driver menemukan jalur API yang masih bisa melewati
+validasi form. Perbaikan ini menutup celah tersebut tanpa mengubah alur
+normal driver.
+
+- 🗺️ **Trip divalidasi di server.** Tanggal harus `YYYY-MM-DD`, KM awal/akhir
+  harus angka, KM akhir tidak boleh lebih kecil dari KM awal, dan minimal
+  satu rute dengan lokasi berangkat & tujuan wajib ada. Sebelumnya trip
+  kosong bisa tersimpan lewat API.
+- ✅ **Verifikasi/penolakan trip tidak lagi buta status.** Trip yang sudah
+  diverifikasi atau ditolak tidak bisa diproses ulang; endpoint menjawab
+  409, bukan "sukses" palsu.
+- 📊 **Anomali laporan dihitung nyata.** `/api/analytics/data` tidak lagi
+  mengembalikan `anomaly_count: 0` hardcode; angka mengikuti filter periode,
+  driver, dan kendaraan.
+- 🖼️ **Foto bukti BBM divalidasi isinya.** File teks yang diberi ekstensi
+  `.jpg` kini ditolak 400 dan file rusak dihapus; sebelumnya hanya ekstensi
+  yang diperiksa.
+- 🧪 **Uji 3 bulan.** 100 transaksi sintetis (50 klaim, 40 voucher, 10 LPJ)
+  tersebar 14 Agu–12 Nov 2026 untuk menguji laporan, riwayat, dan rapor.
+
+## v2.108.0 — 13 November 2026 (Klarifikasi alur BBM, verifikasi penuh anomali, KM awal kendaraan)
+
+Audit uji voucher menemukan tiga hal yang membuat user ragu: istilah BBM,
+Voucher Rekanan, Kasbon & LPJ, Subsidi Tepat, dan Laporan terlihat mirip;
+voucher ber-flag anomali tidak punya jalan keluar di UI; dan kendaraan
+operasional tidak punya KM awal sehingga ODO mulai dari 0.
+
+- 🧭 **Panduan alur di aplikasi.** Komponen `FlowGuide` menjelaskan lima
+  istilah dengan pola **Intinya / Kapan / Di mana**. Muncul di atas form
+  driver dan meja kerja `/cash`; tab diberi sublabel tegas: BBM (klaim tunai),
+  Voucher Rekanan (tagihan SPBU mitra), Kasbon & LPJ (uang muka), Subsidi
+  Tepat (data SPBU), Laporan (melihat hasil). Glosarium dan panduan halaman
+  ikut diperbarui.
+- ✅ **F1 — voucher anomali tidak buntu.** `POST /api/voucher/verify/<id>`
+  kini membaca `anomaly_cleared_by`: flag anomali yang belum diperiksa tetap
+  ditolak 409 (`ANOMALY_NEEDS_CLEAR`), tetapi setelah GA menjalankan
+  pemeriksaan penuh (step-up PIN) verifikasi dilanjutkan. Panel voucher
+  menampilkan badge **⚠ Anomali** dan tombol **🛡 Verifikasi penuh** yang
+  menjalankan pembersihan anomali + verifikasi dalam satu alur. Endpoint
+  pembersihan anomali kini juga menerima role `admin`.
+- 🔏 **F2 — registri dokumen satu versi.** PDF yang diunduh ulang
+  menghasilkan hash berbeda untuk nomor dokumen yang sama. `register_pdf`
+  kini menghapus versi lama untuk `(doc_type, doc_no, branch_code)` sebelum
+  menyimpan hash terbaru, sehingga registri tidak menumpuk dan audit tahu
+  versi resmi.
+- 🚙 **KM awal kendaraan.** Kolom baru `vehicles.initial_odo_km` (idempoten
+  di master + semua cabang). Bisa diisi di **Pengaturan → Kendaraan** atau
+  **Aset & Pemeliharaan → Kendaraan** (odometer aset disinkronkan). Profil
+  driver mengembalikan `initial_odo_km` + `last_odo_km`; form BBM dan Trip
+  menampilkan acuan dan mengisi ODO awal secara otomatis. Mengubah KM awal
+  tidak menulis ulang riwayat transaksi.
+- 🧹 **Data uji.** Riwayat transaksi BBM produksi dibersihkan untuk pengujian
+  fresh; data non-BBM (air minum, overtime, aset) tidak disentuh.
+- ✅ Tes: kasus verifikasi voucher setelah anomali dibersihkan, dedupe
+  registri dokumen, tombol Verifikasi penuh di panel voucher, dan acuan KM
+  awal di aplikasi driver.
+
+---
+
 ## v2.107.0 — 13 November 2026 (Voucher rekanan: label SPBU, bukan jenis transaksi baru)
 
 SPBU mitra menyerahkan voucher + blanko ke driver; kantor membayar mitra per

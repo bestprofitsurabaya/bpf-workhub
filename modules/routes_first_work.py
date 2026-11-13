@@ -632,6 +632,16 @@ def _next_reg_no(conn, submitted_at, branch_code='SBY'):
 _NO_BRANCH = '__NOBRANCH__'
 
 
+def _mask(value, keep=4):
+    """Samarkan PII untuk jejak audit (NIK/HP) — simpan 4 digit terakhir."""
+    text = str(value or '')
+    if not text:
+        return ''
+    if len(text) <= keep:
+        return '•' * len(text)
+    return '•' * (len(text) - keep) + text[-keep:]
+
+
 def _scope_branch(conn=None):
     """None = semua cabang (admin pusat/admin_master), selain itu kode cabang."""
     role = session.get('user_role', '')
@@ -2163,6 +2173,108 @@ def register_first_work_routes(app):
                                new_data={'fields': sorted(body.keys())},
                                ip=client_ip())
             return jsonify({'status': 'success', 'msg': 'Data diperbarui.'})
+        except Exception as e:
+            return jsonify({'status': 'error', 'msg': str(e)}), 500
+        finally:
+            if conn:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+
+    # ---------------- HAPUS DATA UJI (v2.108.2) ----------------
+    @app.route('/api/first-work/<int:submission_id>', methods=['DELETE'])
+    @role_required(EDIT_ROLES)
+    def api_first_work_delete(submission_id):
+        """Hapus satu pendaftaran FirstWork — untuk data uji / salah input.
+
+        Sebelum v2.108.2 tidak ada jalur hapus sama sekali: satu kiriman uji
+        ("UJI COBA") menetap selamanya dan hanya bisa dibuang lewat SQL manual,
+        padahal traineer yang menjalankan gladi resik justru yang paling sering
+        membuatnya.
+
+        Aturan (fail-closed):
+        - Wajib konfirmasi eksplisit: body `{"confirm": "HAPUS"}`.
+        - Cabang dikunci `_row_allowed()`: traineer/admin cabang hanya boleh
+          menghapus data cabangnya; Admin Pusat semua cabang.
+        - Traineer hanya boleh menghapus data yang **belum final**
+          (`submitted`/`rejected`). Data `verified` adalah arsip resmi —
+          hanya Admin yang boleh menghapus.
+        - File KTP ikut dihapus dari disk (data pribadi), dibatasi ke
+          UPLOAD_DIR agar tidak bisa keluar folder.
+        - Jejak audit ditulis ke activity_logs SEBELUM baris hilang
+          (first_work_events ikut terhapus lewat CASCADE).
+        """
+        conn = None
+        try:
+            body = request.get_json(silent=True) or {}
+            if str(body.get('confirm') or '').strip().upper() != 'HAPUS':
+                return jsonify({'status': 'error',
+                                'msg': 'Konfirmasi diperlukan: kirim {"confirm": "HAPUS"}'}), 400
+            conn = get_master_connection()
+            if not conn:
+                return jsonify({'status': 'error', 'msg': 'DB error'}), 500
+            cursor = conn.cursor(dictionary=True)
+            try:
+                cursor.execute("SELECT * FROM first_work_submissions WHERE id=%s",
+                               (submission_id,))
+                row = cursor.fetchone()
+                if not row:
+                    return jsonify({'status': 'error', 'msg': 'Data tidak ditemukan'}), 404
+                if not _row_allowed(row, conn):
+                    return jsonify({'status': 'error',
+                                    'msg': 'Data di luar cabang Anda'}), 403
+                role = session.get('user_role', '')
+                status = str(row.get('status') or '')
+                if role == 'traineer' and status == 'verified':
+                    return jsonify({
+                        'status': 'error',
+                        'msg': 'Data terverifikasi adalah arsip resmi — hanya Admin '
+                               'yang boleh menghapusnya.'}), 403
+
+                snapshot = {
+                    'id': submission_id,
+                    'registration_no': row.get('registration_no'),
+                    'nama': row.get('nama'),
+                    'nik': _mask(row.get('nik')),
+                    'no_hp': _mask(row.get('no_hp')),
+                    'branch_code': row.get('branch_code'),
+                    'status': status,
+                    'source': row.get('source'),
+                }
+                files = [row.get('ktp_file'), row.get('ktp_scan_file')]
+                cursor.execute("DELETE FROM first_work_submissions WHERE id=%s",
+                               (submission_id,))
+                conn.commit()
+            finally:
+                cursor.close()
+
+            removed_files = 0
+            root = os.path.abspath(UPLOAD_DIR)
+            for name in files:
+                if not name:
+                    continue
+                path = os.path.abspath(os.path.join(root, os.path.basename(str(name))))
+                if not path.startswith(root + os.sep):
+                    continue
+                try:
+                    if os.path.isfile(path):
+                        os.remove(path)
+                        removed_files += 1
+                except OSError:
+                    pass
+
+            actor = session.get('full_name') or session.get('user_name') or ''
+            log_activity_async(None, 'first_work_delete', role, actor,
+                               old_data=snapshot,
+                               new_data={'files_removed': removed_files},
+                               ip=client_ip())
+            return jsonify({
+                'status': 'success',
+                'msg': f'Data {snapshot["nama"]} dihapus.',
+                'deleted_id': submission_id,
+                'files_removed': removed_files,
+            })
         except Exception as e:
             return jsonify({'status': 'error', 'msg': str(e)}), 500
         finally:

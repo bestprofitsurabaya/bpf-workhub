@@ -265,8 +265,12 @@ def register_spa_routes(app):
                 "UPDATE trip_masters SET status='verified_ga', verified_by=%s, verified_at=NOW() "
                 "WHERE id=%s AND status='pending'",
                 (admin_name, trip_id))
+            affected = cursor.rowcount
             conn.commit()
             cursor.close(); conn.close()
+            if affected == 0:
+                return jsonify({'status': 'error',
+                                'msg': f'Trip #{trip_id} tidak ditemukan atau sudah diverifikasi/ditolak.'}), 409
             log_activity_async(trip_id, 'trip_verify', 'ga', admin_name, ip=client_ip())
             return jsonify({'status': 'success', 'msg': f'Trip #{trip_id} diverifikasi'})
         except Exception as e:
@@ -283,10 +287,15 @@ def register_spa_routes(app):
                 return jsonify({'error': 'DB error'}), 500
             cursor = conn.cursor()
             cursor.execute(
-                "UPDATE trip_masters SET status='rejected', rejection_reason=%s WHERE id=%s",
+                "UPDATE trip_masters SET status='rejected', rejection_reason=%s "
+                "WHERE id=%s AND status='pending'",
                 (reason, trip_id))
+            affected = cursor.rowcount
             conn.commit()
             cursor.close(); conn.close()
+            if affected == 0:
+                return jsonify({'status': 'error',
+                                'msg': f'Trip #{trip_id} tidak ditemukan atau sudah diproses.'}), 409
             log_activity_async(trip_id, 'trip_reject', 'ga', session.get('user_name', 'GA Officer'),
                                new_data={'reason': reason}, ip=client_ip())
             return jsonify({'status': 'success', 'msg': f'Trip #{trip_id} ditolak'})
@@ -381,7 +390,7 @@ def register_spa_routes(app):
             return jsonify({'status': 'error', 'msg': str(e)}), 500
 
     @app.route('/api/queue/anomaly-clear/<int:tx_id>', methods=['POST'])
-    @role_required(['ga'])
+    @role_required(['ga', 'admin'])
     @stepup_required
     def api_queue_anomaly_clear(tx_id):
         """v2.49.3 (audit): GA bersihkan flag anomali SETELAH verifikasi pENUH.

@@ -489,6 +489,42 @@ try:
 except Exception as _be:
     print(f'[voucher] branch ensure error: {_be}')
 
+# KM awal kendaraan v2.108.0: kolom vehicles.initial_odo_km di master +
+# setiap DB cabang. Idempoten; aman dijalankan berulang.
+from modules.vehicle_odo_schema import ensure_vehicle_odo_schema
+for _attempt in range(5):
+    _oconn = _ret_master()
+    if _oconn:
+        try:
+            if ensure_vehicle_odo_schema(_oconn):
+                break
+        except Exception as _oe:
+            print(f'[vehicle-odo] master ensure error: {_oe}')
+        finally:
+            try:
+                _oconn.close()
+            except Exception:
+                pass
+    _time.sleep(3)
+try:
+    for _b in bm.list_branches():
+        if _b.get('is_active') and _b.get('db_name') and _b['db_name'] != os.environ.get('DB_NAME', 'bpf_asset_system'):
+            _ob = _ret_pool(_b['db_name'])
+            if _ob:
+                try:
+                    _obc = _ob.get_connection()
+                    try:
+                        ensure_vehicle_odo_schema(_obc)
+                    finally:
+                        try:
+                            _obc.close()
+                        except Exception:
+                            pass
+                except Exception as _oe:
+                    print(f'[vehicle-odo] {_b["code"]} ensure error: {_oe}')
+except Exception as _be:
+    print(f'[vehicle-odo] branch ensure error: {_be}')
+
 # Register all route modules
 from modules.routes_driver import register_driver_routes
 from modules.routes_api_master import register_master_api

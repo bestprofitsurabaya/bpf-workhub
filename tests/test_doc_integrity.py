@@ -97,12 +97,26 @@ class TestRegisterLookup:
         assert res is not None
         sha = hashlib.sha256(PDF_BYTES).hexdigest()
         assert res['sha256'] == sha
-        sql, params = conn.cur.log[0]
+        sql, params = next((s, p) for s, p in conn.cur.log
+                           if s.startswith('INSERT INTO document_registry'))
         assert 'INSERT INTO document_registry' in sql
         assert params[0] == 'water_receipt'
         assert params[2] == 'SBY'
         assert params[3] == sha
         assert params[6] == 'Finance Officer'
+
+    def test_register_menghapus_versi_lama_doc_no_sama(self, monkeypatch):
+        # Audit F2: satu nomor dokumen hanya menyimpan versi terbaru.
+        conn = FakeConn()
+        _fake_master(monkeypatch, conn)
+        di.register_pdf('water_receipt', 'WTR-SBY-1', PDF_BYTES,
+                        branch_code='SBY', filename='TandaTerima.pdf')
+        deletes = [p for s, p in conn.cur.log
+                   if s.startswith('DELETE FROM document_registry')]
+        assert deletes
+        assert deletes[0][0] == 'water_receipt'
+        assert deletes[0][1] == 'WTR-SBY-1'
+        assert deletes[0][2] == 'SBY'
 
     def test_register_pdf_kosong(self, monkeypatch):
         _fake_master(monkeypatch, FakeConn())

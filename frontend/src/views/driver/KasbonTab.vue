@@ -83,7 +83,7 @@ function openLpj(c) {
     bbm_type: c.bbm_type || 'PERTALITE',
   })
   emit('switchTab', 'bbm')
-  emit('toast', `📋 Isi LPJ untuk ${c.display_id} di tab BBM`, 'success')
+  emit('toast', `📋 ${c.display_id}: isi bukti LPJ di form BBM (tab BBM)`, 'success')
 }
 
 function progress(c) {
@@ -112,6 +112,11 @@ onMounted(loadData)
       <span class="muted" style="font-size:11px;">{{ store.dailyMode === 'manual' ? '🔒 Ditentukan Finance' : '🤖 Otomatis' }}</span>
     </div>
 
+    <div class="kasbon-intro">
+      <b>Kasbon = uang muka perjalanan, bukan penggantian BBM.</b>
+      <span>Setelah dana diterima, isi <b>LPJ</b> (bukti nota &amp; foto) lewat form BBM di tab <b>BBM</b>. Kasbon belum selesai sebelum LPJ disetujui.</span>
+    </div>
+
     <form class="driver-form" @submit.prevent="submit">
       <div class="field"><label>Driver</label><input class="input" :value="store.driverName" disabled /></div>
       <div class="field"><label>Nopol</label><input class="input" :value="store.profile?.nopol || ''" disabled /></div>
@@ -124,13 +129,13 @@ onMounted(loadData)
       </button>
     </form>
 
-    <h4 style="margin:14px 0 6px;">📋 Perlu Isi LPJ ({{ pendingLpj.length }})</h4>
+    <h4 style="margin:14px 0 6px;">📋 Kasbon cair — wajib isi LPJ ({{ pendingLpj.length }})</h4>
     <div v-if="loading" class="muted skeleton" style="font-size:12px;">⏳ Memuat…</div>
     <div v-else-if="!pendingLpj.length" class="muted" style="font-size:12px;">Tidak ada LPJ pending. 🎉</div>
     <div v-for="c in pendingLpj" :key="c.id" class="lpj-card">
       <strong>{{ c.display_id }}</strong> · Rp {{ Number(c.total_amount).toLocaleString('id-ID') }}
       <div class="muted" style="font-size:11px;">Kode: {{ c.daily_code }}</div>
-      <button class="btn btn-sm btn-primary" style="margin-top:6px;" @click="openLpj(c)">📝 Isi LPJ</button>
+      <button class="btn btn-sm btn-primary" style="margin-top:6px;" @click="openLpj(c)">📝 Isi LPJ di tab BBM</button>
     </div>
 
     <h4 style="margin:14px 0 6px;">🕐 Riwayat Pengajuan</h4>
@@ -167,6 +172,7 @@ onMounted(loadData)
 </template>
 
 <style scoped>
+.kasbon-intro { background: var(--bg-2, #f8fafc); border: 1px solid var(--border); border-left: 4px solid var(--primary, #2563eb); border-radius: 8px; padding: 8px 10px; margin-bottom: 10px; font-size: 11px; line-height: 1.45; display: flex; flex-direction: column; gap: 2px; }
 .lpj-card { background: var(--bg-2, #fef3c7); padding: 10px; border-radius: 8px; margin-bottom: 6px; border-left: 4px solid var(--warning); font-size: 12px; }
 .hist-card { background: var(--surface); border: 1px solid var(--border); padding: 10px; border-radius: 8px; margin-bottom: 6px; font-size: 12px; }
 .bar { background: var(--border, #e2e8f0); border-radius: 4px; height: 6px; overflow: hidden; }

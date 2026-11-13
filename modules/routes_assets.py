@@ -556,6 +556,13 @@ def register_asset_routes(app):
                  _parse_date(data.get('purchase_date')), _num(data.get('last_odometer')),
                  _parse_date(data.get('insurance_until')), _parse_date(data.get('tax_until')),
                  str(data.get('notes', '') or '').strip()[:500]))
+            # v2.108.0: odometer aset = KM awal kendaraan di master, supaya
+            # form BBM/Trip punya acuan walau belum ada transaksi.
+            if _num(data.get('last_odometer')):
+                cursor.execute(
+                    "UPDATE vehicles SET initial_odo_km=%s WHERE nopol=%s "
+                    "AND (initial_odo_km=0 OR initial_odo_km IS NULL)",
+                    (_num(data.get('last_odometer')), nopol))
             conn.commit()
             user = _current_user()
             log_activity_async(None, 'asset_vehicle_add', user['role'], user['full_name'],
@@ -578,8 +585,9 @@ def register_asset_routes(app):
             if not conn:
                 return jsonify({'status': 'error', 'msg': 'DB error'}), 500
             cursor = conn.cursor(dictionary=True)
-            cursor.execute("SELECT id FROM vehicle_assets WHERE id=%s", (vh_id,))
-            if not cursor.fetchone():
+            cursor.execute("SELECT id, nopol FROM vehicle_assets WHERE id=%s", (vh_id,))
+            _vh = cursor.fetchone()
+            if not _vh:
                 cursor.close(); conn.close()
                 return jsonify({'status': 'error', 'msg': 'Kendaraan tidak ditemukan'}), 404
             fields, params = [], []
@@ -599,6 +607,10 @@ def register_asset_routes(app):
             params.append(vh_id)
             cursor.execute("UPDATE vehicle_assets SET " + ", ".join(fields) +
                            ", updated_at=NOW() WHERE id=%s", params)
+            if 'last_odometer' in data and _num(data.get('last_odometer')):
+                cursor.execute(
+                    "UPDATE vehicles SET initial_odo_km=%s WHERE nopol=%s",
+                    (_num(data.get('last_odometer')), _vh.get('nopol')))
             conn.commit()
             user = _current_user()
             log_activity_async(None, 'asset_vehicle_edit', user['role'], user['full_name'],

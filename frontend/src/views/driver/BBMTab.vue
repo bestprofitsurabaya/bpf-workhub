@@ -5,7 +5,7 @@ import { api } from '../../api'
 import { applyWatermark, fileToDataUrl } from '../../utils/watermark'
 
 const store = useDriverStore()
-const emit = defineEmits(['toast', 'locate'])
+const emit = defineEmits(['toast', 'locate', 'switch-tab'])
 
 const form = ref({
   nopol: '', vehicle_type: 'AVANZA', bbm_type: '', price_per_liter: 10000,
@@ -21,6 +21,8 @@ const voucherNominal = computed(() => {
   return Number(voucherCfg.value.value) + Number(voucherCfg.value.daily_code || 0)
 })
 const allowedBbm = ref([])
+const odoBaseline = computed(() =>
+  Number(store.profile?.last_odo_km || store.profile?.initial_odo_km || 0))
 const liter = computed(() => {
   if (mode.value === 'voucher') return Number(form.value.liter) || 0
   return form.value.price_per_liter > 0 ? (form.value.nominal || 0) / form.value.price_per_liter : 0
@@ -45,6 +47,8 @@ function applyProfile() {
   if (!p) return
   form.value.nopol = p.nopol || form.value.nopol
   form.value.vehicle_type = p.vehicle_type || 'AVANZA'
+  // Acuan ODO: transaksi terakhir; bila belum ada, KM awal kendaraan.
+  if (!form.value.odo_km) form.value.odo_km = Number(p.last_odo_km || p.initial_odo_km || 0)
   loadAllowedBbm(p.bbm_type)
 }
 
@@ -130,7 +134,8 @@ function resetForm() {
   mode.value = 'claim'
   form.value = {
     nopol: store.profile?.nopol || '', vehicle_type: store.profile?.vehicle_type || 'AVANZA',
-    bbm_type: '', price_per_liter: 10000, nominal: 0, odo_km: 0, jumlah_appointment: 0, spbu_type: 'rekanan',
+    bbm_type: '', price_per_liter: 10000, nominal: 0, jumlah_appointment: 0, spbu_type: 'rekanan',
+    odo_km: Number(store.profile?.last_odo_km || store.profile?.initial_odo_km || 0),
     voucher_partner: '', nota_no: '', liter: 0,
   }
   photos.value = { foto_odo_sebelum: null, foto_nota_odo_sesudah: null, foto_struk: null, foto_struk_dispenser: null }
@@ -256,7 +261,7 @@ onMounted(() => {
   <div class="tab-page">
     <!-- Mode LPJ -->
     <div v-if="store.activeLpj" class="alert alert-info" style="margin-bottom:10px;">
-      📋 Mengisi <b>LPJ {{ store.activeLpj.display_id }}</b> — nominal terkunci dari kasbon (termasuk kode unik) &amp; tidak bisa diubah.
+      📋 Mengisi <b>LPJ {{ store.activeLpj.display_id }}</b> — bukti pemakaian kasbon. Nominal terkunci dari kasbon (termasuk kode unik) &amp; tidak bisa diubah.
     </div>
 
     <!-- GPS -->
@@ -276,13 +281,18 @@ onMounted(() => {
     <div v-if="!store.activeLpj" class="mode-switch" role="tablist" aria-label="Jenis laporan BBM">
       <button type="button" role="tab" :aria-selected="mode === 'claim'" :class="{ active: mode === 'claim' }"
               data-testid="bbm-mode-claim" @click="mode = 'claim'">
-        💸 Klaim BBM<small>Driver bayar dulu, diganti kantor</small>
+        💸 Klaim BBM<small>Saya bayar dulu, minta ganti</small>
       </button>
       <button type="button" role="tab" :aria-selected="mode === 'voucher'" :class="{ active: mode === 'voucher' }"
               data-testid="bbm-mode-voucher" @click="mode = 'voucher'">
-        🎟️ Voucher Rekanan<small>Voucher + blanko dari SPBU mitra</small>
+        🎟️ Voucher Rekanan<small>SPBU mitra menagih kantor</small>
       </button>
     </div>
+
+    <p v-if="!store.activeLpj" class="mode-hint">
+      <b>BBM</b> = laporan pemakaian. <b>Bukan kasbon</b> — kasbon adalah uang muka perjalanan.
+      <button type="button" class="link-btn" @click="emit('switch-tab', 'kasbon')">Butuh uang muka? Buka tab Kasbon →</button>
+    </p>
 
     <form class="driver-form" @submit.prevent="submit">
       <div class="field"><label>Nama Driver</label>
@@ -319,6 +329,7 @@ onMounted(() => {
         + kode harian <b>{{ voucherCfg.daily_code || 0 }}</b> =
         <b>Rp {{ Number(voucherNominal || 0).toLocaleString('id-ID') }}</b>
         <span v-if="voucherCfg.partner" class="muted"> · Mitra: {{ voucherCfg.partner }}</span>
+        <div class="muted" style="margin-top:2px;">Anda tidak membayar di kasir — kantor membayar SPBU mitra per periode.</div>
       </div>
       <div v-if="mode === 'voucher'" class="row">
         <div class="field"><label>SPBU Mitra</label>
@@ -333,6 +344,10 @@ onMounted(() => {
       <div class="row">
         <div class="field"><label>ODO (km)</label>
           <input class="input" type="number" v-model.number="form.odo_km" min="0" placeholder="0" />
+          <div v-if="odoBaseline" class="muted" style="font-size:10px;">
+            Acuan {{ odoBaseline.toLocaleString('id-ID') }} km —
+            {{ store.profile?.last_odo_km ? 'ODO terakhir' : 'KM awal kendaraan' }}
+          </div>
         </div>
         <div v-if="mode === 'voucher'" class="field"><label>Liter (dari nota)</label>
           <input class="input" type="number" v-model.number="form.liter" min="0" step="0.01" placeholder="0"
@@ -374,7 +389,7 @@ onMounted(() => {
       </div>
 
       <button class="btn btn-primary" style="width:100%;justify-content:center;padding:12px;" :disabled="submitting">
-        {{ saving ? '⏳ Mengirim…' : store.activeLpj ? '📤 Kirim LPJ Kasbon' : (mode === 'voucher' ? '📤 Kirim Pemakaian Voucher' : '📤 Kirim Laporan BBM') }}
+        {{ saving ? '⏳ Mengirim…' : store.activeLpj ? '📤 Kirim LPJ (bukti kasbon)' : (mode === 'voucher' ? '📤 Kirim Pemakaian Voucher' : '📤 Kirim Laporan BBM') }}
       </button>
       <p class="muted" style="font-size:11px;text-align:center;margin-top:6px;">
         Foto otomatis diberi watermark (perusahaan + tanggal + lokasi GPS).
@@ -393,6 +408,8 @@ onMounted(() => {
 }
 .mode-switch button small { font-weight: 400; font-size: 10px; opacity: .7; }
 .mode-switch button.active { border-color: var(--primary, #2563eb); background: #eff6ff; }
+.mode-hint { margin: -4px 0 10px; font-size: 11px; line-height: 1.45; opacity: .85; }
+.link-btn { background: none; border: none; padding: 0; color: var(--primary, #2563eb); font: inherit; font-weight: 700; cursor: pointer; text-decoration: underline; }
 .gps-box {
   border: 1px dashed var(--border); border-radius: 10px; padding: 10px 12px; margin-bottom: 12px;
   background: var(--bg-2, #fef3c7);

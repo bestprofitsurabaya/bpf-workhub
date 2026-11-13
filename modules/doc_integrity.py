@@ -94,6 +94,14 @@ def register_pdf(doc_type, doc_no, pdf_bytes, signer_name='', signer_role='',
         sha = _sha256(pdf_bytes)
         cur = conn.cursor()
         try:
+            # v2.108.0 (audit F2): unduh ulang menghasilkan byte/timestamp
+            # berbeda untuk doc_no yang sama. Tanpa dedupe, registri menumpuk
+            # hash dan audit tidak tahu versi mana yang resmi. Simpan hanya
+            # versi terbaru per (doc_type, doc_no, branch_code).
+            cur.execute(
+                "DELETE FROM document_registry WHERE doc_type=%s AND doc_no=%s "
+                "AND branch_code=%s AND sha256<>%s",
+                (doc_type[:40], str(doc_no)[:80], (branch_code or '')[:10], sha))
             cur.execute(
                 "INSERT INTO document_registry "
                 "(doc_type, doc_no, branch_code, sha256, bytes_size, filename, "

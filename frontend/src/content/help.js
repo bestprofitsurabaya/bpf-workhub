@@ -13,11 +13,19 @@ export const GLOSSARY = [
   },
   {
     term: 'Klaim BBM', full: 'Klaim bahan bakar', category: 'Alur klaim',
-    desc: 'Pengajuan penggantian biaya BBM oleh driver. Alurnya: driver mengajukan → GA verifikasi → Finance cairkan → arsip.',
+    desc: 'Penggantian uang BBM yang sudah driver bayar sendiri di SPBU. Alurnya: driver mengajukan → GA verifikasi → Finance cairkan → arsip. Bukan kasbon.',
   },
   {
     term: 'Kasbon', full: 'Pinjaman operasional', category: 'Alur klaim',
-    desc: 'Dana yang diajukan lebih dulu untuk kebutuhan perjalanan. Setelah dipakai, driver wajib menyerahkan LPJ.',
+    desc: 'Uang muka untuk perjalanan — bukan penggantian biaya. Setelah dipakai, driver wajib menyerahkan LPJ (bukti nota) di form BBM.',
+  },
+  {
+    term: 'Voucher Rekanan', full: 'Voucher SPBU mitra', category: 'Alur klaim',
+    desc: 'SPBU mitra memberi voucher + blanko; driver tidak membayar dan kantor membayar mitra per periode. Bukan kasbon dan bukan klaim tunai.',
+  },
+  {
+    term: 'Subsidi Tepat', full: 'MyPertamina / SPBU bersubsidi', category: 'Data & istilah',
+    desc: 'Data transaksi SPBU Subsidi Tepat dan akses OTP untuk rekonsiliasi Finance. Driver tidak mengisi pengajuan di sini.',
   },
   {
     term: 'LPJ', full: 'Laporan Pertanggungjawaban', category: 'Alur klaim',
@@ -72,6 +80,10 @@ export const GLOSSARY = [
     desc: 'Daftar transaksi terarsip pada rentang tanggal tertentu, bisa diunduh sebagai PDF.',
   },
   {
+    term: 'Laporan', full: 'Rekap & analisis', category: 'Laporan',
+    desc: 'Tempat melihat rekap klaim, realisasi, dan analisis — bukan tempat mengajukan atau membayar.',
+  },
+  {
     term: 'Audit Log', full: 'Jejak aktivitas', category: 'Keamanan',
     desc: 'Catatan siapa melakukan apa dan kapan. Dipakai untuk investigasi dan kepatuhan ISO 27001.',
   },
@@ -119,13 +131,15 @@ const PAGE_HELP = [
   {
     paths: ['/cash'],
     title: 'BBM, Kasbon & SPBU',
-    summary: 'Klaim BBM, kasbon/LPJ driver, lampiran MyPertamina, dan Data SPBU dalam satu halaman.',
+    summary: 'Lima tab dengan pekerjaan berbeda: BBM (klaim tunai), Voucher Rekanan (tagihan SPBU mitra), Kasbon & LPJ (uang muka), Subsidi Tepat (data SPBU), dan Laporan (melihat hasil).',
     steps: [
-      'Klaim BBM: tinjau klaim masuk, cairkan yang sudah ACC GA, lalu unduh PDF per transaksi.',
-      'Kasbon: setujui/tolak pengajuan dana dan periksa bukti LPJ driver (termasuk kode harian).',
-      'Data SPBU: cocokkan klaim ke riwayat SPBU Subsidi Tepat dan pantau Berita Acara.',
+      'BBM: verifikasi klaim tunai driver dan cairkan yang sudah ACC GA — ini uang yang driver bayar dulu.',
+      'Voucher Rekanan: verifikasi pemakaian voucher, buat tagihan periode, lalu tandai dibayar ke SPBU mitra.',
+      'Kasbon & LPJ: setujui/tolak uang muka, serahkan dana, lalu periksa bukti LPJ driver.',
+      'Subsidi Tepat: cocokkan data SPBU/OTP untuk rekonsiliasi — bukan tempat driver mengajukan.',
+      'Laporan: rekap, realisasi, dan analisis. Angka di sini hanya untuk melihat, bukan mengubah transaksi.',
     ],
-    terms: ['Kasbon', 'LPJ', 'Klaim BBM', 'Subsidi Tepat', 'Step-up PIN'],
+    terms: ['Klaim BBM', 'Voucher Rekanan', 'Kasbon', 'LPJ', 'Subsidi Tepat', 'Laporan', 'Step-up PIN'],
   },
   {
     paths: ['/water'],
@@ -297,14 +311,14 @@ const PAGE_HELP = [
   {
     paths: ['/driver'],
     title: 'Aplikasi Driver',
-    summary: 'Semua pekerjaan lapangan ada di lima tab bawah: BBM, Kasbon, Trip, OT, dan Rapor.',
+    summary: 'Lima tab bawah dengan tugas berbeda: BBM (klaim/voucher/LPJ), Kasbon (uang muka), Trip, OT, dan Rapor.',
     steps: [
-      'BBM: isi klaim setelah mengisi bahan bakar; foto struk membantu verifikasi.',
-      'Kasbon: ajukan dana sebelum perjalanan, lalu unggah LPJ setelahnya.',
-      'Trip: mulai dan selesaikan perjalanan; data aman tersimpan saat offline.',
-      'OT: ajukan lembur; Rapor: lihat ringkasan performa Anda.',
+      'BBM: pilih Klaim BBM bila Anda membayar dulu, atau Voucher Rekanan bila SPBU mitra yang menagih kantor. LPJ kasbon juga diisi di form ini.',
+      'Kasbon: ajukan uang muka sebelum perjalanan. Setelah dana diterima, isi LPJ lewat form BBM — bukan di tab Kasbon.',
+      'Trip: catat perjalanan dan hasil kunjungan; data aman tersimpan saat offline.',
+      'OT: ajukan lembur; Rapor: lihat ringkasan performa BBM kendaraan Anda.',
     ],
-    terms: ['Klaim BBM', 'Kasbon', 'LPJ', 'Overtime', 'ODO'],
+    terms: ['Klaim BBM', 'Voucher Rekanan', 'Kasbon', 'LPJ', 'Overtime', 'ODO'],
   },
   {
     paths: ['/marketing', '/chief-driver'],
@@ -347,7 +361,8 @@ export function onboardingSteps(role, user, isHoAdmin = false) {
         title: `Selamat datang, ${name}`,
         body: 'Aplikasi driver punya lima tab di bawah: BBM, Kasbon, Trip, OT, dan Rapor.',
         points: [
-          'Mulai dari tab BBM setelah mengisi bahan bakar.',
+          'BBM = klaim/voucher/LPJ. Kasbon = uang muka, bukan penggantian BBM.',
+          'Buka panduan “Bingung bedanya?” di atas form BBM bila lupa.',
           'Tombol ❓ di kanan atas membuka bantuan dan arti istilah.',
         ],
       },

@@ -468,7 +468,9 @@ onMounted(() => { loadSummary(); loadTab() })
           <select class="select" v-model="vehForm.fuel_type"><option value="Bensin">Bensin</option><option value="Solar">Solar</option></select></div>
         <div class="field"><label>Status</label>
           <select class="select" v-model="vehForm.status"><option v-for="s in ['Aktif','Rusak','Nonaktif']" :key="s" :value="s">{{ s }}</option></select></div>
-        <div class="field"><label>Odometer (km)</label><input class="input" type="number" v-model="vehForm.last_odometer" /></div>
+        <div class="field"><label>KM Awal / Odometer (km)</label><input class="input" type="number" v-model="vehForm.last_odometer" />
+          <div class="muted" style="font-size:10px;">Odometer kendaraan saat ini. Dipakai sebagai acuan ODO di form BBM/Trip driver.</div>
+        </div>
         <div class="field"><label>Tgl Beli</label><input class="input" type="date" v-model="vehForm.purchase_date" /></div>
         <div class="field"><label>Asuransi s/d</label><input class="input" type="date" v-model="vehForm.insurance_until" /></div>
         <div class="field"><label>Pajak s/d</label><input class="input" type="date" v-model="vehForm.tax_until" /></div>

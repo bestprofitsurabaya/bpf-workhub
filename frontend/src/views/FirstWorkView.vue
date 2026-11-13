@@ -260,6 +260,41 @@ async function doVerify(action) {
   }
 }
 
+// v2.108.2: data uji / salah input harus bisa dibuang. Sebelumnya tidak ada
+// jalur hapus sama sekali. Traineer hanya untuk data belum final; data
+// terverifikasi adalah arsip resmi — hanya Admin.
+function canDelete(row) {
+  if (!row) return false
+  if (auth.role === 'admin') return true
+  return canVerify.value && ['submitted', 'rejected'].includes(row.status)
+}
+
+async function doDelete(row) {
+  if (!row || !canDelete(row)) return
+  const label = `${row.nama || 'data'} (${row.registration_no || row.id})`
+  const warning = row.status === 'verified'
+    ? 'Data ini SUDAH TERVERIFIKASI (arsip resmi).'
+    : 'Data ini belum final.'
+  if (!window.confirm(
+    `Hapus permanen ${label}?\n\n${warning}\nFile KTP ikut dihapus dan tindakan ini tercatat di log. Tidak bisa dibatalkan.`
+  )) return
+  busy.value = true
+  err.value = ''
+  try {
+    const r = await api(`/api/first-work/${row.id}`, {
+      method: 'DELETE',
+      body: { confirm: 'HAPUS' },
+    })
+    msg.value = r.msg || 'Data dihapus.'
+    closeDetail()
+    await load(page.value)
+  } catch (e) {
+    err.value = e.message || 'Gagal menghapus data.'
+  } finally {
+    busy.value = false
+  }
+}
+
 async function saveEdit() {
   if (!detail.value) return
   busy.value = true
@@ -900,6 +935,8 @@ onMounted(() => {
         <button v-if="canVerify && detail.status !== 'submitted'" class="btn"
                 :disabled="busy" @click="doVerify('reopen')">↩️ Buka verifikasi</button>
         <a v-if="detail.merged_doc_url" class="btn" :href="detail.merged_doc_url" target="_blank" rel="noopener">📄 Dokumen Gabungan</a>
+        <button v-if="canDelete(detail)" class="btn btn-danger" :disabled="busy"
+                @click="doDelete(detail)" title="Hapus permanen data uji / salah input">🗑️ Hapus Data</button>
       </div>
 
       <div v-if="canVerify" class="fw-verify">

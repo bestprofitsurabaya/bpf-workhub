@@ -2,9 +2,55 @@
 
 File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks saat sesi baru dimulai.
 
-**Terakhir diperbarui:** 2026-11-12<br>
+**Terakhir diperbarui:** 2026-11-13<br>
 **Branch:** `main`<br>
-**Versi terbaru:** v2.104.0 (12 Nov — Fase 3 selesai: KPI bisa diklik ke daftar baris terfilter, antrean bawa baris nyata + aksi GA, antrean keempat SPBU mismatch) · v2.103.0 (12 Nov — meja kerja BBM: isolasi cabang, definisi metrik tunggal, context bar, antrean Perlu Tindakan) · v2.84.0 (12 Nov — semua cabang wajib tautan ber-token + QR statis lokal) · v2.83.0 (12 Nov — ID Fingerprint & ID BPF: backfill 1.831 baris, panel traineer, koreksi per baris) · v2.82.0 (11 Nov — audit isolasi cabang FirstWork: token per cabang, KTP tertutup, NIK disamarkan) · v2.81.0 (11 Nov — Profil Saya) · v2.80.0 (11 Nov — Absensi FirstWork + migrasi 1.831 baris sheet) · v2.77.0 (3 Nov — OTP SubsidiTepat: anti request ganda, supervisor verifikasi status, cooldown resend; siklus OTP end-to-end OK — kode diverifikasi → token → 192 transaksi SPBU terimpor)
+**Versi terbaru:** v2.108.2 (13 Nov — hapus data uji FirstWork oleh admin/traineer, demo per cabang bisa dibersihkan, seed demo idempoten) · v2.108.1 (13 Nov — validasi server trip & bukti foto) · v2.104.0 (12 Nov — Fase 3 selesai: KPI bisa diklik ke daftar baris terfilter, antrean bawa baris nyata + aksi GA, antrean keempat SPBU mismatch) · v2.103.0 (12 Nov — meja kerja BBM: isolasi cabang, definisi metrik tunggal, context bar, antrean Perlu Tindakan) · v2.84.0 (12 Nov — semua cabang wajib tautan ber-token + QR statis lokal) · v2.83.0 (12 Nov — ID Fingerprint & ID BPF: backfill 1.831 baris, panel traineer, koreksi per baris) · v2.82.0 (11 Nov — audit isolasi cabang FirstWork: token per cabang, KTP tertutup, NIK disamarkan) · v2.81.0 (11 Nov — Profil Saya) · v2.80.0 (11 Nov — Absensi FirstWork + migrasi 1.831 baris sheet) · v2.77.0 (3 Nov — OTP SubsidiTepat: anti request ganda, supervisor verifikasi status, cooldown resend; siklus OTP end-to-end OK — kode diverifikasi → token → 192 transaksi SPBU terimpor)
+
+---
+
+## 🔁 Handoff 13 Nov 2026 — Hapus data uji & demo per cabang (v2.108.2)
+
+**Keluhan:** "admin atau traineer tidak bisa menghapus data uji" dan "mestinya
+master admin juga bisa manage semua cabang".
+
+**Akar masalah (bukan bug izin):**
+1. `modules/routes_first_work.py` **tidak punya endpoint DELETE sama sekali**.
+   Data uji nyata: `first_work_submissions.id=1849` — nama "UJI COBA",
+   HP 081234567890, status `submitted`, cabang SBY, dibuat 13 Nov 2026.
+   Satu-satunya cara membuangnya adalah SQL manual.
+2. Demo data bisa **ditanam** per cabang (`POST /api/branches/<code>/seed-demo`,
+   `@ho_only`) tetapi **dibersihkan** hanya untuk cabang sesi
+   (`POST /api/demo/clean` memakai `get_db_connection()`). Admin Pusat bisa
+   menanam demo ke MLG lalu tidak bisa membersihkannya tanpa mengganti cabang
+   aktif.
+3. `INSERT IGNORE` untuk transaksi dummy dipakai tanpa kunci unik → tiap klik
+   "Buat Data Demo" menambah 2 baris lagi (MLG sempat 4 baris, harusnya 2).
+4. `admin_master` **sudah** benar sebagai Admin Pusat: `admin_scope.is_ho_admin()`
+   mengenali nama legacy `admin`/`admin_master` DAN flag
+   `users.admin_all_branches=1`; `routes_first_work._scope_branch()` juga
+   menanganinya. Tidak ada perubahan yang diperlukan di sana — hanya perlu
+   dipastikan endpoint baru memakai jalur yang sama (`_row_allowed`,
+   `is_ho_admin`, `ho_only`).
+
+**Yang dikerjakan:**
+- `DELETE /api/first-work/<id>` (`EDIT_ROLES` = traineer+admin) dengan
+  konfirmasi `{"confirm":"HAPUS"}`, scope `_row_allowed()`, traineer hanya
+  boleh status `submitted`/`rejected` (verified = arsip resmi, admin saja),
+  file KTP dihapus dari disk (dibatasi `UPLOAD_DIR`), audit ke
+  `activity_logs` dengan NIK/HP tersamar (`_mask()`).
+- `POST /api/branches/<code>/clean-demo` (`@ho_only`) + tombol 🧹 Demo di
+  baris cabang `SettingsView.vue`.
+- Tombol 🗑️ Hapus Data di modal detail `FirstWorkView.vue`
+  (`canDelete()`/`doDelete()`).
+- Seed dummy idempoten: `INSERT ... SELECT ... WHERE NOT EXISTS` di
+  `routes_branches.py` dan `routes_api_master.py`.
+- Tes: `tests/test_first_work_delete.py` (15) + `tests/test_branch_clean_demo.py`
+  (10); `tests/test_branches.py` disesuaikan (tidak lagi mengunci
+  `INSERT IGNORE`).
+
+**Status:** kode + tes hijau di container (`docker cp`), versi di-stamp
+v2.108.2 (7 titik). Deploy (rebuild image + recreate) & verifikasi live
+dilakukan setelah commit.
 
 ---
 

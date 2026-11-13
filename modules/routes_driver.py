@@ -239,12 +239,46 @@ def register_driver_routes(app, socketio):
                 # transaksi — jangan pernah menyimpan klaim tanpa bukti (ISO 9001:8.6).
                 # Termasuk foto dispenser (wajib utk SPBU non-rekanan); kasus foto tidak dikirim
                 # sama sekali tidak ditolak karena alur offline PWA (sync.js) kirim tanpa foto.
+                def _photo_content_ok(filename):
+                    """True bila file benar-benar gambar yang bisa dibuka.
+
+                    Ekstensi saja tidak cukup: file teks bernama .jpg sebelumnya
+                    lolos dan tersimpan sebagai bukti rusak.
+                    """
+                    if not filename:
+                        return True
+                    try:
+                        from PIL import Image
+                        with Image.open(os.path.join(upload_dir, filename)) as im:
+                            im.verify()
+                        return True
+                    except Exception:
+                        return False
+
+                invalid_photos = [field for field, saved in (
+                    ('foto_odo_sebelum', foto_odo_sebelum),
+                    ('foto_nota_odo_sesudah', foto_nota_odo_sesudah),
+                    ('foto_struk', foto_struk),
+                    ('foto_struk_dispenser', foto_struk_dispenser),
+                ) if saved and not _photo_content_ok(saved)]
                 rejected_photos = [field for field, saved in (
                     ('foto_odo_sebelum', foto_odo_sebelum),
                     ('foto_nota_odo_sesudah', foto_nota_odo_sesudah),
                     ('foto_struk', foto_struk),
                     ('foto_struk_dispenser', foto_struk_dispenser),
                 ) if request.files.get(field) and not saved]
+                if invalid_photos:
+                    for saved in (foto_odo_sebelum, foto_nota_odo_sesudah, foto_struk, foto_struk_dispenser):
+                        if saved:
+                            try:
+                                _p = os.path.join(upload_dir, saved)
+                                if os.path.exists(_p):
+                                    os.remove(_p)
+                            except OSError:
+                                pass
+                    cursor.close(); conn.close(); conn = None
+                    return jsonify({'status': 'error',
+                                    'msg': 'File foto tidak valid / rusak: ' + ', '.join(invalid_photos)}), 400
                 if rejected_photos:
                     for saved in (foto_odo_sebelum, foto_nota_odo_sesudah, foto_struk, foto_struk_dispenser):
                         if saved:
@@ -491,7 +525,15 @@ def register_driver_routes(app, socketio):
                 return jsonify({'error': 'DB error'}), 500
             cursor = conn.cursor(dictionary=True)
             cursor.execute(
-                "SELECT name, nopol, vehicle_type, bbm_type, is_active FROM drivers WHERE name=%s",
+                """SELECT d.name, d.nopol, d.vehicle_type, d.bbm_type, d.is_active,
+                          COALESCE(NULLIF(v.initial_odo_km, 0),
+                                   (SELECT MAX(va.last_odometer) FROM vehicle_assets va
+                                     WHERE va.nopol = d.nopol), 0) AS initial_odo_km,
+                          (SELECT MAX(t.odo_km) FROM transactions t
+                            WHERE t.nopol = d.nopol AND COALESCE(t.odo_km, 0) > 0) AS last_odo_km
+                     FROM drivers d
+                     LEFT JOIN vehicles v ON v.nopol = d.nopol
+                    WHERE d.name=%s""",
                 (driver_name,))
             profile = cursor.fetchone()
             cursor.close(); conn.close()
@@ -541,11 +583,21 @@ def register_driver_routes(app, socketio):
             trip_date = request.form.get('trip_date', datetime.now().strftime('%Y-%m-%d'))
             jam_berangkat = request.form.get('jam_keberangkatan', '')
             jam_tiba = request.form.get('jam_tiba', '')
-            km_awal = int(request.form.get('km_awal', 0) or 0)
-            km_akhir = int(request.form.get('km_akhir', 0) or 0)
+            try:
+                km_awal = int(request.form.get('km_awal', 0) or 0)
+                km_akhir = int(request.form.get('km_akhir', 0) or 0)
+            except (TypeError, ValueError):
+                return jsonify({'status': 'error', 'msg': 'KM awal dan KM akhir harus angka!'}), 400
 
             if not all([driver_name, nopol, jam_berangkat, km_awal > 0]):
                 return jsonify({'status': 'error', 'msg': 'Driver, Nopol, Jam Berangkat, dan KM Awal wajib diisi!'}), 400
+            try:
+                datetime.strptime(str(trip_date), '%Y-%m-%d')
+            except (TypeError, ValueError):
+                return jsonify({'status': 'error', 'msg': 'Tanggal trip tidak valid (format YYYY-MM-DD).'}), 400
+            if km_akhir and km_akhir < km_awal:
+                return jsonify({'status': 'error', 'msg':
+                                f'KM akhir ({km_akhir}) tidak boleh lebih kecil dari KM awal ({km_awal}).'}), 400
 
             conn = get_db_connection()
             if not conn:
@@ -605,6 +657,12 @@ def register_driver_routes(app, socketio):
                             (appt_id, driver_name))
                         if cursor.rowcount:
                             completed_appt_ids.append(appt_id)
+
+            if detail_count == 0:
+                conn.rollback()
+                cursor.close(); conn.close(); conn = None
+                return jsonify({'status': 'error',
+                                'msg': 'Minimal 1 rute (lokasi berangkat & tujuan) wajib diisi!'}), 400
 
             conn.commit()
 

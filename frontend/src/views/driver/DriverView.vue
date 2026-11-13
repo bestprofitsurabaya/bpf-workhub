@@ -12,6 +12,7 @@ import RaporTab from './RaporTab.vue'
 import OvertimeDriverTab from './OvertimeDriverTab.vue'
 import HelpCenter from '../../components/HelpCenter.vue'
 import OnboardingTour from '../../components/OnboardingTour.vue'
+import FlowGuide from '../../components/FlowGuide.vue'
 import { onboardingSteps } from '../../content/help.js'
 import { api } from '../../api'
 
@@ -40,11 +41,11 @@ function finishTour() {
 }
 
 const TABS = [
-  { key: 'bbm', label: 'BBM', icon: '⛽' },
-  { key: 'kasbon', label: 'Kasbon', icon: '💰' },
-  { key: 'trip', label: 'Trip', icon: '🗺️' },
-  { key: 'overtime', label: 'OT', icon: '⏰' },
-  { key: 'rapor', label: 'Rapor', icon: '📊' },
+  { key: 'bbm', label: 'BBM', icon: '⛽', hint: 'Klaim BBM, voucher rekanan, dan LPJ kasbon' },
+  { key: 'kasbon', label: 'Kasbon', icon: '💰', hint: 'Uang muka perjalanan & status LPJ' },
+  { key: 'trip', label: 'Trip', icon: '🗺️', hint: 'Log perjalanan & hasil kunjungan' },
+  { key: 'overtime', label: 'OT', icon: '⏰', hint: 'Pengajuan lembur' },
+  { key: 'rapor', label: 'Rapor', icon: '📊', hint: 'Performa BBM kendaraan (km/L)' },
 ]
 // Valuasi tab tersimpan: kunci lama/tak dikenal tidak boleh membuat layar kosong.
 const storedTab = localStorage.getItem('driverTab')
@@ -225,6 +226,7 @@ onBeforeUnmount(() => {
 
       <!-- Konten tab -->
       <main class="d-content">
+        <FlowGuide audience="driver" />
         <BBMTab v-show="tab === 'bbm'" @toast="toast" />
         <KasbonTab v-show="tab === 'kasbon'" :refresh="kasbonRefresh" @toast="toast" @switch-tab="switchTab" />
         <TripTab v-show="tab === 'trip'" @toast="toast" />
@@ -234,7 +236,8 @@ onBeforeUnmount(() => {
 
       <!-- Bottom nav -->
       <nav class="d-nav">
-        <button v-for="t in TABS" :key="t.key" class="d-nav-item" :class="{ active: tab === t.key }" @click="switchTab(t.key)">
+        <button v-for="t in TABS" :key="t.key" class="d-nav-item" :class="{ active: tab === t.key }"
+                :title="t.hint" :aria-label="t.label + ' — ' + t.hint" @click="switchTab(t.key)">
           <span class="d-nav-ico">{{ t.icon }}</span>
           <span class="d-nav-label">{{ t.label }}</span>
         </button>

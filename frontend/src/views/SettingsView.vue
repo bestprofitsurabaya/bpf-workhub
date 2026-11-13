@@ -41,7 +41,7 @@ async function bulkCreate(scope) {
 }
 
 const showVehicleForm = ref(false)
-const vehicleForm = ref({ nopol: '', vehicle_type: 'AVANZA', brand: 'Toyota', bbm_default: 'PERTALITE' })
+const vehicleForm = ref({ nopol: '', vehicle_type: 'AVANZA', brand: 'Toyota', bbm_default: 'PERTALITE', initial_odo_km: 0 })
 
 // Identitas perusahaan / cabang (v2.19.2) — multi-cabang
 const identityForm = ref({ company_name: '', company_subtitle: '', system_name: '', system_version: '', company_address: '', company_phone: '' })
@@ -173,6 +173,19 @@ async function seedDemoBranch(code) {
   try {
     const r = await api(`/api/branches/${encodeURIComponent(code)}/seed-demo`, { method: 'POST' })
     branchMsg.value = '✅ ' + (r.msg || 'Data demo ditanam')
+  } catch (e) { branchMsg.value = '❌ ' + e.message }
+  finally { branchBusy.value = false }
+}
+
+// v2.108.2: pembersihan demo per cabang — pasangan tombol 🧪 Demo. Sebelumnya
+// pembersihan hanya berlaku untuk cabang aktif, jadi Admin Pusat bisa menanam
+// demo ke cabang lain tetapi tidak bisa membersihkannya dari sini.
+async function cleanDemoBranch(code) {
+  if (!(await ask(`Bersihkan data demo di cabang ${code} (rute DEMO-* + transaksi dummy)? Data asli tidak terpengaruh.`, { confirmText: 'Ya, bersihkan', danger: true }))) return
+  branchBusy.value = true; branchMsg.value = ''
+  try {
+    const r = await api(`/api/branches/${encodeURIComponent(code)}/clean-demo`, { method: 'POST' })
+    branchMsg.value = '✅ ' + (r.msg || 'Data demo dibersihkan')
   } catch (e) { branchMsg.value = '❌ ' + e.message }
   finally { branchBusy.value = false }
 }
@@ -468,7 +481,19 @@ async function addVehicle() {
     await api('/api/vehicles/add', { method: 'POST', body })
     msg.value = '✅ Kendaraan tersimpan'
     showVehicleForm.value = false
-    vehicleForm.value = { nopol: '', vehicle_type: 'AVANZA', brand: 'Toyota', bbm_default: 'PERTALITE' }
+    vehicleForm.value = { nopol: '', vehicle_type: 'AVANZA', brand: 'Toyota', bbm_default: 'PERTALITE', initial_odo_km: 0 }
+    load()
+  } catch (e) { msg.value = '❌ ' + e.message }
+  finally { busy.value = false }
+}
+
+async function saveVehicleOdo(v) {
+  const odo = Number(v.initial_odo_km)
+  if (!Number.isFinite(odo) || odo < 0) { msg.value = '❌ KM awal tidak valid'; return }
+  busy.value = true; msg.value = ''
+  try {
+    await api(`/api/vehicles/${v.id}`, { method: 'PATCH', body: { initial_odo_km: Math.round(odo) } })
+    msg.value = `✅ KM awal ${v.nopol || v.vehicle_type} disimpan`
     load()
   } catch (e) { msg.value = '❌ ' + e.message }
   finally { busy.value = false }
@@ -802,6 +827,7 @@ onMounted(() => {
                     <button class="btn btn-sm" @click="openBranchForm(b)" title="Edit identitas cabang (nama, kota, alamat kop dokumen, telepon)">✏️ Edit</button>
                     <button class="btn btn-sm" @click="ensureDb(b.code)" title="Buat/sinkronkan database cabang">🗄️ DB</button>
                     <button class="btn btn-sm" @click="seedDemoBranch(b.code)" title="Tanam data demo (rute + transaksi dummy) ke cabang ini">🧪 Demo</button>
+                    <button class="btn btn-sm" @click="cleanDemoBranch(b.code)" title="Bersihkan data demo (rute + transaksi dummy) di cabang ini" :disabled="branchBusy">🧹 Demo</button>
                     <button class="btn btn-sm" @click="toggleBranch(b.code, !b.is_active)" :disabled="branchBusy">{{ b.is_active ? '🔴 Nonaktifkan' : '🟢 Aktifkan' }}</button>
                   </template>
                   <span v-else class="muted" style="font-size:11px;">Read-only</span>
@@ -1032,11 +1058,16 @@ onMounted(() => {
           <h3>🚙 Kendaraan</h3>
           <div class="table-wrap">
             <table class="tbl">
-              <thead><tr><th>Tipe</th><th>Merk</th><th>Kapasitas</th><th>Status</th></tr></thead>
+              <thead><tr><th>Nopol</th><th>Tipe</th><th>Merk</th><th>KM Awal</th><th>Status</th><th></th></tr></thead>
               <tbody>
-                <tr v-for="v in vehicles" :key="v.id || v.vehicle_type">
-                  <td><b>{{ v.vehicle_type }}</b></td><td>{{ v.brand }}</td><td>{{ v.fuel_capacity }}</td>
+                <tr v-for="v in vehicles" :key="v.id || v.nopol">
+                  <td><b>{{ v.nopol || '—' }}</b></td><td>{{ v.vehicle_type }}</td><td>{{ v.brand }}</td>
+                  <td>
+                    <input class="input" style="width:96px;" type="number" min="0" v-model.number="v.initial_odo_km" />
+                    <div class="muted" style="font-size:9px;">km saat mulai dipakai</div>
+                  </td>
                   <td><span class="badge" :class="v.is_active ? 'badge-green' : 'badge-red'">{{ v.is_active ? 'Aktif' : 'Nonaktif' }}</span></td>
+                  <td><button class="btn btn-sm" :disabled="busy" title="Simpan KM awal" @click="saveVehicleOdo(v)">💾</button></td>
                 </tr>
               </tbody>
             </table>
@@ -1117,6 +1148,10 @@ onMounted(() => {
         <div class="field"><label>Merk</label><input class="input" v-model="vehicleForm.brand" /></div>
         <div class="field"><label>BBM Default</label>
           <select class="select" v-model="vehicleForm.bbm_default"><option v-for="b in bbmNames" :key="b" :value="b">{{ b }}</option></select>
+        </div>
+        <div class="field"><label>KM Awal Kendaraan</label>
+          <input class="input" type="number" min="0" v-model.number="vehicleForm.initial_odo_km" placeholder="cth: 81441" />
+          <div class="muted" style="font-size:10px;">Odometer saat kendaraan mulai dipakai. Menjadi acuan awal di aplikasi driver; riwayat transaksi tidak diubah.</div>
         </div>
       </div>
       <div class="row" style="justify-content:flex-end;margin-top:12px;">

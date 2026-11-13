@@ -89,6 +89,7 @@ async function reload() {
 }
 
 async function verify(row) {
+  if (row.ml_anomaly_flag) { await verifyFull(row); return }
   if (busy.value) return
   const ok = window.confirm(
     `Verifikasi voucher ${row.display_id}? Pastikan foto ODO, nota + ODO, dan struk sesuai.`)
@@ -96,6 +97,40 @@ async function verify(row) {
   busy.value = true
   msg.value = ''
   try {
+    const r = await api(`/api/voucher/verify/${row.id}`, { method: 'POST' })
+    msg.value = '✅ ' + (r?.msg || 'Voucher diverifikasi')
+    await reload()
+  } catch (e) {
+    msg.value = ''
+    err.value = e?.data?.msg || e.message
+  } finally {
+    busy.value = false
+  }
+}
+
+/**
+ * v2.108.0 (audit F1): voucher ber-flag anomali tidak boleh buntu.
+ * GA memeriksa foto, lalu satu klik menjalankan dua langkah:
+ *   1. POST /api/queue/anomaly-clear/<id> — wajib step-up PIN, mencatat
+ *      siapa yang menyaksikan pemeriksaan (anomaly_cleared_by).
+ *   2. POST /api/voucher/verify/<id> — baru boleh lanjut setelah bersih.
+ * Bila user membatalkan PIN, tidak ada perubahan status.
+ */
+async function verifyFull(row) {
+  if (busy.value) return
+  const ok = window.confirm(
+    `Verifikasi penuh voucher ${row.display_id}?\n\n` +
+    'Voucher ini ditandai anomali. Periksa foto ODO, nota + ODO, dan struk. ' +
+    'Setelah Anda konfirmasi dengan PIN, anomali dicatat sebagai diperiksa dan voucher diverifikasi.')
+  if (!ok) return
+  busy.value = true
+  msg.value = ''
+  err.value = ''
+  try {
+    const cleared = await stepup.require(
+      () => api(`/api/queue/anomaly-clear/${row.id}`, { method: 'POST' }),
+      'memeriksa anomali voucher')
+    if (!cleared) return
     const r = await api(`/api/voucher/verify/${row.id}`, { method: 'POST' })
     msg.value = '✅ ' + (r?.msg || 'Voucher diverifikasi')
     await reload()
@@ -244,6 +279,7 @@ onMounted(reload)
       <b>⏳ Menunggu verifikasi GA ({{ pending.length }})</b>
       <p class="muted" style="font-size:11px;margin:4px 0;">
         Periksa foto ODO, nota + ODO, dan struk. Verifikasi membuat voucher masuk hitungan beban BBM.
+        Voucher ber-flag <b>⚠ Anomali</b> wajib memakai <b>🛡 Verifikasi penuh</b> (PIN ulang).
       </p>
       <div class="table-wrap">
         <table class="tbl">
@@ -255,7 +291,10 @@ onMounted(reload)
             <tr v-for="row in pending" :key="row.id">
               <td>{{ row.display_id }}</td>
               <td>{{ formatDateTime(row.created_at) }}</td>
-              <td>{{ row.driver_name }}</td>
+              <td>{{ row.driver_name }}
+                <div v-if="row.ml_anomaly_flag" class="badge badge-amber" style="font-size:10px;"
+                     title="Pola pemakaian tidak wajar — perlu pemeriksaan penuh">⚠ Anomali</div>
+              </td>
               <td>{{ row.nopol }}</td>
               <td>{{ row.voucher_partner || '-' }}<div class="muted" style="font-size:11px;">{{ row.nota_no }}</div></td>
               <td>{{ fmtRp(row.nominal) }}<div class="muted" style="font-size:11px;">+ kode {{ row.daily_code }}</div></td>
@@ -266,7 +305,10 @@ onMounted(reload)
                 <button v-if="row.foto_struk" class="btn btn-sm" @click="openPhoto(row, 'foto_struk')">🎟️ Struk</button>
               </td>
               <td>
-                <button v-if="isGa" class="btn btn-sm btn-success" :disabled="busy" @click="verify(row)">✅ Verifikasi</button>
+                <button v-if="isGa" class="btn btn-sm btn-success" :disabled="busy"
+                        :data-testid="'voucher-verify-' + row.id" @click="verify(row)">
+                  {{ row.ml_anomaly_flag ? '🛡 Verifikasi penuh' : '✅ Verifikasi' }}
+                </button>
               </td>
             </tr>
           </tbody>
@@ -303,7 +345,10 @@ onMounted(reload)
             <tr v-for="row in unsettled" :key="row.id">
               <td><input type="checkbox" :checked="selectedIds.includes(row.id)" @change="toggle(row.id)" /></td>
               <td>{{ fmtDate(row.created_at) }}</td>
-              <td>{{ row.driver_name }}</td>
+              <td>{{ row.driver_name }}
+                <div v-if="row.ml_anomaly_flag" class="badge badge-amber" style="font-size:10px;"
+                     title="Pola pemakaian tidak wajar — perlu pemeriksaan penuh">⚠ Anomali</div>
+              </td>
               <td>{{ row.nopol }}</td>
               <td>{{ row.voucher_partner || '-' }}<div class="muted" style="font-size:11px;">{{ row.nota_no }}</div></td>
               <td>{{ fmtRp(row.voucher_value) }}</td>

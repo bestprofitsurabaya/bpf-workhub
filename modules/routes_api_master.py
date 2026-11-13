@@ -78,7 +78,7 @@ def register_master_api(app):
             conn = get_db_connection()
             if not conn: return jsonify({'error': 'DB error'}), 500
             cursor = conn.cursor(dictionary=True)
-            cursor.execute("SELECT vehicle_type, brand, fuel_capacity FROM vehicles WHERE is_active=TRUE ORDER BY vehicle_type")
+            cursor.execute("SELECT id, nopol, vehicle_type, brand, fuel_capacity, bbm_default, initial_odo_km, is_active FROM vehicles WHERE is_active=TRUE ORDER BY vehicle_type, nopol")
             data = cursor.fetchall()
             cursor.close(); conn.close()
             return jsonify(data)
@@ -660,11 +660,59 @@ def register_master_api(app):
             nopol = data.get('nopol', '').strip().upper(); vehicle_type = data.get('vehicle_type', 'AVANZA').strip().upper()
             brand = data.get('brand', 'Toyota').strip(); bbm_default = data.get('bbm_default', 'PERTALITE').strip().upper()
             if not nopol: return jsonify({'status': 'error', 'msg': 'No. Polisi wajib'}), 400
+            try:
+                initial_odo = int(data.get('initial_odo_km') or 0)
+            except (TypeError, ValueError):
+                return jsonify({'status': 'error', 'msg': 'KM awal harus berupa angka'}), 400
+            if initial_odo < 0 or initial_odo > 9999999:
+                return jsonify({'status': 'error', 'msg': 'KM awal harus 0–9.999.999'}), 400
             conn = get_db_connection(); cursor = conn.cursor()
-            cursor.execute("INSERT INTO vehicles (vehicle_type, nopol, brand, fuel_capacity, bbm_default, is_active) VALUES (%s, %s, %s, 45, %s, 1) ON DUPLICATE KEY UPDATE vehicle_type=VALUES(vehicle_type), brand=VALUES(brand), bbm_default=VALUES(bbm_default), is_active=1", (vehicle_type, nopol, brand, bbm_default))
+            cursor.execute(
+                "INSERT INTO vehicles (vehicle_type, nopol, brand, fuel_capacity, "
+                "bbm_default, initial_odo_km, is_active) VALUES (%s,%s,%s,45,%s,%s,1) "
+                "ON DUPLICATE KEY UPDATE vehicle_type=VALUES(vehicle_type), "
+                "brand=VALUES(brand), bbm_default=VALUES(bbm_default), "
+                "initial_odo_km=IF(VALUES(initial_odo_km)>0, VALUES(initial_odo_km), initial_odo_km), "
+                "is_active=1",
+                (vehicle_type, nopol, brand, bbm_default, initial_odo))
             conn.commit(); cursor.close(); conn.close()
-            log_activity_async(0, 'vehicle_add', 'admin', 'Admin', new_data={'nopol': nopol, 'type': vehicle_type})
+            log_activity_async(0, 'vehicle_add', 'admin', 'Admin',
+                               new_data={'nopol': nopol, 'type': vehicle_type,
+                                         'initial_odo_km': initial_odo})
             return jsonify({'status': 'success', 'msg': f'Kendaraan {nopol} ({vehicle_type}) ditambahkan'})
+        except Exception as e:
+            return jsonify({'status': 'error', 'msg': str(e)}), 500
+
+    @app.route('/api/vehicles/<int:vid>', methods=['PATCH'])
+    @role_required(['ga', 'finance', 'admin'])
+    def api_vehicle_patch(vid):
+        """Ubah KM awal kendaraan (baseline ODO di aplikasi driver)."""
+        try:
+            data = request.get_json(silent=True) or {}
+            if 'initial_odo_km' not in data:
+                return jsonify({'status': 'error', 'msg': 'Field initial_odo_km wajib'}), 400
+            try:
+                odo = int(data.get('initial_odo_km') or 0)
+            except (TypeError, ValueError):
+                return jsonify({'status': 'error', 'msg': 'KM awal harus berupa angka'}), 400
+            if odo < 0 or odo > 9999999:
+                return jsonify({'status': 'error', 'msg': 'KM awal harus 0–9.999.999'}), 400
+            conn = get_db_connection()
+            if not conn:
+                return jsonify({'status': 'error', 'msg': 'DB error'}), 500
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute("SELECT id, nopol FROM vehicles WHERE id=%s", (vid,))
+            row = cursor.fetchone()
+            if not row:
+                cursor.close(); conn.close()
+                return jsonify({'status': 'error', 'msg': 'Kendaraan tidak ditemukan'}), 404
+            cursor.execute("UPDATE vehicles SET initial_odo_km=%s WHERE id=%s", (odo, vid))
+            conn.commit()
+            cursor.close(); conn.close()
+            log_activity_async(0, 'vehicle_odo_set', 'admin', 'Admin',
+                               new_data={'nopol': row.get('nopol'), 'initial_odo_km': odo})
+            return jsonify({'status': 'success',
+                            'msg': f'KM awal {row.get("nopol") or "kendaraan"} disimpan: {odo:,} km'.replace(',', '.')})
         except Exception as e:
             return jsonify({'status': 'error', 'msg': str(e)}), 500
 
@@ -775,12 +823,22 @@ def register_master_api(app):
     # - Rute demo  : appointment display_id berawalan 'DEMO-'
     # - Transaksi demo : transactions.is_dummy = 1
     # ================================================================
-    DEMO_TX_SQL = """INSERT IGNORE INTO transactions
+    DEMO_TX_SQL = """INSERT INTO transactions
         (driver_name, nopol, vehicle_type, bbm_type, nominal, liter, price_per_liter,
          odo_km, spbu_type, status, km_per_liter, jumlah_appointment, is_dummy, gps_address)
-        VALUES
-        ('AKHAD','L 1413 CBI','AVANZA','PERTALITE',200000,20.00,10000,12936,'rekanan','archived',12.50,3,1,'Jl. Raya Darmo 45, Surabaya'),
-        ('AHMAT','B 2628 SRP','INNOVA','PERTAMAX',270000,20.00,13500,71126,'rekanan','archived',10.20,5,1,'Jl. Ahmad Yani 120, Surabaya')"""
+        SELECT %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,1,%s FROM DUAL
+        WHERE NOT EXISTS (
+            SELECT 1 FROM transactions
+            WHERE is_dummy=1 AND driver_name=%s AND nopol=%s)"""
+
+    # v2.108.2: `INSERT IGNORE` tanpa kunci unik membuat tiap klik "Buat Data
+    # Demo" menambah 2 baris lagi. Sekarang dijaga NOT EXISTS sungguhan.
+    DEMO_TXS = [
+        ('AKHAD', 'L 1413 CBI', 'AVANZA', 'PERTALITE', 200000, 20.00, 10000,
+         12936, 'rekanan', 'archived', 12.50, 3, 'Jl. Raya Darmo 45, Surabaya'),
+        ('AHMAT', 'B 2628 SRP', 'INNOVA', 'PERTAMAX', 270000, 20.00, 13500,
+         71126, 'rekanan', 'archived', 10.20, 5, 'Jl. Ahmad Yani 120, Surabaya'),
+    ]
 
     def _valid_scope(scope):
         return scope in ('routes', 'transactions', 'all')
@@ -830,8 +888,13 @@ def register_master_api(app):
                 summary['skipped_routes'] = res['skipped']
                 summary['error'] = res['error']
             if scope in ('transactions', 'all'):
-                cursor.execute(DEMO_TX_SQL)
-                summary['transactions'] = cursor.rowcount
+                made_tx = 0
+                for demo_row in DEMO_TXS:
+                    cursor.execute(DEMO_TX_SQL,
+                                   demo_row + (demo_row[0], demo_row[1]))
+                    if cursor.rowcount and cursor.rowcount > 0:
+                        made_tx += cursor.rowcount
+                summary['transactions'] = made_tx
                 cursor.execute("INSERT INTO system_config (config_key, config_value) VALUES ('dummy_data_enabled','true') ON DUPLICATE KEY UPDATE config_value=VALUES(config_value)")
             conn.commit()
             cursor.close(); conn.close()
