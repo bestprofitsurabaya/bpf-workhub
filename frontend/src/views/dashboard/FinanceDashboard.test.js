@@ -57,8 +57,11 @@ describe('FinanceDashboard', () => {
     expect(priorities.text()).toContain('3')
     expect(priorities.text()).toContain('Kasbon menunggu Finance')
     expect(priorities.text()).toContain('2')
-    expect(priorities.text()).toContain('Klaim menunggu LPJ')
     expect(priorities.text()).toContain('Air minum menunggu')
+    // v2.105.0: kartu "Klaim menunggu LPJ" dihapus — finance_pending berisi
+    // klaim yang SUDAH dibayar (os_finance), bukan antrean kerja.
+    expect(priorities.text()).not.toContain('Klaim menunggu LPJ')
+    expect(w.findAll('[data-testid^="priority-"]')).toHaveLength(3)
     expect(w.find('[data-testid="water-workspace-link"]').attributes('href')).toBe('/water')
     expect(w.find('[data-testid="bbm-workspace-link"]').attributes('href')).toBe('/cash')
     expect(w.find('[data-testid="water-section-heading"]').exists()).toBe(false)

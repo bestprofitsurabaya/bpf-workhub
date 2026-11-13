@@ -1,4 +1,4 @@
-# 📖 Panduan Pengguna BPF WorkHub v2.104.0
+# 📖 Panduan Pengguna BPF WorkHub v2.105.0
 
 > **Siapa pun kamu — sopir, OB, admin, atau pimpinan — panduan ini ditulis untuk kamu.**
 > Tidak perlu paham teknis. Cukup ikuti langkah-langkah sesuai bagianmu.
@@ -335,9 +335,11 @@ secara tercatat dan berjenjang:
 
 Setelah login, kamu langsung masuk **Dashboard Finance** (`/app/finance`). Di sana ada:
 
+- **🎯 Ringkasan prioritas** — tiga angka kerja: **Klaim BBM siap dicairkan**, **Kasbon menunggu Finance**, dan **Air minum menunggu**. Klik kartunya untuk langsung membuka antreannya.
 - **💧 Rekap Air Minum** — ringkasan pembelian (total, menunggu verifikasi, terverifikasi, ditolak), **per OB**, **per jenis** (gelas/botol/galon), dan **per merk**.
-- **🕐 Antrean Verifikasi** — pengajuan air minum yang menunggu keputusanmu.
 - **💵 Kasbon menunggu Finance** — kasbon yang sudah disetujui GA & siap kamu cairkan, plus LPJ yang menunggu.
+
+> Sejak v2.105.0 menu finance dirampingkan: **Rekap Klaim BBM**, **Realisasi Pengeluaran**, dan **Analisis BBM & Armada** tidak lagi menjadi menu terpisah — semuanya ada di **BBM, Kasbon & SPBU → tab Laporan** (satu tempat, tanpa duplikasi).
 
 ### 6.2 Memverifikasi Pembelian Air Minum
 

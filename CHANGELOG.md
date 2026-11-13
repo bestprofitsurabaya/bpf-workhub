@@ -7,6 +7,31 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.105.0 — 13 November 2026 (Audit & perampingan frontend finance)
+
+Audit fitur role **finance** menemukan tiga hal: menu laporan ganda, satu kartu
+dashboard dengan label/link keliru, dan deep link yang tidak reaktif.
+
+- 🧹 **Menu finance dirampingkan 7 → 4 item.** *Rekap Klaim BBM*, *Realisasi
+  Pengeluaran*, dan *Analisis BBM & Armada* tidak lagi menjadi menu terpisah
+  untuk finance — ketiganya sudah tersedia di dalam **BBM, Kasbon & SPBU →
+  tab Laporan**. Tidak ada fitur yang hilang, hanya duplikasi menu.
+- 🐞 **Kartu dashboard keliru dihapus.** Kartu *“Klaim menunggu LPJ”* memakai
+  angka `finance_pending` yang sebenarnya menghitung `transactions` status
+  `os_finance` — yaitu klaim yang **sudah dibayar**, bukan antrean kerja — dan
+  menautkan ke tab kasbon. Prioritas finance kini tepat tiga: klaim siap
+  dicairkan, kasbon menunggu finance, air minum menunggu.
+- 🏷️ **Badge finance yang menyesatkan dibuang.** `finance_pending` (klaim
+  sudah dibayar) dan `approvals_pending` (finance tidak punya halaman ACC)
+  tidak lagi dihitung server — lebih hemat dua query per poll badge.
+- 🔗 **Deep link `/cash?tab=&view=` kini reaktif.** Sebelumnya parameter hanya
+  dibaca saat mount, sehingga klik menu laporan/redirect `/rekap`,
+  `/expenses`, `/analytics` saat sudah berada di `/cash` tidak berpindah tab.
+- ✅ Tes diperbarui: `tests/test_nav_badges.py`, `AppLayout.test.js`,
+  `FinanceDashboard.test.js`.
+
+---
+
 ## v2.104.0 — 12 November 2026 (Fase 3 selesai: angka → baris → aksi)
 
 - 🎯 **Setiap KPI bisa diklik ke daftar baris sumber.** Baris KPI baru di

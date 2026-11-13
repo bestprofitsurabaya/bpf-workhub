@@ -34,7 +34,7 @@ const MENU_GROUPS = [
     items: [
       { label: 'Dashboard', path: '/dashboard', icon: '📊', roles: ['admin'] },
       { label: 'Dashboard GA', path: '/ga', icon: '🧾', roles: ['ga', 'admin'], badge: 'ga_pending' },
-      { label: 'Dashboard Finance', path: '/finance', icon: '💰', roles: ['finance', 'admin'], badge: 'finance_pending' },
+      { label: 'Dashboard Finance', path: '/finance', icon: '💰', roles: ['finance', 'admin'] },
       { label: 'Marketing Hub', path: '/marketing', icon: '📣', roles: ['marketing'] },
       { label: 'Chief Driver', path: '/chief-driver', icon: '🚛', roles: ['chief_driver', 'ga', 'admin'] },
     ],
@@ -82,9 +82,9 @@ const MENU_GROUPS = [
   {
     label: 'Laporan & Analisis',
     items: [
-      { label: 'Rekap Klaim BBM', path: '/rekap', icon: '📋', roles: ['ga', 'finance', 'admin'] },
-      { label: 'Realisasi Pengeluaran', path: '/expenses', icon: '📊', roles: ['finance', 'admin'] },
-      { label: 'Analisis BBM & Armada', path: '/analytics', icon: '📈', roles: ['ga', 'finance', 'admin'] },
+      { label: 'Rekap Klaim BBM', path: '/rekap', icon: '📋', roles: ['ga', 'admin'] },
+      { label: 'Realisasi Pengeluaran', path: '/expenses', icon: '📊', roles: ['admin'] },
+      { label: 'Analisis BBM & Armada', path: '/analytics', icon: '📈', roles: ['ga', 'admin'] },
     ],
   },
   {

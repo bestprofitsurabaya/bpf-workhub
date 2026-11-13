@@ -87,10 +87,10 @@ describe('AppLayout — P1 navigasi', () => {
     expect(nav).toContain('Dashboard Finance')
     expect(nav).toContain('BBM, Kasbon & SPBU')
     expect(nav).toContain('Air Minum')
-    expect(nav).toContain('Rekap Klaim BBM')
-    expect(nav).toContain('Realisasi Pengeluaran')
-    expect(nav).toContain('Analisis BBM & Armada')
-    for (const hidden of ['Dashboard GA', 'Log Perjalanan', 'Pengadaan (PO)', 'ACC Atasan']) {
+    // v2.105.0: laporan dipangkas dari sidebar finance — semuanya sudah ada di
+    // dalam /cash tab Laporan (tanpa duplikasi menu).
+    for (const hidden of ['Dashboard GA', 'Log Perjalanan', 'Pengadaan (PO)', 'ACC Atasan',
+                          'Rekap Klaim BBM', 'Realisasi Pengeluaran', 'Analisis BBM & Armada']) {
       expect(nav).not.toContain(hidden)
     }
     w.unmount()

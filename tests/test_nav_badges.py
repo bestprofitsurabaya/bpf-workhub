@@ -101,7 +101,6 @@ class TestNavBadges:
         assert r.get_json()['badges'] == {
             'ga_pending': 3,
             'assignments_pending': 1,
-            'finance_pending': 2,
             'water_pending': 4,
             'bbm_verify_pending': 2,
             'cash_pending': 3,
@@ -125,16 +124,15 @@ class TestNavBadges:
         assert not any('water_purchases' in q for q in conn.queries)
 
     def test_finance_hanya_antrean_finance_air_dan_cash(self, monkeypatch):
-        _allow_first_approval(monkeypatch)
         client, _ = _client(monkeypatch, 'finance', 'finance_sby')
         r = client.get('/api/nav/badges')
         assert r.status_code == 200
+        # v2.105.0: finance_pending (os_finance = klaim sudah dibayar) dan
+        # approvals_pending (finance tidak punya halaman ACC) tidak lagi dihitung.
         assert r.get_json()['badges'] == {
-            'finance_pending': 2,
             'water_pending': 4,
             'bbm_verify_pending': 2,
             'cash_pending': 2,
-            'approvals_pending': 1,
         }
 
     def test_traineer_hanya_antrean_first_work_cabangnya(self, monkeypatch):

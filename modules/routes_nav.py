@@ -114,8 +114,6 @@ def register_nav_routes(app):
                           "WHERE is_current=1 AND confirmed_by_driver=0")
 
             if role in ('finance', 'admin'):
-                out['finance_pending'] = _count(
-                    conn, "SELECT COUNT(*) FROM transactions WHERE status='os_finance' AND (is_dummy=0 OR is_dummy IS NULL)")
                 out['water_pending'] = _count(
                     conn, "SELECT COUNT(*) FROM water_purchases WHERE status='pending'")
                 # v2.53.0: klaim AG terverifikasi siap pencairan — badge
@@ -135,7 +133,7 @@ def register_nav_routes(app):
                               "WHERE status='GA_APPROVED'")
                 out['cash_pending'] = cash
 
-            if role in ('ga', 'finance', 'chief_driver', 'ga_hr'):
+            if role in ('ga', 'chief_driver', 'ga_hr'):
                 out['approvals_pending'] = _approvals_pending(conn, role)
 
             # v2.80.1: antrean verifikasi Absensi FirstWork (traineer & admin

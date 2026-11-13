@@ -28,7 +28,6 @@ const branchName = computed(() => auth.user?.branch_name || 'kantor cabang')
 const priorities = computed(() => [
   { icon: '⛽', label: 'Klaim BBM siap dicairkan', key: 'bbm_verify_pending', color: '#d97706', to: '/cash?tab=bbm' },
   { icon: '💵', label: 'Kasbon menunggu Finance', key: 'cash_pending', color: '#059669', to: '/cash?tab=kasbon' },
-  { icon: '📋', label: 'Klaim menunggu LPJ', key: 'finance_pending', color: '#7c3aed', to: '/cash?tab=kasbon' },
   { icon: '🚰', label: 'Air minum menunggu', key: 'water_pending', color: '#0d9488', to: '/water' },
 ])
 
@@ -257,7 +256,7 @@ onMounted(loadBadges)
 .welcome-card p { margin: 0; }
 .welcome-card .eyebrow { margin-bottom: 7px; color: var(--primary); font-size: 10px; font-weight: 800; letter-spacing: .1em; }
 .section-title { margin: 2px 0 -4px; font-size: 16px; }
-.priority-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.priority-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
 .priority-link { display: block; color: inherit; text-decoration: none; height: 100%; }
 .priority-link .stat-card { height: 100%; }
 .quick-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }

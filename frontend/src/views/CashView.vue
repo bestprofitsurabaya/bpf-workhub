@@ -1,5 +1,6 @@
 <script setup>
 import { computed, defineAsyncComponent, onMounted, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { api } from '../api'
 import { useAuthStore } from '../stores/auth'
 import { useStepupStore } from '../stores/stepup'
@@ -154,6 +155,24 @@ const reportView = ref(
 const activeReport = computed(
   () => reportViews.value.find((t) => t.key === reportView.value) || reportViews.value[0],
 )
+
+// v2.105.0: ?tab= & ?view= dibaca sekali saat mount. Tanpa watcher, klik menu
+// atau redirect /rekap,/expenses,/analytics saat SUDAH di /cash tidak
+// berpindah tab (komponen tidak mount ulang). Watcher ini membuat deep link
+// tetap reaktif; guard `route` agar aman di unit test tanpa router.
+const route = useRoute()
+if (route) {
+  watch(() => route.query, (q) => {
+    const tab = String(q?.tab || '')
+    if (_validTabs.includes(tab) && (tab !== 'subsidy' || isFinance)) {
+      activeSection.value = tab
+    }
+    const view = String(q?.view || '')
+    if (view && reportViews.value.some((t) => t.key === view)) {
+      reportView.value = view
+    }
+  })
+}
 
 const STEPS = ['DRAFT', 'GA_APPROVED', 'FINANCE_APPROVED', 'FUNDS_WITH_DRIVER', 'LPJ_SUBMITTED', 'COMPLETED']
 const STEP_ICONS = ['📝', '✅', '💰', '🤝', '📋', '🎉']
