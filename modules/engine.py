@@ -118,8 +118,13 @@ def get_rekap_data(start_date=None, end_date=None, nopol=None, driver=None, tx_t
         # ini diterima tapi tidak pernah dipakai (dead code yang diam-diam
         # mengabaikan ?type=...). Semantik mengikuti /api/transactions/archive:
         # CLAIM vs CASH_LPJ.
+        # v2.107.0: voucher bukan jenis transaksi baru — baris CLAIM berlabel
+        # rekanan. Filter VOUCHER memilih baris ber-voucher_value.
         if tx_type in ('CLAIM', 'CASH_LPJ'):
             query += " AND t.transaction_type = %s"; params.append(tx_type)
+        elif tx_type == 'VOUCHER':
+            query += (" AND t.transaction_type = 'CLAIM'"
+                      " AND COALESCE(t.voucher_value, 0) > 0")
         query += " ORDER BY t.created_at ASC"
 
         cursor.execute(query, params)

@@ -13,19 +13,19 @@ const VEC = (v) => Array(12).fill(0).map((_, i) => (i === 1 ? v : 0))
 const RECAP = {
   year: 2026,
   selected: 'ALL',
-  categories: ['po', 'kasbon', 'lpj'],
+  categories: ['po', 'kasbon', 'lpj', 'voucher'],
   branches: [
     { code: 'SBY', name: 'Cabang Surabaya' },
     { code: 'BDG', name: 'Cabang Bandung' },
   ],
-  display: { name: 'Semua Cabang', po: VEC(600000), kasbon: VEC(200000), lpj: VEC(150000), total: VEC(750000) },
+  display: { name: 'Semua Cabang', po: VEC(600000), kasbon: VEC(200000), lpj: VEC(150000), voucher: VEC(50000), total: VEC(800000) },
   per_branch: {
-    SBY: { name: 'Cabang Surabaya', po: VEC(300000), kasbon: VEC(100000), lpj: VEC(75000), total: VEC(375000) },
-    BDG: { name: 'Cabang Bandung', po: VEC(300000), kasbon: VEC(100000), lpj: VEC(75000), total: VEC(375000) },
+    SBY: { name: 'Cabang Surabaya', po: VEC(300000), kasbon: VEC(100000), lpj: VEC(75000), voucher: VEC(25000), total: VEC(400000) },
+    BDG: { name: 'Cabang Bandung', po: VEC(300000), kasbon: VEC(100000), lpj: VEC(75000), voucher: VEC(25000), total: VEC(400000) },
   },
-  totals: { po: 600000, kasbon: 200000, lpj: 150000 },
-  grand_total: 750000,
-  sisa_total: 50000,
+  totals: { po: 600000, kasbon: 200000, lpj: 150000, voucher: 50000 },
+  grand_total: 800000,
+  sisa_total: 0,
   errors: {},
 }
 
@@ -48,13 +48,15 @@ describe('ExpensesView', () => {
     expect(txt).toContain('Realisasi Pengeluaran')
     expect(txt).toContain('Kasbon BBM Cair')
     expect(txt).toContain('Realisasi LPJ')
+    expect(txt).toContain('Voucher BBM')
     expect(txt).toContain('Sisa Kasbon')
     expect(txt).toContain('Pembelian Barang (PO diterima)')
     expect(txt).toContain('Total Realisasi')
     expect(txt).toContain('Rp 600.000')  // pembelian
     expect(txt).toContain('Rp 200.000')  // kasbon cair
     expect(txt).toContain('Rp 150.000')  // realisasi LPJ
-    expect(txt).toContain('Rp 750.000')  // total realisasi
+    expect(txt).toContain('Rp 50.000')   // voucher rekanan
+    expect(txt).toContain('Rp 800.000')  // total realisasi
   })
 
   it('tabel bulanan mengikuti rentang bulan + baris total', async () => {

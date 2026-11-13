@@ -8,6 +8,7 @@ from modules.helpers import (save_file, resolve_driver_form_context, validate_bb
                              ensure_anti_fraud_schema, ensure_fuel_prices_schema)
 from modules.engine import PerformanceAnalyzer
 from modules.approvals import hook_create_approval  # v2.36.0
+from modules.voucher_schema import ensure_voucher_schema  # v2.107.0
 from datetime import datetime
 import os
 import json
@@ -60,6 +61,7 @@ def register_driver_routes(app, socketio):
     def _ensure_all_dbs():
         try:
             if ensure_anti_fraud_schema() and ensure_fuel_prices_schema():
+                ensure_voucher_schema()
                 from modules.branch_manager import list_branches
                 from modules.config import get_db_connection as _gc
                 from modules.branch_db_map import DEFAULT_BRANCH_CODE
@@ -69,6 +71,7 @@ def register_driver_routes(app, socketio):
                         if c:
                             ensure_anti_fraud_schema(c)
                             ensure_fuel_prices_schema(c)
+                            ensure_voucher_schema(c)
                             try:
                                 c.close()
                             except Exception:
@@ -112,6 +115,24 @@ def register_driver_routes(app, socketio):
                 except (ValueError, TypeError):
                     return jsonify({'status': 'error', 'msg': 'Nominal, Odo KM, dan jumlah appointment harus angka'}), 400
                 spbu_type = request.form.get('spbu_type', 'rekanan')
+                # v2.107.0 — voucher rekanan BUKAN jenis transaksi baru. Baris
+                # tetap CLAIM; labelnya SPBU rekanan + kolom voucher terisi.
+                # Driver tidak mengisi nominal pada mode voucher; server
+                # menghitung dari nilai voucher cabang + kode harian.
+                voucher_partner = (request.form.get('voucher_partner') or '').strip()[:120]
+                nota_no = (request.form.get('nota_no') or '').strip()[:60]
+                try:
+                    liter_input = float(request.form.get('liter') or 0)
+                except (TypeError, ValueError):
+                    return jsonify({'status': 'error', 'msg': 'Liter harus angka'}), 400
+                requested_voucher = (
+                    (request.form.get('transaction_type') or '').strip().upper() == 'VOUCHER'
+                    or str(request.form.get('is_voucher') or '').strip().lower() in ('1', 'true', 'yes')
+                    or (spbu_type == 'rekanan' and bool(voucher_partner) and bool(nota_no))
+                )
+                is_voucher = requested_voucher
+                if is_voucher:
+                    spbu_type = 'rekanan'
                 gps_lat = request.form.get('gps_lat')
                 gps_lon = request.form.get('gps_lon')
                 gps_address = request.form.get('gps_address', '')
@@ -125,6 +146,25 @@ def register_driver_routes(app, socketio):
                 if not conn:
                     return jsonify({'status': 'error', 'msg': 'Database error'}), 500
                 cursor = conn.cursor(dictionary=True)
+
+                # --- Voucher: nilai dari konfigurasi cabang + kode harian ---
+                voucher_value = 0.0
+                daily_code = None
+                if is_voucher:
+                    if not voucher_partner or not nota_no:
+                        cursor.close(); conn.close(); conn = None
+                        return jsonify({'status': 'error',
+                                        'msg': 'Nama SPBU mitra dan nomor nota wajib diisi untuk voucher'}), 400
+                    if liter_input <= 0:
+                        cursor.close(); conn.close(); conn = None
+                        return jsonify({'status': 'error',
+                                        'msg': 'Liter dari nota voucher wajib diisi'}), 400
+                    from modules.routes_voucher import get_or_create_daily_code, read_voucher_config
+                    cfg = read_voucher_config(conn)
+                    daily_code = get_or_create_daily_code(conn)
+                    voucher_value = float(cfg.get('value') or 130000)
+                    nominal = voucher_value + daily_code
+                    spbu_type = 'rekanan'
 
                 # --- Basic validation BEFORE any DB writes ---
                 if not driver_name or not nopol or nominal <= 0 or odo_km <= 0:
@@ -143,6 +183,33 @@ def register_driver_routes(app, socketio):
                 if not validation['valid']:
                     return jsonify({'status': 'error', 'msg': validation['error']}), 400
 
+                # Voucher tanpa nomor seri: cegah input dobel pada hari yang sama
+                # (ODO sama) dan nomor nota yang sama.
+                if is_voucher:
+                    cursor.execute(
+                        "SELECT display_id FROM transactions WHERE transaction_type='CLAIM' "
+                        "AND COALESCE(voucher_value, 0) > 0 "
+                        "AND driver_name=%s AND nopol=%s AND DATE(created_at)=CURDATE() "
+                        "AND odo_km=%s AND status<>'rejected' LIMIT 1",
+                        (driver_name, nopol, odo_km))
+                    dup = cursor.fetchone()
+                    if dup:
+                        cursor.close(); conn.close(); conn = None
+                        return jsonify({'status': 'error',
+                                        'msg': f"Voucher dengan ODO {odo_km} km hari ini sudah dicatat "
+                                               f"({dup['display_id']}). Periksa kembali — satu pengisian satu voucher."}), 409
+                    cursor.execute(
+                        "SELECT display_id FROM transactions WHERE transaction_type='CLAIM' "
+                        "AND COALESCE(voucher_value, 0) > 0 "
+                        "AND nota_no=%s AND DATE(created_at)=CURDATE() AND status<>'rejected' LIMIT 1",
+                        (nota_no,))
+                    dup_nota = cursor.fetchone()
+                    if dup_nota:
+                        cursor.close(); conn.close(); conn = None
+                        return jsonify({'status': 'error',
+                                        'msg': f"Nomor nota {nota_no} sudah dipakai hari ini "
+                                               f"({dup_nota['display_id']})."}), 409
+
                 # --- Use server-side price, NOT client-provided ---
                 # v2.50.1: tabel vehicle_fuel_prices dijasikan idempoten startup;
                 # guard ini mencegah 500 bila tabel hilang lagi (fallback 10.000).
@@ -153,7 +220,12 @@ def register_driver_routes(app, socketio):
                 except Exception as price_err:
                     print(f"[driver] fuel price fallback: {price_err}")
                     price_per_liter = 10000
-                liter = nominal / price_per_liter if price_per_liter > 0 else 0
+                if is_voucher and liter_input > 0:
+                    # Liter aktual dari nota voucher — bukan hasil bagi nominal,
+                    # karena nilai voucher bisa berbeda dari harga per liter.
+                    liter = liter_input
+                else:
+                    liter = nominal / price_per_liter if price_per_liter > 0 else 0
 
                 ensure_all_master_data(driver_name, nopol, vehicle_type, bbm_type, price_per_liter)
 
@@ -361,25 +433,30 @@ def register_driver_routes(app, socketio):
                     INSERT INTO transactions (display_id, transaction_type, driver_name, nopol, vehicle_type, bbm_type, nominal, liter, price_per_liter,
                     odo_km, spbu_type, foto_odo_sebelum, foto_nota_odo_sesudah, foto_struk, foto_struk_dispenser,
                     status, ml_anomaly_flag, km_per_liter, gps_latitude, gps_longitude, gps_address,
-                    gps_kelurahan, gps_kecamatan, gps_kota, gps_provinsi, gps_kode_pos, jumlah_appointment, proof_meta)
-                    VALUES (%s,'CLAIM',%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'pending',%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-                """, (display_id, driver_name, nopol, vehicle_type, bbm_type, nominal, liter, price_per_liter,
+                    gps_kelurahan, gps_kecamatan, gps_kota, gps_provinsi, gps_kode_pos, jumlah_appointment, proof_meta,
+                    voucher_value, daily_code, voucher_partner, nota_no)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'pending',%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                """, (display_id, 'CLAIM', driver_name, nopol, vehicle_type, bbm_type, nominal, liter, price_per_liter,
                       odo_km, spbu_type, foto_odo_sebelum, foto_nota_odo_sesudah, foto_struk, foto_struk_dispenser,
                       analysis['is_anomaly'], km_per_liter, gps_lat, gps_lon, gps_address,
                       gps_kelurahan, gps_kecamatan, gps_kota, gps_provinsi, gps_kode_pos, jumlah_appointment,
-                      (json.dumps(photo_meta, default=str) if photo_meta else None)))
+                      (json.dumps(photo_meta, default=str) if photo_meta else None),
+                      voucher_value, daily_code, (voucher_partner or None), (nota_no or None)))
 
                 tx_id = cursor.lastrowid
                 conn.commit()
-                # v2.36.0: jurnal ACC berjenjang (Chief Driver → GA) — best-effort.
-                hook_create_approval(conn, 'bbm', tx_id, display_id=display_id, role='driver')
+                # v2.36.0: jurnal ACC berjenjang (Chief Driver → GA) untuk klaim.
+                # Voucher diverifikasi langsung GA (bukan klaim reimbursement).
+                if not is_voucher:
+                    hook_create_approval(conn, 'bbm', tx_id, display_id=display_id, role='driver')
                 # Registry hash bukti (best-effort, master DB — lintas cabang).
                 _register_proof_hashes(tx_id, display_id, driver_name, nopol, photo_meta)
                 log_activity_async(tx_id, 'create', 'driver', driver_name, ip=request.remote_addr)
                 try:
                     socketio.emit('new_claim', {
                         'driver_name': driver_name, 'nopol': nopol, 'display_id': display_id,
-                        'nominal': nominal, 'created_at': datetime.now().strftime('%d/%m/%Y %H:%M')
+                        'nominal': nominal, 'transaction_type': 'CLAIM',
+                        'created_at': datetime.now().strftime('%d/%m/%Y %H:%M')
                     })
                 except Exception:
                     pass
@@ -387,7 +464,10 @@ def register_driver_routes(app, socketio):
                 conn = None
 
                 if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.headers.get('Accept') == 'application/json':
-                    return jsonify({'status': 'success', 'transaction_id': display_id, 'numeric_id': tx_id, 'message': analysis['message']})
+                    label = 'Voucher' if is_voucher else 'Klaim'
+                    return jsonify({'status': 'success', 'transaction_id': display_id, 'numeric_id': tx_id,
+                                    'transaction_type': 'CLAIM', 'message': analysis['message'],
+                                    'msg': f'{label} {display_id} terkirim'})
                 return redirect('/app/driver')
             except Exception as e:
                 print(f"Driver error: {e}")

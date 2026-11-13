@@ -122,6 +122,14 @@ def test_cash_totals_identitas_cair_selesai_outstanding():
     assert cash['cair']['amount'] == cash['selesai']['amount'] + cash['outstanding']['amount']
 
 
+def test_voucher_sah_dihitung_sekali_dan_masuk_rekap():
+    """Voucher rekanan = beban BBM sekali saat pemakaian sah, bukan klaim/kasbon."""
+    assert bbm_scope.VOUCHER_OPEN_STATUSES == ('pending', 'modified')
+    assert bbm_scope.VOUCHER_VALID_STATUSES == ('verified_ga', 'archived')
+    sql = bbm_scope.rekap_scope_sql()
+    assert 'voucher_value' in sql
+
+
 def test_rekap_scope_menyatukan_klaim_dibayar_dan_lpj_sah():
     """Rekap = klaim dibayar + LPJ sah, bukan hanya baris `archived`."""
     sql = bbm_scope.rekap_scope_sql()
@@ -142,6 +150,9 @@ def test_summary_memakai_definisi_yang_sama():
     assert data['kasbon']['outstanding']['amount'] == 150.0
     assert data['realisasi']['lpj_sah'] == 200.0
     assert data['realisasi']['klaim_dibayar'] == 100.0
-    assert data['realisasi']['total'] == 300.0
-    assert data['meta']['basis_version'] == 'bbm-scope-1'
+    assert data['claims']['voucher_sah']['amount'] == 100.0
+    assert data['realisasi']['voucher_sah'] == 100.0
+    assert data['realisasi']['total'] == 400.0
+    assert data['meta']['basis_version'] == 'bbm-scope-2'
     assert 'outstanding' in data['meta']['basis']
+    assert 'voucher' in data['meta']['basis']

@@ -453,6 +453,42 @@ try:
 except Exception as _be:
     print(f'[it-inventory] branch ensure error: {_be}')
 
+# Voucher rekanan v2.107.0: tipe transaksi VOUCHER + tabel tagihan
+# voucher_settlements di DB master + tiap DB cabang (idempoten).
+from modules.voucher_schema import ensure_voucher_schema
+for _attempt in range(5):
+    _vconn = _ret_master()
+    if _vconn:
+        try:
+            if ensure_voucher_schema(_vconn):
+                break
+        except Exception as _ve:
+            print(f'[voucher] master ensure error: {_ve}')
+        finally:
+            try:
+                _vconn.close()
+            except Exception:
+                pass
+    _time.sleep(3)
+try:
+    for _b in bm.list_branches():
+        if _b.get('is_active') and _b.get('db_name') and _b['db_name'] != os.environ.get('DB_NAME', 'bpf_asset_system'):
+            _vb = _ret_pool(_b['db_name'])
+            if _vb:
+                try:
+                    _vbc = _vb.get_connection()
+                    try:
+                        ensure_voucher_schema(_vbc)
+                    finally:
+                        try:
+                            _vbc.close()
+                        except Exception:
+                            pass
+                except Exception as _ve:
+                    print(f'[voucher] {_b["code"]} ensure error: {_ve}')
+except Exception as _be:
+    print(f'[voucher] branch ensure error: {_be}')
+
 # Register all route modules
 from modules.routes_driver import register_driver_routes
 from modules.routes_api_master import register_master_api
@@ -490,6 +526,7 @@ from modules.approvals import register_approval_routes
 from modules.transcoder import register_transcoder_routes
 from modules.pdfkit import register_pdfkit_routes
 from modules.deploy_guard import install_deploy_guard  # v2.98.0
+from modules.routes_voucher import register_voucher_routes              # v2.107.0
 
 # v2.98.0: tolak request bila image lebih lama dari CHANGELOG repo (mount).
 install_deploy_guard(app)
@@ -529,6 +566,7 @@ register_approval_routes(app)
 register_transcoder_routes(app)
 register_pdfkit_routes(app)
 register_subsidy_routes(app)  # v2.50.0 — integrasi Subsidi Tepat
+register_voucher_routes(app)  # v2.107.0 — voucher rekanan
 
 # ================================================================
 # AUTO-CLEANUP: Hapus foto overtime > 6 bulan (180 hari)

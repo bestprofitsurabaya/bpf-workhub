@@ -106,9 +106,13 @@ def register_nav_routes(app):
             return jsonify({'badges': out})
         try:
             if role in ('ga', 'admin'):
+                # Voucher rekanan diverifikasi lewat tab Voucher (/cash),
+                # bukan antrean klaim GA — jangan digabung angkanya.
                 out['ga_pending'] = _count(
                     conn, "SELECT COUNT(*) FROM transactions "
-                          "WHERE status IN ('pending','modified') AND (is_dummy=0 OR is_dummy IS NULL)")
+                          "WHERE status IN ('pending','modified') "
+                          "AND COALESCE(voucher_value, 0) = 0 "
+                          "AND (is_dummy=0 OR is_dummy IS NULL)")
                 out['assignments_pending'] = _count(
                     conn, "SELECT COUNT(*) FROM vehicle_assignments "
                           "WHERE is_current=1 AND confirmed_by_driver=0")
@@ -119,7 +123,10 @@ def register_nav_routes(app):
                 # v2.53.0: klaim AG terverifikasi siap pencairan — badge
                 # 'Antrean Verifikasi' (klaim BBM kini bisa dibuka finance).
                 out['bbm_verify_pending'] = _count(
-                    conn, "SELECT COUNT(*) FROM transactions WHERE status='verified_ga' AND (is_dummy=0 OR is_dummy IS NULL)")
+                    conn, "SELECT COUNT(*) FROM transactions WHERE status='verified_ga' "
+                          "AND COALESCE(transaction_type,'CLAIM')='CLAIM' "
+                          "AND COALESCE(voucher_value, 0) = 0 "
+                          "AND (is_dummy=0 OR is_dummy IS NULL)")
 
             if role in ('ga', 'finance', 'admin'):
                 cash = 0

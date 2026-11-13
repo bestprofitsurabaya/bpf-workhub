@@ -1,4 +1,4 @@
-# 📖 Panduan Pengguna BPF WorkHub v2.106.0
+# 📖 Panduan Pengguna BPF WorkHub v2.107.0
 
 > **Siapa pun kamu — sopir, OB, admin, atau pimpinan — panduan ini ditulis untuk kamu.**
 > Tidak perlu paham teknis. Cukup ikuti langkah-langkah sesuai bagianmu.
@@ -20,6 +20,7 @@
 6. [Untuk Finance — Pembayaran & Rekap 💰](#6-untuk-finance--pembayaran--rekap)
     - [6.8 Rekap Pengeluaran 📊 (sejak v2.71.0)](#68-rekap-pengeluaran-sejak-v2710)
     - [6.9 Subsidi Tepat (MyPertamina) ⛽ (sejak v2.50–2.69)](#69-subsidi-tepat-mypertamina-sejak-v250269)
+    - [6.10 Voucher Rekanan 🎟️ (sejak v2.107.0)](#610-voucher-rekanan-️-sejak-v21070)
 7. [Untuk Marketing — Jadwal Appointment 📣](#7-untuk-marketing--jadwal-appointment)
 8. [Untuk Chief Driver — Pembagian Tugas 🚛](#8-untuk-chief-driver--pembagian-tugas)
 9. [Untuk Receptionist — Rekrutmen 🪪](#9-untuk-receptionist--rekrutmen)
@@ -199,16 +200,28 @@ Buka halaman Driver (bisa dipasang di HP). **Login dengan Username & PIN** yang 
 > ke kamu, muncul banner **"Serah Terima Kendaraan"** di atas: cek dulu
 > kondisi kendaraannya, lalu tekan **✅ Konfirmasi Serah Terima**.
 
-### 4.2 Melaporkan Pembelian BBM (Bayar Dulu, Klaim Belakangan)
+### 4.2 Melaporkan Pembelian BBM (Klaim atau Voucher Rekanan)
 
 1. Buka tab **⛽ BBM**.
-2. **GPS otomatis aktif** — lokasi + alamat detail terdeteksi.
-3. Isi data pembelian: **jenis BBM**, **liter**, **harga per liter**, **nominal**, **SPBU**.
-4. **Ambil foto** — pilih **📷 Kamera** (ambil langsung) atau **🖼️ Galeri** (dari album foto).
-5. Foto otomatis diberi **watermark** (nama perusahaan + tanggal + lokasi GPS + koordinat).
+2. Pilih mode paling atas:
+   - **💵 Klaim** — kamu bayar dulu di SPBU, lalu uangnya diganti (rekanan maupun non-rekanan).
+   - **🎟️ Voucher Rekanan** — SPBU mitra menyerahkan voucher + blanko; kantor yang membayar mitra.
+3. **GPS otomatis aktif** — lokasi + alamat detail terdeteksi.
+4. Isi data pembelian: **jenis BBM**, **liter**, **harga per liter**, dan **SPBU**. Pada mode Klaim isi juga **nominal**; pada mode Voucher nominal terisi otomatis.
+5. **Ambil foto** — pilih **📷 Kamera** (ambil langsung) atau **🖼️ Galeri** (dari album foto). Foto otomatis diberi **watermark** (nama perusahaan + tanggal + lokasi GPS + koordinat).
 6. Klik **Kirim**.
 
-Klaimmu masuk antrean **GA** untuk disetujui, lalu **Finance** untuk dibayar. Statusnya bisa kamu pantau di daftar riwayat.
+Klaim masuk antrean **GA** untuk disetujui, lalu **Finance** untuk dibayar. Statusnya bisa kamu pantau di daftar riwayat. Pada SPBU **non-rekanan** kamu juga wajib memotret **dispenser** sebagai bukti.
+
+**Mode 🎟️ Voucher Rekanan (sejak v2.107.0).** Voucher bukan jenis transaksi baru — tetap laporan BBM seperti biasa, hanya **label SPBU-nya rekanan**. Isi:
+
+- **SPBU Mitra** — nama SPBU yang memberi voucher (mis. `SPBU 54.601.01`).
+- **Nomor Nota** — nomor nota/struk dari SPBU. Nomor yang sama tidak boleh dipakai dua kali di hari yang sama.
+- **Liter (dari nota)** — jumlah liter yang tertera di nota.
+
+**Nilai Voucher** terisi otomatis dari **nilai voucher cabang + kode harian** (satu kode per hari per cabang), jadi kamu tidak perlu menghitung. Foto yang diminta sama: **ODO sebelum**, **nota + ODO sesudah**, dan **struk**. Satu voucher = satu kiriman (biasanya 1–2 voucher sehari).
+
+Voucher **tidak masuk antrean kasbon** dan **tidak ada pencairan uang ke kamu** — tagihannya dibayar kantor ke SPBU mitra per periode. Kamu tetap bisa memantau statusnya di riwayat.
 
 ### 4.3 Mengajukan Kasbon (Uang Muka Sebelum Berangkat)
 
@@ -431,6 +444,30 @@ SPBU Subsaidi Tepat Agent:
   **volume & nominal identik** = klaim sahih; terlihat selisih di PDF report.
 - PDF laporan per-transaksi menyediakan seksi **REKONSILIASI SUBSIDI TEPAT**
   yang membaca data SPBU live — sekali klig, cek volume/nominal selisihnya.
+
+### 6.10 Voucher Rekanan 🎟️ (sejak v2.107.0)
+
+SPBU mitra menyerahkan voucher + blanko ke driver; kantor membayar mitra per
+periode. Voucher **bukan jenis transaksi baru** — barisnya tetap BBM `CLAIM`
+dengan label SPBU **rekanan**, jadi laporan BBM tetap satu alur.
+
+1. Buka **BBM, Kasbon & SPBU → tab 🎟 Voucher Rekanan**.
+2. **GA** memverifikasi voucher kiriman driver (SPBU mitra, nomor nota, nilai,
+   liter, dan foto). Voucher terverifikasi siap ditagihkan.
+3. **Finance** memilih rentang periode (mingguan/bulanan), mengisi nama mitra
+   dan nomor invoice, lalu **Buat tagihan**. Voucher yang masuk tagihan
+   terkunci dan tidak bisa masuk periode berikutnya.
+4. Tagihan yang masih **draft** bisa **dibatalkan** — vouchernya kembali ke
+   antrean siap ditagihkan.
+5. Setelah dibayar ke mitra, klik **Tandai dibayar**.
+6. Unduh **🧾 Bukti pemakaian** per voucher atau **📄 Berita acara** per
+   tagihan; keduanya tercatat di registri dokumen.
+
+> 💡 Pembayaran tagihan dicatat sebagai **kas keluar**, bukan beban BBM baru.
+> Voucher dihitung **sekali** sebagai beban saat statusnya sah, dan tidak
+> muncul di antrean pencairan klaim/kasbon. Nilai voucher default cabang
+> diatur di **Pengaturan → Voucher Rekanan** (default Rp 130.000) dan hanya
+> berlaku untuk transaksi berikutnya.
 
 ## 7. Untuk Marketing — Jadwal Appointment 📣
 

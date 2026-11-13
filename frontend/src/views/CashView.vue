@@ -11,6 +11,7 @@ import PageHeader from '../components/PageHeader.vue'
 import BbmKasbonPanel from '../components/BbmKasbonPanel.vue'
 import BbmActionQueue from '../components/BbmActionQueue.vue'
 import BbmWorkspaceKpi from '../components/BbmWorkspaceKpi.vue'
+import VoucherPanel from '../components/VoucherPanel.vue'
 import { formatDateTime } from '../utils/format.js'
 
 // Fase 1 (v2.100.0): tiga laporan lama dirender di dalam meja kerja ini.
@@ -76,7 +77,7 @@ function openQueue(payload) {
   // Tab SubsidiTepat hanya untuk Finance/Admin — jangan buka tab yang tidak
   // ada (biarpun URL/parameter minta), cukup arahkan ke tab BBM.
   if (tab === 'subsidy' && !isFinance) tab = 'bbm'
-  if (['bbm', 'kasbon', 'subsidy', 'laporan'].includes(tab)) activeSection.value = tab
+  if (['bbm', 'kasbon', 'voucher', 'subsidy', 'laporan'].includes(tab)) activeSection.value = tab
   applyFilters(p.filters)
 }
 
@@ -134,7 +135,7 @@ const canEditDaily = isFinance
 // Deep link ?tab=kasbon dipakai kartu prioritas Dashboard Finance.
 const _params = new URLSearchParams(window.location.search)
 const _requestedTab = _params.get('tab')
-const _validTabs = ['bbm', 'kasbon', 'subsidy', 'laporan']
+const _validTabs = ['bbm', 'kasbon', 'voucher', 'subsidy', 'laporan']
 const activeSection = ref(
   _validTabs.includes(_requestedTab) && (_requestedTab !== 'subsidy' || isFinance) ? _requestedTab : 'bbm',
 )
@@ -402,6 +403,11 @@ onMounted(load)
         <span class="workspace-tab-text">Kasbon &amp; LPJ<small>Kode harian &amp; LPJ driver</small></span>
         <span class="workspace-tab-count" aria-label="kasbon menunggu">{{ queueBadges.cash_pending || 0 }} kasbon</span>
       </button>
+      <button type="button" role="tab" :aria-selected="activeSection === 'voucher'" :class="{ active: activeSection === 'voucher' }"
+              data-testid="workspace-tab-voucher" @click="activeSection = 'voucher'">
+        <span class="workspace-tab-icon" aria-hidden="true">🎟️</span>
+        <span class="workspace-tab-text">Voucher Rekanan<small>Pemakaian &amp; tagihan SPBU</small></span>
+      </button>
       <button v-if="isFinance" type="button" role="tab" :aria-selected="activeSection === 'subsidy'" :class="{ active: activeSection === 'subsidy' }"
               data-testid="workspace-tab-subsidy" @click="activeSection = 'subsidy'">
         <span class="workspace-tab-icon" aria-hidden="true">🛡️</span>
@@ -496,12 +502,17 @@ onMounted(load)
       </template>
     </section>
 
-    <!-- Tab 3 — SubsidiTepat: Data SPBU, Berita Acara, dan login ulang agen (OTP). -->
+    <!-- Tab 3 — Voucher Rekanan: pemakaian, verifikasi GA, tagihan SPBU mitra. -->
+    <section v-else-if="activeSection === 'voucher'" class="workspace-section" aria-label="Voucher Rekanan">
+      <VoucherPanel />
+    </section>
+
+    <!-- Tab 4 — SubsidiTepat: Data SPBU, Berita Acara, dan login ulang agen (OTP). -->
     <section v-else-if="activeSection === 'subsidy'" class="workspace-section" aria-label="Data SPBU SubsidiTepat">
       <BbmKasbonPanel active-section="subsidy" />
     </section>
 
-    <!-- Tab 4 — Laporan: tiga laporan lama dalam satu tempat (Fase 1 v2.100.0). -->
+    <!-- Tab 5 — Laporan: tiga laporan lama dalam satu tempat (Fase 1 v2.100.0). -->
     <section v-else class="workspace-section" aria-label="Laporan dan analisis">
       <div class="card card-pad report-scope" data-testid="report-scope">
         <div class="row" style="flex-wrap:wrap;gap:10px;align-items:flex-end;">

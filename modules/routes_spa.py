@@ -313,12 +313,16 @@ def register_spa_routes(app):
                 return jsonify({'error': 'DB error'}), 500
             cursor = conn.cursor(dictionary=True)
             cols = "id, display_id, driver_name, nopol, vehicle_type, bbm_type, nominal, liter, odo_km, ml_anomaly_flag, created_at"
+            # v2.107.0: baris voucher (label SPBU rekanan) punya alur sendiri
+            # (verifikasi → tagihan periode), jadi tidak dicampur ke antrean
+            # klaim/kasbon yang berujung pencairan ke driver.
+            not_voucher = " AND COALESCE(voucher_value, 0) = 0"
             if tab == 'finance':
-                cursor.execute(f"SELECT {cols} FROM transactions WHERE status='verified_ga' AND (is_dummy=0 OR is_dummy IS NULL) ORDER BY created_at ASC")
+                cursor.execute(f"SELECT {cols} FROM transactions WHERE status='verified_ga' AND (is_dummy=0 OR is_dummy IS NULL){not_voucher} ORDER BY created_at ASC")
             elif tab == 'driver_confirm':
-                cursor.execute(f"SELECT {cols} FROM transactions WHERE status='os_finance' AND (is_dummy=0 OR is_dummy IS NULL) ORDER BY created_at ASC")
+                cursor.execute(f"SELECT {cols} FROM transactions WHERE status='os_finance' AND (is_dummy=0 OR is_dummy IS NULL){not_voucher} ORDER BY created_at ASC")
             else:
-                cursor.execute(f"SELECT {cols} FROM transactions WHERE status IN ('pending','modified') AND (is_dummy=0 OR is_dummy IS NULL) ORDER BY created_at ASC")
+                cursor.execute(f"SELECT {cols} FROM transactions WHERE status IN ('pending','modified') AND (is_dummy=0 OR is_dummy IS NULL){not_voucher} ORDER BY created_at ASC")
             rows = cursor.fetchall()
             cursor.close(); conn.close()
             return jsonify(rows)
@@ -356,7 +360,7 @@ def register_spa_routes(app):
             if prow and prow.get('ml_anomaly_flag'):
                 cursor.close(); conn.close()
                 return jsonify({'status': 'error', 'msg': f'Transaksi #{tx_id} ber-flag anomali ML — wajib verifikasi penuh (foto bukti) dari baris antrean.'}), 409
-            cursor.execute("UPDATE transactions SET status='verified_ga', ga_approved_by=%s, ga_approved_at=NOW(), approved_by_user=%s WHERE id=%s AND status IN ('pending','modified')", (actor, actor, tx_id))
+            cursor.execute("UPDATE transactions SET status='verified_ga', ga_approved_by=%s, ga_approved_at=NOW(), approved_by_user=%s WHERE id=%s AND status IN ('pending','modified') AND COALESCE(voucher_value, 0) = 0", (actor, actor, tx_id))
             affected = cursor.rowcount
             conn.commit()
             if affected > 0:
@@ -424,7 +428,7 @@ def register_spa_routes(app):
                                 (f"Transaksi #{txrow.get('display_id') or tx_id} ber-flag anomali — "
                                  "wajib di-clear GA (verifikasi foto penuh) sebelum pencairan.")}), 409
             cursor = conn.cursor()
-            cursor.execute("UPDATE transactions SET status='os_finance', finance_payout_by=%s, finance_payout_at=NOW(), payout_by_user=%s WHERE id=%s AND status='verified_ga'", (actor, actor, tx_id))
+            cursor.execute("UPDATE transactions SET status='os_finance', finance_payout_by=%s, finance_payout_at=NOW(), payout_by_user=%s WHERE id=%s AND status='verified_ga' AND COALESCE(voucher_value, 0) = 0", (actor, actor, tx_id))
             affected = cursor.rowcount
             conn.commit()
             if affected > 0:

@@ -10,9 +10,21 @@ const emit = defineEmits(['toast', 'locate'])
 const form = ref({
   nopol: '', vehicle_type: 'AVANZA', bbm_type: '', price_per_liter: 10000,
   nominal: 0, odo_km: 0, jumlah_appointment: 0, spbu_type: 'rekanan',
+  voucher_partner: '', nota_no: '', liter: 0,
+})
+// v2.107.0 — mode ketiga: voucher rekanan. Klaim = driver menalangi dulu;
+// voucher = SPBU mitra memberi voucher + blanko, kantor bayar mitra per periode.
+const mode = ref('claim') // 'claim' | 'voucher'
+const voucherCfg = ref({ value: 0, partner: '', daily_code: 0, nominal: 0 })
+const voucherNominal = computed(() => {
+  if (!voucherCfg.value.value) return 0
+  return Number(voucherCfg.value.value) + Number(voucherCfg.value.daily_code || 0)
 })
 const allowedBbm = ref([])
-const liter = computed(() => (form.value.price_per_liter > 0 ? (form.value.nominal || 0) / form.value.price_per_liter : 0))
+const liter = computed(() => {
+  if (mode.value === 'voucher') return Number(form.value.liter) || 0
+  return form.value.price_per_liter > 0 ? (form.value.nominal || 0) / form.value.price_per_liter : 0
+})
 
 const photos = ref({ foto_odo_sebelum: null, foto_nota_odo_sesudah: null, foto_struk: null, foto_struk_dispenser: null })
 const previews = ref({})
@@ -35,6 +47,24 @@ function applyProfile() {
   form.value.vehicle_type = p.vehicle_type || 'AVANZA'
   loadAllowedBbm(p.bbm_type)
 }
+
+async function loadVoucherConfig() {
+  try {
+    voucherCfg.value = await api('/api/voucher/config')
+    if (!form.value.voucher_partner) form.value.voucher_partner = voucherCfg.value.partner || ''
+  } catch {
+    voucherCfg.value = { value: 0, partner: '', daily_code: 0, nominal: 0 }
+  }
+}
+
+// Mode voucher: nominal dihitung server dari nilai cabang + kode harian.
+// Klien hanya menampilkan pratinjau supaya driver tahu nilai yang dipakai.
+watch(mode, (m) => {
+  if (m === 'voucher') {
+    form.value.spbu_type = 'rekanan'
+    if (!voucherCfg.value.value) loadVoucherConfig()
+  }
+})
 
 async function loadAllowedBbm(preferred) {
   try {
@@ -64,6 +94,7 @@ watch(() => store.profile, applyProfile, { immediate: true })
 // Mode LPJ: kasbon aktif mengisi nominal/nopol/BBM dari data kasbon
 watch(() => store.activeLpj, (lpj) => {
   if (lpj) {
+    mode.value = 'claim'
     form.value.nominal = Number(lpj.total_amount) || 0
     form.value.nopol = lpj.nopol || form.value.nopol
     if (lpj.bbm_type) { form.value.bbm_type = lpj.bbm_type }
@@ -96,9 +127,11 @@ function removePhoto(field) {
 }
 
 function resetForm() {
+  mode.value = 'claim'
   form.value = {
     nopol: store.profile?.nopol || '', vehicle_type: store.profile?.vehicle_type || 'AVANZA',
     bbm_type: '', price_per_liter: 10000, nominal: 0, odo_km: 0, jumlah_appointment: 0, spbu_type: 'rekanan',
+    voucher_partner: '', nota_no: '', liter: 0,
   }
   photos.value = { foto_odo_sebelum: null, foto_nota_odo_sesudah: null, foto_struk: null, foto_struk_dispenser: null }
   previews.value = {}; wmState.value = {}; wmBlobs.value = {}
@@ -107,16 +140,24 @@ function resetForm() {
 }
 
 function buildPayload() {
+  const isVoucher = mode.value === 'voucher'
   return {
     driver_name: store.driverName,
+    // Voucher bukan jenis transaksi baru: tetap CLAIM, hanya label SPBU
+    // rekanan + is_voucher yang membuat server mengisi kolom voucher.
+    transaction_type: 'CLAIM',
+    is_voucher: isVoucher ? '1' : '',
     nopol: form.value.nopol,
     vehicle_type: form.value.vehicle_type,
     bbm_type: form.value.bbm_type,
-    nominal: Number(form.value.nominal) || 0,
+    nominal: isVoucher ? voucherNominal.value : (Number(form.value.nominal) || 0),
     price_per_liter: Number(form.value.price_per_liter) || 10000,
     odo_km: Number(form.value.odo_km) || 0,
     jumlah_appointment: Number(form.value.jumlah_appointment) || 0,
-    spbu_type: form.value.spbu_type,
+    spbu_type: isVoucher ? 'rekanan' : form.value.spbu_type,
+    voucher_partner: isVoucher ? form.value.voucher_partner : '',
+    nota_no: isVoucher ? form.value.nota_no : '',
+    liter: isVoucher ? (Number(form.value.liter) || 0) : 0,
     gps_lat: store.gps.lat ?? '',
     gps_lon: store.gps.lon ?? '',
     gps_address: store.gps.addr || '',
@@ -129,11 +170,24 @@ function buildPayload() {
 }
 
 function requiredPhotos() {
+  if (mode.value === 'voucher') {
+    // Voucher rekanan selalu butuh bukti yang sama dengan klaim rekanan.
+    return PHOTO_FIELDS.filter((f) => f.required && !f.onlyNonRekanan)
+  }
   return PHOTO_FIELDS.filter((f) => f.required && (!f.onlyNonRekanan || form.value.spbu_type === 'non_rekanan'))
 }
 
 async function submit() {
-  if (!form.value.nopol || !(form.value.nominal > 0) || !(form.value.odo_km > 0)) {
+  const isVoucher = mode.value === 'voucher'
+  if (isVoucher) {
+    if (!form.value.nopol || !(form.value.odo_km > 0) || !(form.value.liter > 0)
+        || !form.value.voucher_partner || !form.value.nota_no) {
+      emit('toast', '⚠️ Nopol, ODO, liter, SPBU mitra, dan nomor nota wajib diisi', 'error'); return
+    }
+    if (!(voucherNominal.value > 0)) {
+      emit('toast', '⚠️ Nilai voucher cabang belum diatur — hubungi Finance/Admin', 'error'); return
+    }
+  } else if (!form.value.nopol || !(form.value.nominal > 0) || !(form.value.odo_km > 0)) {
     emit('toast', '⚠️ Nopol, nominal, dan ODO wajib diisi', 'error'); return
   }
   // Foto bertanda * wajib ada di klien: server sengaja menerima foto kosong
@@ -171,7 +225,8 @@ async function submit() {
       })
       const j = await r.json().catch(() => null)
       if (r.ok && j?.status === 'success') {
-        emit('toast', `✅ ${isLpj ? 'LPJ' : 'Klaim'} terkirim: ${j.transaction_id || j.msg}`, 'success')
+        const label = isLpj ? 'LPJ' : (isVoucher ? 'Voucher' : 'Klaim')
+        emit('toast', `✅ ${label} terkirim: ${j.transaction_id || j.msg}`, 'success')
         resetForm()
       } else {
         emit('toast', '❌ ' + (j?.msg || 'Gagal mengirim'), 'error')
@@ -190,6 +245,8 @@ async function submit() {
 
 onMounted(() => {
   if (store.profile) applyProfile()
+  // Pratinjau nilai voucher cabang (dipakai saat mode Voucher dipilih).
+  loadVoucherConfig()
   // Auto GPS saat pertama buka
   if (!store.gps.lat && !store.gps.locating) store.locate().catch(() => {})
 })
@@ -215,6 +272,18 @@ onMounted(() => {
       <button class="btn btn-sm" :disabled="store.gps.locating" style="margin-top:6px;" @click="store.locate()">📍 Isi Lokasi &amp; Jam</button>
     </div>
 
+    <!-- v2.107.0: mode Klaim vs Voucher rekanan -->
+    <div v-if="!store.activeLpj" class="mode-switch" role="tablist" aria-label="Jenis laporan BBM">
+      <button type="button" role="tab" :aria-selected="mode === 'claim'" :class="{ active: mode === 'claim' }"
+              data-testid="bbm-mode-claim" @click="mode = 'claim'">
+        💸 Klaim BBM<small>Driver bayar dulu, diganti kantor</small>
+      </button>
+      <button type="button" role="tab" :aria-selected="mode === 'voucher'" :class="{ active: mode === 'voucher' }"
+              data-testid="bbm-mode-voucher" @click="mode = 'voucher'">
+        🎟️ Voucher Rekanan<small>Voucher + blanko dari SPBU mitra</small>
+      </button>
+    </div>
+
     <form class="driver-form" @submit.prevent="submit">
       <div class="field"><label>Nama Driver</label>
         <input class="input" :value="store.driverName" disabled />
@@ -234,11 +303,29 @@ onMounted(() => {
         </select>
       </div>
       <div class="row">
-        <div class="field"><label>Nominal (Rp)</label>
+        <div v-if="mode === 'claim'" class="field"><label>Nominal (Rp)</label>
           <input class="input" type="number" v-model.number="form.nominal" min="0" placeholder="0" :disabled="!!store.activeLpj" />
+        </div>
+        <div v-else class="field"><label>Nilai Voucher (otomatis)</label>
+          <input class="input" :value="voucherNominal ? 'Rp ' + voucherNominal.toLocaleString('id-ID') : 'Belum diatur'"
+                 disabled data-testid="voucher-nominal" />
         </div>
         <div class="field"><label>Harga/Liter</label>
           <input class="input" type="number" v-model.number="form.price_per_liter" min="0" />
+        </div>
+      </div>
+      <div v-if="mode === 'voucher'" class="alert" style="padding:6px 10px;font-size:12px;background:#ecfdf5;">
+        🎟️ Nilai voucher <b>Rp {{ Number(voucherCfg.value || 0).toLocaleString('id-ID') }}</b>
+        + kode harian <b>{{ voucherCfg.daily_code || 0 }}</b> =
+        <b>Rp {{ Number(voucherNominal || 0).toLocaleString('id-ID') }}</b>
+        <span v-if="voucherCfg.partner" class="muted"> · Mitra: {{ voucherCfg.partner }}</span>
+      </div>
+      <div v-if="mode === 'voucher'" class="row">
+        <div class="field"><label>SPBU Mitra</label>
+          <input class="input" v-model="form.voucher_partner" placeholder="cth: SPBU 54.601.01" data-testid="voucher-partner" />
+        </div>
+        <div class="field"><label>Nomor Nota</label>
+          <input class="input" v-model="form.nota_no" placeholder="nomor nota/struk" data-testid="voucher-nota" />
         </div>
       </div>
       <div class="alert" style="padding:6px 10px;font-size:12px;">⛽ Estimasi: <b>{{ liter.toFixed(2) }} L</b></div>
@@ -247,12 +334,16 @@ onMounted(() => {
         <div class="field"><label>ODO (km)</label>
           <input class="input" type="number" v-model.number="form.odo_km" min="0" placeholder="0" />
         </div>
-        <div class="field"><label>Jumlah Appointment</label>
+        <div v-if="mode === 'voucher'" class="field"><label>Liter (dari nota)</label>
+          <input class="input" type="number" v-model.number="form.liter" min="0" step="0.01" placeholder="0"
+                 data-testid="voucher-liter" />
+        </div>
+        <div v-else class="field"><label>Jumlah Appointment</label>
           <input class="input" type="number" v-model.number="form.jumlah_appointment" min="0" placeholder="0" />
         </div>
       </div>
 
-      <div class="field"><label>Tipe SPBU</label>
+      <div v-if="mode === 'claim'" class="field"><label>Tipe SPBU</label>
         <select class="select" v-model="form.spbu_type">
           <option value="rekanan">Rekanan</option>
           <option value="non_rekanan">Non-Rekanan (wajib foto dispenser)</option>
@@ -283,7 +374,7 @@ onMounted(() => {
       </div>
 
       <button class="btn btn-primary" style="width:100%;justify-content:center;padding:12px;" :disabled="submitting">
-        {{ saving ? '⏳ Mengirim…' : store.activeLpj ? '📤 Kirim LPJ Kasbon' : '📤 Kirim Laporan BBM' }}
+        {{ saving ? '⏳ Mengirim…' : store.activeLpj ? '📤 Kirim LPJ Kasbon' : (mode === 'voucher' ? '📤 Kirim Pemakaian Voucher' : '📤 Kirim Laporan BBM') }}
       </button>
       <p class="muted" style="font-size:11px;text-align:center;margin-top:6px;">
         Foto otomatis diberi watermark (perusahaan + tanggal + lokasi GPS).
@@ -293,6 +384,15 @@ onMounted(() => {
 </template>
 
 <style scoped>
+.mode-switch { display: flex; gap: 8px; margin-bottom: 12px; }
+.mode-switch button {
+  flex: 1; display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
+  padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px;
+  background: var(--surface, #fff); color: inherit; cursor: pointer; text-align: left;
+  font-weight: 700; font-size: 13px;
+}
+.mode-switch button small { font-weight: 400; font-size: 10px; opacity: .7; }
+.mode-switch button.active { border-color: var(--primary, #2563eb); background: #eff6ff; }
 .gps-box {
   border: 1px dashed var(--border); border-radius: 10px; padding: 10px 12px; margin-bottom: 12px;
   background: var(--bg-2, #fef3c7);

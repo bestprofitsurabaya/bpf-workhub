@@ -84,6 +84,7 @@ describe('CashView — meja kerja BBM / Kasbon & LPJ / SPBU / Laporan', () => {
         stubs: {
           'router-link': { props: ['to'], template: '<a :href="to"><slot /></a>' },
           BbmKasbonPanel: { props: ['activeSection', 'focus'], template: '<div data-testid="bbm-panel-stub">{{ activeSection }}</div>' },
+          VoucherPanel: { template: '<div data-testid="voucher-panel-stub">voucher</div>' },
           // KPI disorotkan agar uji fokus pada CashView: stub memancarkan
           // event `open` persis seperti komponen aslinya.
           BbmWorkspaceKpi: {
@@ -103,12 +104,13 @@ describe('CashView — meja kerja BBM / Kasbon & LPJ / SPBU / Laporan', () => {
     await flushPromises()
   }
 
-  it('menampilkan empat tab utama dengan hitungan antrean', async () => {
+  it('menampilkan lima tab utama dengan hitungan antrean', async () => {
     const w = mountView()
     await flushPromises()
     expect(w.text()).toContain('BBM, Kasbon & SPBU')
     expect(w.find('[data-testid="workspace-tab-bbm"]').text()).toContain('3 klaim')
     expect(w.find('[data-testid="workspace-tab-kasbon"]').text()).toContain('2 kasbon')
+    expect(w.find('[data-testid="workspace-tab-voucher"]').exists()).toBe(true)
     expect(w.find('[data-testid="workspace-tab-subsidy"]').exists()).toBe(true)
     expect(w.find('[data-testid="workspace-tab-laporan"]').exists()).toBe(true)
     expect(w.find('[data-testid="bbm-panel-stub"]').text()).toBe('bbm')
@@ -147,6 +149,15 @@ describe('CashView — meja kerja BBM / Kasbon & LPJ / SPBU / Laporan', () => {
     await row.findAll('button').find((b) => b.text().includes('📄 PDF')).trigger('click')
     expect(openSpy).toHaveBeenCalledWith('/api/cash/1/pdf', '_blank', 'noopener')
     openSpy.mockRestore()
+  })
+
+  it('tab Voucher Rekanan menampilkan panel voucher', async () => {
+    const w = mountView()
+    await flushPromises()
+    await w.find('[data-testid="workspace-tab-voucher"]').trigger('click')
+    expect(w.find('[data-testid="workspace-tab-voucher"]').attributes('aria-selected')).toBe('true')
+    expect(w.find('[data-testid="voucher-panel-stub"]').exists()).toBe(true)
+    expect(w.find('[data-testid="bbm-panel-stub"]').exists()).toBe(false)
   })
 
   it('tab SubsidiTepat menampilkan panel SPBU/OTP dan menyembunyikan kasbon', async () => {

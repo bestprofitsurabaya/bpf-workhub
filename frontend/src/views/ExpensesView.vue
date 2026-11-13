@@ -68,6 +68,7 @@ const rowsBulan = computed(() => {
   const po = vec(display.value, 'po')
   const kasbon = vec(display.value, 'kasbon')
   const lpj = vec(display.value, 'lpj')
+  const voucher = vec(display.value, 'voucher')
   return Array.from({ length: monthTo.value - monthFrom.value + 1 }, (_, k) => {
     const i = monthFrom.value - 1 + k
     return {
@@ -76,8 +77,9 @@ const rowsBulan = computed(() => {
       po: po[i] || 0,
       kasbon: kasbon[i] || 0,
       lpj: lpj[i] || 0,
-      sisa: (kasbon[i] || 0) - (lpj[i] || 0),
-      total: (po[i] || 0) + (lpj[i] || 0),
+      voucher: voucher[i] || 0,
+      sisa: (kasbon[i] || 0) - (lpj[i] || 0) - (voucher[i] || 0),
+      total: (po[i] || 0) + (lpj[i] || 0) + (voucher[i] || 0),
     }
   })
 })
@@ -86,7 +88,8 @@ const totals = computed(() => {
   const po = sumSlice(vec(display.value, 'po'))
   const kasbon = sumSlice(vec(display.value, 'kasbon'))
   const lpj = sumSlice(vec(display.value, 'lpj'))
-  return { po, kasbon, lpj, sisa: kasbon - lpj, total: po + lpj }
+  const voucher = sumSlice(vec(display.value, 'voucher'))
+  return { po, kasbon, lpj, voucher, sisa: kasbon - lpj - voucher, total: po + lpj + voucher }
 })
 
 const perBranch = computed(() => {
@@ -95,8 +98,9 @@ const perBranch = computed(() => {
     const po = sumSlice(vec(v, 'po'))
     const kasbon = sumSlice(vec(v, 'kasbon'))
     const lpj = sumSlice(vec(v, 'lpj'))
-    const total = po + lpj
-    return { code, name: v.name, po, kasbon, lpj, total, share: pct(total, whole) }
+    const voucher = sumSlice(vec(v, 'voucher'))
+    const total = po + lpj + voucher
+    return { code, name: v.name, po, kasbon, lpj, voucher, total, share: pct(total, whole) }
   }).sort((a, b) => b.total - a.total)
 })
 
@@ -121,7 +125,7 @@ async function load() {
   try {
     const d = await api(`/api/expenses/recap?year=${year.value}&branch=${branch.value}`)
     recap.value = d
-    display.value = d.display || { name: '—', po: [], kasbon: [], lpj: [], total: [] }
+    display.value = d.display || { name: '—', po: [], kasbon: [], lpj: [], voucher: [], total: [] }
     branches.value = d.branches || []
     perBranchRaw.value = branch.value === 'ALL' ? (d.per_branch || {}) : {}
     errors.value = d.errors || {}
@@ -149,7 +153,7 @@ watch(() => props.scope, (s) => {
 
 // === Drill-down ===
 const detail = ref({ open: false, month: null, loading: false, error: '', sections: [] })
-const DETAIL_CATS = [['po', '🛒 Pembelian Barang'], ['kasbon', '💵 Kasbon Cair'], ['lpj', '📋 Realisasi LPJ']]
+const DETAIL_CATS = [['po', '🛒 Pembelian Barang'], ['kasbon', '💵 Kasbon Cair'], ['lpj', '📋 Realisasi LPJ'], ['voucher', '🎟️ Voucher Rekanan']]
 
 async function openDetail(month) {
   detail.value = { open: true, month, loading: true, error: '', sections: [] }
@@ -182,13 +186,13 @@ function csvCell(v) {
 function exportCsv() {
   notice.value = ''
   if (!rowsBulan.value.length) { notice.value = 'Tidak ada data untuk diekspor.'; return }
-  const header = ['Bulan', 'Pembelian Barang', 'Kasbon Cair', 'Realisasi LPJ', 'Sisa Kasbon', 'Total Realisasi']
+  const header = ['Bulan', 'Pembelian Barang', 'Kasbon Cair', 'Realisasi LPJ', 'Voucher Rekanan', 'Sisa Kasbon', 'Total Realisasi']
   const lines = [
-    [`Realisasi Pengeluaran ${scopeLabel.value}`, '', '', '', '', ''].map(csvCell).join(','),
-    [`Periode ${periodLabel.value}`, '', '', '', '', ''].map(csvCell).join(','),
+    [`Realisasi Pengeluaran ${scopeLabel.value}`, '', '', '', '', '', ''].map(csvCell).join(','),
+    [`Periode ${periodLabel.value}`, '', '', '', '', '', ''].map(csvCell).join(','),
     header.join(','),
-    ...rowsBulan.value.map((r) => [r.label, r.po, r.kasbon, r.lpj, r.sisa, r.total].map(csvCell).join(',')),
-    ['TOTAL', totals.value.po, totals.value.kasbon, totals.value.lpj, totals.value.sisa, totals.value.total].map(csvCell).join(','),
+    ...rowsBulan.value.map((r) => [r.label, r.po, r.kasbon, r.lpj, r.voucher, r.sisa, r.total].map(csvCell).join(',')),
+    ['TOTAL', totals.value.po, totals.value.kasbon, totals.value.lpj, totals.value.voucher, totals.value.sisa, totals.value.total].map(csvCell).join(','),
   ]
   const blob = new Blob(['\ufeff' + lines.join('\n')], { type: 'text/csv;charset=utf-8;' })
   const url = URL.createObjectURL(blob)
@@ -205,7 +209,7 @@ onMounted(load)
 <template>
   <div>
     <PageHeader icon="📊" title="Realisasi Pengeluaran"
-                subtitle="Uang yang benar-benar terpakai: pembelian diterima + LPJ BBM, dengan jembatan kasbon">
+                subtitle="Uang yang benar-benar terpakai: pembelian diterima + LPJ BBM + voucher rekanan, dengan jembatan kasbon">
       <div v-if="allBranches" class="field" style="width:190px;">
         <select class="select" v-model="branch" @change="load">
           <option value="ALL">🏭 Semua Cabang</option>
@@ -228,8 +232,8 @@ onMounted(load)
         question="Berapa uang yang benar-benar terpakai pada periode ini, terdiri dari apa, dan berapa kasbon yang belum dipertanggungjawabkan?"
         :period="periodLabel + (isYtd ? ' (YTD)' : '')"
         :scope="scopeLabel"
-        source="purchase_orders + po_receipts, fuel_cash_requests, transactions (CASH_LPJ)"
-        basis="PO: qty diterima × harga (tanggal order) · Kasbon cair: handover_at terisi · LPJ sah: CASH_LPJ verified_ga/archived"
+        source="purchase_orders + po_receipts, fuel_cash_requests, transactions (CASH_LPJ, VOUCHER)"
+        basis="PO: qty diterima × harga (tanggal order) · Kasbon cair: handover_at terisi · LPJ sah: CASH_LPJ verified_ga/archived · Voucher: VOUCHER verified_ga/archived (sekali saat pemakaian)"
         exclusions="Air minum & overtime belum menyimpan nominal; kasbon bukan pengeluaran final"
         :generated-at="generatedAt"
         :rows="rowsBulan.length + ' bulan'"
@@ -269,6 +273,13 @@ onMounted(load)
           <div class="muted" style="font-size:10px;">Dipertanggungjawabkan driver · klik untuk lihat baris</div>
         </button>
         <button type="button" class="card card-pad grow aq-link" style="min-width:190px;text-align:left;"
+             data-testid="open-voucher"
+             @click="emit('open-tab', { tab: 'voucher', label: 'Voucher rekanan' })">
+          <div class="muted" style="font-size:12px;">🎟️ Voucher Rekanan</div>
+          <b style="font-size:21px;">{{ fmtRupiah(totals.voucher) }}</b>
+          <div class="muted" style="font-size:10px;">Pemakaian voucher sah · klik untuk buka tagihan</div>
+        </button>
+        <button type="button" class="card card-pad grow aq-link" style="min-width:190px;text-align:left;"
              :style="totals.sisa < 0 ? 'border-color:var(--danger)' : ''"
              data-testid="open-sisa-kasbon"
              @click="emit('open-tab', { tab: 'kasbon', filters: { kasbon: 'cair' }, label: 'Sisa Kasbon' })">
@@ -294,7 +305,7 @@ onMounted(load)
         <div class="card card-pad grow" style="min-width:200px;background:var(--primary-soft, rgba(25,103,210,.08));">
           <div class="muted" style="font-size:12px;">Σ Total Realisasi {{ year }}</div>
           <b style="font-size:24px;">{{ fmtRupiah(totals.total) }}</b>
-          <div class="muted" style="font-size:10px;">Pembelian diterima + LPJ (bukan kasbon)</div>
+          <div class="muted" style="font-size:10px;">Pembelian diterima + LPJ + voucher (bukan kasbon)</div>
         </div>
       </div>
 
@@ -313,6 +324,7 @@ onMounted(load)
                 <th style="text-align:right;">Pembelian</th>
                 <th style="text-align:right;">Kasbon Cair</th>
                 <th style="text-align:right;">Realisasi LPJ</th>
+                <th style="text-align:right;">Voucher BBM</th>
                 <th style="text-align:right;">Sisa</th>
                 <th style="text-align:right;">Total Realisasi</th>
                 <th></th>
@@ -324,6 +336,7 @@ onMounted(load)
                 <td style="text-align:right;">{{ r.po ? fmtRupiah(r.po) : '—' }}</td>
                 <td style="text-align:right;">{{ r.kasbon ? fmtRupiah(r.kasbon) : '—' }}</td>
                 <td style="text-align:right;">{{ r.lpj ? fmtRupiah(r.lpj) : '—' }}</td>
+                <td style="text-align:right;">{{ r.voucher ? fmtRupiah(r.voucher) : '—' }}</td>
                 <td style="text-align:right;" :style="r.sisa < 0 ? 'color:var(--danger)' : ''">{{ r.sisa ? fmtRupiah(r.sisa) : '—' }}</td>
                 <td style="text-align:right;"><b>{{ r.total ? fmtRupiah(r.total) : '—' }}</b></td>
                 <td style="text-align:right;"><button class="btn btn-sm" @click="openDetail(r.month)">Rincian</button></td>
@@ -333,6 +346,7 @@ onMounted(load)
                 <td style="text-align:right;">{{ fmtRupiah(totals.po) }}</td>
                 <td style="text-align:right;">{{ fmtRupiah(totals.kasbon) }}</td>
                 <td style="text-align:right;">{{ fmtRupiah(totals.lpj) }}</td>
+                <td style="text-align:right;">{{ fmtRupiah(totals.voucher) }}</td>
                 <td style="text-align:right;">{{ fmtRupiah(totals.sisa) }}</td>
                 <td style="text-align:right;">{{ fmtRupiah(totals.total) }}</td>
                 <td></td>
@@ -355,6 +369,7 @@ onMounted(load)
                 <th style="text-align:right;">Pembelian</th>
                 <th style="text-align:right;">Kasbon Cair</th>
                 <th style="text-align:right;">Realisasi LPJ</th>
+                <th style="text-align:right;">Voucher BBM</th>
                 <th style="text-align:right;">Total Realisasi</th>
                 <th style="text-align:right;">Porsi</th>
               </tr>
@@ -365,6 +380,7 @@ onMounted(load)
                 <td style="text-align:right;">{{ fmtRupiah(b.po) }}</td>
                 <td style="text-align:right;">{{ fmtRupiah(b.kasbon) }}</td>
                 <td style="text-align:right;">{{ fmtRupiah(b.lpj) }}</td>
+                <td style="text-align:right;">{{ fmtRupiah(b.voucher) }}</td>
                 <td style="text-align:right;"><b>{{ fmtRupiah(b.total) }}</b></td>
                 <td style="text-align:right;">{{ b.share }}</td>
               </tr>

@@ -268,6 +268,26 @@ async function demoClean() {
 const waterNames = ref({ ga: '', finance: '', head: '' })
 const waterMsg = ref('')
 
+// v2.107.0 — voucher rekanan: nilai per cabang + nama SPBU mitra default.
+const voucherCfg = ref({ value: 130000, partner: '' })
+const voucherMsg = ref('')
+async function loadVoucherCfg() {
+  try {
+    const d = await api('/api/voucher/config')
+    voucherCfg.value = { value: Number(d?.value) || 130000, partner: d?.partner || '' }
+  } catch { /* biarkan default */ }
+}
+async function saveVoucherCfg() {
+  voucherMsg.value = ''
+  try {
+    const r = await api('/api/voucher/config', {
+      method: 'POST',
+      body: { value: Number(voucherCfg.value.value) || 0, partner: voucherCfg.value.partner },
+    })
+    voucherMsg.value = '✅ ' + (r?.msg || 'Pengaturan voucher disimpan')
+  } catch (e) { voucherMsg.value = '❌ ' + (e?.data?.msg || e.message) }
+}
+
 // Fitur edit/hapus transaksi air minum (v2.37.0) — toggle Admin per cabang
 const waterEditEnabled = ref(false)
 const waterEditBusy = ref(false)
@@ -533,6 +553,7 @@ function fmtDT(s) {
 const SECTIONS = [
   { id: 'sec-master', label: '🚗 Data Master' },
   { id: 'sec-air', label: '🚰 Air Minum' },
+  { id: 'sec-voucher', label: '🎟️ Voucher Rekanan' },
   { id: 'sec-sheetsync', label: '🔗 Sumber Sheet' },
   { id: 'sec-receptionist-realtime', label: '⚡ Realtime Sheet' },
   { id: 'sec-cabang', label: '🏢 Cabang & Nomor' },
@@ -554,7 +575,7 @@ function scrollToSection(id) {
 }
 
 let _secObserver = null
-onMounted(() => { load(); loadWaterNames(); loadEditEnabled(); loadIdentityForm(); loadDemoStatus(); loadDeployStatus(); loadBranches(); loadDocSequences(); loadRetention(); loadDocs(); loadSheetUrls(); loadInOutMode(); loadWebhook() })
+onMounted(() => { load(); loadWaterNames(); loadVoucherCfg(); loadEditEnabled(); loadIdentityForm(); loadDemoStatus(); loadDeployStatus(); loadBranches(); loadDocSequences(); loadRetention(); loadDocs(); loadSheetUrls(); loadInOutMode(); loadWebhook() })
 onMounted(() => {
   // Highlight seksi aktif saat scroll (IntersectionObserver — ringan).
   _secObserver = new IntersectionObserver((entries) => {
@@ -633,6 +654,32 @@ onMounted(() => {
             </label>
           </div>
           <span v-if="waterEditMsg" class="muted" style="font-size:12px;">{{ waterEditMsg }}</span>
+        </div>
+      </div>
+
+      <div id="sec-voucher" class="card card-pad" style="margin-bottom:16px;">
+        <h3 style="margin:0;">🎟️ Voucher BBM Rekanan</h3>
+        <p class="muted" style="font-size:11px;">
+          SPBU mitra memberi voucher + blanko ke driver; kantor membayar mitra per periode.
+          Nilai voucher berlaku untuk cabang ini dan disimpan per transaksi saat dipakai,
+          sehingga perubahan harga tidak mengubah histori.
+        </p>
+        <div class="form-grid" style="margin-top:12px;">
+          <div class="field"><label>Nilai Voucher (Rp)</label>
+            <input class="input" type="number" min="1" v-model.number="voucherCfg.value" data-testid="voucher-cfg-value" />
+          </div>
+          <div class="field"><label>Nama SPBU Mitra (default)</label>
+            <input class="input" v-model="voucherCfg.partner" placeholder="mis. SPBU 54.601.01" data-testid="voucher-cfg-partner" />
+          </div>
+        </div>
+        <div class="alert" style="padding:6px 10px;font-size:12px;margin-top:8px;">
+          Nominal yang ditagihkan ke mitra = <b>nilai voucher + kode harian</b> cabang.
+          Contoh: Rp {{ Number(voucherCfg.value || 0).toLocaleString('id-ID') }} + kode 700
+          = Rp {{ (Number(voucherCfg.value || 0) + 700).toLocaleString('id-ID') }}.
+        </div>
+        <div class="row" style="justify-content:flex-end;gap:8px;margin-top:8px;">
+          <span class="muted" style="font-size:12px;">{{ voucherMsg }}</span>
+          <button class="btn btn-primary btn-sm" :disabled="busy" @click="saveVoucherCfg">💾 Simpan Pengaturan Voucher</button>
         </div>
       </div>
 

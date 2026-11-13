@@ -46,6 +46,16 @@ const CARDS = [
     hint: 'LPJ kasbon yang sah (verified_ga/archived)',
   },
   {
+    key: 'voucher_sah',
+    label: 'Voucher rekanan',
+    icon: '🎟️',
+    tone: 'teal',
+    tab: 'voucher',
+    filters: {},
+    pick: (d) => d?.claims?.voucher_sah,
+    hint: 'Voucher terverifikasi GA (dihitung sekali)',
+  },
+  {
     key: 'kasbon_cair',
     label: 'Kasbon cair',
     icon: '💵',
@@ -149,4 +159,5 @@ onMounted(load)
 .tone-green { border-left: 3px solid #059669; }
 .tone-purple { border-left: 3px solid #7c3aed; }
 .tone-amber { border-left: 3px solid #d97706; }
+.tone-teal { border-left: 3px solid #0d9488; }
 </style>

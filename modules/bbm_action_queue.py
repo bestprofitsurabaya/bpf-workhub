@@ -50,6 +50,8 @@ def _claim_where(extra=''):
     return (
         "COALESCE(transaction_type, 'CLAIM') = 'CLAIM' "
         "AND status IN ('pending', 'modified') "
+        # Voucher rekanan diverifikasi lewat tab Voucher, bukan antrean klaim.
+        "AND COALESCE(voucher_value, 0) = 0 "
         "AND (is_dummy = 0 OR is_dummy IS NULL)"
         + extra
     )

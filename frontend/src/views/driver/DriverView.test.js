@@ -29,6 +29,7 @@ function mockApi() {
   apiMock.mockImplementation((path, opts = {}) => {
     if (path === '/api/driver/me') return Promise.resolve({ name: 'RIVAN', nopol: 'L 1 AB', vehicle_type: 'AVANZA', bbm_type: 'PERTALITE', is_active: true })
     if (path === '/api/cash/daily-code') return Promise.resolve({ code: 300, manual_mode: false })
+    if (path === '/api/voucher/config') return Promise.resolve({ value: 130000, partner: 'SPBU 54.601.01', daily_code: 700, nominal: 130700 })
     if (path === '/api/notifications') return Promise.resolve({ notifications: [], unread: 0 })
     if (path === '/api/cash/history') return Promise.resolve([])
     if (path === '/api/cash/pending-lpj') return Promise.resolve(pendingLpjRows)
@@ -86,6 +87,18 @@ describe('DriverView', () => {
     expect(apiMock).toHaveBeenCalledWith('/api/driver/me')
     expect(w.text()).toContain('RIVAN')
     expect(w.text()).toContain('L 1 AB')
+    w.unmount()
+  })
+
+  it('mode Voucher rekanan menampilkan nilai otomatis, SPBU mitra, nota, dan liter', async () => {
+    const w = await mountView()
+    await w.find('[data-testid="bbm-mode-voucher"]').trigger('click')
+    await flushPromises()
+    expect(w.find('[data-testid="voucher-partner"]').exists()).toBe(true)
+    expect(w.find('[data-testid="voucher-nota"]').exists()).toBe(true)
+    expect(w.find('[data-testid="voucher-liter"]').exists()).toBe(true)
+    expect(w.find('[data-testid="voucher-nominal"]').element.value).toContain('130.700')
+    expect(w.text()).toContain('Kirim Pemakaian Voucher')
     w.unmount()
   })
 

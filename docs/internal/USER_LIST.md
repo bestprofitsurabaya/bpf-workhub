@@ -1,4 +1,4 @@
-# 📋 Daftar User & Role — BPF WorkHub v2.106.0
+# 📋 Daftar User & Role — BPF WorkHub v2.107.0
 
 Dokumen ini menjelaskan semua role yang didukung sistem, siapa yang memakainya, dan apa yang bisa dilakukan masing-masing.
 
@@ -159,6 +159,7 @@ Sistem mendukung **11 peran inti** (peran `it` dipecah per cabang pada daftar di
 - 💵 Kasbon menunggu approve
 - 🗺️ Laporan perjalanan menunggu review
 - 🚰 Pengajuan air minum (ringkasan)
+- 🎟 Verifikasi voucher rekanan SPBU mitra (tab Voucher Rekanan)
 - ⚡ Quick links ke Assignments, Kasbon, Air Minum, Analytics
 
 **Dashboard Admin** (`/app/dashboard`) — juga bisa diakses GA:
@@ -185,6 +186,7 @@ Sistem mendukung **11 peran inti** (peran `it` dipecah per cabang pada daftar di
 - `POST /api/queue/reject/<id>` — tolak klaim
 - `POST /api/queue/modify/<id>` — edit data transaksi
 - `POST /api/queue/unverify/<id>` — kembalikan ke antrean GA
+- `POST /api/voucher/verify/<id>` — verifikasi pemakaian voucher rekanan
 - `GET /api/queue?tab=ga` — ambil antrean GA
 - `POST /api/drivers/sync` — sinkronisasi driver
 - `POST /api/vehicles/add` — tambah kendaraan
@@ -221,8 +223,18 @@ Sistem mendukung **11 peran inti** (peran `it` dipecah per cabang pada daftar di
 - 💵 BBM, Kasbon & SPBU
 - 📈 Analytics
 - 🚰 Air Minum
+- 🎟 Voucher Rekanan (tab di BBM, Kasbon & SPBU)
 
 **API Endpoint:**
+- `GET /api/voucher/summary` — ringkasan pemakaian & tagihan voucher
+- `GET /api/voucher/pending` — voucher menunggu verifikasi GA
+- `POST /api/voucher/verify/<id>` — verifikasi voucher (GA/Admin)
+- `GET /api/voucher/unsettled` — voucher siap ditagihkan
+- `POST /api/voucher/settlements` — buat tagihan periode (step-up PIN)
+- `POST /api/voucher/settlements/<id>/pay` — tandai tagihan dibayar
+- `POST /api/voucher/settlements/<id>/cancel` — batalkan tagihan draft
+- `GET /api/voucher/<id>/pdf` — bukti pemakaian voucher
+- `GET /api/voucher/settlements/<id>/pdf` — berita acara tagihan
 - `POST /api/queue/payout/<id>` — cairkan dana
 - `POST /api/queue/archive/<id>` — arsipkan transaksi
 - `GET /api/queue?tab=finance` — ambil antrean finance

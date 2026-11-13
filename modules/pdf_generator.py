@@ -11,7 +11,7 @@ from modules.company_identity import get_company_identity, IDENTITY_DEFAULTS  # 
 # ============================================================
 COMPANY_NAME = 'PT BESTPROFIT FUTURES'
 COMPANY_SUBTITLE = 'Kantor Pusat | Jakarta'
-SYSTEM_VERSION = 'BPF WorkHub v2.106.0'
+SYSTEM_VERSION = 'BPF WorkHub v2.107.0'
 LOGO_FILENAMES = ['icon-512.png', 'icon-192.png']
 PHOTO_FIELDS = [
     ('foto_odo_sebelum', 'ODO Sebelum'),
@@ -1130,6 +1130,286 @@ class CashReceiptPDF(BPFBasePDF):
         for i, role in enumerate(roles):
             self.set_xy(self.l_margin + (i * col_w) + 5, self.get_y())
             self.cell(col_w - 10, 4, role, align='C')
+        self.set_text_color(*INK)
+
+
+class VoucherUsagePDF(BPFBasePDF):
+    """Bukti pemakaian satu voucher BBM rekanan (v2.107.0).
+
+    Voucher bukan klaim dan bukan kasbon: dokumen ini membuktikan pemakaian
+    voucher oleh driver (SPBU mitra, nomor nota, liter, ODO, foto) sebelum
+    finance merekapnya menjadi tagihan periode.
+    """
+
+    STATUS_LABEL = {
+        'pending': 'Menunggu verifikasi GA',
+        'modified': 'Menunggu verifikasi GA',
+        'verified_ga': 'Terverifikasi GA · belum ditagih',
+        'archived': 'Sudah masuk tagihan SPBU',
+        'rejected': 'Ditolak',
+    }
+
+    def __init__(self):
+        super().__init__(orientation='P', unit='mm', format='A4')
+        self.set_auto_page_break(auto=True, margin=12)
+        self.set_margins(12, 8, 12)
+
+    def generate(self, tx, upload_folder='uploads'):
+        tx = dict(tx or {})
+        self._draw_title(tx)
+        self._draw_info(tx)
+        self._draw_amounts(tx)
+        self._draw_fuel(tx)
+        self._draw_photos(tx, upload_folder)
+        self._draw_signatures(tx)
+
+    def _draw_title(self, tx):
+        self.set_font(self._font(), 'B', 12.5)
+        self.set_text_color(*INK)
+        self.cell(0, 7, 'BUKTI PEMAKAIAN VOUCHER BBM REKANAN',
+                  align='C', new_x='LMARGIN', new_y='NEXT')
+        self.set_font(self._font(), '', 8)
+        self.set_text_color(*GRAY_LABEL)
+        self.cell(0, 4, f'No. {self.clean_text(tx.get("display_id", "-"))}',
+                  align='C', new_x='LMARGIN', new_y='NEXT')
+        self.ln(3)
+        self.set_text_color(*INK)
+
+    def _draw_info(self, tx):
+        self.section_title('INFORMASI PEMAKAIAN')
+        fields = [
+            ('Tanggal', self._fmt_dt(tx.get('created_at'))),
+            ('Driver', str(tx.get('driver_name') or '-').upper()),
+            ('No. Polisi', tx.get('nopol') or '-'),
+            ('Kendaraan', tx.get('vehicle_type') or '-'),
+            ('Jenis BBM', tx.get('bbm_type') or '-'),
+            ('SPBU Mitra', tx.get('voucher_partner') or '-'),
+            ('Nomor Nota', tx.get('nota_no') or '-'),
+            ('Status', self.STATUS_LABEL.get(tx.get('status'), tx.get('status') or '-')),
+        ]
+        col_w = (self.w - self.l_margin - self.r_margin) / 2
+        y = self.get_y()
+        for i in range(0, len(fields), 2):
+            for j in range(2):
+                if i + j >= len(fields):
+                    continue
+                label, value = fields[i + j]
+                self.info_row(label, self.clean_text(str(value))[:42],
+                              self.l_margin + (j * col_w), y,
+                              w_label=30, w_value=col_w - 31)
+            y += 5.2
+        self.set_y(y + 1.5)
+
+    def _draw_amounts(self, tx):
+        self.section_title('RINCIAN NOMINAL')
+        widths = [132, 54]
+        self._table_header(['URAIAN', 'JUMLAH'], widths)
+        self._table_row(['Nilai voucher', self._fmt_money(tx.get('voucher_value'))], widths,
+                        aligns=['L', 'R'], fill=False)
+        self._table_row(['Kode harian', self._fmt_money(tx.get('daily_code'))], widths,
+                        aligns=['L', 'R'], fill=True)
+        self.set_font(self._font(), 'B', 8.5)
+        self.set_text_color(*INK)
+        self.cell(widths[0], 6.4, 'TOTAL NILAI VOUCHER', border=1, align='L')
+        self.cell(widths[1], 6.4, self._fmt_money(tx.get('nominal')), border=1, align='R')
+        self.ln()
+        self.set_font(self._font(), '', 7)
+        self.set_text_color(*GRAY_LABEL)
+        self.cell(0, 4, 'Nilai voucher cabang + kode harian. Dibayar kantor ke SPBU mitra per periode.',
+                  new_x='LMARGIN', new_y='NEXT')
+        self.ln(1.5)
+        self.set_text_color(*INK)
+
+    def _draw_fuel(self, tx):
+        self.section_title('DATA PENGISIAN')
+        widths = [44, 44, 44, 54]
+        self._table_header(['LITER', 'HARGA/LITER', 'ODO (KM)', 'KM / LITER'], widths)
+        kml = tx.get('km_per_liter')
+        self._table_row([
+            f"{float(tx.get('liter') or 0):.2f} L",
+            self._fmt_money(tx.get('price_per_liter')),
+            f"{int(tx.get('odo_km') or 0):,}".replace(',', '.') + ' km',
+            (f"{float(kml):.2f}" if kml else '-'),
+        ], widths, aligns=['C', 'C', 'C', 'C'])
+        self.ln(2.5)
+        address = self.clean_text(tx.get('gps_address') or '')
+        if address:
+            self.set_font(self._font(), '', 7.5)
+            self.set_text_color(*GRAY_LABEL)
+            self.multi_cell(0, 4.2, 'Lokasi: ' + address, new_x='LMARGIN', new_y='NEXT')
+            self.set_text_color(*INK)
+            self.ln(1)
+
+    def _draw_photos(self, tx, upload_folder):
+        photos = []
+        for field, label in (
+            ('foto_odo_sebelum', 'ODO sebelum'),
+            ('foto_nota_odo_sesudah', 'Nota + ODO sesudah'),
+            ('foto_struk', 'Struk / voucher'),
+        ):
+            if tx.get(field):
+                photos.append({'path': tx[field], 'label': label})
+        if not photos:
+            return
+        self.section_title('LAMPIRAN FOTO BUKTI')
+        self.ln(1)
+        self.add_photo_grid(photos, upload_folder)
+
+    def _draw_signatures(self, tx):
+        if self.get_y() + 42 > self.h - 18:
+            self.add_page()
+        self.section_title('TANDA TANGAN')
+        self.ln(3)
+        col_w = (self.w - self.l_margin - self.r_margin) / 3
+        labels = ['Mengisi,', 'Memverifikasi,', 'Mengetahui,']
+        names = [
+            self.clean_text(str(tx.get('driver_name') or 'DRIVER').upper())[:22],
+            self.clean_text(str(tx.get('ga_approved_by') or 'GA')).upper()[:22],
+            'FINANCE',
+        ]
+        roles = ['Driver', 'GA', 'Finance']
+        self.set_font(self._font(), 'B', 8)
+        self.set_text_color(*INK)
+        for i, label in enumerate(labels):
+            self.set_xy(self.l_margin + (i * col_w), self.get_y())
+            self.cell(col_w, 5, label, align='C')
+        self.ln(18)
+        self.set_draw_color(*GRAY_LABEL)
+        self.set_line_width(0.3)
+        for i in range(3):
+            x0 = self.l_margin + (i * col_w) + 5
+            self.line(x0, self.get_y(), x0 + col_w - 10, self.get_y())
+        self.ln(2)
+        self.set_font(self._font(), 'B', 9)
+        for i, name in enumerate(names):
+            self.set_xy(self.l_margin + (i * col_w) + 5, self.get_y())
+            self.cell(col_w - 10, 5, name, align='C')
+        self.ln(5)
+        self.set_font(self._font(), 'I', 7)
+        self.set_text_color(*GRAY_LABEL)
+        for i, role in enumerate(roles):
+            self.set_xy(self.l_margin + (i * col_w) + 5, self.get_y())
+            self.cell(col_w - 10, 4, role, align='C')
+        self.set_text_color(*INK)
+
+
+class VoucherSettlementPDF(BPFBasePDF):
+    """Berita acara rekonsiliasi voucher per periode (v2.107.0)."""
+
+    STATUS_LABEL = {'draft': 'Menunggu pembayaran', 'paid': 'Sudah dibayar',
+                    'cancelled': 'Dibatalkan'}
+
+    def __init__(self):
+        super().__init__(orientation='L', unit='mm', format='A4')
+        self.set_auto_page_break(auto=True, margin=10)
+        self.set_margins(10, 8, 10)
+
+    def generate(self, head, items):
+        head = dict(head or {})
+        items = list(items or [])
+        self._draw_title(head)
+        self._draw_info(head)
+        self._draw_table(items)
+        self._draw_signatures(head)
+
+    def _draw_title(self, head):
+        self.set_font(self._font(), 'B', 13)
+        self.set_text_color(*INK)
+        self.cell(0, 7, 'BERITA ACARA REKONSILIASI VOUCHER BBM REKANAN',
+                  align='C', new_x='LMARGIN', new_y='NEXT')
+        self.set_font(self._font(), '', 8)
+        self.set_text_color(*GRAY_LABEL)
+        self.cell(0, 4, f'No. {self.clean_text(head.get("display_id", "-"))}',
+                  align='C', new_x='LMARGIN', new_y='NEXT')
+        self.ln(3)
+        self.set_text_color(*INK)
+
+    def _draw_info(self, head):
+        self.section_title('INFORMASI TAGIHAN')
+        fields = [
+            ('SPBU Mitra', head.get('partner') or '-'),
+            ('Periode', f"{self._fmt_dt(head.get('period_start'))} s/d {self._fmt_dt(head.get('period_end'))}"),
+            ('No. Invoice', head.get('invoice_no') or '-'),
+            ('Jumlah Voucher', f"{int(head.get('voucher_count') or 0)} lembar"),
+            ('Total Tagihan', self._fmt_money(head.get('total_amount'))),
+            ('Status', self.STATUS_LABEL.get(head.get('status'), head.get('status') or '-')),
+        ]
+        col_w = (self.w - self.l_margin - self.r_margin) / 3
+        y = self.get_y()
+        for i in range(0, len(fields), 3):
+            for j in range(3):
+                if i + j >= len(fields):
+                    continue
+                label, value = fields[i + j]
+                self.info_row(label, self.clean_text(str(value))[:46],
+                              self.l_margin + (j * col_w), y,
+                              w_label=30, w_value=col_w - 31)
+            y += 5.2
+        self.set_y(y + 1.5)
+
+    def _draw_table(self, items):
+        self.section_title('RINCIAN VOUCHER')
+        widths = [26, 50, 30, 34, 18, 32, 18, 36]  # 244 mm
+        self._table_header(['TANGGAL', 'DRIVER', 'NOPOL', 'NO. NOTA',
+                            'LITER', 'NILAI', 'KODE', 'TOTAL'], widths)
+        fill = False
+        total = 0.0
+        for it in items:
+            nominal = float(it.get('nominal') or 0)
+            total += nominal
+            self._table_row([
+                self._fmt_dt(it.get('created_at')),
+                str(it.get('driver_name') or '-')[:26],
+                str(it.get('nopol') or '-'),
+                str(it.get('nota_no') or '-'),
+                f"{float(it.get('liter') or 0):.2f}",
+                self._fmt_money(it.get('voucher_value')),
+                str(it.get('daily_code') or '-'),
+                self._fmt_money(nominal),
+            ], widths, aligns=['C', 'L', 'C', 'C', 'R', 'R', 'C', 'R'],
+                row_h=5.4, fill=fill)
+            fill = not fill
+        self.set_font(self._font(), 'B', 8)
+        self.set_text_color(*INK)
+        self.cell(sum(widths[:-1]), 6.2, f'TOTAL ({len(items)} voucher)', border=1, align='R')
+        self.cell(widths[-1], 6.2, self._fmt_money(total), border=1, align='R')
+        self.ln(2.5)
+
+    def _draw_signatures(self, head):
+        if self.get_y() + 42 > self.h - 16:
+            self.add_page()
+        self.section_title('TANDA TANGAN')
+        self.ln(3)
+        col_w = (self.w - self.l_margin - self.r_margin) / 3
+        labels = ['Dibuat oleh,', 'Diperiksa,', 'Diterima SPBU Mitra,']
+        names = [
+            self.clean_text(str(head.get('created_by') or 'FINANCE')).upper()[:24],
+            self.clean_text(str(head.get('paid_by') or 'FINANCE')).upper()[:24],
+            self.clean_text(str(head.get('partner') or 'SPBU MITRA')).upper()[:24],
+        ]
+        roles = ['Finance', 'GA / Finance', 'SPBU Mitra']
+        self.set_font(self._font(), 'B', 8)
+        self.set_text_color(*INK)
+        for i, label in enumerate(labels):
+            self.set_xy(self.l_margin + (i * col_w), self.get_y())
+            self.cell(col_w, 5, label, align='C')
+        self.ln(16)
+        self.set_draw_color(*GRAY_LABEL)
+        self.set_line_width(0.3)
+        for i in range(3):
+            x0 = self.l_margin + (i * col_w) + 8
+            self.line(x0, self.get_y(), x0 + col_w - 16, self.get_y())
+        self.ln(2)
+        self.set_font(self._font(), 'B', 9)
+        for i, name in enumerate(names):
+            self.set_xy(self.l_margin + (i * col_w) + 8, self.get_y())
+            self.cell(col_w - 16, 5, name, align='C')
+        self.ln(5)
+        self.set_font(self._font(), 'I', 7)
+        self.set_text_color(*GRAY_LABEL)
+        for i, role in enumerate(roles):
+            self.set_xy(self.l_margin + (i * col_w) + 8, self.get_y())
+            self.cell(col_w - 16, 4, role, align='C')
         self.set_text_color(*INK)
 
 

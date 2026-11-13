@@ -39,7 +39,7 @@ from modules.helpers import role_required
 
 EXPENSE_ROLES = ['finance', 'admin']
 
-CATEGORIES = ('po', 'kasbon', 'lpj')
+CATEGORIES = ('po', 'kasbon', 'lpj', 'voucher')
 MONTHS = 12
 MASTER_DB = 'bpf_asset_system'
 MIN_YEAR, MAX_YEAR = 2020, 2035
@@ -80,6 +80,7 @@ def _query_db(conn, year):
     # LPJ = hanya yang sah (verified_ga/archived), bukan semua non-rejected.
     out['kasbon'] = _fill_vector(bbm_scope.monthly_cash_rows(conn, year))
     out['lpj'] = _fill_vector(bbm_scope.monthly_lpj_rows(conn, year))
+    out['voucher'] = _fill_vector(bbm_scope.monthly_voucher_rows(conn, year))
     out['outstanding'] = bbm_scope.cash_totals(conn)['outstanding']
     cur.close()
     return out
@@ -124,7 +125,7 @@ def _db_name_for(code, branches):
     return None
 
 
-DETAIL_CATEGORIES = ('po', 'kasbon', 'lpj')
+DETAIL_CATEGORIES = ('po', 'kasbon', 'lpj', 'voucher')
 
 
 def _detail_rows(conn, year, month, category):
@@ -156,7 +157,7 @@ def _detail_rows(conn, year, month, category):
               AND YEAR(handover_at) = %s AND MONTH(handover_at) = %s
             ORDER BY handover_at
         """, (year, month))
-    else:
+    elif category == 'lpj':
         # v2.104.0: definisi "LPJ sah" diambil dari sumber tunggal
         # (modules/bbm_scope.py) — drill-down harus sama dengan kartu & PDF.
         cur.execute("""
@@ -171,6 +172,22 @@ def _detail_rows(conn, year, month, category):
               AND YEAR(created_at) = %s AND MONTH(created_at) = %s
             ORDER BY created_at
         """, tuple(bbm_scope.LPJ_VALID_STATUSES) + (year, month))
+    else:
+        # v2.107.0: voucher rekanan — beban BBM sekali saat pemakaian sah.
+        cur.execute("""
+            SELECT display_id AS ref, created_at AS date,
+                   COALESCE(NULLIF(voucher_partner, ''), 'SPBU Rekanan') AS party,
+                   CONCAT('Voucher BBM', IF(COALESCE(nopol, '') = '', '', CONCAT(' · ', nopol)),
+                          IF(COALESCE(nota_no, '') = '', '', CONCAT(' · nota ', nota_no))) AS description,
+                   nominal AS amount
+            FROM transactions
+            WHERE transaction_type = 'CLAIM'
+              AND COALESCE(voucher_value, 0) > 0
+              AND """ + bbm_scope.statuses_in(bbm_scope.VOUCHER_VALID_STATUSES) + """
+              AND (is_dummy = 0 OR is_dummy IS NULL)
+              AND YEAR(created_at) = %s AND MONTH(created_at) = %s
+            ORDER BY created_at
+        """, tuple(bbm_scope.VOUCHER_VALID_STATUSES) + (year, month))
     rows = cur.fetchall()
     cur.close()
     for r in rows:
@@ -359,9 +376,12 @@ def register_expense_routes(app):
                             'po': agg['po'],
                             'kasbon': agg['kasbon'],
                             'lpj': agg['lpj'],
+                            'voucher': agg.get('voucher') or _months_vector(),
                             'outstanding': agg.get('outstanding') or {'count': 0, 'amount': 0},
-                            # Total realisasi = barang diterima + LPJ terpakai.
-                            'total': [round(agg['po'][i] + agg['lpj'][i], 2)
+                            # Total realisasi = barang diterima + LPJ terpakai
+                            # + voucher rekanan terpakai (sekali).
+                            'total': [round(agg['po'][i] + agg['lpj'][i]
+                                            + (agg.get('voucher') or _months_vector())[i], 2)
                                       for i in range(MONTHS)],
                         }
                     finally:
@@ -380,15 +400,18 @@ def register_expense_routes(app):
                     'po': _months_vector(),
                     'kasbon': _months_vector(),
                     'lpj': _months_vector(),
+                    'voucher': _months_vector(),
                 }
                 for d in data.values():
                     for i in range(MONTHS):
                         combined['po'][i] += d['po'][i]
                         combined['kasbon'][i] += d['kasbon'][i]
                         combined['lpj'][i] += d['lpj'][i]
-                for k in ('po', 'kasbon', 'lpj'):
+                        combined['voucher'][i] += d['voucher'][i]
+                for k in ('po', 'kasbon', 'lpj', 'voucher'):
                     combined[k] = [round(x, 2) for x in combined[k]]
-                combined['total'] = [round(combined['po'][i] + combined['lpj'][i], 2)
+                combined['total'] = [round(combined['po'][i] + combined['lpj'][i]
+                                           + combined['voucher'][i], 2)
                                      for i in range(MONTHS)]
 
             totals = {}
@@ -407,6 +430,7 @@ def register_expense_routes(app):
             display = combined or (data.get(branch) if branch in data
                                    else {'name': '—', 'po': _months_vector(),
                                          'kasbon': _months_vector(), 'lpj': _months_vector(),
+                                         'voucher': _months_vector(),
                                          'total': _months_vector()})
             return jsonify({
                 'year': year,
@@ -424,7 +448,8 @@ def register_expense_routes(app):
                     'po': 'qty diterima × harga item, bulan mengikuti tanggal order',
                     'kasbon': 'kasbon yang dananya sudah diserahkan (handover_at), termasuk yang masih di driver',
                     'lpj': 'transaksi CASH_LPJ berstatus verified_ga/archived (LPJ sah), bukan yang masih pending',
-                    'total': 'PO diterima + realisasi LPJ (kasbon bukan pengeluaran final)',
+                    'voucher': 'baris BBM berlabel SPBU rekanan (voucher) berstatus verified_ga/archived; dihitung sekali saat pemakaian, pembayaran tagihan SPBU bukan beban baru',
+                    'total': 'PO diterima + realisasi LPJ + voucher rekanan (kasbon bukan pengeluaran final)',
                     'excluded': 'Air minum & overtime belum menyimpan nominal di sistem',
                 },
                 'errors': errors,

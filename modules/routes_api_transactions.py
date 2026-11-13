@@ -101,23 +101,35 @@ def register_transaction_api(app):
             # v2.104.0: filter jenis (additive) — KPI "Klaim dibayar" vs
             # "LPJ sah" membuka daftar baris yang terfilter, bukan tab campur.
             tx_type = request.args.get('type', '').strip().upper()
-            if tx_type not in ('', 'CLAIM', 'CASH_LPJ'):
+            if tx_type not in ('', 'CLAIM', 'CASH_LPJ', 'VOUCHER'):
                 return jsonify({'error': 'Jenis transaksi tidak dikenal'}), 400
+            # v2.107.0: voucher tidak punya jenis transaksi sendiri — baris
+            # CLAIM berlabel SPBU rekanan (voucher_value terisi). Daftar kas
+            # finance/GA harus mengecualikannya agar tidak tampak siap cair.
+            cash_only = "COALESCE(voucher_value, 0) = 0"
             if tab == 'incoming':
-                where = ["status IN ('pending','modified')", "COALESCE(transaction_type,'CLAIM') = 'CLAIM'", '(is_dummy=0 OR is_dummy IS NULL)']
+                where = ["status IN ('pending','modified')", "COALESCE(transaction_type,'CLAIM') = 'CLAIM'", cash_only, '(is_dummy=0 OR is_dummy IS NULL)']
             elif tab == 'ready':
-                where = ["status='verified_ga'", "COALESCE(transaction_type,'CLAIM') = 'CLAIM'", '(is_dummy=0 OR is_dummy IS NULL)']
+                where = ["status='verified_ga'", "COALESCE(transaction_type,'CLAIM') = 'CLAIM'", cash_only, '(is_dummy=0 OR is_dummy IS NULL)']
             elif tab == 'history':
-                # Payment is the durable Finance handoff; archived is retained
-                # for legacy records and does not require an extra UI action.
-                where = ["((status IN ('os_finance','archived') AND COALESCE(transaction_type,'CLAIM')='CLAIM') OR (status IN ('verified_ga','archived') AND transaction_type='CASH_LPJ'))", '(is_dummy=0 OR is_dummy IS NULL)']
+                if tx_type == 'VOUCHER':
+                    where = ["transaction_type='CLAIM'", "COALESCE(voucher_value,0) > 0",
+                             "status IN ('verified_ga','archived')", '(is_dummy=0 OR is_dummy IS NULL)']
+                else:
+                    # Payment is the durable Finance handoff; archived is retained
+                    # for legacy records and does not require an extra UI action.
+                    where = ["((status IN ('os_finance','archived') AND COALESCE(transaction_type,'CLAIM')='CLAIM' AND " + cash_only + ") OR (status IN ('verified_ga','archived') AND transaction_type='CASH_LPJ'))", '(is_dummy=0 OR is_dummy IS NULL)']
             else:
                 return jsonify({'error': 'Tab BBM tidak dikenal'}), 400
             params = []
             if tx_type == 'CLAIM':
                 where.append("COALESCE(transaction_type,'CLAIM') = 'CLAIM'")
+                where.append(cash_only)
             elif tx_type == 'CASH_LPJ':
                 where.append("transaction_type = 'CASH_LPJ'")
+            elif tx_type == 'VOUCHER' and tab != 'history':
+                where.append("transaction_type = 'CLAIM'")
+                where.append("COALESCE(voucher_value,0) > 0")
             if search:
                 where.append('(display_id LIKE %s OR driver_name LIKE %s OR nopol LIKE %s)')
                 params.extend([f'%{search}%'] * 3)

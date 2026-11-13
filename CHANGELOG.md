@@ -7,6 +7,54 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.107.0 — 13 November 2026 (Voucher rekanan: label SPBU, bukan jenis transaksi baru)
+
+SPBU mitra menyerahkan voucher + blanko ke driver; kantor membayar mitra per
+periode. **Transaksi tidak dipisah menjadi jenis baru** — baris BBM tetap
+`CLAIM` seperti biasa. Yang membedakan hanya label SPBU: **rekanan = voucher**,
+**non-rekanan = cash**. Dengan begitu laporan BBM tetap satu alur, sementara
+pembayaran ke mitra ditangani tagihan periode.
+
+- ⛽ **Driver — mode Klaim / Voucher.** Di tab **BBM** ada tombol mode. Pada
+  mode voucher, driver mengisi **nama SPBU mitra**, **nomor nota**, liter dari
+  nota, dan foto yang sama seperti klaim (ODO sebelum, nota + ODO, struk).
+  Nominal **tidak diisi driver**: server menghitung **nilai voucher cabang +
+  kode harian unik** (satu kode per hari per cabang) dan menyimpannya per
+  transaksi agar histori tidak berubah saat harga diperbarui.
+- 🔒 **Anti dobel.** Voucher ditolak bila kombinasi driver + nopol + tanggal +
+  ODO sudah ada, atau **nomor nota** yang sama sudah dipakai di hari itu.
+  Voucher wajib bernomor nota dan berliter; tanpa itu server menolak.
+- ✅ **Verifikasi GA → tagihan Finance.** Voucher tidak masuk antrean klaim
+  kasbon (tidak ada pencairan ke driver). GA memverifikasi lewat tab baru
+  **🎟 Voucher Rekanan** di `/cash`; Finance memilih voucher terverifikasi,
+  membuat **tagihan periode** (mingguan/bulanan) dengan nomor invoice, lalu
+  menandai **dibayar**. Tagihan yang masih draft bisa dibatalkan dan
+  voucher-nya kembali ke antrean.
+- 🧾 **Dokumen.** `GET /api/voucher/usage/<id>/pdf` — bukti pemakaian satu
+  voucher (driver, kendaraan, SPBU mitra, nomor nota, nilai, kode harian,
+  foto); `GET /api/voucher/settlements/<id>/pdf` — berita acara rekonsiliasi
+  periode (rincian voucher + total + tanda tangan). Keduanya tercatat di
+  `document_registry`.
+- 📊 **Laporan tidak dobel.** Voucher dihitung **sekali** sebagai beban BBM
+  saat statusnya sah (`verified_ga`/`archived`). Pembayaran tagihan ke mitra
+  adalah **kas keluar**, bukan beban baru. Ember klaim/kasbon, antrean
+  pencairan, badge GA, dan daftar "siap cair" mengecualikan baris voucher
+  (`COALESCE(voucher_value, 0) = 0`), sedangkan Rekap & Realisasi memakai
+  kategori **Voucher** tersendiri.
+- ⚙️ **Settings.** Nilai voucher default cabang **Rp 130.000** bisa diubah di
+  **Pengaturan → Voucher Rekanan**; perubahan hanya berlaku untuk transaksi
+  berikutnya.
+- 🗄 **Skema aditif.** Kolom `voucher_value`, `daily_code`, `voucher_partner`,
+  `nota_no`, `settlement_id`, `settled_at`, `settled_by` + tabel
+  `voucher_settlements`, idempoten di master dan tiap DB cabang. Tidak ada
+  perubahan enum `transaction_type`.
+- ✅ Tes baru: `tests/test_voucher.py` (16 kasus: config, ringkasan, verifikasi,
+  tagihan, kunci anti dobel, PDF), plus penyesuaian `test_bbm_scope`,
+  `test_expenses`, `test_nav_badges`, `test_bbm_action_queue`, dan tes frontend
+  `VoucherPanel.test.js`.
+
+---
+
 ## v2.106.0 — 13 November 2026 (Dokumen per kasbon & arsip yang bisa diselesaikan)
 
 Tindak lanjut audit finance: modul kasbon satu-satunya yang tidak punya
