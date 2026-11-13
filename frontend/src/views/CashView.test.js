@@ -136,6 +136,19 @@ describe('CashView — meja kerja BBM / Kasbon & LPJ / SPBU / Laporan', () => {
     expect(w.find('[data-testid="bbm-panel-stub"]').exists()).toBe(false)
   })
 
+  it('setiap kasbon punya dokumen PDF per transaksi', async () => {
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue(null)
+    const w = mountView()
+    await flushPromises()
+    await w.find('[data-testid="workspace-tab-kasbon"]').trigger('click')
+
+    const row = w.findAll('.cash-item').find((r) => r.text().includes('KSB-1'))
+    expect(row).toBeTruthy()
+    await row.findAll('button').find((b) => b.text().includes('📄 PDF')).trigger('click')
+    expect(openSpy).toHaveBeenCalledWith('/api/cash/1/pdf', '_blank', 'noopener')
+    openSpy.mockRestore()
+  })
+
   it('tab SubsidiTepat menampilkan panel SPBU/OTP dan menyembunyikan kasbon', async () => {
     const w = mountView()
     await flushPromises()

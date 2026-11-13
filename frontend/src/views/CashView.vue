@@ -285,6 +285,12 @@ async function openDetail(item) {
   finally { detailLoading.value = false }
 }
 
+// v2.106.0: dokumen resmi per kasbon (bukti pengajuan & pencairan).
+// Sebelumnya kasbon satu-satunya modul finance tanpa PDF per transaksi.
+function openKasbonPdf(item) {
+  if (item?.id) window.open(`/api/cash/${item.id}/pdf`, '_blank', 'noopener')
+}
+
 async function submitAction() {
   const a = action.value
   if (!a) return
@@ -477,6 +483,7 @@ onMounted(load)
             </div>
             <div class="row" style="margin-top:10px;flex-wrap:wrap;gap:6px;">
               <button class="btn btn-sm" @click="openDetail(c)">👁 Detail</button>
+              <button class="btn btn-sm" @click="openKasbonPdf(c)">📄 PDF</button>
               <template v-if="ACTIONS[c.status]">
                 <button v-for="a in ACTIONS[c.status].filter(x => x.show())" :key="a.kind"
                         class="btn btn-sm" :class="a.cls" @click="openAction(a.kind, c)">{{ a.label }}</button>
@@ -551,6 +558,7 @@ onMounted(load)
           </div>
         </div>
         <div style="margin-top:12px;text-align:right;">
+          <button class="btn" @click="openKasbonPdf(detailData || detailItem)">📄 PDF Kasbon</button>
           <button class="btn btn-secondary" @click="detailItem = null; detailData = null">Tutup</button>
         </div>
       </div>

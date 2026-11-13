@@ -11,7 +11,7 @@ from modules.company_identity import get_company_identity, IDENTITY_DEFAULTS  # 
 # ============================================================
 COMPANY_NAME = 'PT BESTPROFIT FUTURES'
 COMPANY_SUBTITLE = 'Kantor Pusat | Jakarta'
-SYSTEM_VERSION = 'BPF WorkHub v2.105.0'
+SYSTEM_VERSION = 'BPF WorkHub v2.106.0'
 LOGO_FILENAMES = ['icon-512.png', 'icon-192.png']
 PHOTO_FIELDS = [
     ('foto_odo_sebelum', 'ODO Sebelum'),
@@ -941,6 +941,196 @@ class WaterReceiptPDF(BPFBasePDF):
             self.set_text_color(*INK)
             x += cw + gap
         self.set_y(y + cell_h + 6.5)
+
+
+class CashReceiptPDF(BPFBasePDF):
+    """Bukti pengajuan & pencairan kasbon BBM (satu transaksi).
+
+    Finance memakai dokumen ini sebagai bukti resmi per kasbon: nominal yang
+    diserahkan, siapa yang meng-ACC, kapan dana diserahkan, dan LPJ terkait.
+    Satu halaman, mengikuti kop & footer identitas cabang seperti PDF lain.
+    """
+
+    STATUS_LABEL = {
+        'DRAFT': 'Menunggu ACC GA',
+        'GA_APPROVED': 'Menunggu Finance',
+        'FINANCE_APPROVED': 'Menunggu serah terima',
+        'FUNDS_WITH_DRIVER': 'Dana di driver',
+        'LPJ_SUBMITTED': 'LPJ menunggu verifikasi',
+        'COMPLETED': 'Selesai',
+        'REJECTED': 'Ditolak',
+    }
+
+    def __init__(self):
+        super().__init__(orientation='P', unit='mm', format='A4')
+        self.set_auto_page_break(auto=True, margin=12)
+        self.set_margins(12, 8, 12)
+
+    # ---- util ----
+    @staticmethod
+    def _short(value, limit=28):
+        text = re.sub(r'\s+', ' ', str(value or '-')).strip()
+        return text if len(text) <= limit else text[:limit - 3] + '...'
+
+    @staticmethod
+    def _dt(value):
+        if not value:
+            return '-'
+        if hasattr(value, 'strftime'):
+            return value.strftime('%d-%m-%Y %H:%M')
+        return str(value)[:16]
+
+    @staticmethod
+    def _money(value):
+        try:
+            amount = float(value or 0)
+        except (TypeError, ValueError):
+            return '-'
+        return 'Rp {:,.0f}'.format(amount).replace(',', '.')
+
+    def generate(self, row, lpj=None):
+        row = dict(row or {})
+        lpj = dict(lpj or {}) if lpj else {}
+        self._draw_title(row)
+        self._draw_info(row)
+        self._draw_amounts(row)
+        self._draw_timeline(row, lpj)
+        self._draw_notes(row)
+        self._draw_signatures(row)
+
+    # ---- judul ----
+    def _draw_title(self, row):
+        self.set_font(self._font(), 'B', 12.5)
+        self.set_text_color(*INK)
+        self.cell(0, 7, 'BUKTI PENGAJUAN & PENCAIRAN KASBON BBM',
+                  align='C', new_x='LMARGIN', new_y='NEXT')
+        self.set_font(self._font(), '', 8)
+        self.set_text_color(*GRAY_LABEL)
+        self.cell(0, 4, f'No. {self.clean_text(row.get("display_id", "-"))}', align='C',
+                  new_x='LMARGIN', new_y='NEXT')
+        self.ln(3)
+        self.set_text_color(*INK)
+
+    # ---- informasi kasbon (2 kolom) ----
+    def _draw_info(self, row):
+        self.section_title('INFORMASI KASBON')
+        fields = [
+            ('Nomor', self.clean_text(row.get('display_id', '-'))),
+            ('Tanggal Pengajuan', self._dt(row.get('created_at'))),
+            ('Driver', self.clean_text(str(row.get('driver_name', '-')).upper())),
+            ('No. Polisi', self.clean_text(row.get('nopol') or '-')),
+            ('Kendaraan', self.clean_text(row.get('vehicle_type') or '-')),
+            ('Jenis BBM', self.clean_text(row.get('bbm_type') or '-')),
+            ('Kode Harian', self.clean_text(row.get('daily_code') or '-')),
+            ('Status', self.STATUS_LABEL.get(row.get('status'), self.clean_text(row.get('status') or '-'))),
+        ]
+        col_w = (self.w - self.l_margin - self.r_margin) / 2
+        y = self.get_y()
+        for i in range(0, len(fields), 2):
+            for j in range(2):
+                if i + j >= len(fields):
+                    continue
+                label, value = fields[i + j]
+                self.info_row(label, self._short(value, 34), self.l_margin + (j * col_w), y,
+                              w_label=32, w_value=col_w - 33)
+            y += 5.2
+        self.set_y(y + 1.5)
+
+    # ---- rincian nominal ----
+    def _draw_amounts(self, row):
+        self.section_title('RINCIAN NOMINAL')
+        widths = [132, 54]
+        self._table_header(['URAIAN', 'JUMLAH'], widths)
+        self._table_row(['Nominal dasar', self._money(row.get('base_amount'))], widths,
+                        aligns=['L', 'R'], fill=False)
+        self._table_row(['Kode unik', self._money(row.get('unique_cents'))], widths,
+                        aligns=['L', 'R'], fill=True)
+        self.set_font(self._font(), 'B', 8.5)
+        self.set_text_color(*INK)
+        self.cell(widths[0], 6.4, 'TOTAL DITERIMA DRIVER', border=1, align='L')
+        self.cell(widths[1], 6.4, self._money(row.get('total_amount')), border=1, align='R')
+        self.ln()
+        self.set_font(self._font(), '', 7)
+        self.set_text_color(*GRAY_LABEL)
+        self.cell(0, 4, 'Nominal dasar + kode unik = total yang diserahkan ke driver.',
+                  new_x='LMARGIN', new_y='NEXT')
+        self.ln(1.5)
+        self.set_text_color(*INK)
+
+    # ---- alur persetujuan ----
+    def _draw_timeline(self, row, lpj):
+        self.section_title('ALUR PERSETUJUAN & PENCAIRAN')
+        widths = [54, 40, 42, 50]
+        self._table_header(['TAHAP', 'OLEH', 'WAKTU', 'STATUS'], widths)
+        lpj_status = 'LPJ sudah ada' if lpj else 'Belum ada'
+        rows = [
+            ('Pengajuan', self.clean_text(str(row.get('driver_name', '-')).upper()),
+             self._dt(row.get('created_at')), 'Diajukan'),
+            ('ACC GA', self._short(row.get('ga_approved_by') or '-'),
+             self._dt(row.get('ga_approved_at')),
+             'Selesai' if row.get('ga_approved_at') else 'Menunggu'),
+            ('ACC Finance', self._short(row.get('finance_approved_by') or '-'),
+             self._dt(row.get('finance_approved_at')),
+             'Selesai' if row.get('finance_approved_at') else 'Menunggu'),
+            ('Serah terima dana', self._short(row.get('handover_by') or '-'),
+             self._dt(row.get('handover_at')),
+             'Selesai' if row.get('handover_at') else 'Menunggu'),
+            ('LPJ driver', self._short(lpj.get('display_id') or '-'),
+             self._dt(lpj.get('created_at')), lpj_status),
+        ]
+        fill = False
+        for values in rows:
+            self._table_row(values, widths, aligns=['L', 'L', 'C', 'C'], row_h=5.6, fill=fill)
+            fill = not fill
+        self.ln(2.5)
+
+    # ---- catatan ----
+    def _draw_notes(self, row):
+        notes = self.clean_text(row.get('notes') or '')
+        if not notes:
+            return
+        self.section_title('CATATAN')
+        self.set_font(self._font(), '', 8)
+        self.multi_cell(0, 4.6, notes, new_x='LMARGIN', new_y='NEXT')
+        self.ln(2)
+
+    # ---- tanda tangan (3 kolom) ----
+    def _draw_signatures(self, row):
+        if self.get_y() + 42 > self.h - 18:
+            self.add_page()
+        self.section_title('TANDA TANGAN')
+        self.ln(3)
+        col_w = (self.w - self.l_margin - self.r_margin) / 3
+        labels = ['Menyetujui,', 'Menyerahkan,', 'Menerima,']
+        names = [
+            self._short(row.get('finance_approved_by') or 'FINANCE', 22),
+            self._short(row.get('handover_by') or row.get('ga_approved_by') or 'GA OFFICER', 22),
+            self._short(str(row.get('driver_name') or 'DRIVER').upper(), 22),
+        ]
+        roles = ['Finance', 'GA Officer', 'Driver']
+        self.set_font(self._font(), 'B', 8)
+        self.set_text_color(*INK)
+        for i, label in enumerate(labels):
+            self.set_xy(self.l_margin + (i * col_w), self.get_y())
+            self.cell(col_w, 5, label, align='C')
+        self.ln(18)
+        self.set_draw_color(*GRAY_LABEL)
+        self.set_line_width(0.3)
+        for i in range(3):
+            x0 = self.l_margin + (i * col_w) + 5
+            self.line(x0, self.get_y(), x0 + col_w - 10, self.get_y())
+        self.ln(2)
+        self.set_font(self._font(), 'B', 9)
+        for i, name in enumerate(names):
+            self.set_xy(self.l_margin + (i * col_w) + 5, self.get_y())
+            self.cell(col_w - 10, 5, name, align='C')
+        self.ln(5)
+        self.set_font(self._font(), 'I', 7)
+        self.set_text_color(*GRAY_LABEL)
+        for i, role in enumerate(roles):
+            self.set_xy(self.l_margin + (i * col_w) + 5, self.get_y())
+            self.cell(col_w - 10, 4, role, align='C')
+        self.set_text_color(*INK)
 
 
 class BBMReportPDF(BPFBasePDF):

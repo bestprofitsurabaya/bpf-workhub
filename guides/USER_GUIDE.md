@@ -1,4 +1,4 @@
-# 📖 Panduan Pengguna BPF WorkHub v2.105.0
+# 📖 Panduan Pengguna BPF WorkHub v2.106.0
 
 > **Siapa pun kamu — sopir, OB, admin, atau pimpinan — panduan ini ditulis untuk kamu.**
 > Tidak perlu paham teknis. Cukup ikuti langkah-langkah sesuai bagianmu.
@@ -364,6 +364,19 @@ OB memilih jenis & merk dari daftar yang **kamu** kelola:
 ### 6.5 Menyetujui Pencairan Kasbon
 
 Lihat [Bagian 10](#10-kasbon-alur-lengkap-dari-a-sampai-z) — peranmu ada di langkah **Finance: menyetujui pencairan**.
+
+**Dokumen per kasbon (sejak v2.106.0).** Setiap baris kasbon punya tombol
+**📄 PDF** — juga di dalam modal **👁 Detail → 📄 PDF Kasbon**. Isinya bukti
+resmi satu transaksi: nomor, driver, rincian nominal (dasar + kode unik +
+total), alur **ACC GA → ACC Finance → serah terima**, LPJ terkait, dan tiga
+tanda tangan (Finance, GA, Driver). Kop PDF mengikuti cabangmu dan dokumen
+dicatat di registri integritas.
+
+**Menutup klaim BBM.** Klaim yang sudah dibayar (status *Dibayar · menunggu
+LPJ*) bisa diarsipkan lewat **👁 Detail → 🗄 Arsipkan klaim** (Finance/Admin).
+Setelah diarsipkan statusnya **Selesai**; dokumen tetap bisa diunduh dari tab
+**✅ Sudah diproses**. Bila tab awal kosong, tombol **Buka ✅ Sudah diproses**
+langsung tersedia di daftar.
 
 ### 6.6 Mengedit / Menghapus Transaksi Air Minum ✏️ (sejak v2.37.0, bila diaktifkan Admin)
 

@@ -5,6 +5,7 @@ import Modal from './Modal.vue'
 import ConfirmDialog from './ConfirmDialog.vue'
 import ClaimVerifyCard from './ClaimVerifyCard.vue'
 import { useStepupStore } from '../stores/stepup'
+import { useAuthStore } from '../stores/auth'
 import { formatDateTime } from '../utils/format.js'
 
 // Panel operasional BBM + Data SPBU (Subsidi Tepat). Dipakai halaman
@@ -19,6 +20,7 @@ const props = defineProps({
 })
 
 const stepup = useStepupStore()
+const auth = useAuthStore()
 const confirmRef = ref(null)
 const ask = (message, opts) => confirmRef.value?.open(message, opts) ?? Promise.resolve(false)
 
@@ -199,6 +201,35 @@ const activeStageMeta = computed(() => {
 
 // Tombol 📄 PDF per transaksi — hanya bila status bukan 'pending'
 const showPdf = computed(() => !!detailStatus.value && detailStatus.value !== 'pending')
+
+// v2.106.0: arsip kini bisa diselesaikan dari UI (sebelumnya endpoint
+// /api/queue/archive ada tetapi tidak pernah dipanggil frontend — arsip
+// hanya bisa muncul dari data lama). Finance/admin menutup klaim yang sudah
+// dibayar (os_finance) menjadi arsip final.
+const canArchive = computed(() => ['finance', 'admin'].includes(auth.role))
+const archiveBusy = ref(false)
+
+async function archiveTx() {
+  const tx = detailFor.value
+  if (!tx?.id || archiveBusy.value) return
+  const ok = await ask(
+    `Arsipkan klaim ${tx.display_id || tx.id}? Status menjadi Selesai dan tidak bisa diubah lagi.`,
+    { title: 'Arsipkan klaim', confirmText: 'Ya, arsipkan' },
+  )
+  if (!ok) return
+  archiveBusy.value = true
+  detailMsg.value = ''
+  try {
+    const result = await api(`/api/queue/archive/${tx.id}`, { method: 'POST' })
+    detailMsg.value = '✅ ' + (result?.msg || 'Transaksi diarsipkan')
+    if (cardRef.value?.reload) await cardRef.value.reload()
+    await loadBbm()
+  } catch (e) {
+    detailMsg.value = '❌ ' + (e.message || 'Gagal mengarsipkan transaksi.')
+  } finally {
+    archiveBusy.value = false
+  }
+}
 
 function openDetail(tx) {
   detailFor.value = tx
@@ -529,7 +560,13 @@ onMounted(() => {
                   <button v-if="bbmTab === 'confirm'" class="btn btn-sm" @click="openDetail(t)">📋 Periksa LPJ</button>
                 </td>
               </tr>
-              <tr v-if="!visibleBbm.length"><td colspan="7" class="muted">{{ bbmBusy ? 'Memuat transaksi…' : 'Belum ada transaksi pada daftar ini.' }}</td></tr>
+              <tr v-if="!visibleBbm.length"><td colspan="7" class="muted">
+                {{ bbmBusy ? 'Memuat transaksi…' : 'Belum ada transaksi pada daftar ini.' }}
+                <button v-if="!bbmBusy && bbmTab !== 'history' && bbm.history" type="button"
+                        class="btn btn-sm" style="margin-left:8px;" @click="switchBbmTab('history')">
+                  Buka ✅ Sudah diproses ({{ bbm.history }})
+                </button>
+              </td></tr>
             </tbody>
           </table>
         </div>
@@ -701,6 +738,9 @@ onMounted(() => {
         </template>
         <template v-else-if="detailStatus === 'os_finance'">
           <span class="badge badge-amber">💰 Dana sudah cair · LPJ driver tampil di daftar LPJ halaman ini</span>
+          <button v-if="canArchive && !detailIsCashLpj" class="btn btn-success" :disabled="archiveBusy"
+                  title="Tutup klaim yang sudah dibayar menjadi arsip final"
+                  @click="archiveTx">{{ archiveBusy ? '⏳ Mengarsipkan…' : '🗄 Arsipkan klaim' }}</button>
         </template>
         <template v-else-if="detailStatus === 'archived'">
           <span class="badge badge-green" data-testid="bbm-archived-chip">✅ Selesai — dokumen tetap tersimpan</span>

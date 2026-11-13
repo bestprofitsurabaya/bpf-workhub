@@ -1,7 +1,7 @@
 """Cash Request / Kasbon BBM Routes"""
 import random
 from datetime import date
-from flask import request, jsonify, session
+from flask import request, jsonify, session, make_response
 import os
 from modules.config import get_db_connection
 from modules.helpers import (log_activity_async, generate_display_id, safe_float,
@@ -468,6 +468,69 @@ def register_cash_routes(app):
             return jsonify(data)
         except Exception as e:
             return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/cash/<int:cash_id>/pdf')
+    @role_required(['ga', 'finance', 'admin'])
+    def api_cash_pdf(cash_id):
+        """Dokumen resmi per kasbon — bukti pengajuan & pencairan (v2.106.0).
+
+        Sebelum ini kasbon sama sekali tidak punya dokumen per transaksi:
+        Finance hanya bisa melihat field di modal, tanpa bukti yang bisa
+        dicetak/diserahkan. PDF memakai kop cabang sesi dan mencatat
+        integritasnya ke document_registry (best-effort).
+        """
+        try:
+            conn = get_db_connection()
+            if not conn:
+                return make_response('DB error', 500)
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute("SELECT * FROM fuel_cash_requests WHERE id = %s", (cash_id,))
+            row = cursor.fetchone()
+            if not row:
+                cursor.close(); conn.close()
+                return make_response('Pengajuan kasbon tidak ditemukan', 404)
+            lpj = None
+            if row.get('lpj_transaction_id'):
+                cursor.execute("SELECT * FROM transactions WHERE id = %s",
+                               (row['lpj_transaction_id'],))
+                lpj = cursor.fetchone()
+            cursor.close(); conn.close()
+
+            from modules.pdf_generator import CashReceiptPDF
+            pdf = CashReceiptPDF()
+            try:
+                pdf.set_identity(branch_code=session.get('branch_code'))
+            except Exception:
+                pass  # gagal identitas cabang → kop global
+            pdf.add_page()
+            pdf.generate(row, lpj)
+            raw = pdf.output(dest='S')
+            pdf_bytes = raw.encode('latin-1') if isinstance(raw, str) else bytes(raw)
+
+            response = make_response(pdf_bytes)
+            response.headers['Content-Type'] = 'application/pdf'
+            fname = f"Kasbon_{row.get('display_id', cash_id)}.pdf"
+            response.headers['Content-Disposition'] = f'attachment; filename={fname}'
+
+            role = session.get('user_role', '')
+            actor = (session.get('full_name') or session.get('user_name') or '').strip()
+            log_activity_async(0, 'cash_pdf', role, actor,
+                               new_data={'display_id': row.get('display_id')},
+                               ip=request.remote_addr)
+            try:
+                from modules.doc_integrity import register_pdf
+                register_pdf('cash_receipt', row.get('display_id') or f'id-{cash_id}',
+                             pdf_bytes,
+                             signer_name=row.get('finance_approved_by') or actor,
+                             signer_role='finance',
+                             branch_code=session.get('branch_code') or '',
+                             filename=fname,
+                             meta={'cash_id': cash_id, 'status': row.get('status')})
+            except Exception:
+                pass  # registri tidak boleh menggagalkan unduhan
+            return response
+        except Exception as e:
+            return make_response(f'Error: {str(e)}', 500)
 
     @app.route('/api/cash/reject/<int:cash_id>', methods=['POST'])
     @role_required(['ga', 'finance', 'admin'])

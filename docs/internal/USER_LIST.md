@@ -1,4 +1,4 @@
-# 📋 Daftar User & Role — BPF WorkHub v2.105.0
+# 📋 Daftar User & Role — BPF WorkHub v2.106.0
 
 Dokumen ini menjelaskan semua role yang didukung sistem, siapa yang memakainya, dan apa yang bisa dilakukan masing-masing.
 

@@ -19,11 +19,13 @@ import pytest
 from modules.pdf_generator import (
     WaterReceiptPDF, PDFReportCompact, BBMReportPDF, BranchSummaryPDF,
     OvertimeReportPDF, ApplicantReportPDF, AssetReportPDF, ConsolidatedReportPDF,
+    CashReceiptPDF,
 )
 
 # (kelas, orientasi) — semua menurunkan header() kop yang sama.
 PDF_CASES = [
     (WaterReceiptPDF, 'portrait'),
+    (CashReceiptPDF, 'portrait'),
     (PDFReportCompact, 'portrait'),
     (BBMReportPDF, 'landscape'),
     (BranchSummaryPDF, 'landscape'),

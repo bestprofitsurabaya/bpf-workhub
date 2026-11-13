@@ -7,6 +7,32 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.106.0 — 13 November 2026 (Dokumen per kasbon & arsip yang bisa diselesaikan)
+
+Tindak lanjut audit finance: modul kasbon satu-satunya yang tidak punya
+dokumen per transaksi, dan aksi arsip punya endpoint tetapi tidak punya
+tombol di UI.
+
+- 📄 **PDF per kasbon.** Route baru `GET /api/cash/<id>/pdf` + kelas
+  `CashReceiptPDF` menghasilkan bukti resmi satu kasbon: nomor, driver,
+  rincian nominal (dasar + kode unik + total), alur ACC GA → ACC Finance →
+  serah terima, LPJ terkait, dan tiga tanda tangan (Finance, GA, Driver).
+  Tombol **📄 PDF** ada di setiap baris kasbon dan di modal **👁 Detail**.
+  Kop mengikuti cabang sesi; hash dokumen dicatat ke `document_registry`.
+- 🗄 **Arsip klaim bisa diselesaikan dari UI.** Klaim berstatus `os_finance`
+  (sudah dibayar) kini punya tombol **🗄 Arsipkan klaim** di modal detail —
+  memakai endpoint `POST /api/queue/archive/<id>` yang sebelumnya tidak
+  pernah dipanggil frontend. Setelah diarsipkan, status menjadi **Selesai**
+  dan dokumen tetap tersedia di **✅ Sudah diproses**.
+- 🧭 **Daftar kosong tidak lagi buntu.** Bila tab **Masuk/Siap dicairkan**
+  kosong tetapi ada riwayat, muncul tombol **Buka ✅ Sudah diproses (N)**
+  sehingga dokumen transaksi lama tetap bisa ditemukan.
+- ✅ Tes baru: `tests/test_cash_pdf.py` (PDF, 404, 401, 403), kasus
+  `CashReceiptPDF` di `test_pdf_header_layout.py`, serta tes tombol PDF
+  kasbon & arsip di `CashView.test.js` / `BbmKasbonPanel.test.js`.
+
+---
+
 ## v2.105.0 — 13 November 2026 (Audit & perampingan frontend finance)
 
 Audit fitur role **finance** menemukan tiga hal: menu laporan ganda, satu kartu

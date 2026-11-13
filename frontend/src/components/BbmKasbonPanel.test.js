@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises, config } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import BbmKasbonPanel from './BbmKasbonPanel.vue'
+import { useAuthStore } from '../stores/auth'
 
 const { apiMock } = vi.hoisted(() => ({ apiMock: vi.fn() }))
 vi.mock('../api', () => ({ api: apiMock }))
@@ -332,9 +333,27 @@ describe('BbmKasbonPanel (operasional BBM)', () => {
     expect(w.text()).toContain('✅ Dana #7 dicairkan!')
   })
 
-  it('os_finance: LPJ diteruskan ke Kasbon tanpa aksi Arsipkan', async () => {
+  it('daftar kosong mengarahkan ke tab Sudah diproses yang berisi arsip', async () => {
+    apiMock.mockImplementation(financeImpl)
+    const w = mount(BbmKasbonPanel)
+    await flushPromises()
+
+    const hint = w.findAll('button').find((b) => b.text().includes('Buka ✅ Sudah diproses'))
+    expect(hint).toBeTruthy()
+    expect(hint.text()).toContain('(1)')
+    await hint.trigger('click')
+    await flushPromises()
+    expect(w.findAll('tbody tr').some((r) => r.text().includes('BBM-007'))).toBe(true)
+  })
+
+  it('os_finance: LPJ diteruskan ke Kasbon + Finance bisa mengarsipkan klaim', async () => {
+    const auth = useAuthStore()
+    auth.user = { role: 'finance', user_name: 'finance_sby', full_name: 'FINANCE SBY' }
     apiMock.mockImplementation((path, opts = {}) => {
       if (path === '/api/transactions/detail/7') return Promise.resolve(TX_DETAIL_OS)
+      if (path === '/api/queue/archive/7') {
+        return Promise.resolve({ status: 'success', msg: 'Transaksi #7 diarsipkan.' })
+      }
       return financeImpl(path, opts)
     })
     const w = mount(BbmKasbonPanel)
@@ -342,8 +361,19 @@ describe('BbmKasbonPanel (operasional BBM)', () => {
     await openReadyClaim(w)
 
     expect(w.text()).toContain('Dana sudah cair · LPJ driver tampil di daftar LPJ halaman ini')
-    expect(w.text()).not.toContain('Arsipkan')
     expect(w.text()).toContain('LPJ driver tampil di daftar LPJ halaman ini')
+
+    // v2.106.0: arsip final kini punya tombol — endpoint lama tidak pernah
+    // dipanggil frontend, sehingga arsip praktis tidak bisa diselesaikan.
+    const archiveBtn = btnByText(w, '🗄 Arsipkan klaim')
+    expect(archiveBtn).toBeTruthy()
+    await archiveBtn.trigger('click')
+    await flushPromises()
+    await w.findAll('button').find((b) => b.text() === 'Ya, arsipkan').trigger('click')
+    await flushPromises()
+
+    expect(apiMock).toHaveBeenCalledWith('/api/queue/archive/7', { method: 'POST' })
+    expect(w.text()).toContain('✅ Transaksi #7 diarsipkan.')
   })
 
   it('LPJ kasbon verified_ga tampil selesai dan tidak menawarkan pencairan kedua', async () => {
