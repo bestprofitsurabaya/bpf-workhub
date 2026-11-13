@@ -73,12 +73,14 @@ def main():
           f'api={po_api} sql={po_manual}')
     check('angka kasbon cocok SQL manual', abs(kas_api - kas_manual) < 1.0,
           f'api={kas_api} sql={kas_manual}')
-    # v2.104.0: total realisasi = PO diterima + LPJ sah. Kasbon cair adalah
-    # dana muka (jembatan), BUKAN bagian dari total — assertion lama
-    # menjumlahkan seluruh kategori sehingga selalu salah.
-    check('grand_total = PO + LPJ', abs((d['totals']['po'] + d['totals']['lpj'])
-                                        - d['grand_total']) < 1.0,
-          f"po={d['totals']['po']} lpj={d['totals']['lpj']} grand={d['grand_total']}")
+    # v2.108.2: total realisasi = PO diterima + LPJ sah + voucher rekanan.
+    # Voucher masuk `total` sejak v2.107.0; assertion lama hanya PO + LPJ
+    # sehingga selalu merah di cabang yang punya baris SPBU rekanan.
+    check('grand_total = PO + LPJ + voucher',
+          abs((d['totals']['po'] + d['totals']['lpj']
+               + d['totals'].get('voucher', 0.0)) - d['grand_total']) < 1.0,
+          f"po={d['totals']['po']} lpj={d['totals']['lpj']} "
+          f"voucher={d['totals'].get('voucher', 0.0)} grand={d['grand_total']}")
     check('sisa kasbon = kasbon cair - LPJ sah',
           abs((d['totals']['kasbon'] - d['totals']['lpj']) - d['sisa_total']) < 1.0,
           f"kasbon={d['totals']['kasbon']} lpj={d['totals']['lpj']} sisa={d['sisa_total']}")
