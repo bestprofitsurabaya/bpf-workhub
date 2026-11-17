@@ -7,6 +7,31 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.111.1 — 17 November 2026 (NIK: label tidak lagi merusak digit)
+
+Laporan lapangan: NIK masih salah 1–3 digit setelah v2.111.0. Pengukuran
+pada 24 KTP sintetis menunjukkan **70,8%** benar; setelah perbaikan **83,3%**
+(8/8 pada KTP bersih), rata-rata ~3,4 detik per scan.
+
+Dua bug ditemukan:
+
+- Label `NIK` ikut melewati peta kekeliruan karakter (`I`→`1`), sehingga
+  baris `NIK : 3379 6327 4393 5797` menjadi **17 digit** dan NIK yang benar
+  tidak pernah menjadi kandidat. Label kini dibuang sebelum peta digit.
+- Pipeline berhenti setelah varian praproses pertama begitu NIK+nama
+  terlihat lengkap, sehingga baris benar dari varian lain tidak ikut
+  dibandingkan. Baris NIK yang **disetujui ≥3 varian** kini diprioritaskan
+  di atas crop token satu varian. Ambang 3, bukan 2: pada KTP nyata dua
+  varian bersaudara (gray+plain) bisa sama-sama salah membaca nomor seri,
+  sementara crop token yang benar berbobot jauh lebih tinggi.
+
+Crop token/ROI hanya dipakai bila baris belum meyakinkan, dan jalur sparse
+hanya bila NIK belum ditemukan — hasil sparse tidak lagi menimpa kandidat
+yang sudah baik. Ini juga memangkas waktu scan (token dilewati saat baris
+sudah disetujui dua varian).
+
+---
+
 ## v2.111.0 — 17 November 2026 (OCR NIK lebih kuat: nilai dari crop label)
 
 Laporan lapangan: NIK masih terbaca salah setelah v2.110.0.
