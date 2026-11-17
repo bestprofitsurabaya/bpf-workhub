@@ -2,9 +2,82 @@
 
 File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks saat sesi baru dimulai.
 
-**Terakhir diperbarui:** 2026-11-13<br>
+**Terakhir diperbarui:** 2026-11-17<br>
 **Branch:** `main`<br>
-**Versi terbaru:** v2.108.2 (13 Nov — hapus data uji FirstWork oleh admin/traineer, demo per cabang bisa dibersihkan, seed demo idempoten) · v2.108.1 (13 Nov — validasi server trip & bukti foto) · v2.104.0 (12 Nov — Fase 3 selesai: KPI bisa diklik ke daftar baris terfilter, antrean bawa baris nyata + aksi GA, antrean keempat SPBU mismatch) · v2.103.0 (12 Nov — meja kerja BBM: isolasi cabang, definisi metrik tunggal, context bar, antrean Perlu Tindakan) · v2.84.0 (12 Nov — semua cabang wajib tautan ber-token + QR statis lokal) · v2.83.0 (12 Nov — ID Fingerprint & ID BPF: backfill 1.831 baris, panel traineer, koreksi per baris) · v2.82.0 (11 Nov — audit isolasi cabang FirstWork: token per cabang, KTP tertutup, NIK disamarkan) · v2.81.0 (11 Nov — Profil Saya) · v2.80.0 (11 Nov — Absensi FirstWork + migrasi 1.831 baris sheet) · v2.77.0 (3 Nov — OTP SubsidiTepat: anti request ganda, supervisor verifikasi status, cooldown resend; siklus OTP end-to-end OK — kode diverifikasi → token → 192 transaksi SPBU terimpor)
+**Versi terbaru:** v2.112.0 (17 Nov — MFA TOTP: login dua langkah, kebijakan admin off/optional/required_roles, kode pemulihan, panduan Microsoft Authenticator) · v2.111.0 (17 Nov — OCR NIK dari crop label + validasi tanggal lahir) · v2.108.2 (13 Nov — hapus data uji FirstWork oleh admin/traineer, demo per cabang bisa dibersihkan, seed demo idempoten) · v2.108.1 (13 Nov — validasi server trip & bukti foto) · v2.104.0 (12 Nov — Fase 3 selesai: KPI bisa diklik ke daftar baris terfilter, antrean bawa baris nyata + aksi GA, antrean keempat SPBU mismatch) · v2.103.0 (12 Nov — meja kerja BBM: isolasi cabang, definisi metrik tunggal, context bar, antrean Perlu Tindakan) · v2.84.0 (12 Nov — semua cabang wajib tautan ber-token + QR statis lokal) · v2.83.0 (12 Nov — ID Fingerprint & ID BPF: backfill 1.831 baris, panel traineer, koreksi per baris) · v2.82.0 (11 Nov — audit isolasi cabang FirstWork: token per cabang, KTP tertutup, NIK disamarkan) · v2.81.0 (11 Nov — Profil Saya) · v2.80.0 (11 Nov — Absensi FirstWork + migrasi 1.831 baris sheet) · v2.77.0 (3 Nov — OTP SubsidiTepat: anti request ganda, supervisor verifikasi status, cooldown resend; siklus OTP end-to-end OK — kode diverifikasi → token → 192 transaksi SPBU terimpor)
+
+---
+
+## 🔁 Handoff 17 Nov 2026 — MFA TOTP lengkap (v2.112.0)
+
+**Permintaan:** "implementasikan lengkap. commit push. untuk semua role kecuali
+marketing ob dan driver" + admin harus bisa mengatur aktif/non-aktif MFA.
+
+**Keputusan desain**
+- **TOTP**, bukan email/SMS: tabel `users` tidak punya kolom email/no_hp dan
+  backend tidak punya SMTP. `segno` sudah terpasang untuk QR.
+- Parameter **SHA1 / 6 digit / 30 detik** → kompatibel Microsoft Authenticator
+  (menu *Other account*), Google Authenticator, Authy, dsb.
+- Rahasia disimpan **terenkripsi** (encrypt-then-MAC, stdlib) dengan kunci
+  `MFA_ENC_KEY` di `.env` (fallback `SECRET_KEY`). Tidak ada dependency baru.
+- Anti-replay via `users.mfa_last_step`; kode pemulihan 10 buah, hash SHA-256,
+  sekali pakai.
+- Kebijakan `system_config`: `mfa_policy` (`off|optional|required_roles`),
+  `mfa_required_roles`, `mfa_grace_days` (default 7), `mfa_enforced_at`.
+  Default role wajib = semua kecuali `marketing`, `ob`, `driver`
+  (`chief_driver` tetap wajib).
+- `off` = kill switch global (user yang sudah mendaftar pun tidak diminta kode).
+
+**Alur login**
+1. `POST /api/auth/login` validasi PIN + cabang.
+2. `requirement_for_user()` membaca kebijakan:
+   - belum wajib → sesi penuh seperti biasa;
+   - wajib & sudah mendaftar → `status=mfa_required`, mode `verify`;
+   - wajib & belum mendaftar (tenggang habis) → mode `enroll`.
+3. Saat MFA diminta: `session.clear()` + kunci `mfa_pending_*` (tanpa
+   `user_role`) → SPA membuka `/mfa`.
+4. `POST /api/auth/mfa/verify` (atau `enroll/start|confirm`) → sesi penuh.
+5. Selama tenggang, user belum mendaftar tetap bisa login; Profil Saya
+   menampilkan peringatan sisa hari.
+
+**File baru**
+- `modules/mfa.py` — TOTP, enkripsi, kebijakan, recovery codes.
+- `modules/mfa_schema.py` — kolom `users.mfa_*`, tabel `mfa_recovery_codes`,
+  config default (idempoten tiap startup, retry 5×).
+- `modules/routes_mfa.py` — endpoint login 2 langkah, self-service, admin.
+- `frontend/src/views/MfaView.vue` + `MfaView.test.js`
+- `tests/test_mfa.py` (23 tes)
+- `docs/internal/PANDUAN_MFA_USER.md` (panduan siap dibagikan)
+
+**File diubah**
+- `modules/routes_spa.py` — gate MFA setelah cek cabang; `/api/auth/me`
+  mengembalikan `mfa_pending`/`mfa_mode`.
+- `modules/helpers.py` — rate limit MFA (`mfa_rate_check/fail/success`,
+  5 gagal/5 menit → 15 menit).
+- `app.py` — `ensure_mfa_schema()` + `register_mfa_routes(app)`.
+- `frontend/src/stores/auth.js` — state `mfaPending/mfaMode/mfaUsername`,
+  `completeMfa()`, bootstrap/login sadar-MFA.
+- `frontend/src/router/index.js` — rute `/mfa` + guard sesi pending.
+- `frontend/src/views/LoginView.vue` — redirect ke `/mfa` saat `mfa_required`.
+- `frontend/src/views/ProfileView.vue` — kartu MFA (aktifkan/matikan/kode
+  pemulihan) dengan step-up.
+- `frontend/src/views/SettingsView.vue` — seksi `sec-mfa` (kebijakan, role,
+  tenggang, status per user, reset).
+
+**Verifikasi**
+- `python3 -m pytest tests/test_mfa.py -q` → 23 passed.
+- `npx vitest run` (MfaView/ProfileView/SettingsView/auth) → 27 passed.
+- `npx vite build` → sukses.
+- Deploy: `docker compose build web && docker compose up -d web`,
+  `bash scripts/overall_check.sh` → 9/9 (diisi saat deploy).
+
+**Catatan operasional**
+- Setelah deploy, kebijakan aktif = `required_roles` dengan tenggang 7 hari.
+  Admin dapat menurunkan tenggang ke 0 di Pengaturan → 🔐 MFA setelah semua
+  user target mendaftar.
+- `MFA_ENC_KEY` sudah ditambahkan ke `.env` (tidak di-commit). Jangan
+  mengganti kunci ini setelah ada user mendaftar — rahasia lama tidak bisa
+  didekripsi; user harus reset MFA.
 
 ---
 

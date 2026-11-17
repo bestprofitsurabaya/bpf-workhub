@@ -1295,3 +1295,35 @@ def pin_fail(ip):
 def pin_success(ip):
     """Reset penghitung setelah verifikasi PIN sukses."""
     _pin_store.reset(ip)
+
+
+# ============================================================
+# Rate limiting verifikasi MFA/TOTP (v2.112.0 · ISO/IEC 27001 A.8.5).
+# Terpisah dari login & step-up agar lockout satu jalur tidak mengunci jalur
+# lain. Kunci = IP + username (kode 6 digit hanya 1 juta kemungkinan, jadi
+# pembatasan percobaan wajib). 5x gagal / 5 menit per IP+user → lockout 15 menit.
+# ============================================================
+_MFA_MAX_FAILS = 5
+_MFA_WINDOW = 300
+_MFA_LOCKOUT = 900
+_mfa_store = _RateStore('mfa')
+
+
+def _mfa_key(ip, username=''):
+    return f"{ip or ''}|{(username or '').strip().lower()}"
+
+
+def mfa_rate_check(ip, username=''):
+    """Cek apakah boleh mencoba kode MFA. Return (allowed, retry_after)."""
+    return _mfa_store.check(_mfa_key(ip, username), _MFA_WINDOW)
+
+
+def mfa_fail(ip, username=''):
+    """Catat kode MFA salah; kembalikan (locked, retry_after)."""
+    return _mfa_store.record_fail(_mfa_key(ip, username), _MFA_WINDOW,
+                                  _MFA_MAX_FAILS, _MFA_LOCKOUT)
+
+
+def mfa_success(ip, username=''):
+    """Reset penghitung setelah verifikasi MFA sukses."""
+    _mfa_store.reset(_mfa_key(ip, username))

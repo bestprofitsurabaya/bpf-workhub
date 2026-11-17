@@ -3,6 +3,8 @@ import { useAuthStore, ROLE_META } from '../stores/auth'
 
 const routes = [
   { path: '/login', name: 'login', component: () => import('../views/LoginView.vue'), meta: { public: true } },
+  // v2.112.0 — langkah kedua login (kode authenticator / pendaftaran MFA).
+  { path: '/mfa', name: 'mfa', component: () => import('../views/MfaView.vue'), meta: { public: true, mfa: true } },
   { path: '/403', name: 'forbidden', component: () => import('../views/ForbiddenView.vue'), meta: { public: true } },
   // Form publik pelamar kerja (v2.16) — tanpa login
   { path: '/apply', name: 'apply', component: () => import('../views/ApplyView.vue'), meta: { public: true } },
@@ -78,9 +80,19 @@ router.beforeEach(async (to) => {
   const auth = useAuthStore()
   if (!auth.ready) await auth.bootstrap()
 
+  // v2.112.0 — sesi pending MFA: hanya /mfa yang boleh dibuka.
+  if (auth.mfaPending) {
+    return to.name === 'mfa' ? true : { name: 'mfa' }
+  }
+
   if (to.meta.public) {
     if (to.name === 'login' && auth.isAuthenticated) {
       return ROLE_META[auth.role] ? { path: ROLE_META[auth.role].home } : true
+    }
+    if (to.name === 'mfa') {
+      return auth.isAuthenticated
+        ? (ROLE_META[auth.role] ? { path: ROLE_META[auth.role].home } : true)
+        : { name: 'login' }
     }
     return true
   }

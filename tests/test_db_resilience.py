@@ -69,7 +69,12 @@ def test_fallback_non_pool_saat_pool_exhausted(monkeypatch):
 
 
 def test_fallback_juga_dipakai_saat_pool_tidak_ada(monkeypatch):
-    """db_pool = None (mis. pool gagal init) → tetap bisa ambil koneksi."""
+    """db_pool = None (mis. pool gagal init) → tetap bisa ambil koneksi.
+
+    Sejak v2.47.1 `_ensure_pool()` mencoba membuat ulang pool secara lazy.
+    Test ini menguji jalur FALLBACK (bukan re-init), jadi cooldown re-init
+    disetel baru saja agar `_ensure_pool()` melewati percobaan pembuatan pool.
+    """
 
     calls = {}
 
@@ -79,6 +84,7 @@ def test_fallback_juga_dipakai_saat_pool_tidak_ada(monkeypatch):
 
     monkeypatch.setattr(config, 'db_pool', None)
     monkeypatch.setattr(config, 'MySQLConnection', _FakeMySQLConnection)
+    monkeypatch.setattr(config, '_pool_last_attempt', time.time())
 
     conn = config.get_db_connection()
     assert conn is not None

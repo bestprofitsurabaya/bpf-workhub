@@ -93,6 +93,9 @@ services:
       # Retry singkat saat pool penuh (menghindari koneksi non-pool baru)
       - DB_POOL_RETRIES=3
       - SECRET_KEY=${SECRET_KEY:?SECRET_KEY wajib di .env}
+      # v2.112.0: kunci enkripsi rahasia MFA TOTP. WAJIB stabil — bila diganti,
+      # semua user harus reset MFA (rahasia lama tidak bisa didekripsi).
+      - MFA_ENC_KEY=${MFA_ENC_KEY:-}
       # Secure cookie: WAJIB true jika diakses via HTTPS (produksi). Jika ada
       # user mengakses via http://IP:5001 di LAN, cookie tidak akan dikirim
       # browser -> login loop. Matikan hanya untuk dev http lokal.

@@ -58,6 +58,11 @@ export const useAuthStore = defineStore('auth', {
   state: () => ({
     ready: false,
     user: null,
+    // v2.112.0 — sesi pending MFA: PIN sudah benar, menunggu kode authenticator
+    // atau pendaftaran. `user` sengaja tetap null sampai langkah kedua selesai.
+    mfaPending: false,
+    mfaMode: null,        // 'verify' | 'enroll'
+    mfaUsername: '',
   }),
   getters: {
     role: (s) => s.user?.role || null,
@@ -85,12 +90,27 @@ export const useAuthStore = defineStore('auth', {
         const me = await api('/api/auth/me')
         if (me?.authenticated) {
           this.user = me.user
+          this.mfaPending = false
+          this.mfaMode = null
+          this.mfaUsername = ''
+        } else if (me?.mfa_pending) {
+          // Sesi pending MFA (PIN benar, kode belum diverifikasi).
+          this.user = null
+          this.mfaPending = true
+          this.mfaMode = me.mfa_mode || 'verify'
+          this.mfaUsername = me.username || ''
         } else {
           this.user = null
+          this.mfaPending = false
+          this.mfaMode = null
+          this.mfaUsername = ''
         }
         if (me?.csrf_token) localStorage.setItem('bpf_csrf', me.csrf_token)
       } catch {
         this.user = null
+        this.mfaPending = false
+        this.mfaMode = null
+        this.mfaUsername = ''
       } finally {
         this.ready = true
       }
@@ -98,13 +118,37 @@ export const useAuthStore = defineStore('auth', {
     },
     async login(username, pin) {
       const d = await api('/api/auth/login', { method: 'POST', body: { username, pin } })
+      if (d?.status === 'mfa_required') {
+        // Langkah kedua: jangan set user sebelum kode diverifikasi.
+        this.user = null
+        this.mfaPending = true
+        this.mfaMode = d.mode || 'verify'
+        this.mfaUsername = d.username || username
+        if (d.csrf_token) localStorage.setItem('bpf_csrf', d.csrf_token)
+        return d
+      }
+      this.mfaPending = false
+      this.mfaMode = null
+      this.mfaUsername = ''
       this.user = d.user
       if (d.csrf_token) localStorage.setItem('bpf_csrf', d.csrf_token)
+      return d
+    },
+    /** Selesaikan MFA (verify/enroll) — sesi penuh dari server. */
+    completeMfa(d) {
+      this.mfaPending = false
+      this.mfaMode = null
+      this.mfaUsername = ''
+      this.user = d?.user || null
+      if (d?.csrf_token) localStorage.setItem('bpf_csrf', d.csrf_token)
       return d
     },
     async logout() {
       try { await api('/api/auth/logout', { method: 'POST' }) } catch { /* noop */ }
       this.user = null
+      this.mfaPending = false
+      this.mfaMode = null
+      this.mfaUsername = ''
       localStorage.removeItem('bpf_csrf')
       window.location.href = '/app/login'
     },

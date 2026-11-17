@@ -1,4 +1,4 @@
-# 📖 Panduan Pengguna BPF WorkHub v2.111.0
+# 📖 Panduan Pengguna BPF WorkHub v2.112.0
 
 > **Siapa pun kamu — sopir, OB, admin, atau pimpinan — panduan ini ditulis untuk kamu.**
 > Tidak perlu paham teknis. Cukup ikuti langkah-langkah sesuai bagianmu.
@@ -13,6 +13,7 @@
 
 1. [Selamat Datang](#1-selamat-datang)
 2. [Cara Masuk (Login)](#2-cara-masuk-login)
+    - [2.6 Verifikasi Dua Langkah (MFA) 🔐](#26-verifikasi-dua-langkah-mfa--sejak-v21120)
 3. [Untuk OB — Pembelian Air Minum 💧](#3-untuk-ob--pembelian-air-minum)
 4. [Untuk Driver — BBM & Perjalanan 🚗](#4-untuk-driver--bbm--perjalanan)
 5. [Untuk GA — Verifikasi & Pengawasan 🧾](#5-untuk-ga--verifikasi--pengawasan)
@@ -34,6 +35,7 @@
     - [12.9 Verifikasi & Registri Dokumen (Admin) 🔏](#129-verifikasi--registri-dokumen-admin-)
     - [12.10 ACC Berjenjang — Persetujuan Atasan ✅](#1210-acc-berjenjang--persetujuan-atasan--sejak-v2360)
     - [12.11 Sumber Sheet Receptionist & Bridge Apps Script 🔗](#1211-sumber-sheet-receptionist--bridge-apps-script-)
+    - [12.12 Verifikasi Dua Langkah (MFA) — Kebijakan Admin 🔐](#1212-verifikasi-dua-langkah-mfa--kebijakan-admin--sejak-v21120)
 13. [Kasbon: Alur Lengkap dari A sampai Z](#13-kasbon-alur-lengkap-dari-a-sampai-z)
 14. [Untuk IT — News Scraper & Content Management 📰](#14-untuk-it-sebagai-cabang--news-scraper--content-management-)
     - [14.11 Transcoder Media (IT) 🎬](#1411-transcoder-media-it)
@@ -115,6 +117,73 @@ Admin:
 2. Ketuk ikon **⋮** (titik tiga) di pojok kanan atas.
 3. Pilih **"Tambahkan ke Layar Utama"** (Add to Home Screen).
 4. Aplikasi tampil seperti aplikasi biasa di HP-mu — bisa dibuka sekali sentuh. 📱
+
+### 2.6 Verifikasi Dua Langkah (MFA) 🔐 (sejak v2.112.0)
+
+Mulai v2.112.0, sebagian peran wajib memakai **faktor kedua** saat login:
+selain PIN, kamu memasukkan **kode 6 digit** dari aplikasi authenticator.
+Kode berganti setiap 30 detik — kode lama tidak bisa dipakai ulang.
+
+> 📌 **Yang wajib MFA:** semua peran **kecuali marketing, ob, dan driver**.
+> Kebijakan ini diatur Admin dan bisa berubah kapan saja.
+
+#### A. Sekali saja: daftarkan aplikasi authenticator
+
+Kami menyarankan **Microsoft Authenticator** (gratis, Android & iPhone).
+Google Authenticator, Authy, 1Password, atau Bitwarden juga bisa — semuanya
+memakai standar TOTP yang sama.
+
+1. Pasang **Microsoft Authenticator** dari **Play Store** (Android) atau
+   **App Store** (iPhone).
+2. Login seperti biasa: **Username + PIN** → klik **🔐 Masuk**.
+3. Bila akunmu wajib MFA dan belum mendaftar, layar **Verifikasi Dua Langkah**
+   muncul dengan **QR code**.
+4. Buka Microsoft Authenticator → ketuk **+** di kanan atas → pilih
+   **Akun lain** (*Other account*).
+5. Arahkan kamera ke QR di layar.
+   - Kamera bermasalah? Pilih **Masukkan kode secara manual**, lalu ketik
+     **kunci manual** yang tertera di bawah QR.
+   - Jenis akun: **Akun lain (Google, Facebook, dll.)**.
+6. Aplikasi menampilkan **kode 6 digit**. Ketik kode itu di kolom verifikasi →
+   **Aktifkan MFA**.
+7. **Simpan kode pemulihan** (10 kode, format `XXXXX-XXXXX`) yang muncul sekali.
+   Klik **📋 Salin semua** atau **⬇️ Unduh .txt**, lalu simpan di tempat aman
+   (bukan di HP yang sama). Setiap kode hanya bisa dipakai satu kali.
+8. Klik **Masuk ke aplikasi**.
+
+#### B. Login berikutnya (rutin)
+
+1. Buka aplikasi → isi **Username + PIN** → **🔐 Masuk**.
+2. Buka Microsoft Authenticator → lihat kode 6 digit untuk akun **BPF WorkHub**.
+3. Ketik kode → **Verifikasi & Masuk**.
+
+Selesai. Tidak perlu scan QR lagi.
+
+#### C. Kalau ponsel hilang / aplikasi ter-reset
+
+- **Punya kode pemulihan?** Di layar verifikasi klik
+  **"Ponsel hilang? Gunakan kode pemulihan"**, lalu ketik salah satu kode
+  `XXXXX-XXXXX`. Setelah masuk, segera buat kode baru di **Profil Saya**.
+- **Tidak punya kode pemulihan?** Hubungi **Admin** — Admin dapat
+  **Reset MFA** akunmu (wajib PIN ulang + tercatat di Audit Log). Setelah
+  direset, kamu mendaftar ulang saat login berikutnya.
+
+#### D. Kalau kode selalu ditolak
+
+1. Pastikan **jam ponsel disetel otomatis** (Setelan → Tanggal & waktu →
+   *Setel otomatis*). Selisih jam > 30 detik membuat kode dianggap salah.
+2. Pastikan memilih akun **BPF WorkHub** yang benar (bukan akun lain).
+3. Tunggu kode berganti (30 detik), lalu coba kode terbaru.
+4. Masih gagal? Pakai kode pemulihan atau minta Admin reset.
+
+> 🔒 **Jangan pernah membagikan kode 6 digit atau kode pemulihan** kepada siapa
+> pun, termasuk staf IT/Admin. Petugas resmi tidak akan pernah memintanya.
+
+#### E. Mematikan MFA (bila diizinkan)
+
+Buka **Profil Saya** → kartu **Verifikasi Dua Langkah (MFA)** →
+**Matikan MFA** (masukkan kode 6 digit). Tombol ini **nonaktif** bila peranmu
+diwajibkan MFA oleh Admin.
 
 ---
 
@@ -1056,6 +1125,38 @@ mengelola sumbernya di **Pengaturan → 🔗 Sumber Sheet Receptionist** dan
 > ❗ **Auto-sync gagal ≥3× beruntun** (mis. sheet dibuat privat tanpa bridge)
 > → Admin menerima **notifikasi** otomatis berisi petunjuk ke halaman ini.
 > Receptionist juga bisa menekan **🔄 Sync Sheet** manual kapan saja.
+
+---
+
+### 12.12 Verifikasi Dua Langkah (MFA) — Kebijakan Admin 🔐 (sejak v2.112.0)
+
+Buka **Pengaturan → 🔐 MFA**. Hanya **Admin** yang dapat mengubah kebijakan.
+
+| Pilihan | Arti |
+|---|---|
+| **Nonaktif** | Kill switch. Tidak ada yang diminta kode, termasuk user yang sudah mendaftar. |
+| **Opsional** | User yang sudah mendaftar wajib verifikasi; user lain boleh mendaftar sendiri dari Profil Saya. |
+| **Wajib untuk role terpilih** | Role yang dicentang wajib MFA. Default: semua role kecuali marketing, ob, driver. |
+
+- **Masa tenggang (hari)** — hanya berlaku untuk mode *Wajib*. User yang belum
+  mendaftar masih bisa login sampai tenggang habis, lalu wajib mendaftar saat
+  login. Default **7 hari**; isi **0** untuk menegakkan segera.
+  Setiap perubahan kebijakan/daftar role memulai ulang hitungan tenggang.
+- **Role yang wajib MFA** — centang per role. Angka `x/y` = sudah mendaftar /
+  total user aktif pada role itu.
+- **Status per user** — cari username/nama/role, lihat status & tanggal
+  pendaftaran.
+- **Reset MFA** — menghapus rahasia TOTP + kode pemulihan user (mis. ponsel
+  hilang). Wajib **PIN ulang (step-up)** dan tercatat di Audit Log.
+  User akan mendaftar ulang saat login berikutnya.
+
+**Saran penerapan:** aktifkan mode *Wajib* dengan tenggang 7 hari, pantau
+kolom status sampai semua user target mendaftar, baru turunkan tenggang ke 0.
+Jangan langsung 0 pada hari pertama — risiko lockout massal.
+
+Semua kejadian dicatat di **Audit Log**: `mfa_challenge`, `mfa_enroll`,
+`mfa_verify_failed`, `mfa_disable`, `mfa_reset`, `mfa_recovery_regenerate`,
+`mfa_policy_change`.
 
 ---
 

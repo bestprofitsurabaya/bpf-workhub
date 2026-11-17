@@ -7,6 +7,45 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.112.0 — 17 November 2026 (Verifikasi Dua Langkah / MFA TOTP)
+
+Login kini bisa memakai **faktor kedua**: kode 6 digit dari aplikasi
+authenticator (Microsoft Authenticator, Google Authenticator, Authy, dsb.).
+Tidak ada email/SMS — tabel `users` memang tidak menyimpan kontak, jadi TOTP
+adalah jalur paling murah dan tidak butuh vendor baru.
+
+**Kebijakan fleksibel untuk Admin** (Pengaturan → 🔐 MFA):
+- `Nonaktif` — kill switch; tidak ada yang diminta, termasuk yang sudah mendaftar.
+- `Opsional` — user boleh mendaftar sendiri dari Profil Saya.
+- `Wajib untuk role terpilih` — **default semua role kecuali marketing, ob,
+  driver** (chief_driver tetap wajib).
+- Masa tenggang (default 7 hari) agar kebijakan baru tidak mengunci massal;
+  set `0` untuk menegakkan segera.
+- Daftar status per user + tombol **Reset MFA** (wajib step-up PIN + audit).
+
+**Teknis**
+- `modules/mfa.py` — TOTP RFC 6238 (SHA1/6 digit/30 detik), toleransi ±1 step,
+  anti-replay `users.mfa_last_step`, enkripsi rahasia encrypt-then-MAC dengan
+  stdlib (kunci `MFA_ENC_KEY`), kode pemulihan sekali pakai (hash SHA-256).
+- `modules/mfa_schema.py` — kolom `users.mfa_*`, tabel `mfa_recovery_codes`,
+  kunci `system_config` (idempoten dijalankan tiap startup).
+- `modules/routes_mfa.py` — login dua langkah (`/api/auth/mfa/verify`,
+  `enroll/start|confirm`), self-service (`status`, `setup`, `disable`,
+  `recovery/regenerate`), admin (`/api/security/mfa/*`).
+- `modules/routes_spa.py` — PIN benar → sesi *pending* (tanpa `user_role`);
+  `/api/auth/me` melaporkan `mfa_pending` sehingga SPA membuka `/mfa`.
+- Rate limit kode: 5 gagal / 5 menit → lockout 15 menit per IP+username.
+- Frontend: halaman `/mfa` (verifikasi, pendaftaran QR, kode pemulihan, panduan
+  Microsoft Authenticator), kartu MFA di Profil Saya, seksi MFA di Pengaturan.
+- Tes: 23 unit backend (`tests/test_mfa.py`) + 6 unit frontend
+  (`MfaView.test.js`) + perluasan tes auth store.
+
+**Catatan rilis:** default `required_roles` + tenggang 7 hari. Setelah tenggang,
+user role wajib yang belum mendaftar diminta mendaftar saat login. Admin pusat
+dapat mengubah kebijakan kapan saja; `Nonaktif` berfungsi sebagai kill switch.
+
+---
+
 ## v2.111.0 — 17 November 2026 (OCR NIK lebih kuat: nilai dari crop label)
 
 Laporan lapangan: NIK masih terbaca salah setelah v2.110.0.

@@ -8,6 +8,8 @@ vi.mock('../api', () => ({ api: apiMock }))
 vi.mock('../stores/auth', () => ({
   useAuthStore: () => ({ role: 'admin', isHoAdmin: true }),
 }))
+// v2.112.0 — seksi MFA memakai step-up store (PIN ulang sebelum simpan/reset).
+vi.mock('../stores/stepup', () => ({ useStepupStore: () => ({ require: (fn) => fn() }) }))
 
 const DRIVERS = [{ name: 'RIVAN', nopol: 'L 1', vehicle_type: 'AVANZA', bbm_type: 'PERTALITE', is_active: true }]
 const VEHICLES = [{ id: 1, nopol: 'B 2628 SRP', vehicle_type: 'AVANZA', brand: 'Toyota', fuel_capacity: 45, initial_odo_km: 81441, is_active: true }]
@@ -29,6 +31,15 @@ async function mountView() {
     if (path === '/api/vehicles') return Promise.resolve(VEHICLES)
     if (path === '/api/bbm_types') return Promise.resolve(BBMS)
     if (path === '/api/water/edit-enabled') return Promise.resolve({ enabled: waterEditEnabled })
+    if (path === '/api/security/mfa/settings') {
+      return Promise.resolve({
+        status: 'success', policy: 'required_roles', policy_label: 'Wajib untuk role terpilih',
+        required_roles: ['admin', 'finance'], grace_days: 7, grace_days_left: 6.5,
+        roles: [{ role: 'admin', total: 2, enrolled: 1, required: true }],
+        users: [{ username: 'admin', full_name: 'Admin Pusat', role: 'admin', mfa_enabled: true, mfa_enrolled_at: '2026-11-17 09:00:00' }],
+        stats: { total: 2, enrolled: 1 },
+      })
+    }
     return Promise.resolve({ status: 'success' })
   })
   const w = mount(SettingsView)
@@ -82,12 +93,12 @@ describe('SettingsView', () => {
     expect(opts.filter((t) => t === 'AVANZA').length).toBe(1)
   })
 
-  it('peta seksi tampil & berisi 10 seksi (9 + Voucher Rekanan v2.107.0)', async () => {
+  it('peta seksi tampil & berisi 11 seksi (9 + Voucher v2.107.0 + MFA v2.112.0)', async () => {
     const w = await mountView()
     const nav = w.find('.settings-nav')
     expect(nav.exists()).toBe(true)
-    // 10 = 7 lama + Realtime Sheet (v2.42.0) + Deploy (v2.98.1) + Voucher (v2.107.0).
-    expect(nav.findAll('.settings-nav-btn').length).toBe(10)
+    // 11 = 7 lama + Realtime Sheet (v2.42.0) + Deploy (v2.98.1) + Voucher + MFA (v2.107.0).
+    expect(nav.findAll('.settings-nav-btn').length).toBe(11)
     // Seksi realtime receptionis (v2.42.0) ada di peta & panel
     expect(w.text()).toContain('Realtime Sheet Receptionist')
   })

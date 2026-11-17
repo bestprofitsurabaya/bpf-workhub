@@ -82,4 +82,46 @@ describe('useAuthStore', () => {
     expect(auth.isAuthenticated).toBe(false)
     expect(localStorage.getItem('bpf_csrf')).toBeNull()
   })
+
+  // v2.112.0 — login dua langkah (MFA TOTP)
+  it('login mfa_required tidak menganggap user sudah terautentikasi', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true, status: 200,
+      json: async () => ({ status: 'mfa_required', mode: 'verify', username: 'fin1' }),
+    })
+    const auth = useAuthStore()
+    const d = await auth.login('fin1', '123456')
+    expect(d.status).toBe('mfa_required')
+    expect(auth.user).toBeNull()
+    expect(auth.isAuthenticated).toBe(false)
+    expect(auth.mfaPending).toBe(true)
+    expect(auth.mfaMode).toBe('verify')
+    expect(auth.mfaUsername).toBe('fin1')
+  })
+
+  it('bootstrap memulihkan sesi pending MFA', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true, status: 200,
+      json: async () => ({ authenticated: false, mfa_pending: true, mfa_mode: 'enroll', username: 'adm' }),
+    })
+    const auth = useAuthStore()
+    expect(await auth.bootstrap()).toBe(false)
+    expect(auth.mfaPending).toBe(true)
+    expect(auth.mfaMode).toBe('enroll')
+  })
+
+  it('completeMfa menetapkan user penuh dan membersihkan status pending', async () => {
+    const auth = useAuthStore()
+    auth.mfaPending = true
+    auth.mfaMode = 'verify'
+    auth.mfaUsername = 'adm'
+    auth.completeMfa({
+      user: { role: 'admin', user_name: 'adm', full_name: 'Admin' },
+      csrf_token: 'tok-mfa',
+    })
+    expect(auth.user.role).toBe('admin')
+    expect(auth.mfaPending).toBe(false)
+    expect(auth.mfaMode).toBeNull()
+    expect(localStorage.getItem('bpf_csrf')).toBe('tok-mfa')
+  })
 })

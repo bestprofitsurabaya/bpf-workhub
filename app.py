@@ -133,6 +133,14 @@ for _attempt in range(5):
         break
     _time.sleep(3)
 
+# MFA TOTP (v2.112.0): kolom users.mfa_* + tabel mfa_recovery_codes +
+# kunci kebijakan di system_config. Aman diulang tiap startup.
+from modules.mfa_schema import ensure_mfa_schema
+for _attempt in range(5):
+    if ensure_mfa_schema():
+        break
+    _time.sleep(3)
+
 # Receptionist sheet sync (v2.41.0): tabel employee_inout + kolom sync di
 # applicants (safe on every startup, paritas schema ensure lainnya).
 from modules.routes_receptionist import ensure_receptionist_schema
@@ -526,6 +534,7 @@ from modules.transcoder import register_transcoder_routes
 from modules.pdfkit import register_pdfkit_routes
 from modules.deploy_guard import install_deploy_guard  # v2.98.0
 from modules.routes_voucher import register_voucher_routes              # v2.107.0
+from modules.routes_mfa import register_mfa_routes                      # v2.112.0
 
 # v2.98.0: tolak request bila image lebih lama dari CHANGELOG repo (mount).
 install_deploy_guard(app)
@@ -554,6 +563,7 @@ register_docseq_routes(app)
 register_overtime_routes(app)
 register_receptionist_routes(app)
 register_spa_routes(app)
+register_mfa_routes(app)          # v2.112.0 — MFA TOTP (login 2 langkah + admin)
 register_news_scraper_routes(app)
 register_health_routes(app)
 register_stepup_routes(app)

@@ -8,6 +8,7 @@ import ErrorState from '../components/ErrorState.vue'
 import PageHeader from '../components/PageHeader.vue'
 import { identity } from '../stores/identity'
 import { useAuthStore } from '../stores/auth'
+import { useStepupStore } from '../stores/stepup'
 
 const auth = useAuthStore()
 const confirmRef = ref(null)
@@ -567,6 +568,97 @@ async function verifyDoc() {
   finally { docVerifyBusy.value = false }
 }
 
+// ---- MFA TOTP (v2.112.0) — kebijakan admin ----
+const stepup = useStepupStore()
+const mfaCfg = ref({ policy: 'required_roles', required_roles: [], grace_days: 7 })
+const mfaData = ref(null)
+const mfaBusy = ref(false)
+const mfaMsg = ref('')
+const mfaSearch = ref('')
+
+async function loadMfaSettings() {
+  try {
+    const d = await api('/api/security/mfa/settings')
+    mfaData.value = d
+    mfaCfg.value = {
+      policy: d.policy,
+      required_roles: [...(d.required_roles || [])],
+      grace_days: d.grace_days,
+    }
+  } catch (e) { mfaMsg.value = '❌ ' + e.message }
+}
+
+function mfaRoleChecked(role) {
+  return mfaCfg.value.required_roles.includes(role)
+}
+
+function toggleMfaRole(role) {
+  const list = mfaCfg.value.required_roles
+  const i = list.indexOf(role)
+  if (i >= 0) list.splice(i, 1)
+  else list.push(role)
+}
+
+async function saveMfaSettings() {
+  mfaBusy.value = true
+  mfaMsg.value = ''
+  try {
+    const d = await stepup.require(
+      () => api('/api/security/mfa/settings', {
+        method: 'PUT',
+        body: {
+          policy: mfaCfg.value.policy,
+          required_roles: mfaCfg.value.required_roles,
+          grace_days: Number(mfaCfg.value.grace_days) || 0,
+        },
+      }),
+      'Simpan kebijakan MFA',
+    )
+    if (!d) return
+    mfaMsg.value = '✅ ' + (d.msg || 'Kebijakan MFA disimpan.')
+    await loadMfaSettings()
+  } catch (e) {
+    mfaMsg.value = '❌ ' + e.message
+  } finally {
+    mfaBusy.value = false
+  }
+}
+
+async function resetMfaUser(username) {
+  const ok = await ask(
+    `Reset MFA untuk ${username}?\n\nRahasia TOTP & kode pemulihan dihapus. ` +
+    'User akan mendaftar ulang saat login berikutnya (bila role-nya wajib MFA).',
+    { confirmText: 'Ya, reset', danger: true },
+  )
+  if (!ok) return
+  mfaBusy.value = true
+  mfaMsg.value = ''
+  try {
+    const d = await stepup.require(
+      () => api(`/api/security/mfa/users/${encodeURIComponent(username)}/reset`, { method: 'POST' }),
+      `Reset MFA ${username}`,
+    )
+    if (!d) return
+    mfaMsg.value = '✅ ' + (d.msg || 'MFA direset.')
+    await loadMfaSettings()
+  } catch (e) {
+    mfaMsg.value = '❌ ' + e.message
+  } finally {
+    mfaBusy.value = false
+  }
+}
+
+const mfaUsersFiltered = computed(() => {
+  const q = mfaSearch.value.trim().toLowerCase()
+  const rows = mfaData.value?.users || []
+  if (!q) return rows.slice(0, 60)
+  return rows.filter((u) =>
+    (u.username || '').toLowerCase().includes(q) ||
+    (u.full_name || '').toLowerCase().includes(q) ||
+    (u.role || '').toLowerCase().includes(q)
+  ).slice(0, 200)
+})
+
 function shortSha(s) { return s ? String(s).slice(0, 12) + '…' : '—' }
 function fmtDT(s) {
   if (!s) return '—'
@@ -583,6 +675,7 @@ const SECTIONS = [
   { id: 'sec-receptionist-realtime', label: '⚡ Realtime Sheet' },
   { id: 'sec-cabang', label: '🏢 Cabang & Nomor' },
   { id: 'sec-kepatuhan', label: '🗄️ Kepatuhan (ISO)' },
+  { id: 'sec-mfa', label: '🔐 MFA' },
   { id: 'sec-deploy', label: '🚀 Deploy' },
   { id: 'sec-branding', label: '🎨 Identitas' },
   { id: 'sec-lainnya', label: '🧪 Lainnya' },
@@ -600,7 +693,7 @@ function scrollToSection(id) {
 }
 
 let _secObserver = null
-onMounted(() => { load(); loadWaterNames(); loadVoucherCfg(); loadEditEnabled(); loadIdentityForm(); loadDemoStatus(); loadDeployStatus(); loadBranches(); loadDocSequences(); loadRetention(); loadDocs(); loadSheetUrls(); loadInOutMode(); loadWebhook() })
+onMounted(() => { load(); loadWaterNames(); loadVoucherCfg(); loadEditEnabled(); loadIdentityForm(); loadDemoStatus(); loadDeployStatus(); loadBranches(); loadDocSequences(); loadRetention(); loadDocs(); loadSheetUrls(); loadInOutMode(); loadWebhook(); loadMfaSettings() })
 onMounted(() => {
   // Highlight seksi aktif saat scroll (IntersectionObserver — ringan).
   _secObserver = new IntersectionObserver((entries) => {
@@ -967,6 +1060,116 @@ onMounted(() => {
               <tr v-if="!docs.length"><td colspan="6" class="empty">Belum ada dokumen terdaftar — PDF resmi otomatis tercatat saat diunduh.</td></tr>
             </tbody>
           </table>
+        </div>
+      </div>
+
+      <!-- v2.112.0 — MFA TOTP -->
+      <div id="sec-mfa" class="card card-pad" style="margin-bottom:16px;">
+        <h3 style="margin:0;">🔐 Verifikasi Dua Langkah (MFA)
+          <span class="badge badge-blue" style="font-size:10px;vertical-align:middle;">v2.112.0</span>
+        </h3>
+        <p class="muted" style="font-size:11px;">
+          Selain PIN, user memasukkan <b>kode 6 digit</b> dari aplikasi authenticator
+          (Microsoft Authenticator, Google Authenticator, Authy, dsb.). Default: wajib untuk
+          semua role <b>kecuali marketing, ob, driver</b>. Masa tenggang mencegah lockout
+          massal saat kebijakan baru diaktifkan.
+        </p>
+
+        <div v-if="mfaMsg" class="alert"
+             :class="mfaMsg.startsWith('✅') ? 'alert-success' : 'alert-error'"
+             style="margin-top:8px;">{{ mfaMsg }}</div>
+
+        <div class="form-grid" style="margin-top:12px;">
+          <div class="field">
+            <label>Kebijakan MFA</label>
+            <select class="select" v-model="mfaCfg.policy">
+              <option value="off">Nonaktif — kill switch (tidak ada yang diminta)</option>
+              <option value="optional">Opsional — user boleh mendaftar sendiri</option>
+              <option value="required_roles">Wajib untuk role terpilih</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Masa tenggang (hari)</label>
+            <input class="input" type="number" min="0" max="365"
+                   v-model.number="mfaCfg.grace_days" />
+          </div>
+        </div>
+        <p class="muted" style="font-size:11px;">
+          Masa tenggang hanya berlaku untuk kebijakan <b>Wajib</b>: user yang belum
+          mendaftar masih bisa login sampai tenggang habis, lalu wajib mendaftar saat login.
+          Set <b>0</b> untuk menegakkan segera.
+          <span v-if="mfaData?.grace_days_left > 0">
+            Sisa: <b>{{ Math.ceil(mfaData.grace_days_left) }} hari</b>.
+          </span>
+        </p>
+
+        <div v-if="mfaCfg.policy === 'required_roles'" style="margin-top:10px;">
+          <b style="font-size:12px;">Role yang wajib MFA</b>
+          <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;">
+            <label v-for="r in (mfaData?.roles || [])" :key="r.role"
+                   style="display:flex;align-items:center;gap:6px;border:1px solid var(--border);border-radius:8px;padding:5px 9px;font-size:12px;cursor:pointer;">
+              <input type="checkbox" :checked="mfaRoleChecked(r.role)"
+                     @change="toggleMfaRole(r.role)" />
+              {{ r.role }}
+              <span class="muted" style="font-size:10px;">{{ r.enrolled }}/{{ r.total }}</span>
+            </label>
+          </div>
+          <p class="muted" style="font-size:10px;margin-top:6px;">
+            Angka = sudah mendaftar / total user aktif pada role tersebut.
+            Role <b>marketing, ob, driver</b> default tidak dicentang.
+          </p>
+        </div>
+
+        <div class="row" style="justify-content:space-between;gap:8px;margin-top:12px;flex-wrap:wrap;">
+          <span class="muted" style="font-size:11px;">
+            Terdaftar: <b>{{ mfaData?.stats?.enrolled || 0 }}</b> /
+            {{ mfaData?.stats?.total || 0 }} user aktif
+          </span>
+          <button class="btn btn-primary btn-sm" :disabled="mfaBusy"
+                  @click="saveMfaSettings">💾 Simpan Kebijakan MFA</button>
+        </div>
+
+        <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:12px;">
+          <div class="row" style="justify-content:space-between;gap:8px;flex-wrap:wrap;">
+            <b style="font-size:12px;">Status per user</b>
+            <input class="input" style="max-width:240px;" v-model="mfaSearch"
+                   placeholder="Cari username / nama / role…" />
+          </div>
+          <div class="table-wrap" style="margin-top:8px;max-height:340px;overflow:auto;">
+            <table class="tbl" style="font-size:12px;width:100%;">
+              <thead>
+                <tr>
+                  <th>Username</th><th>Nama</th><th>Role</th>
+                  <th>MFA</th><th>Terdaftar</th><th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="u in mfaUsersFiltered" :key="u.username">
+                  <td><code>{{ u.username }}</code></td>
+                  <td>{{ u.full_name }}</td>
+                  <td>{{ u.role }}</td>
+                  <td>
+                    <span :style="{ color: u.mfa_enabled ? '#059669' : '#94a3b8' }">
+                      {{ u.mfa_enabled ? '✅ Aktif' : '—' }}
+                    </span>
+                  </td>
+                  <td class="muted">{{ u.mfa_enrolled_at ? fmtDT(u.mfa_enrolled_at) : '—' }}</td>
+                  <td style="text-align:right;">
+                    <button class="btn btn-sm" :disabled="mfaBusy || !u.mfa_enabled"
+                            @click="resetMfaUser(u.username)">Reset</button>
+                  </td>
+                </tr>
+                <tr v-if="!mfaUsersFiltered.length">
+                  <td colspan="6" class="muted" style="text-align:center;">Tidak ada user.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="muted" style="font-size:10px;margin-top:6px;">
+            Reset menghapus rahasia TOTP &amp; kode pemulihan user. Gunakan bila user
+            kehilangan ponsel dan kode pemulihan. Tindakan ini memerlukan PIN ulang
+            (step-up) dan tercatat di Audit Log.
+          </p>
         </div>
       </div>
 

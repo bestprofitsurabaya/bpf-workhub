@@ -26,6 +26,11 @@ async function submit() {
   loading.value = true
   try {
     const d = await auth.login(username.value.trim(), pin.value)
+    // v2.112.0 — PIN benar, lanjut ke langkah kedua (kode authenticator).
+    if (d?.status === 'mfa_required') {
+      router.push({ name: 'mfa' })
+      return
+    }
     const target = route.query.next && route.query.next.startsWith('/app/')
       ? route.query.next
       : (ROLE_META[d.user.role]?.home || '/dashboard')

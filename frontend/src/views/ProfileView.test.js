@@ -12,6 +12,8 @@ const { apiMock, authMock } = vi.hoisted(() => ({
 }))
 vi.mock('../api', () => ({ api: apiMock }))
 vi.mock('../stores/auth', () => ({ useAuthStore: () => authMock }))
+// v2.112.0 — kartu MFA memakai step-up store (PIN ulang untuk aksi sensitif).
+vi.mock('../stores/stepup', () => ({ useStepupStore: () => ({ require: (fn) => fn() }) }))
 
 const PROFILE = {
   username: 'finance_smg', full_name: 'Finance Semarang', role: 'finance',
@@ -25,6 +27,13 @@ function mountView() {
     }
     if (path === '/api/profile') {
       return Promise.resolve({ status: 'success', msg: 'Tersimpan', user: { ...PROFILE, ...(opts.body.full_name ? { full_name: opts.body.full_name } : {}) } })
+    }
+    if (path === '/api/auth/mfa/status') {
+      return Promise.resolve({
+        status: 'success', enabled: false, enrolled_at: null, policy: 'required_roles',
+        policy_label: 'Wajib untuk role terpilih', required_for_me: false,
+        can_disable: true, recovery_left: 0, grace_days_left: 0,
+      })
     }
     return Promise.resolve({})
   })

@@ -152,6 +152,41 @@ Dengan ini admin pusat bisa:
 
 ## Status
 
-**Belum diimplementasikan.** Dokumen ini murni audit — tidak ada perubahan
-kode pada v2.111.0. Bila disetujui, implementasi disarankan memakai TOTP
-dengan kebijakan `off / optional / required_roles` seperti di atas.
+**Diimplementasikan pada v2.112.0 (17 November 2026).** Rekomendasi desain di
+atas dipakai dengan dua penyesuaian teknis:
+
+1. Rahasia TOTP dienkripsi dengan **encrypt-then-MAC berbasis HMAC-SHA256**
+   (stdlib) — bukan Fernet, karena `cryptography` tidak terpasang dan tidak
+   perlu menambah dependency baru. Kunci dari env `MFA_ENC_KEY`.
+2. Masa tenggang (`mfa_grace_days`, default 7) ditambahkan agar aktivasi
+   kebijakan tidak mengunci massal; admin dapat menyetel 0 untuk penegakan
+   langsung.
+
+---
+
+## Implementasi v2.112.0
+
+| Komponen | File | Ringkasan |
+|---|---|---|
+| TOTP + kebijakan | `modules/mfa.py` | RFC 6238 SHA1/6 digit/30 dtk, window ±1, anti-replay, enkripsi rahasia, recovery codes, `requirement_for_user()` |
+| Skema | `modules/mfa_schema.py` | `users.mfa_enabled/mfa_secret/mfa_enrolled_at/mfa_last_step`, tabel `mfa_recovery_codes`, config `mfa_*` |
+| Endpoint | `modules/routes_mfa.py` | `verify`, `enroll/start|confirm`, `status`, `setup/*`, `disable`, `recovery/regenerate`, admin settings + reset |
+| Login gate | `modules/routes_spa.py` | PIN benar → sesi pending (tanpa `user_role`); `/api/auth/me` → `mfa_pending` |
+| Rate limit | `modules/helpers.py` | `mfa_rate_check/fail/success` — 5 gagal/5 menit → 15 menit |
+| Startup | `app.py` | `ensure_mfa_schema()` (retry 5×) + `register_mfa_routes(app)` |
+| UI login | `frontend/src/views/MfaView.vue` | Verifikasi, pendaftaran QR, kode pemulihan, panduan Microsoft Authenticator |
+| UI profil | `frontend/src/views/ProfileView.vue` | Kartu MFA self-service (step-up) |
+| UI admin | `frontend/src/views/SettingsView.vue` | Seksi `sec-mfa`: kebijakan, role, tenggang, status per user, reset |
+| Panduan | `guides/USER_GUIDE.md` §2.6 & §12.12, `docs/internal/PANDUAN_MFA_USER.md` | Langkah login + Microsoft Authenticator + troubleshooting |
+| Tes | `tests/test_mfa.py`, `MfaView.test.js`, `auth.test.js` | 23 backend + 6 frontend |
+
+**Kebijakan default:** `required_roles` = semua role kecuali `marketing`,
+`ob`, `driver`; tenggang 7 hari; `mfa_enforced_at` diisi saat startup pertama.
+
+**Kompatibilitas aplikasi authenticator:** Microsoft Authenticator
+(*Other account*), Google Authenticator, Authy, 1Password, Bitwarden, FreeOTP —
+semua mendukung SHA1/6 digit/30 detik.
+
+**Temuan B-01 (PROGRESS.md stale) ditutup** pada rilis ini; B-02/B-03/B-04
+tetap terbuka (session store sisi server, kolom kontak, faktor tunggal untuk
+role yang dikecualikan).

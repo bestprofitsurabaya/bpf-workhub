@@ -6,6 +6,7 @@
 """
 import os
 import secrets
+import time
 
 from flask import jsonify, request, session, send_from_directory
 
@@ -88,6 +89,15 @@ def register_spa_routes(app):
                 'csrf_token': session.get('csrf_token'),
                 'home': home_for_role(session.get('user_role')),
             })
+        # v2.112.0 — sesi pending MFA: PIN benar, menunggu langkah kedua.
+        if session.get('mfa_pending_user'):
+            return jsonify({
+                'authenticated': False,
+                'mfa_pending': True,
+                'mfa_mode': session.get('mfa_pending_mode') or 'verify',
+                'username': session.get('mfa_pending_user'),
+                'csrf_token': session.get('csrf_token'),
+            })
         return jsonify({'authenticated': False, 'csrf_token': session.get('csrf_token')})
 
     @app.route('/api/auth/login', methods=['POST'])
@@ -148,6 +158,41 @@ def register_spa_routes(app):
             login_fail(ip, username)
             return jsonify({'status': 'error',
                             'msg': 'Cabang tidak aktif atau tidak terdaftar. Hubungi Admin.'}), 403
+
+        # v2.112.0 — MFA TOTP: langkah kedua sebelum sesi penuh diberikan.
+        # Kebijakan dibaca dari system_config (off/optional/required_roles).
+        # Bila pembacaan kebijakan gagal, user yang SUDAH mendaftar tetap
+        # diminta verifikasi (fail-closed untuk akun ber-MFA).
+        try:
+            from modules.mfa import requirement_for_user
+            _mfa = requirement_for_user(user)
+        except Exception as _e:
+            print(f'[auth] cek MFA gagal: {username}: {_e}')
+            _enrolled = bool(user.get('mfa_enabled'))
+            _mfa = {'required': _enrolled, 'mode': 'verify' if _enrolled else None}
+        if _mfa.get('required'):
+            login_success(ip, username)
+            session.clear()
+            session['mfa_pending_user'] = user['username']
+            session['mfa_pending_uid'] = int(user['id'])
+            session['mfa_pending_role'] = user['role']
+            session['mfa_pending_branch'] = branch['code']
+            session['mfa_pending_branch_name'] = branch['name']
+            session['mfa_pending_at'] = time.time()
+            session['mfa_pending_mode'] = _mfa.get('mode') or 'verify'
+            session.permanent = True
+            _ensure_csrf()
+            log_activity_async(None, 'mfa_challenge', 'user', user['username'],
+                               new_data={'mode': session['mfa_pending_mode']},
+                               ip=client_ip())
+            return jsonify({
+                'status': 'mfa_required',
+                'mode': session['mfa_pending_mode'],
+                'username': user['username'],
+                'msg': ('Daftarkan aplikasi authenticator untuk melanjutkan.'
+                        if session['mfa_pending_mode'] == 'enroll'
+                        else 'Masukkan kode 6 digit dari aplikasi authenticator.'),
+            })
 
         login_success(ip, username)
         session.clear()
