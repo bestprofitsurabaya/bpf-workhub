@@ -7,6 +7,49 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.109.0 — 17 November 2026 (KTP dulu di form FirstWork, fitur PO dibuang)
+
+Dua hal yang sama-sama soal urusan lapangan: pendaftar FirstWork tidak lagi
+mengetik NIK sebelum KTP-nya dipindai, dan GA tidak lagi punya menu Pengadaan
+yang memang tidak dipakai.
+
+**Form FirstWork: scan KTP dulu, NIK & nama menyusul.** Selama ini langkah
+Identitas (upload KTP) ada di urutan terakhir, sehingga OCR — yang justru
+paling berguna saat NIK belum diisi — tidak pernah kepakai: pendaftar sudah
+mengetik semuanya secara manual sebelum sampai ke langkah itu. Urutannya
+sekarang:
+
+1. **Identitas** — scan/foto KTP lebih dulu, baru NIK & nama.
+2. **Kontak & Referensi** — HP, email, pendidikan, referensi.
+3. **Ringkasan** — periksa data, centang persetujuan, kirim.
+
+OCR dijalankan otomatis begitu hasil pindai dikonfirmasi lewat tombol
+**Rapikan** (koreksi perspektif). Hasil OCR hanya mengisi kolom yang masih
+kosong dan selalu bisa dikoreksi; tidak ada pengisian diam-diam. Bila NIK 16
+digit dan nama sudah lengkap, OCR tidak dijalankan ulang. Unggahan PDF tidak
+bisa dibaca otomatis — form menampilkan petunjuk untuk mengisi manual. Batas
+berkas 12 MB untuk gambar (PDF 5 MB), dan langkah Identitas tidak bisa
+dilewati tanpa KTP.
+
+**Fitur PO (Pengadaan) dihapus.** Modul pengadaan tidak dipakai GA
+(`purchase_orders` berisi 0 dokumen), jadi dibuang utuh alih-alih
+disembunyikan:
+
+- Menu sidebar, route `/procurement`, dan halaman ProcurementView hilang.
+- Backend `modules/routes_procurement.py` beserta registrasi route dan
+  pembuatan skema di `app.py` dihapus.
+- Kategori **Pembelian Barang (PO)** hilang dari Rekap Pengeluaran — kartu,
+  kolom tabel, rincian bulanan, CSV, dan basis perhitungan. Total realisasi
+  sekarang murni **LPJ sah + voucher rekanan** (kasbon tetap dana muka).
+- Tes, smoke, `overall_check.sh`, README, dan panduan pengguna ikut
+  disesuaikan.
+
+Tabel DB `suppliers`, `purchase_orders`, `po_items`, dan `po_receipts`
+sengaja **tidak** di-drop — dibiarkan kosong dan tidak dipakai, agar tidak ada
+operasi destruktif tanpa perlu.
+
+---
+
 ## v2.108.2 — 13 November 2026 (Hapus data uji & demo per cabang)
 
 Dua keluhan lapangan sekaligus: data uji tidak bisa dibuang, dan Admin Pusat

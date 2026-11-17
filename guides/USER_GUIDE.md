@@ -1,4 +1,4 @@
-# 📖 Panduan Pengguna BPF WorkHub v2.108.2
+# 📖 Panduan Pengguna BPF WorkHub v2.109.0
 
 > **Siapa pun kamu — sopir, OB, admin, atau pimpinan — panduan ini ditulis untuk kamu.**
 > Tidak perlu paham teknis. Cukup ikuti langkah-langkah sesuai bagianmu.
@@ -16,7 +16,6 @@
 3. [Untuk OB — Pembelian Air Minum 💧](#3-untuk-ob--pembelian-air-minum)
 4. [Untuk Driver — BBM & Perjalanan 🚗](#4-untuk-driver--bbm--perjalanan)
 5. [Untuk GA — Verifikasi & Pengawasan 🧾](#5-untuk-ga--verifikasi--pengawasan)
-    - [5.7 Pengadaan Belanja (PO) 🛒 (sejak v2.70.0)](#57-pengadaan-belanja-po-sejak-v2700)
 6. [Untuk Finance — Pembayaran & Rekap 💰](#6-untuk-finance--pembayaran--rekap)
     - [6.8 Rekap Pengeluaran 📊 (sejak v2.71.0)](#68-rekap-pengeluaran-sejak-v2710)
     - [6.9 Subsidi Tepat (MyPertamina) ⛽ (sejak v2.50–2.69)](#69-subsidi-tepat-mypertamina-sejak-v250269)
@@ -322,22 +321,6 @@ Halaman **🚗 Penugasan Driver** kini lengkap:
 
 ---
 
-### 5.7 Pengadaan Belanja (PO) 🛒 (sejak v2.70.0)
-
-Menu **🛒 Pengadaan (PO)** (GA/Finance/Admin) — pembelian barang kantor & bengkel
-secara tercatat dan berjenjang:
-
-1. **Daftar Supplier** — Finance/Admin mengelola supplier (nama, kategori, kontak).
-   Menonaktifkan supplier butuh **step-up PIN**.
-2. **Buat Purchase Order** — pilih supplier, lalu rinci per item (deskripsi, qty,
-   satuan, harga). Nomor PO otomatis: contoh `PO-SBY-001`. Nominal PO = Σ qty×harga.
-3. **Terima barang bertahap** — setiap item bisa diterima sebagian-bagian (qty
-   penerimaan ≤ qty PO; kelebihan ditolak). Status PO bergeser otomatis:
-   **open → partial → closed**.
-4. **Batalkan PO** — wajib alasan + step-up PIN (tercatat di audit log).
-
-> 💡 Nominal PO yang sudah diterima masuk ke **Rekap Pengeluaran** (bagian 6.8).
-
 ---
 
 ## 6. Untuk Finance — Pembayaran & Rekap 💰
@@ -424,10 +407,10 @@ kecil; jangan untuk mengubah riwayat secara luas.
 Menu **📊 Rekap Pengeluaran** (`/app/expenses`, Finance/Admin) — gabungan biaya
 **TERUKUR** per bulan & cabang:
 
-- **Pembelian Barang** — Σ (qty diterima × harga item PO) untuk PO
-  `open / partial / closed` per bulan **tanggal PO**.
-- **Kasbon BBM** — Σ nilai kasbon yang sudah **COMPLETED** per bulan bulan
+- **Kasbon BBM** — Σ nilai kasbon yang sudah **COMPLETED** per bulan
   penyerahan dana.
+- **Realisasi LPJ & voucher rekanan** — LPJ BBM yang sah plus pemakaian
+  voucher SPBU mitra yang sudah diverifikasi; keduanya dihitung sekali.
 
 Pilih tahun dan cabang, angka dihalaman itu **dikontraskan langsung dengan SQL**
 saat smoke. Sumber yang sengaja belum dihitung (operator: tanpa kolom harga):

@@ -381,42 +381,6 @@ try:
 except Exception as _be:
     print(f'[water-admin] branch ensure error: {_be}')
 
-# Pengadaan v2.70.0: tabel suppliers/purchase_orders/po_items/po_receipts
-# di DB master + tiap DB cabang (idempoten, pola ensure lainnya).
-from modules.routes_procurement import ensure_procurement_schema
-for _attempt in range(5):
-    _pconn = _ret_master()
-    if _pconn:
-        try:
-            if ensure_procurement_schema(_pconn):
-                break
-        except Exception as _pe:
-            print(f'[procurement] master ensure error: {_pe}')
-        finally:
-            try:
-                _pconn.close()
-            except Exception:
-                pass
-    _time.sleep(3)
-try:
-    for _b in bm.list_branches():
-        if _b.get('is_active') and _b.get('db_name') and _b['db_name'] != os.environ.get('DB_NAME', 'bpf_asset_system'):
-            _bp = _ret_pool(_b['db_name'])
-            if _bp:
-                try:
-                    _bc = _bp.get_connection()
-                    try:
-                        ensure_procurement_schema(_bc)
-                    finally:
-                        try:
-                            _bc.close()
-                        except Exception:
-                            pass
-                except Exception as _pe:
-                    print(f'[procurement] {_b["code"]} ensure error: {_pe}')
-except Exception as _be:
-    print(f'[procurement] branch ensure error: {_be}')
-
 # Inventaris IT v2.78.0: tabel it_assets/it_asset_events/it_discovery_*/
 # it_stocktake_* di DB master + tiap DB cabang (idempoten, pola ensure lain).
 from modules.it_inventory_schema import ensure_it_inventory_schema
@@ -553,7 +517,6 @@ from modules.routes_accessreview import register_access_review_routes
 from modules.routes_retention import register_retention_routes
 from modules.routes_documents import register_document_routes
 from modules.routes_subsidy import register_subsidy_routes  # v2.50.0
-from modules.routes_procurement import register_procurement_routes          # v2.70.0
 from modules.routes_expense import register_expense_routes                    # v2.71.0
 from modules.routes_it_assets import register_it_asset_routes                # v2.78.0
 from modules.routes_first_work import register_first_work_routes             # v2.80.0
@@ -569,7 +532,6 @@ install_deploy_guard(app)
 
 register_driver_routes(app, socketio)
 register_auth_routes(app)
-register_procurement_routes(app)
 register_expense_routes(app)
 register_it_asset_routes(app)
 register_first_work_routes(app)   # v2.80.0 — Absensi FirstWork (trainee)

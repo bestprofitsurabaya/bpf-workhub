@@ -40,8 +40,6 @@ const routes = [
       { path: 'settings', name: 'settings', component: () => import('../views/SettingsView.vue'), meta: { roles: ['admin'] } },
       { path: 'logs', name: 'logs', component: () => import('../views/LogsView.vue'), meta: { roles: ['admin'] } },
       { path: 'water', name: 'water', component: () => import('../views/WaterView.vue'), meta: { roles: ['ob', 'finance', 'admin'] } },
-      // Pengadaan / PO (v2.70.0) — master supplier + purchase order + penerimaan
-      { path: 'procurement', name: 'procurement', component: () => import('../views/ProcurementView.vue'), meta: { roles: ['ga', 'admin'] } },
       // Rekap Pengeluaran (v2.71.0) — lintas modul, angka terukur saja
       { path: 'expenses', name: 'expenses', redirect: (to) => ({ path: '/cash', query: { tab: 'laporan', view: 'realisasi', ...to.query } }), meta: { roles: ['finance', 'admin'] } },
       // Form overtime user OB & Security (v2.39) — dari dalam aplikasi (login)

@@ -74,7 +74,7 @@ class TestFillVector:
         assert _fill_vector(None) == [0.0] * MONTHS
 
     def test_kategori_kontrak(self):
-        assert CATEGORIES == ('po', 'kasbon', 'lpj', 'voucher')
+        assert CATEGORIES == ('kasbon', 'lpj', 'voucher')
         assert EXPENSE_ROLES == ['finance', 'admin']
 
 
@@ -83,10 +83,9 @@ class TestFillVector:
 # ---------------------------------------------------------------------------
 
 class FakeExpenseConn:
-    """Conn minimal bersama: melayani query branches (master), PO & kasbon."""
+    """Conn minimal bersama: melayani query branches (master) & kasbon."""
 
-    def __init__(self, po_rows, kas_rows):
-        self.po_rows = po_rows
+    def __init__(self, kas_rows):
         self.kas_rows = kas_rows
 
     def cursor(self, dictionary=False):
@@ -103,8 +102,6 @@ class FakeExpenseConn:
                         {'code': 'SBY', 'name': 'Cabang Surabaya', 'db_name': 'bpf_asset_system'},
                         {'code': 'BDG', 'name': 'Cabang Bandung', 'db_name': 'bpf_branch_bdg'},
                     ]
-                if 'purchase_orders' in self.sql or 'po_items' in self.sql:
-                    return api.po_rows
                 if 'fuel_cash_requests' in self.sql:
                     return api.kas_rows
                 return []
@@ -123,8 +120,8 @@ class FakeExpenseConn:
         pass
 
 
-def _patch(monkeypatch, po_rows=(), kas_rows=()):
-    c = FakeExpenseConn(list(po_rows), list(kas_rows))
+def _patch(monkeypatch, kas_rows=()):
+    c = FakeExpenseConn(list(kas_rows))
     monkeypatch.setattr('modules.routes_expense.get_master_connection', lambda: c)
     monkeypatch.setattr('modules.routes_expense._pool_for',
                         lambda db: type('P', (), {'get_connection': staticmethod(lambda: c)})())
@@ -158,24 +155,25 @@ def test_cabang_tidak_kenal(client, monkeypatch):
 
 def test_bentuk_response_vektor_12(client, monkeypatch):
     _patch(monkeypatch,
-           po_rows=[{'m': 2, 'amount': 400000.0}, {'m': 4, 'amount': 100000.0}],
-           kas_rows=[{'m': 2, 'amount': 50000.0}, {'m': 7, 'amount': 150000.0}])
+           kas_rows=[{'m': 2, 'amount': 400000.0}, {'m': 7, 'amount': 100000.0}])
     _login(client)
     rv = client.get('/api/expenses/recap?year=2026&branch=SBY')
     assert rv.status_code == 200
     d = rv.get_json()
     assert d['year'] == 2026 and d['selected'] == 'SBY'
-    assert len(d['display']['po']) == 12 and len(d['display']['kasbon']) == 12
-    assert d['display']['po'][1] == 400000.0
-    assert d['display']['kasbon'][6] == 150000.0
+    assert len(d['display']['kasbon']) == 12
+    assert 'po' not in d['display']
+    assert d['display']['kasbon'][1] == 400000.0
+    assert d['display']['kasbon'][6] == 100000.0
     assert d['display']['lpj'] == [0.0] * 12
     assert d['display']['voucher'] == [0.0] * 12
-    # Total realisasi = PO diterima + LPJ (kasbon bukan pengeluaran final).
-    assert d['display']['total'][1] == 400000.0
-    assert d['totals'] == {'po': 500000.0, 'kasbon': 200000.0, 'lpj': 0.0, 'voucher': 0.0}
-    assert d['grand_total'] == 500000.0
-    assert d['sisa_total'] == 200000.0
+    # Total realisasi = LPJ + voucher (kasbon bukan pengeluaran final).
+    assert d['display']['total'] == [0.0] * 12
+    assert d['totals'] == {'kasbon': 500000.0, 'lpj': 0.0, 'voucher': 0.0}
+    assert d['grand_total'] == 0.0
+    assert d['sisa_total'] == 500000.0
     assert 'kasbon' in d['basis'] and 'voucher' in d['basis'] and 'excluded' in d['basis']
+    assert 'po' not in d['categories']
     assert not d['errors']
 
 
@@ -187,7 +185,7 @@ def test_detail_kategori_tidak_dikenal_ditolak(client):
 
 def test_detail_bulan_tidak_valid_ditolak(client):
     _login(client)
-    rv = client.get('/api/expenses/detail?year=2026&month=13&branch=SBY&category=po')
+    rv = client.get('/api/expenses/detail?year=2026&month=13&branch=SBY&category=kasbon')
     assert rv.status_code == 400
 
 
@@ -196,22 +194,19 @@ def test_detail_bulan_tidak_valid_ditolak(client):
 # ---------------------------------------------------------------------------
 
 def test_admin_pusat_boleh_all(client, monkeypatch):
-    _patch(monkeypatch,
-           po_rows=[{'m': 1, 'amount': 300000.0}],
-           kas_rows=[{'m': 1, 'amount': 100000.0}])
+    _patch(monkeypatch, kas_rows=[{'m': 1, 'amount': 300000.0}])
     _login(client, role='admin', username='admin')
     rv = client.get('/api/expenses/recap?year=2026&branch=ALL')
     d = rv.get_json()
     assert rv.status_code == 200
     # 2 cabang (SBY + BDG) memakai conn hasil patch yang sama → nilai dua kali
-    assert d['display']['po'][0] == 600000.0
+    assert d['display']['kasbon'][0] == 600000.0
     assert d['display']['name'] == 'Semua Cabang'
-    assert d['grand_total'] == 600000.0
     assert {b['code'] for b in d['branches']} == {'SBY', 'BDG'}
 
 
 def test_finance_hu_boleh_all(client, monkeypatch):
-    _patch(monkeypatch, po_rows=[{'m': 1, 'amount': 100000.0}])
+    _patch(monkeypatch, kas_rows=[{'m': 1, 'amount': 100000.0}])
     _login(client, role='finance', branch='HU', username='finance_hu')
     rv = client.get('/api/expenses/recap?year=2026&branch=ALL')
     assert rv.status_code == 200
@@ -230,13 +225,13 @@ def test_finance_cabang_tidak_boleh_cabang_lain(client, monkeypatch):
     _login(client, role='finance', branch='BDG', username='finance_bdg')
     rv = client.get('/api/expenses/recap?year=2026&branch=SBY')
     assert rv.status_code == 403
-    rv = client.get('/api/expenses/detail?year=2026&month=2&branch=SBY&category=po')
+    rv = client.get('/api/expenses/detail?year=2026&month=2&branch=SBY&category=kasbon')
     assert rv.status_code == 403
 
 
 def test_finance_default_mengikuti_cabang_sesi(client, monkeypatch):
     """Tanpa ?branch= tidak boleh jatuh ke SBY."""
-    _patch(monkeypatch, po_rows=[{'m': 3, 'amount': 75000.0}])
+    _patch(monkeypatch, kas_rows=[{'m': 3, 'amount': 75000.0}])
     _login(client, role='finance', branch='BDG', username='finance_bdg')
     rv = client.get('/api/expenses/recap?year=2026')
     assert rv.status_code == 200

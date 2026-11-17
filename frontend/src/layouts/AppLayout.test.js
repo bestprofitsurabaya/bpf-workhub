@@ -89,7 +89,7 @@ describe('AppLayout — P1 navigasi', () => {
     expect(nav).toContain('Air Minum')
     // v2.105.0: laporan dipangkas dari sidebar finance — semuanya sudah ada di
     // dalam /cash tab Laporan (tanpa duplikasi menu).
-    for (const hidden of ['Dashboard GA', 'Log Perjalanan', 'Pengadaan (PO)', 'ACC Atasan',
+    for (const hidden of ['Dashboard GA', 'Log Perjalanan', 'ACC Atasan',
                           'Rekap Klaim BBM', 'Realisasi Pengeluaran', 'Analisis BBM & Armada']) {
       expect(nav).not.toContain(hidden)
     }

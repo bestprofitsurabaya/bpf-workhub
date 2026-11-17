@@ -10,7 +10,7 @@ def ensure_assignment_tables(conn=None):
 
     assignment_swaps dulu hanya di init.sql (DB baru), sehingga DB lama yang
     sudah hidup sebelum fitur swap memunculkan ERROR 1146 begitu endpoint
-    swap/riwayat dipakai dari UI. Pola mengikuti ensure_procurement_schema:
+    swap/riwayat dipakai dari UI. Pola mengikuti ensure schema modul lain:
     conn opsional; bila diberikan dipakai langsung dan tidak ditutup di sini.
     """
     own = conn is None

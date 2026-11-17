@@ -1,21 +1,19 @@
 """Expense Recap Routes (v2.71.0) — Rekap Pengeluaran lintas modul.
 
-Laporan pengeluaran bulanan yang menggabungkan dua sumber biaya yang
+Laporan pengeluaran bulanan yang menggabungkan sumber biaya yang
 ANGKA-NYA TERUKUR di sistem (per DB cabang):
 
-1. Pembelian Barang (PO)  — nilai barang yang benar-benar diterima:
-   SUM(qty_terima × harga_item) atas PO status open/partial/closed,
-   bulan mengikuti order_date. (Barang belum terima = belum jadi biaya
-   realisasi; PO cancelled tak pernah punya penerimaan.)
-2. Kasbon BBM (fuel_cash_requests) — uang yang benar-benar keluar:
+1. Kasbon BBM (fuel_cash_requests) — uang yang benar-benar keluar:
    SUM(total_amount) status COMPLETED, bulan mengikuti handover_at
    (penyerahan dana ke driver/OB).
-3. Realisasi LPJ BBM (transactions.transaction_type='CASH_LPJ') — nilai
+2. Realisasi LPJ BBM (transactions.transaction_type='CASH_LPJ') — nilai
    yang benar-benar dipertanggungjawabkan driver. Status rejected tidak
    dihitung. Bulan mengikuti created_at transaksi LPJ.
+3. Voucher rekanan (transactions CLAIM dengan voucher_value > 0) — beban
+   BBM yang sah saat voucher diverifikasi GA.
 
-Total realisasi = Pembelian diterima + Realisasi LPJ. Kasbon cair BUKAN
-pengeluaran final: ia dana muka. Sisa = Kasbon cair - Realisasi LPJ.
+Total realisasi = Realisasi LPJ + voucher rekanan. Kasbon cair BUKAN
+pengeluaran final: ia dana muka. Sisa = Kasbon cair − Realisasi LPJ.
 
 Sumber yang SENGAJA TIDAK dimasukkan (angkanya tak terukur di sistem):
 - Air minum (water_purchases tidak menyimpan harga pembelian).
@@ -39,7 +37,7 @@ from modules.helpers import role_required
 
 EXPENSE_ROLES = ['finance', 'admin']
 
-CATEGORIES = ('po', 'kasbon', 'lpj', 'voucher')
+CATEGORIES = ('kasbon', 'lpj', 'voucher')
 MONTHS = 12
 MASTER_DB = 'bpf_asset_system'
 MIN_YEAR, MAX_YEAR = 2020, 2035
@@ -60,21 +58,9 @@ def _fill_vector(rows, key_month='m', key_amount='amount'):
 
 
 def _query_db(conn, year):
-    """Agregasi dua kategori dari satu DB. Return {'po': vec, 'kasbon': vec}."""
+    """Agregasi kategori pengeluaran dari satu DB (vektor 12 bulan)."""
     cur = conn.cursor(dictionary=True)
     out = {}
-    cur.execute("""
-        SELECT MONTH(po.order_date) AS m,
-               COALESCE(SUM(COALESCE(ri.qty, 0) * i.price), 0) AS amount
-        FROM purchase_orders po
-        JOIN po_items i ON i.po_id = po.id
-        LEFT JOIN (SELECT item_id, SUM(qty) AS qty FROM po_receipts
-                   GROUP BY item_id) ri ON ri.item_id = i.id
-        WHERE po.status IN ('open','partial','closed')
-          AND YEAR(po.order_date) = %s
-        GROUP BY MONTH(po.order_date)
-    """, (year,))
-    out['po'] = _fill_vector(cur.fetchall())
     # v2.100.1: definisi tunggal (modules/bbm_scope.py).
     # Kasbon cair = handover_at terisi (termasuk dana yang masih di driver),
     # LPJ = hanya yang sah (verified_ga/archived), bukan semua non-rejected.
@@ -125,29 +111,13 @@ def _db_name_for(code, branches):
     return None
 
 
-DETAIL_CATEGORIES = ('po', 'kasbon', 'lpj', 'voucher')
+DETAIL_CATEGORIES = ('kasbon', 'lpj', 'voucher')
 
 
 def _detail_rows(conn, year, month, category):
     """Rincian baris untuk drill-down satu bulan & satu kategori."""
     cur = conn.cursor(dictionary=True)
-    if category == 'po':
-        cur.execute("""
-            SELECT po.display_id AS ref, po.order_date AS date,
-                   po.supplier_name AS party,
-                   CONCAT(i.description, ' (', COALESCE(ri.qty, 0), ' ', COALESCE(i.satuan, ''), ')') AS description,
-                   i.price AS unit_price, COALESCE(ri.qty, 0) AS qty,
-                   ROUND(COALESCE(ri.qty, 0) * i.price, 2) AS amount
-            FROM purchase_orders po
-            JOIN po_items i ON i.po_id = po.id
-            LEFT JOIN (SELECT item_id, SUM(qty) AS qty FROM po_receipts
-                       GROUP BY item_id) ri ON ri.item_id = i.id
-            WHERE po.status IN ('open','partial','closed')
-              AND YEAR(po.order_date) = %s AND MONTH(po.order_date) = %s
-              AND COALESCE(ri.qty, 0) > 0
-            ORDER BY po.order_date, po.id
-        """, (year, month))
-    elif category == 'kasbon':
+    if category == 'kasbon':
         cur.execute("""
             SELECT display_id AS ref, handover_at AS date, driver_name AS party,
                    CONCAT('Kasbon BBM', IF(COALESCE(nopol, '') = '', '', CONCAT(' · ', nopol))) AS description,
@@ -203,7 +173,7 @@ def register_expense_routes(app):
     @app.route('/api/expenses/detail')
     @role_required(EXPENSE_ROLES)
     def api_expense_detail():
-        """Drill-down satu bulan: ?year=&month=&branch=CODE|ALL&category=po|kasbon|lpj."""
+        """Drill-down satu bulan: ?year=&month=&branch=CODE|ALL&category=kasbon|lpj|voucher."""
         try:
             import datetime as _dt
             year = request.args.get('year', type=int) or _dt.date.today().year
@@ -373,14 +343,13 @@ def register_expense_routes(app):
                         agg = _query_db(conn, year)
                         data[b['code']] = {
                             'name': b['name'],
-                            'po': agg['po'],
                             'kasbon': agg['kasbon'],
                             'lpj': agg['lpj'],
                             'voucher': agg.get('voucher') or _months_vector(),
                             'outstanding': agg.get('outstanding') or {'count': 0, 'amount': 0},
-                            # Total realisasi = barang diterima + LPJ terpakai
-                            # + voucher rekanan terpakai (sekali).
-                            'total': [round(agg['po'][i] + agg['lpj'][i]
+                            # Total realisasi = LPJ terpakai + voucher rekanan
+                            # terpakai (sekali).
+                            'total': [round(agg['lpj'][i]
                                             + (agg.get('voucher') or _months_vector())[i], 2)
                                       for i in range(MONTHS)],
                         }
@@ -397,20 +366,18 @@ def register_expense_routes(app):
             if branch == 'ALL' and data:
                 combined = {
                     'name': 'Semua Cabang',
-                    'po': _months_vector(),
                     'kasbon': _months_vector(),
                     'lpj': _months_vector(),
                     'voucher': _months_vector(),
                 }
                 for d in data.values():
                     for i in range(MONTHS):
-                        combined['po'][i] += d['po'][i]
                         combined['kasbon'][i] += d['kasbon'][i]
                         combined['lpj'][i] += d['lpj'][i]
                         combined['voucher'][i] += d['voucher'][i]
-                for k in ('po', 'kasbon', 'lpj', 'voucher'):
+                for k in ('kasbon', 'lpj', 'voucher'):
                     combined[k] = [round(x, 2) for x in combined[k]]
-                combined['total'] = [round(combined['po'][i] + combined['lpj'][i]
+                combined['total'] = [round(combined['lpj'][i]
                                            + combined['voucher'][i], 2)
                                      for i in range(MONTHS)]
 
@@ -418,7 +385,7 @@ def register_expense_routes(app):
             for d in data.values():
                 for cat in CATEGORIES:
                     totals[cat] = round(totals.get(cat, 0.0) + sum(d[cat]), 2)
-            # Total realisasi = PO diterima + LPJ; kasbon dipakai untuk jembatan.
+            # Total realisasi = LPJ sah + voucher; kasbon dipakai untuk jembatan.
             grand = round(sum(sum(d['total']) for d in data.values()), 2)
             sisa_total = round(totals.get('kasbon', 0.0) - totals.get('lpj', 0.0), 2)
             outstanding_total = round(sum(
@@ -428,8 +395,8 @@ def register_expense_routes(app):
                 int((d.get('outstanding') or {}).get('count') or 0)
                 for d in data.values())
             display = combined or (data.get(branch) if branch in data
-                                   else {'name': '—', 'po': _months_vector(),
-                                         'kasbon': _months_vector(), 'lpj': _months_vector(),
+                                   else {'name': '—', 'kasbon': _months_vector(),
+                                         'lpj': _months_vector(),
                                          'voucher': _months_vector(),
                                          'total': _months_vector()})
             return jsonify({
@@ -445,11 +412,10 @@ def register_expense_routes(app):
                 'sisa_total': sisa_total,
                 'outstanding': {'total': outstanding_total, 'count': outstanding_count},
                 'basis': {
-                    'po': 'qty diterima × harga item, bulan mengikuti tanggal order',
                     'kasbon': 'kasbon yang dananya sudah diserahkan (handover_at), termasuk yang masih di driver',
                     'lpj': 'transaksi CASH_LPJ berstatus verified_ga/archived (LPJ sah), bukan yang masih pending',
                     'voucher': 'baris BBM berlabel SPBU rekanan (voucher) berstatus verified_ga/archived; dihitung sekali saat pemakaian, pembayaran tagihan SPBU bukan beban baru',
-                    'total': 'PO diterima + realisasi LPJ + voucher rekanan (kasbon bukan pengeluaran final)',
+                    'total': 'realisasi LPJ + voucher rekanan (kasbon bukan pengeluaran final)',
                     'excluded': 'Air minum & overtime belum menyimpan nominal di sistem',
                 },
                 'errors': errors,

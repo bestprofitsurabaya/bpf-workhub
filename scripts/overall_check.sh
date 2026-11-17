@@ -12,7 +12,7 @@
 #   3. Stamp 7 titik + DB (check_version_stamps.py --with-db)
 #   4. pytest PENUH di container
 #   5. vitest PENUH di frontend/
-#   6. Smoke E2E Pengadaan (24 uji) + Rekap Pengeluaran (13 uji)
+#   6. Smoke E2E Rekap Pengeluaran
 # Keluaran: daftar status per langkah + verdict satu baris.
 # Exit code 0 = semua sehat; ≠0 = ada langkah gagal (rujukan: log per langkah).
 # ============================================================
@@ -61,11 +61,8 @@ step "Vitest penuh (frontend/)" \
   "cd $ROOT/frontend && npx vitest run 2>&1 | tail -3"
 
 # 6. Smoke E2E — salin skrip terbaru dari repo ke container dulu
-cp_smokes="docker cp $ROOT/scripts/smoke_procurement.py $WEB:/tmp/ && docker cp $ROOT/scripts/smoke_expenses.py $WEB:/tmp/ && docker cp $ROOT/scripts/smoke_pdf_bbm.py $WEB:/tmp/"
+cp_smokes="docker cp $ROOT/scripts/smoke_expenses.py $WEB:/tmp/ && docker cp $ROOT/scripts/smoke_pdf_bbm.py $WEB:/tmp/"
 step "Siapkan skrip smoke di container" "$cp_smokes"
-
-step "Smoke Pengadaan (24 uji)" \
-  "docker exec -w /app $WEB python3 /tmp/smoke_procurement.py"
 
 step "Smoke Rekap Pengeluaran (13 uji)" \
   "docker exec -w /app $WEB python3 /tmp/smoke_expenses.py"

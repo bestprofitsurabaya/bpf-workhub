@@ -6,7 +6,7 @@
  * dan berapa sisa kasbon yang belum dipertanggungjawabkan?
  *
  * Jembatan: Kasbon cair − Realisasi LPJ = Sisa dana di driver.
- * Total realisasi = Pembelian barang diterima + Realisasi LPJ.
+ * Total realisasi = Realisasi LPJ + voucher rekanan.
  * Kasbon BUKAN pengeluaran final (hanya dana muka) — lihat routes_expense.py.
  */
 import { computed, onMounted, ref, watch } from 'vue'
@@ -65,7 +65,6 @@ const fmtRupiah = (n) => 'Rp ' + new Intl.NumberFormat('id-ID').format(Math.roun
 const pct = (part, whole) => (whole > 0 ? ((part / whole) * 100).toFixed(1) + '%' : '—')
 
 const rowsBulan = computed(() => {
-  const po = vec(display.value, 'po')
   const kasbon = vec(display.value, 'kasbon')
   const lpj = vec(display.value, 'lpj')
   const voucher = vec(display.value, 'voucher')
@@ -74,33 +73,30 @@ const rowsBulan = computed(() => {
     return {
       month: i + 1,
       label: NAMA_BULAN[i],
-      po: po[i] || 0,
       kasbon: kasbon[i] || 0,
       lpj: lpj[i] || 0,
       voucher: voucher[i] || 0,
-      sisa: (kasbon[i] || 0) - (lpj[i] || 0) - (voucher[i] || 0),
-      total: (po[i] || 0) + (lpj[i] || 0) + (voucher[i] || 0),
+      sisa: (kasbon[i] || 0) - (lpj[i] || 0),
+      total: (lpj[i] || 0) + (voucher[i] || 0),
     }
   })
 })
 
 const totals = computed(() => {
-  const po = sumSlice(vec(display.value, 'po'))
   const kasbon = sumSlice(vec(display.value, 'kasbon'))
   const lpj = sumSlice(vec(display.value, 'lpj'))
   const voucher = sumSlice(vec(display.value, 'voucher'))
-  return { po, kasbon, lpj, voucher, sisa: kasbon - lpj - voucher, total: po + lpj + voucher }
+  return { kasbon, lpj, voucher, sisa: kasbon - lpj, total: lpj + voucher }
 })
 
 const perBranch = computed(() => {
   const whole = totals.value.total
   return Object.entries(perBranchRaw.value).map(([code, v]) => {
-    const po = sumSlice(vec(v, 'po'))
     const kasbon = sumSlice(vec(v, 'kasbon'))
     const lpj = sumSlice(vec(v, 'lpj'))
     const voucher = sumSlice(vec(v, 'voucher'))
-    const total = po + lpj + voucher
-    return { code, name: v.name, po, kasbon, lpj, voucher, total, share: pct(total, whole) }
+    const total = lpj + voucher
+    return { code, name: v.name, kasbon, lpj, voucher, total, share: pct(total, whole) }
   }).sort((a, b) => b.total - a.total)
 })
 
@@ -125,7 +121,7 @@ async function load() {
   try {
     const d = await api(`/api/expenses/recap?year=${year.value}&branch=${branch.value}`)
     recap.value = d
-    display.value = d.display || { name: '—', po: [], kasbon: [], lpj: [], voucher: [], total: [] }
+    display.value = d.display || { name: '—', kasbon: [], lpj: [], voucher: [], total: [] }
     branches.value = d.branches || []
     perBranchRaw.value = branch.value === 'ALL' ? (d.per_branch || {}) : {}
     errors.value = d.errors || {}
@@ -153,7 +149,7 @@ watch(() => props.scope, (s) => {
 
 // === Drill-down ===
 const detail = ref({ open: false, month: null, loading: false, error: '', sections: [] })
-const DETAIL_CATS = [['po', '🛒 Pembelian Barang'], ['kasbon', '💵 Kasbon Cair'], ['lpj', '📋 Realisasi LPJ'], ['voucher', '🎟️ Voucher Rekanan']]
+const DETAIL_CATS = [['kasbon', '💵 Kasbon Cair'], ['lpj', '📋 Realisasi LPJ'], ['voucher', '🎟️ Voucher Rekanan']]
 
 async function openDetail(month) {
   detail.value = { open: true, month, loading: true, error: '', sections: [] }
@@ -186,13 +182,13 @@ function csvCell(v) {
 function exportCsv() {
   notice.value = ''
   if (!rowsBulan.value.length) { notice.value = 'Tidak ada data untuk diekspor.'; return }
-  const header = ['Bulan', 'Pembelian Barang', 'Kasbon Cair', 'Realisasi LPJ', 'Voucher Rekanan', 'Sisa Kasbon', 'Total Realisasi']
+  const header = ['Bulan', 'Kasbon Cair', 'Realisasi LPJ', 'Voucher Rekanan', 'Sisa Kasbon', 'Total Realisasi']
   const lines = [
-    [`Realisasi Pengeluaran ${scopeLabel.value}`, '', '', '', '', '', ''].map(csvCell).join(','),
-    [`Periode ${periodLabel.value}`, '', '', '', '', '', ''].map(csvCell).join(','),
+    [`Realisasi Pengeluaran ${scopeLabel.value}`, '', '', '', '', ''].map(csvCell).join(','),
+    [`Periode ${periodLabel.value}`, '', '', '', '', ''].map(csvCell).join(','),
     header.join(','),
-    ...rowsBulan.value.map((r) => [r.label, r.po, r.kasbon, r.lpj, r.voucher, r.sisa, r.total].map(csvCell).join(',')),
-    ['TOTAL', totals.value.po, totals.value.kasbon, totals.value.lpj, totals.value.voucher, totals.value.sisa, totals.value.total].map(csvCell).join(','),
+    ...rowsBulan.value.map((r) => [r.label, r.kasbon, r.lpj, r.voucher, r.sisa, r.total].map(csvCell).join(',')),
+    ['TOTAL', totals.value.kasbon, totals.value.lpj, totals.value.voucher, totals.value.sisa, totals.value.total].map(csvCell).join(','),
   ]
   const blob = new Blob(['\ufeff' + lines.join('\n')], { type: 'text/csv;charset=utf-8;' })
   const url = URL.createObjectURL(blob)
@@ -209,7 +205,7 @@ onMounted(load)
 <template>
   <div>
     <PageHeader icon="📊" title="Realisasi Pengeluaran"
-                subtitle="Uang yang benar-benar terpakai: pembelian diterima + LPJ BBM + voucher rekanan, dengan jembatan kasbon">
+                subtitle="Uang yang benar-benar terpakai: LPJ BBM + voucher rekanan, dengan jembatan kasbon">
       <div v-if="allBranches" class="field" style="width:190px;">
         <select class="select" v-model="branch" @change="load">
           <option value="ALL">🏭 Semua Cabang</option>
@@ -232,8 +228,8 @@ onMounted(load)
         question="Berapa uang yang benar-benar terpakai pada periode ini, terdiri dari apa, dan berapa kasbon yang belum dipertanggungjawabkan?"
         :period="periodLabel + (isYtd ? ' (YTD)' : '')"
         :scope="scopeLabel"
-        source="purchase_orders + po_receipts, fuel_cash_requests, transactions (CASH_LPJ, VOUCHER)"
-        basis="PO: qty diterima × harga (tanggal order) · Kasbon cair: handover_at terisi · LPJ sah: CASH_LPJ verified_ga/archived · Voucher: VOUCHER verified_ga/archived (sekali saat pemakaian)"
+        source="fuel_cash_requests, transactions (CASH_LPJ, CLAIM voucher)"
+        basis="Kasbon cair: handover_at terisi · LPJ sah: CASH_LPJ verified_ga/archived · Voucher: CLAIM berlabel rekanan, verified_ga/archived (sekali saat pemakaian)"
         exclusions="Air minum & overtime belum menyimpan nominal; kasbon bukan pengeluaran final"
         :generated-at="generatedAt"
         :rows="rowsBulan.length + ' bulan'"
@@ -298,14 +294,10 @@ onMounted(load)
       </div>
 
       <div class="row" style="gap:12px;flex-wrap:wrap;margin-bottom:16px;">
-        <div class="card card-pad grow" style="min-width:200px;">
-          <div class="muted" style="font-size:12px;">🛒 Pembelian Barang (PO diterima)</div>
-          <b style="font-size:22px;">{{ fmtRupiah(totals.po) }}</b>
-        </div>
         <div class="card card-pad grow" style="min-width:200px;background:var(--primary-soft, rgba(25,103,210,.08));">
           <div class="muted" style="font-size:12px;">Σ Total Realisasi {{ year }}</div>
           <b style="font-size:24px;">{{ fmtRupiah(totals.total) }}</b>
-          <div class="muted" style="font-size:10px;">Pembelian diterima + LPJ + voucher (bukan kasbon)</div>
+          <div class="muted" style="font-size:10px;">LPJ sah + voucher rekanan (bukan kasbon)</div>
         </div>
       </div>
 
@@ -321,7 +313,6 @@ onMounted(load)
             <thead>
               <tr>
                 <th>Bulan</th>
-                <th style="text-align:right;">Pembelian</th>
                 <th style="text-align:right;">Kasbon Cair</th>
                 <th style="text-align:right;">Realisasi LPJ</th>
                 <th style="text-align:right;">Voucher BBM</th>
@@ -333,7 +324,6 @@ onMounted(load)
             <tbody>
               <tr v-for="r in rowsBulan" :key="r.label" :class="{ 'bulan-aktif': r.total > 0 || r.kasbon > 0 }">
                 <td>{{ r.label }}</td>
-                <td style="text-align:right;">{{ r.po ? fmtRupiah(r.po) : '—' }}</td>
                 <td style="text-align:right;">{{ r.kasbon ? fmtRupiah(r.kasbon) : '—' }}</td>
                 <td style="text-align:right;">{{ r.lpj ? fmtRupiah(r.lpj) : '—' }}</td>
                 <td style="text-align:right;">{{ r.voucher ? fmtRupiah(r.voucher) : '—' }}</td>
@@ -343,7 +333,6 @@ onMounted(load)
               </tr>
               <tr style="font-weight:700;">
                 <td>Total {{ periodLabel }}</td>
-                <td style="text-align:right;">{{ fmtRupiah(totals.po) }}</td>
                 <td style="text-align:right;">{{ fmtRupiah(totals.kasbon) }}</td>
                 <td style="text-align:right;">{{ fmtRupiah(totals.lpj) }}</td>
                 <td style="text-align:right;">{{ fmtRupiah(totals.voucher) }}</td>
@@ -366,7 +355,6 @@ onMounted(load)
             <thead>
               <tr>
                 <th>Cabang</th>
-                <th style="text-align:right;">Pembelian</th>
                 <th style="text-align:right;">Kasbon Cair</th>
                 <th style="text-align:right;">Realisasi LPJ</th>
                 <th style="text-align:right;">Voucher BBM</th>
@@ -377,7 +365,6 @@ onMounted(load)
             <tbody>
               <tr v-for="b in perBranch" :key="b.code">
                 <td><b>{{ b.code }}</b> — {{ b.name }}</td>
-                <td style="text-align:right;">{{ fmtRupiah(b.po) }}</td>
                 <td style="text-align:right;">{{ fmtRupiah(b.kasbon) }}</td>
                 <td style="text-align:right;">{{ fmtRupiah(b.lpj) }}</td>
                 <td style="text-align:right;">{{ fmtRupiah(b.voucher) }}</td>
@@ -394,9 +381,8 @@ onMounted(load)
         <b style="font-size:13px;">ℹ️ Cara membaca laporan ini</b>
         <ul class="muted" style="font-size:12px;margin:8px 0 0;padding-left:18px;line-height:1.7;">
           <li><b>Kasbon cair</b> = uang muka yang sudah diserahkan ke driver (handover_at terisi). Bukan pengeluaran final.</li>
-          <li><b>Realisasi LPJ</b> = LPJ kasbon yang sah (verified_ga/archived). Total realisasi = pembelian diterima + LPJ sah.</li>
+          <li><b>Realisasi LPJ</b> = LPJ kasbon yang sah (verified_ga/archived). Total realisasi = LPJ sah + voucher rekanan.</li>
           <li><b>Sisa kasbon</b> = kasbon cair − LPJ. Nilai negatif berarti LPJ melebihi dana muka dan perlu ditelusuri.</li>
-          <li><b>Pembelian barang</b> = qty yang benar-benar diterima × harga item, dikelompokkan menurut tanggal order.</li>
           <li>Air minum dan overtime belum masuk karena sistem belum menyimpan nominalnya — bukan dianggap nol.</li>
         </ul>
       </div>

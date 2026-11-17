@@ -4,7 +4,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } 
 const brandIcon = '/static/icon-192.png'
 const PENDIDIKAN = ['SMA', 'SMK', 'MA', 'D3', 'D4', 'S1', 'S2', 'S3']
 const DRAFT_KEY = 'bpf_fw_draft_v1'
-const STEPS = ['Data Diri', 'Kontak & Referensi', 'Identitas']
+const STEPS = ['Identitas', 'Kontak & Referensi', 'Ringkasan']
 
 // Cabang tujuan diambil dari link (?cabang=MLG). Server tetap memvalidasi
 // terhadap master branches dan menolak nilai asing (jatuh ke SBY).
@@ -557,6 +557,8 @@ function confirmScan() {
       scan.resultUrl = URL.createObjectURL(blob)
       scan.resultBlob = blob
       scan.mode = 'result'
+      // Langsung coba baca NIK & nama supaya pengguna tidak perlu klik dua kali.
+      runOcr(true)
     }, 'image/jpeg', 0.9)
   } catch (e) {
     scan.busy = false
@@ -583,8 +585,10 @@ function acceptScan() {
 
 // v2.89.0 (P5): OCR bantu isi NIK & nama dari hasil scan. Hasil OCR tetap
 // harus diperiksa pengguna — tidak ada pengisian otomatis yang tak terlihat.
-async function runOcr() {
+async function runOcr(auto = false) {
   if (!scan.resultBlob || ocrBusy.value) return
+  // OCR otomatis tidak perlu dijalankan bila NIK & nama sudah lengkap.
+  if (auto && form.nik.length === 16 && form.nama.trim()) return
   ocrBusy.value = true
   ocrMsg.value = ''
   try {
@@ -674,6 +678,7 @@ function closeScan(revokeOriginal = true) {
 
 function stepError(target) {
   if (target === 0) {
+    if (!ktpFile.value) return 'Scan / foto KTP wajib dilampirkan lebih dulu.'
     if (form.nik.length !== 16) return 'NIK sesuai KTP wajib 16 digit angka.'
     if (!nikInfo.value?.valid) return 'Tanggal lahir pada NIK tidak valid. Periksa kembali 16 digit NIK.'
     if (nikCheck.exists) return 'NIK ini sudah pernah mendaftar. Hubungi Traineer bila perlu koreksi data.'
@@ -688,7 +693,7 @@ function stepError(target) {
     if (!hpInfo.value.valid) return 'Nomor Handphone tidak valid. Contoh: 081234567890.'
     return ''
   }
-  if (!ktpFile.value) return 'Upload Identitas (KTP) wajib dilampirkan.'
+  if (!ktpFile.value) return 'Scan / foto KTP wajib dilampirkan.'
   if (!consent.value) {
     return 'Centang persetujuan pemrosesan data pribadi terlebih dahulu.'
   }
@@ -907,9 +912,38 @@ onBeforeUnmount(() => {
         </div>
         <div class="fw-progress"><div class="fw-progress-bar" :style="{ width: pct + '%' }" /></div>
 
-        <!-- Langkah 1: data diri -->
+        <!-- Langkah 1: identitas — KTP lebih dulu supaya OCR bisa mengisi NIK & nama -->
         <template v-if="step === 0">
           <div v-if="ocrNotice" class="fw-callout fw-callout-ok">{{ ocrNotice }}</div>
+
+          <div class="fw-field">
+            <label>Identitas (KTP) <span class="req">*</span></label>
+            <label class="fw-upload" :class="{ 'has-file': ktpFile }">
+              <input type="file" accept="image/jpeg,image/png,application/pdf" capture="environment"
+                     hidden @change="pickKtp" />
+              <template v-if="ktpFile">
+                <img v-if="ktpPreview" :src="ktpPreview" alt="Pratinjau KTP" class="fw-thumb" />
+                <span class="fw-file">✅ {{ ktpLabel }}</span>
+                <span v-if="ktpScanned" class="fw-scan-badge">✨ Sudah diluruskan &amp; diperjelas</span>
+                <span class="fw-hint">Tap untuk ganti file</span>
+              </template>
+              <template v-else>
+                <span class="fw-upload-ico">🪪</span>
+                <span class="fw-file">Scan / Foto KTP</span>
+                <span class="fw-hint">JPG, PNG, atau PDF · maks. 12 MB (PDF 5 MB)</span>
+              </template>
+            </label>
+            <small class="fw-hint fw-hint-ocr">
+              <template v-if="ktpFile && !ktpPreview">
+                💡 PDF tidak bisa dibaca otomatis — isi NIK &amp; nama manual.
+              </template>
+              <template v-else>
+                💡 Scan KTP lebih dulu — NIK &amp; nama dicoba terisi otomatis.
+                Hasil OCR selalu bisa kamu koreksi.
+              </template>
+            </small>
+          </div>
+
           <div class="fw-field">
             <label>NIK sesuai KTP <span class="req">*</span></label>
             <input class="input" :value="form.nik" inputmode="numeric" autocomplete="off"
@@ -987,25 +1021,20 @@ onBeforeUnmount(() => {
           </div>
         </template>
 
-        <!-- Langkah 3: KTP + ringkasan -->
+        <!-- Langkah 3: ringkasan + persetujuan -->
         <template v-else>
           <div class="fw-field">
-            <label>Upload Identitas (KTP) <span class="req">*</span></label>
-            <label class="fw-upload" :class="{ 'has-file': ktpFile }">
-              <input type="file" accept="image/jpeg,image/png,application/pdf" capture="environment"
-                     hidden @change="pickKtp" />
-              <template v-if="ktpFile">
-                <img v-if="ktpPreview" :src="ktpPreview" alt="Pratinjau KTP" class="fw-thumb" />
-                <span class="fw-file">✅ {{ ktpLabel }}</span>
-                <span v-if="ktpScanned" class="fw-scan-badge">✨ Sudah diluruskan &amp; diperjelas</span>
-                <span class="fw-hint">Tap untuk ganti file</span>
-              </template>
-              <template v-else>
-                <span class="fw-upload-ico">🪪</span>
-                <span class="fw-file">Foto / Scan KTP</span>
-                <span class="fw-hint">JPG, PNG, atau PDF · maks. 5 MB · foto miring diluruskan otomatis</span>
-              </template>
-            </label>
+            <label>Identitas (KTP)</label>
+            <div class="fw-ktp-done" :class="{ ok: !!ktpFile }">
+              <span class="fw-ktp-ico">🪪</span>
+              <div>
+                <b>{{ ktpFile ? 'KTP terlampir' : 'KTP belum dilampirkan' }}</b>
+                <small>{{ ktpFile ? ktpLabel : 'Kembali ke langkah Identitas untuk memilih file.' }}</small>
+              </div>
+              <button type="button" class="fw-link" @click="goTo(0)">
+                {{ ktpFile ? 'Ganti' : 'Lampirkan' }}
+              </button>
+            </div>
           </div>
 
           <div class="fw-review">
@@ -1115,6 +1144,16 @@ onBeforeUnmount(() => {
 .fw-field { margin-bottom: 14px; }
 .fw-field > label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 5px; }
 .fw-hint { display: block; font-size: 10px; color: var(--text-3); margin-top: 4px; }
+.fw-hint-ocr { color: #7c3aed; line-height: 1.5; margin-top: 6px; }
+.fw-ktp-done {
+  display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+  background: var(--bg); border: 1px dashed var(--border); border-radius: 10px;
+}
+.fw-ktp-done.ok { border-style: solid; border-color: var(--success, #16a34a); background: rgba(22, 163, 74, .05); }
+.fw-ktp-ico { font-size: 20px; flex: none; }
+.fw-ktp-done > div { flex: 1; min-width: 0; }
+.fw-ktp-done b { display: block; font-size: 12px; }
+.fw-ktp-done small { display: block; font-size: 10px; color: var(--text-3); margin-top: 2px; word-break: break-word; }
 .fw-gap { margin-top: 8px; }
 .req { color: var(--danger, #dc2626); }
 .fw-wide { width: 100%; justify-content: center; padding: 11px; margin-top: 6px; }

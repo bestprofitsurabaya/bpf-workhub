@@ -48,8 +48,8 @@ def main():
     d = rv.get_json()
     check('finance SBY → 200', rv.status_code == 200, str(d)[:150])
     check('bentuk: 12 bulan', rv.status_code == 200
-          and len(d.get('display', {}).get('po', [])) == 12
-          and len(d.get('display', {}).get('kasbon', [])) == 12)
+          and len(d.get('display', {}).get('kasbon', [])) == 12
+          and len(d.get('display', {}).get('lpj', [])) == 12)
     check('totals & grand ada', 'totals' in d and 'grand_total' in d)
 
     # --- bandingkan angka vs SQL manual (SBY = master) ---
@@ -57,29 +57,17 @@ def main():
     conn = cfg.get_db_connection()
     cur = conn.cursor(dictionary=True)
     year = d.get('year', 2026)
-    cur.execute("""SELECT COALESCE(SUM(COALESCE(ri.qty,0)*i.price),0) AS a
-                   FROM purchase_orders po JOIN po_items i ON i.po_id=po.id
-                   LEFT JOIN (SELECT item_id, SUM(qty) qty FROM po_receipts GROUP BY item_id) ri
-                     ON ri.item_id=i.id
-                   WHERE po.status IN ('open','partial','closed') AND YEAR(po.order_date)=%s""", (year,))
-    po_manual = float(cur.fetchone()['a'])
     cur.execute("""SELECT COALESCE(SUM(total_amount),0) AS a FROM fuel_cash_requests
                    WHERE handover_at IS NOT NULL AND YEAR(handover_at)=%s""", (year,))
     kas_manual = float(cur.fetchone()['a'])
     cur.close(); conn.close()
-    po_api = sum(d['display']['po'])
     kas_api = sum(d['display']['kasbon'])
-    check('angka PO cocok SQL manual', abs(po_api - po_manual) < 1.0,
-          f'api={po_api} sql={po_manual}')
     check('angka kasbon cocok SQL manual', abs(kas_api - kas_manual) < 1.0,
           f'api={kas_api} sql={kas_manual}')
-    # v2.108.2: total realisasi = PO diterima + LPJ sah + voucher rekanan.
-    # Voucher masuk `total` sejak v2.107.0; assertion lama hanya PO + LPJ
-    # sehingga selalu merah di cabang yang punya baris SPBU rekanan.
-    check('grand_total = PO + LPJ + voucher',
-          abs((d['totals']['po'] + d['totals']['lpj']
-               + d['totals'].get('voucher', 0.0)) - d['grand_total']) < 1.0,
-          f"po={d['totals']['po']} lpj={d['totals']['lpj']} "
+    check('grand_total = LPJ + voucher',
+          abs((d['totals']['lpj'] + d['totals'].get('voucher', 0.0))
+              - d['grand_total']) < 1.0,
+          f"lpj={d['totals']['lpj']} "
           f"voucher={d['totals'].get('voucher', 0.0)} grand={d['grand_total']}")
     check('sisa kasbon = kasbon cair - LPJ sah',
           abs((d['totals']['kasbon'] - d['totals']['lpj']) - d['sisa_total']) < 1.0,
@@ -91,9 +79,9 @@ def main():
     d2 = rv.get_json()
     check('admin ALL → per_branch >= 11 cabang', rv.status_code == 200
           and len(d2.get('per_branch', {})) >= 11, f'n={len(d2.get("per_branch", {}))}')
-    check('ALL: total po = jumlah per cabang',
-          abs(sum(sum(v['po']) for v in d2['per_branch'].values())
-              - sum(d2['display']['po'])) < 1.0)
+    check('ALL: total realisasi = jumlah per cabang',
+          abs(sum(sum(v['total']) for v in d2['per_branch'].values())
+              - sum(d2['display']['total'])) < 1.0)
     check('errors kosong', d2.get('errors') == {}, json.dumps(d2.get('errors', {}))[:100])
 
     # --- validasi ---

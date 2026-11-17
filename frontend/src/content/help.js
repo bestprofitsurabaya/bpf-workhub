@@ -177,13 +177,13 @@ const PAGE_HELP = [
   {
     paths: ['/expenses'],
     title: 'Realisasi Pengeluaran',
-    summary: 'Uang yang benar-benar terpakai: pembelian diterima + LPJ BBM, dengan sisa kasbon.',
+    summary: 'Uang yang benar-benar terpakai: LPJ BBM + voucher rekanan, dengan sisa kasbon.',
     steps: [
       'Pilih tahun, cabang, dan rentang bulan (default YTD).',
       'Baca jembatan: kasbon cair − realisasi LPJ = sisa dana.',
       'Klik Rincian pada bulan untuk melihat transaksi sumbernya.',
     ],
-    terms: ['Kasbon', 'LPJ', 'PO diterima', 'Realisasi'],
+    terms: ['Kasbon', 'LPJ', 'Voucher rekanan', 'Realisasi'],
   },
   {
     paths: ['/analytics'],

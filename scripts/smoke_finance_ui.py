@@ -7,7 +7,7 @@ Cara:
 
 Membedah seluruh endpoint yang dipanggil halaman-halaman finance
 (dashboard AdminDashboard/FinanceDashboard, Trips, Rekap, Cash, Analytics,
-Approvals, Water, Procurement, Expenses) langsung ke DB REAL cabang aktif:
+Approvals, Water, Expenses) langsung ke DB REAL cabang aktif:
 
   1. READ-WALK: setiap GET yang dipanggil UI finance → wajib 200 (404
      hanya untuk id uji yang memang tidak ada).
@@ -83,8 +83,6 @@ def main():
         '/api/water/edit-enabled',          # status edit/hapus (v2.37)
         '/api/water/purchases',             # WaterView pengajuan
         '/api/water/recap',                 # kartu rekap air minum
-        '/api/procurement/orders',          # ProcurementView
-        '/api/procurement/suppliers',       # ProcurementView master supplier
         '/api/vehicle-health',              # AnalyticsView
         '/api/analytics/data',              # AnalyticsView
         '/api/approvals',                   # ApprovalsView (finance diizinkan BE)
@@ -126,7 +124,6 @@ def main():
     r = post('/api/queue/modify/999999', json={})
     check('queue/modify oleh finance → 403', r.status_code == 403,
           r.get_data(as_text=True)[:120])
-    r = client.get('/api/procurement/orders')
     # kontrol positif: ob dilarang kelola supplier (peran jelas)
     with client.session_transaction() as s2:
         s2['user_role'] = 'ob'

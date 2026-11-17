@@ -19,7 +19,7 @@ BPF WorkHub lahir dari masalah yang sudah bertahun-tahun jadi kebiasaan: pengelu
 | **Admin** — pusat: `admin`; cabang: `admin_<kode>` | Akun, cabang, pengaturan, log, Access Review | `/app/dashboard` |
 | **Driver** | Klaim BBM, kasbon, log perjalanan, rapor kendaraan | PWA `/m/` |
 | **Chief Driver** | ACC pengajuan driver, assign appointment | `/app/chief-driver` |
-| **GA Officer** | Verifikasi klaim & kasbon, perjalanan, penugasan, procurement, aset | `/app/ga` |
+| **GA Officer** | Verifikasi klaim & kasbon, perjalanan, penugasan, aset | `/app/ga` |
 | **Finance** | Pencairan dana, verifikasi air minum & SubsidiTepat, Berita Acara | `/app/finance` |
 | **GA HR** | Kelola data lembur (rekap, PDF resmi, formulir permohonan) | `/app/ga-hr` |
 | **Marketing** | Jadwal & pantau appointment nasabah | `/app/marketing` |
@@ -41,7 +41,7 @@ Konvensi akun — **satu orang per divisi di satu cabang** → `{divisi}_{cabang
 | 💧 **Air Minum** | Pengajuan galon/botol/gelas dengan foto bukti sebelum–sesudah, verifikasi Finance, PDF tanda terima; koreksi/hapus opsional dengan step-up PIN |
 | ⛽ **SubsidiTepat** | Riwayat transaksi resmi SPBU dari portal MyPertamina di-import agen → auto-match ke klaim → Berita Acara Rekonsiliasi (PDF + root-hash antar periode) |
 | 🔄 **Penugasan driver** | Serah terima, tukar driver, riwayat per trip |
-| 📋 **Procurement · Asset · Expense** | Pengadaan, inventaris aset, dan pencatatan pengeluaran |
+| 📋 **Asset · Expense** | Inventaris aset dan pencatatan pengeluaran |
 | 🪪 **Receptionist** | Pipeline pelamar (daftar hadir otomatis) dan in-out karyawan, sinkron otomatis dari aplikasi dan Google Sheet |
 | 🎯 **Absensi FirstWork** | Form publik ber-token per cabang (QR statis bisa dicetak) — pendaftar first work mengisi NIK, foto KTP, dan referensi; menerima **ID Fingerprint & ID BPF** otomatis yang angka awalnya diatur Traineer; verifikasi, koreksi, dan ekspor CSV di dashboard |
 | 📰 **News Scraper** | Berita tentang BPF dikumpulkan dari portal berita → publish ke WordPress tiap cabang (cron 06/10/14/18 WIB, hanya artikel berumur ≤ 1 hari) |
