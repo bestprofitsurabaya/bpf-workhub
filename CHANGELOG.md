@@ -7,6 +7,21 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.111.0 — 17 November 2026 (OCR NIK lebih kuat: nilai dari crop label)
+
+Laporan lapangan: NIK masih terbaca salah setelah v2.110.0.
+
+Tambahan pada pipeline OCR (`modules/ktp_ocr.py`):
+
+- Nilai NIK kini dibaca dari **crop kata-kata di kanan label** `NIK`
+  (multi-scale upscale 3–4x + unsharp + whitelist angka + PSM 7/8/13).
+- Validasi **tanggal lahir** (`DD MM YY`, `+40` untuk perempuan) sebagai
+  penapis/penimbang kandidat — kandidat yang tidak cocok tanggal dilipat bobotnya.
+- Penggabungan kandidat memakai bobot varian + ROI/token + konsistensi
+  tanggal, lalu memilih nilai tertinggi.
+
+---
+
 ## v2.110.0 — 17 November 2026 (OCR KTP lebih akurat)
 
 Laporan lapangan: hasil OCR KTP masih sering salah. Setelah diuji pada foto

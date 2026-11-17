@@ -1,11 +1,11 @@
-"""OCR KTP FirstWork (v2.110.0).
+"""OCR KTP FirstWork (v2.111.0).
 
 Membantu mengisi NIK & nama dari foto KTP. Sifatnya BANTUAN — keputusan
 verifikasi tetap manusia, dan pengguna wajib memeriksa hasilnya.
 
 v2.89.0 — jalur ROI berbasis kata kunci NIK/Nama.
 v2.91.0 — dua jalur (halaman penuh + ROI), voting sederhana.
-v2.110.0 — model tessdata_best + voting berbobot lintas varian praproses.
+v2.111.0 — model tessdata_best + voting berbobot lintas varian praproses.
 
 Empat varian gambar dibaca berurutan (berhenti begitu NIK & nama terkumpul):
 
@@ -15,10 +15,10 @@ Empat varian gambar dibaca berurutan (berhenti begitu NIK & nama terkumpul):
    latar KTP biasanya lebih teredam daripada teks yang tajam.
 4. `plain` : grayscale + upscale, tanpa autocontrast.
 
-NIK diambil dari area ROI di kanan label "NIK" (whitelist angka), lalu
-divoting lintas varian dengan bobot: sharp/bin = 2, gray/plain = 1. Kandidat
-dibersihkan dari kekeliruan karakter umum (O→0, l→1, S→5, B→8, Z→2, G→6)
-dan difilter tanggal lahir sebelum dipilih. Baris halaman penuh dipakai
+NIK diambil dari area ROI di kanan label "NIK" (kata-kata nilai, whitelist
+angka, upscale 3–4x) plus nilai dari baris/ROI, lalu dibagi bobot lintas
+varian. Kandidat dibersihkan dari kekeliruan karakter umum dan divalidasi
+tanggal lahir sebelum dipilih. Baris halaman penuh dipakai
 bila ROI gagal. Nama diambil dari baris "Nama" halaman penuh (ROI hanya
 cadangan, karena crop sering memotong huruf).
 
@@ -112,8 +112,8 @@ def _save_temp(img):
     return path
 
 
-def _ocr_tsv(path, psm='6', whitelist=None):
-    cmd = ['tesseract', path, 'stdout', '-l', 'ind', '--oem', '1', '--psm', psm]
+def _ocr_tsv(path, psm='6', whitelist=None, lang='ind'):
+    cmd = ['tesseract', path, 'stdout', '-l', lang, '--oem', '1', '--psm', psm]
     if whitelist:
         cmd += ['-c', f'tessedit_char_whitelist={whitelist}']
     cmd.append('tsv')
@@ -139,7 +139,8 @@ def _words_from_tsv(tsv):
             conf = -1
         words.append({'text': text, 'conf': conf,
                       'left': int(cols[6] or 0), 'top': int(cols[7] or 0),
-                      'width': int(cols[8] or 0), 'height': int(cols[9] or 0)})
+                      'width': int(cols[8] or 0), 'height': int(cols[9] or 0),
+                      'line': (cols[2], cols[3], cols[4])})
     return words
 
 
@@ -287,8 +288,100 @@ def _region_ocr(img, box, whitelist=None, psm='7'):
     return {'text': ' '.join(w['text'] for w in words), 'conf': conf}
 
 
-def _aggregate_nik(candidates):
-    """Gabung kandidat NIK: total bobot varian + keyakinan maksimum."""
+def _ocr_words(img, psm='7', whitelist=None, lang='ind'):
+    """Baca kata dari PIL Image (crop) — TSV untuk tahu keyakinan."""
+    path = _save_temp(img)
+    try:
+        return [w for w in _words_from_tsv(_ocr_tsv(path, psm, whitelist, lang))
+                if w['text'].strip()]
+    finally:
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+
+
+def _value_box(words):
+    """Kotak gabungan kata-kata nilai di kanan label pada baris yang sama."""
+    if not words:
+        return None
+    x0 = max(0, min(w['left'] for w in words) - 4)
+    y0 = max(0, min(w['top'] for w in words) - 4)
+    x1 = max(w['left'] + w['width'] for w in words) + 4
+    y1 = max(w['top'] + w['height'] for w in words) + 4
+    if x1 - x0 < 12 or y1 - y0 < 8:
+        return None
+    return (x0, y0, x1, y1)
+
+
+def _nik_token_hits(img, words, variant):
+    """Baca nilai NIK dari kotak kata-kata di kanan label 'NIK'.
+
+    Angka KTP dicetak rapat dan jelas; dengan crop tepat + whitelist angka +
+    upscale 3–4×, Tesseract jauh lebih akurat daripada membaca halaman penuh.
+    """
+    anchor = _find_anchor(words, 'NIK')
+    if not anchor:
+        return []
+    line_words = [w for w in words
+                  if w['line'] == anchor['line']
+                  and w['left'] >= anchor['left'] + max(2, anchor['width'] - 2)]
+    box = _value_box(line_words)
+    if not box:
+        return []
+    x0, y0, x1, y1 = box
+    x1, y1 = min(img.width, x1), min(img.height, y1)
+    if x1 - x0 < 12 or y1 - y0 < 8:
+        return []
+    crop = img.crop((x0, y0, x1, y1))
+    hits = {}
+    for scale in (3, 4):
+        big = crop.resize((crop.width * scale, crop.height * scale), Image.LANCZOS)
+        big = big.filter(ImageFilter.UnsharpMask(2, 120, 3))
+        canvas = Image.new('L', (big.width + 16, big.height + 16), 255)
+        canvas.paste(big, (8, 8))
+        for psm in ('7', '8', '13'):
+            read = _ocr_words(canvas, psm, '0123456789')
+            digits = _digits_only(' '.join(w['text'] for w in read))
+            confs = [w['conf'] for w in read if w['conf'] > 0]
+            conf = (sum(confs) / len(confs)) if confs else 70.0
+            for match in _NIK_DIGITS.finditer(digits):
+                nik = match.group(0)
+                hits[nik] = max(hits.get(nik, 0.0), conf)
+    return [{'nik': nik, 'conf': conf, 'roi': True, 'token': True,
+             'variant': variant} for nik, conf in hits.items()]
+
+
+_DATE_RE = re.compile(r'(\d{1,2})\s*[-/]\s*(\d{1,2})\s*[-/]\s*(\d{2,4})')
+
+
+def _birth_date_from_lines(lines):
+    """Tanggal lahir dari baris 'Tempat/Tgl Lahir' — (dd, mm, yy) atau None."""
+    for line in lines:
+        text = line['text']
+        if 'lahir' not in text.lower():
+            continue
+        match = _DATE_RE.search(text)
+        if not match:
+            continue
+        day, month, year = (int(match.group(1)), int(match.group(2)),
+                            int(match.group(3)))
+        if year < 100:
+            year += 1900 if year > 30 else 2000
+        if 1 <= day <= 31 and 1 <= month <= 12:
+            return (day, month, f'{year % 100:02d}')
+    return None
+
+
+def _nik_birth(nik):
+    day, month, year = int(nik[6:8]), int(nik[8:10]), int(nik[10:12])
+    if day > 40:  # perempuan: tanggal + 40
+        day -= 40
+    return (day, month, f'{year:02d}')
+
+
+def _aggregate_nik(candidates, birth=None):
+    """Gabung kandidat NIK: bobot varian + ROI + token + cocok tanggal lahir."""
     agg = {}
     for c in candidates:
         nik = c.get('nik') or ''
@@ -297,6 +390,13 @@ def _aggregate_nik(candidates):
         weight = VARIANT_WEIGHT.get(c.get('variant') or '', 1.0)
         if c.get('roi'):
             weight *= 3.0
+        if c.get('token'):
+            weight *= 2.0
+        if birth:
+            if _nik_birth(nik) == birth:
+                weight *= 1.5
+            else:
+                weight *= 0.5
         item = agg.setdefault(nik, {'nik': nik, 'weight': 0.0, 'conf': 0.0})
         item['weight'] += weight
         item['conf'] = max(item['conf'], float(c.get('conf') or 0))
@@ -353,6 +453,7 @@ def extract_ktp(src_path):
                              if angle else plain_base)
             nik_candidates = []
             nama_candidates = []
+            birth = None
             for variant, img in _variants(rotated, rotated_plain):
                 try:
                     path = _save_temp(img)
@@ -370,6 +471,12 @@ def extract_ktp(src_path):
                         _nik_candidates(lines, roi=False, variant=variant))
                     nama_candidates.extend(
                         _nama_candidates(lines, roi=False, variant=variant))
+                    if birth is None:
+                        birth = _birth_date_from_lines(lines)
+
+                    # NIK: crop kata-kata nilai di kanan label + voting
+                    # lintas varian. Ini jalur paling akurat.
+                    nik_candidates.extend(_nik_token_hits(img, words, variant))
 
                     nik_anchor = _find_anchor(words, 'NIK')
                     if nik_anchor:
@@ -406,14 +513,14 @@ def extract_ktp(src_path):
                 except (RuntimeError, OSError, ValueError):
                     continue
 
-                nik = _pick_nik(_aggregate_nik(nik_candidates))
+                nik = _pick_nik(_aggregate_nik(nik_candidates, birth))
                 nama = _pick_nama(_aggregate_nama(nama_candidates))
                 # Berhenti cepat hanya bila NIK punya dukungan kuat
                 # (satu varian tajam = 6, atau dua varian lemah).
                 if nik and nama and nik.get('weight', 0.0) >= 6.0:
                     break
 
-            nik = _pick_nik(_aggregate_nik(nik_candidates))
+            nik = _pick_nik(_aggregate_nik(nik_candidates, birth))
             nama = _pick_nama(_aggregate_nama(nama_candidates))
             if nik and nama:
                 break
@@ -433,7 +540,7 @@ def extract_ktp(src_path):
                 _nik_candidates(sparse, roi=False, variant='sparse'))
             nama_candidates.extend(
                 _nama_candidates(sparse, roi=False, variant='sparse'))
-            nik = _pick_nik(_aggregate_nik(nik_candidates))
+            nik = _pick_nik(_aggregate_nik(nik_candidates, birth))
             nama = _pick_nama(_aggregate_nama(nama_candidates))
             if nik and nama:
                 break
