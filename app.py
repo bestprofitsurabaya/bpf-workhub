@@ -609,6 +609,11 @@ CSRF_EXEMPT_PREFIXES = (
     '/socket.io', '/api/get-feedback',
     '/api/vehicle-allowed-bbm', '/uploads/',
     '/api/first-work/public',
+    # v2.109.1: helper OCR form publik. Dulu tidak ikut dikecualikan, sehingga
+    # Traineer/Admin yang membuka form sambil login selalu ditolak CSRF (400
+    # dalam 0 ms) dan OCR tampak "tidak berfungsi". Endpoint tetap dijaga
+    # token cabang + rate limit + validasi isi file.
+    '/api/first-work/ocr-ktp',
 )
 
 @app.context_processor

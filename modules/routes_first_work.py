@@ -225,7 +225,7 @@ def _rate_ok(ip):
 
 # OCR memakan CPU: kuota kecil agar endpoint publik tidak bisa dipakai
 # menyiksa server. Berbagi pola dengan submit (Redis + fallback memori).
-_OCR_MAX = 6
+_OCR_MAX = 10
 _OCR_WINDOW = 600
 
 

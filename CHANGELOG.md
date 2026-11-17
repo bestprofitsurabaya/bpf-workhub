@@ -7,6 +7,32 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.109.1 — 17 November 2026 (Perbaiki OCR KTP yang selalu ditolak CSRF)
+
+Laporan lapangan: tombol/scanner OCR di form FirstWork "tidak berfungsi".
+Ternyata bukan mesin OCR-nya — Tesseract sehat dan membaca KTP sintetis
+dengan benar — melainkan **permintaan OCR selalu ditolak CSRF sebelum
+sempat diproses**.
+
+`/api/first-work/ocr-ktp` adalah helper untuk form publik, tetapi tidak ikut
+didaftarkan di `CSRF_EXEMPT_PREFIXES` padahal endpoint submit publik
+(`/api/first-work/public`) sudah. Akibatnya:
+
+- Pendaftar anonim: OCR jalan normal.
+- Traineer/Admin yang membuka form sambil login: setiap POST ditolak
+  **400 dalam 0 ms** dengan pesan "CSRF token tidak valid", sehingga fitur
+  terlihat rusak justru saat diuji petugas.
+
+Perbaikan: endpoint OCR kini dikecualikan dari CSRF seperti submit publik.
+Pengamannya tetap: token cabang wajib, rate limit per IP, hanya JPG/PNG,
+maksimal 5 MB, dan file tidak disimpan.
+
+Sekalian: kuota OCR dinaikkan **6 → 10 per 10 menit per IP**, disamakan
+dengan kuota submit. Satu kantor biasanya keluar lewat satu IP NAT, jadi
+kuota 6 terlalu cepat habis saat beberapa pendaftar memindai KTP berurutan.
+
+---
+
 ## v2.109.0 — 17 November 2026 (KTP dulu di form FirstWork, fitur PO dibuang)
 
 Dua hal yang sama-sama soal urusan lapangan: pendaftar FirstWork tidak lagi
