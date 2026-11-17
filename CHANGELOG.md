@@ -7,6 +7,39 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.110.0 — 17 November 2026 (OCR KTP lebih akurat)
+
+Laporan lapangan: hasil OCR KTP masih sering salah. Setelah diuji pada foto
+KTP asli, masalahnya memang nyata: model bawaan `tesseract-ocr-ind` yang
+dipakai adalah **tessdata_fast** (ind 1,1 MB), dan praprosesnya hanya satu
+jalur sederhana.
+
+**Mesin:** image kini memasang model **tessdata_best** (ind 7,9 MB, eng
+15 MB, diunduh saat build Dockerfile) sebagai pengganti model fast.
+
+**Algoritma** (`modules/ktp_ocr.py`) diperbarui menjadi voting lintas varian:
+
+- Empat varian gambar dibaca berurutan — `gray` (autocontrast), `sharp`
+  (unsharp mask), `bin` (ambang adaptif lokal, meredam pola guilloche &
+  hologram), dan `plain` (tanpa autocontrast) — lalu berhenti begitu NIK &
+  nama terkumpul.
+- NIK diambil dari area di kanan label "NIK" (whitelist angka) dan divoting
+  dengan bobot: `sharp` 3, `bin` 2, `gray`/`plain` 1. Kandidat dibersihkan
+  dari kekeliruan karakter umum (O→0, l→1, S→5, B→8, Z→2, G→6) dan
+  difilter tanggal lahir sebelum dipilih.
+- Nama diambil dari baris "Nama" halaman penuh (ROI hanya cadangan, karena
+  crop sering memotong huruf), dibersihkan dari label sisa dan artefak satu
+  huruf di ujung.
+- Bila belum lengkap, dicoba rotasi 90/180/270 untuk foto HP yang miring
+  atau tegak.
+
+**Hasil pengujian** pada sampel KTP asli + 7 varian rusak (miring, blur,
+JPEG, gelap, low-res, telepon): NIK 8/8 benar (sebelumnya 6/8), nama pada
+sampel asli kini lengkap dan bersih. Waktu rata-rata ~1,5 detik per scan
+(berhenti lebih cepat bila keyakinan sudah kuat).
+
+---
+
 ## v2.109.1 — 17 November 2026 (Perbaiki OCR KTP yang selalu ditolak CSRF)
 
 Laporan lapangan: tombol/scanner OCR di form FirstWork "tidak berfungsi".

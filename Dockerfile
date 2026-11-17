@@ -26,10 +26,17 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-reco
     poppler-utils \
     tesseract-ocr \
     tesseract-ocr-ind \
+    curl \
     ffmpeg \
     ghostscript \
     qpdf \
     && rm -rf /var/lib/apt/lists/*
+# v2.110.0: model tessdata_best (akurat) menggantikan versi fast bawaan
+# paket. ind ~7,9 MB, eng ~15 MB; diambil dari tessdata_best GitHub.
+RUN curl -fsSL -o /usr/share/tesseract-ocr/5/tessdata/ind.traineddata \
+        https://raw.githubusercontent.com/tesseract-ocr/tessdata_best/main/ind.traineddata \
+ && curl -fsSL -o /usr/share/tesseract-ocr/5/tessdata/eng.traineddata \
+        https://raw.githubusercontent.com/tesseract-ocr/tessdata_best/main/eng.traineddata
 # v2.47.0: ghostscript + qpdf = mesin kompres PDF (modul PDF Kit, role IT).
 # Ghostscript = lossy bertingkat (pdfwrite); qpdf = lossless struktural.
 # poppler-utils (pdfinfo/pdfsig/pdftotext) dipakai untuk memeriksa sifat PDF

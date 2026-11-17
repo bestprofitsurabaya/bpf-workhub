@@ -1,16 +1,29 @@
-"""OCR KTP FirstWork (v2.91.0 — P5 lanjutan).
+"""OCR KTP FirstWork (v2.110.0).
 
 Membantu mengisi NIK & nama dari foto KTP. Sifatnya BANTUAN — keputusan
 verifikasi tetap manusia, dan pengguna wajib memeriksa hasilnya.
 
-v2.91.0 — dua jalur (dual-pipeline), mengikuti temuan riset bahwa Tesseract
-pada KTP mentah hanya ~40–65% dan naik bila teks dicari per area:
-1. Halaman penuh (`--psm 6`) untuk konteks baris.
-2. ROI: cari kata kunci "NIK"/"Nama" dari kotak kata Tesseract, potong area
-   di kanannya, lalu baca ulang (`--psm 7`) — NIK dengan whitelist angka.
-3. Jika NIK belum ditemukan, ulangi halaman penuh dengan `--psm 11` (sparse).
-Kandidat digabung, difilter tanggal-lahir valid, lalu dipilih dengan voting
-(frekuensi) dan keyakinan Tesseract.
+v2.89.0 — jalur ROI berbasis kata kunci NIK/Nama.
+v2.91.0 — dua jalur (halaman penuh + ROI), voting sederhana.
+v2.110.0 — model tessdata_best + voting berbobot lintas varian praproses.
+
+Empat varian gambar dibaca berurutan (berhenti begitu NIK & nama terkumpul):
+
+1. `gray`  : grayscale + autocontrast + upscale (teks KTP kecil).
+2. `sharp` : gray + unsharp mask (tepi huruf lebih tegas).
+3. `bin`   : ambang adaptif lokal (numpy) — pola guilloche, hologram, dan
+   latar KTP biasanya lebih teredam daripada teks yang tajam.
+4. `plain` : grayscale + upscale, tanpa autocontrast.
+
+NIK diambil dari area ROI di kanan label "NIK" (whitelist angka), lalu
+divoting lintas varian dengan bobot: sharp/bin = 2, gray/plain = 1. Kandidat
+dibersihkan dari kekeliruan karakter umum (O→0, l→1, S→5, B→8, Z→2, G→6)
+dan difilter tanggal lahir sebelum dipilih. Baris halaman penuh dipakai
+bila ROI gagal. Nama diambil dari baris "Nama" halaman penuh (ROI hanya
+cadangan, karena crop sering memotong huruf).
+
+Bila NIK & nama belum lengkap pada sudut 0°, dicoba rotasi 90/180/270 — foto
+HP sering menghasilkan gambar miring atau tegak.
 """
 import os
 import re
@@ -18,16 +31,28 @@ import subprocess
 import tempfile
 from collections import Counter
 
-from PIL import Image, ImageOps
+import numpy as np
+from PIL import Image, ImageFilter, ImageOps
 
-MAX_SIDE = 1600
-OCR_TIMEOUT = 25
-MIN_WIDTH = 900
+OCR_TIMEOUT = 30
+MIN_WIDTH = 1400
+MAX_SIDE = 2400
+
+# Bobot varian untuk voting: varian yang paling tajam/bersih lebih dipercaya.
+VARIANT_WEIGHT = {'gray': 1.0, 'sharp': 3.0, 'bin': 2.0, 'plain': 1.0}
 
 _NIK_LINE = re.compile(r'(?i)\bnik\b')
 _NIK_DIGITS = re.compile(r'\d{16}')
 _NAMA_PREFIX = re.compile(r'(?i)^\s*nama\b')
 _NAMA_CLEAN = re.compile(r"[^A-Za-z .'\-]")
+
+# Kekeliruan umum Tesseract pada angka; dipakai HANYA untuk kandidat NIK.
+_DIGIT_FIX = str.maketrans({
+    'O': '0', 'o': '0', 'Q': '0', 'D': '0', 'U': '0',
+    'I': '1', 'l': '1', 'i': '1', '|': '1', '!': '1',
+    'S': '5', 's': '5', 'B': '8', 'Z': '2', 'z': '2',
+    'G': '6', 'g': '6', 'T': '7',
+})
 
 
 def _tesseract_available():
@@ -39,19 +64,52 @@ def _tesseract_available():
         return False
 
 
-def _prepare(src_path, out_path):
-    """Grayscale + autocontrast + upscale gambar kecil (KTP sering <900 px)."""
+def _prepare(src_path):
+    """Grayscale + autocontrast + upscale gambar kecil (KTP sering <1400 px)."""
     with Image.open(src_path) as raw:
         img = ImageOps.exif_transpose(raw).convert('L')
         if img.width < MIN_WIDTH:
             factor = min(3.0, MIN_WIDTH / float(max(1, img.width)))
             img = img.resize((max(1, int(img.width * factor)),
                               max(1, int(img.height * factor))), Image.LANCZOS)
-        img = ImageOps.autocontrast(img)
         if max(img.size) > MAX_SIDE:
             img.thumbnail((MAX_SIDE, MAX_SIDE))
-        img.save(out_path, 'PNG')
+        return ImageOps.autocontrast(img)
+
+
+def _plain_variant(src_path):
+    """Varian tanpa autocontrast — autocontrast kadang menghilangkan kontras
+    halus pada foto gelap/berpola."""
+    with Image.open(src_path) as raw:
+        img = ImageOps.exif_transpose(raw).convert('L')
+        if img.width < MIN_WIDTH:
+            factor = min(3.0, MIN_WIDTH / float(max(1, img.width)))
+            img = img.resize((max(1, int(img.width * factor)),
+                              max(1, int(img.height * factor))), Image.LANCZOS)
+        if max(img.size) > MAX_SIDE:
+            img.thumbnail((MAX_SIDE, MAX_SIDE))
         return img
+
+
+def _variants(base, plain_base):
+    """Varian praproses; urutan menentukan prioritas voting."""
+    yield 'gray', base
+    yield 'sharp', base.filter(ImageFilter.UnsharpMask(
+        radius=2, percent=140, threshold=3))
+    # Ambang adaptif: teks gelap di atas latar lokal yang terang.
+    arr = np.asarray(base, dtype=np.float32)
+    local = np.asarray(base.filter(ImageFilter.BoxBlur(radius=25)),
+                       dtype=np.float32)
+    text_mask = (local - arr) > 10
+    yield 'bin', Image.fromarray(np.where(text_mask, 0, 255).astype(np.uint8), 'L')
+    yield 'plain', plain_base
+
+
+def _save_temp(img):
+    handle, path = tempfile.mkstemp(suffix='.png', prefix='ktpocr_')
+    os.close(handle)
+    img.save(path, 'PNG')
+    return path
 
 
 def _ocr_tsv(path, psm='6', whitelist=None):
@@ -124,45 +182,49 @@ def _nik_date_valid(nik):
     return 1 <= day <= 31 and 1 <= month <= 12
 
 
-def _nik_candidates(lines):
+def _digits_only(text):
+    return re.sub(r'\D', '', str(text or '').translate(_DIGIT_FIX))
+
+
+def _nik_candidates(lines, roi=False, variant=''):
     candidates = []
     for line in lines:
-        text = line['text']
-        digits = re.sub(r'\D', '', text)
-        labelled = bool(_NIK_LINE.search(text))
+        digits = _digits_only(line['text'])
+        labelled = bool(_NIK_LINE.search(line['text']))
         for match in _NIK_DIGITS.finditer(digits):
-            candidates.append({'nik': match.group(0), 'conf': line['conf'],
-                               'labelled': labelled})
+            candidates.append({'nik': match.group(0),
+                               'conf': line['conf'],
+                               'labelled': labelled,
+                               'roi': roi,
+                               'variant': variant})
     return candidates
-
-
-def _pick_nik(candidates):
-    """Pilih NIK: filter tanggal valid dulu, lalu voting + keyakinan."""
-    valid = [c for c in candidates
-             if len(str(c.get('nik') or '')) == 16 and _nik_date_valid(c['nik'])]
-    if not valid:
-        return None
-    counts = Counter(c['nik'] for c in valid)
-
-    def score(candidate):
-        # Label NIK dari ROI/halaman lebih dipercaya daripada kebetulan
-        # 16 digit di alamat; frekuensi hanya penguat kecil.
-        return (float(candidate.get('conf') or 0)
-                + (30.0 if candidate.get('labelled') else 0.0)
-                + 2.0 * counts[candidate['nik']])
-
-    return max(valid, key=score)
 
 
 def _clean_name(value):
     text = _NAMA_CLEAN.sub(' ', str(value or ''))
     text = re.sub(r'\s+', ' ', text).strip(" .-'")
+    words = [w for w in text.split(' ') if w]
+    out = []
+    for word in words:
+        letters = re.sub(r'[^A-Za-z]', '', word)
+        if len(letters) < 2:
+            continue
+        # KTP umumnya huruf kapital: perbaiki 'BILi' -> 'BILI'.
+        if letters.isupper() or any(c.isupper() for c in letters):
+            word = word.upper()
+        else:
+            word = word.capitalize()
+        out.append(word)
+    # Sisa satu huruf di ujung hampir selalu artefak OCR ('... SUSILO a').
+    if len(out) >= 2 and len(re.sub(r"[^A-Za-z]", '', out[-1])) == 1:
+        out.pop()
+    text = ' '.join(out)
     if len(text) >= 3 and re.search(r'[A-Za-z]{3}', text):
         return text
     return ''
 
 
-def _nama_candidates(lines):
+def _nama_candidates(lines, roi=False, variant=''):
     candidates = []
     for line in lines:
         text = line['text'].strip()
@@ -171,18 +233,8 @@ def _nama_candidates(lines):
         value = _clean_name(_NAMA_PREFIX.sub('', text).lstrip(' :.-'))
         if value:
             candidates.append({'nama': value, 'conf': line['conf'],
-                               'labelled': True})
+                               'roi': roi, 'variant': variant})
     return candidates
-
-
-def _pick_nama(candidates):
-    usable = [c for c in candidates if c.get('nama')]
-    if not usable:
-        return None
-    usable.sort(key=lambda c: (bool(c.get('labelled')),
-                               float(c.get('conf') or 0),
-                               len(c['nama'])), reverse=True)
-    return usable[0]
 
 
 def _find_anchor(words, keyword):
@@ -196,31 +248,30 @@ def _find_anchor(words, keyword):
 
 
 def _right_box(anchor, img, width_frac):
-    x0 = min(img.width - 8, anchor['left'] + anchor['width'] + 3)
-    y0 = max(0, anchor['top'] - int(anchor['height'] * 0.8))
-    x1 = min(img.width, anchor['left'] + int(img.width * width_frac))
-    y1 = min(img.height, anchor['top'] + int(anchor['height'] * 1.9))
+    """Area di kanan label, setinggi baris label itu."""
+    x0 = min(img.width - 8, anchor['left'] + anchor['width'] + 2)
+    y0 = max(0, anchor['top'] - int(anchor['height'] * 0.7))
+    x1 = min(img.width, x0 + int(img.width * width_frac))
+    y1 = min(img.height, anchor['top'] + int(anchor['height'] * 1.7))
     if x1 - x0 < 20 or y1 - y0 < 12:
         return None
     return (x0, y0, x1, y1)
 
 
-def _region_ocr(img, box, whitelist=None):
-    """Baca satu area kecil dengan psm 7; kembalikan teks + keyakinan."""
+def _region_ocr(img, box, whitelist=None, psm='7'):
+    """Baca satu area kecil; kembalikan teks + keyakinan."""
     if not box:
         return None
     crop = img.crop(box)
     canvas = Image.new('L', (crop.width + 16, crop.height + 16), 255)
     canvas.paste(crop, (8, 8))
-    if canvas.width < 760:
+    if canvas.width < 900:
         factor = 2
         canvas = canvas.resize((canvas.width * factor, canvas.height * factor),
                                Image.LANCZOS)
-    handle, path = tempfile.mkstemp(suffix='.png', prefix='ktpocr_roi_')
-    os.close(handle)
+    path = _save_temp(canvas)
     try:
-        canvas.save(path, 'PNG')
-        words = [w for w in _words_from_tsv(_ocr_tsv(path, '7', whitelist))
+        words = [w for w in _words_from_tsv(_ocr_tsv(path, psm, whitelist))
                  if w['text'].strip()]
     finally:
         try:
@@ -229,9 +280,54 @@ def _region_ocr(img, box, whitelist=None):
             pass
     if not words:
         return None
-    confs = [w['conf'] for w in words if w['conf'] >= 0]
-    return {'text': ' '.join(w['text'] for w in words),
-            'conf': (sum(confs) / len(confs)) if confs else 0}
+    confs = [w['conf'] for w in words if w['conf'] > 0]
+    # Tesseract sering mengembalikan keyakinan 0 pada crop whitelist;
+    # beri nilai netral agar kandidat ROI masih bisa menang voting.
+    conf = (sum(confs) / len(confs)) if confs else 70.0
+    return {'text': ' '.join(w['text'] for w in words), 'conf': conf}
+
+
+def _aggregate_nik(candidates):
+    """Gabung kandidat NIK: total bobot varian + keyakinan maksimum."""
+    agg = {}
+    for c in candidates:
+        nik = c.get('nik') or ''
+        if len(nik) != 16 or not _nik_date_valid(nik):
+            continue
+        weight = VARIANT_WEIGHT.get(c.get('variant') or '', 1.0)
+        if c.get('roi'):
+            weight *= 3.0
+        item = agg.setdefault(nik, {'nik': nik, 'weight': 0.0, 'conf': 0.0})
+        item['weight'] += weight
+        item['conf'] = max(item['conf'], float(c.get('conf') or 0))
+    return list(agg.values())
+
+
+def _pick_nik(aggregated):
+    if not aggregated:
+        return None
+    aggregated.sort(key=lambda c: (c['weight'], c['conf']), reverse=True)
+    return aggregated[0]
+
+
+def _aggregate_nama(candidates):
+    agg = {}
+    for c in candidates:
+        nama = c.get('nama') or ''
+        weight = VARIANT_WEIGHT.get(c.get('variant') or '', 1.0)
+        if c.get('roi'):
+            weight *= 0.5  # ROI nama sering terpotong; halaman penuh lebih aman
+        item = agg.setdefault(nama, {'nama': nama, 'weight': 0.0, 'conf': 0.0})
+        item['weight'] += weight
+        item['conf'] = max(item['conf'], float(c.get('conf') or 0))
+    return list(agg.values())
+
+
+def _pick_nama(aggregated):
+    if not aggregated:
+        return None
+    aggregated.sort(key=lambda c: (c['weight'], c['conf']), reverse=True)
+    return aggregated[0]
 
 
 def extract_ktp(src_path):
@@ -245,53 +341,113 @@ def extract_ktp(src_path):
     if not _tesseract_available():
         raise RuntimeError('Mesin OCR belum tersedia di server ini.')
 
-    handle, prepared = tempfile.mkstemp(suffix='.png', prefix='ktpocr_')
-    os.close(handle)
+    base = _prepare(src_path)
+    plain_base = _plain_variant(src_path)
+    lines_count = 0
+    nik = None
+    nama = None
     try:
-        img = _prepare(src_path, prepared)
-        tsv = _ocr_tsv(prepared, '6')
-        words = _words_from_tsv(tsv)
-        lines = _lines_from_tsv(tsv)
+        for angle in (0, 90, 180, 270):
+            rotated = base.rotate(angle, expand=True, fillcolor=255) if angle else base
+            rotated_plain = (plain_base.rotate(angle, expand=True, fillcolor=255)
+                             if angle else plain_base)
+            nik_candidates = []
+            nama_candidates = []
+            for variant, img in _variants(rotated, rotated_plain):
+                try:
+                    path = _save_temp(img)
+                    try:
+                        tsv = _ocr_tsv(path, '6')
+                    finally:
+                        try:
+                            os.remove(path)
+                        except OSError:
+                            pass
+                    words = _words_from_tsv(tsv)
+                    lines = _lines_from_tsv(tsv)
+                    lines_count = max(lines_count, len(lines))
+                    nik_candidates.extend(
+                        _nik_candidates(lines, roi=False, variant=variant))
+                    nama_candidates.extend(
+                        _nama_candidates(lines, roi=False, variant=variant))
 
-        nik_candidates = _nik_candidates(lines)
-        nama_candidates = _nama_candidates(lines)
+                    nik_anchor = _find_anchor(words, 'NIK')
+                    if nik_anchor:
+                        roi_hits = {}
+                        for psm in ('7', '13'):
+                            region = _region_ocr(
+                                img, _right_box(nik_anchor, img, 0.7),
+                                '0123456789', psm)
+                            if region:
+                                for match in _NIK_DIGITS.finditer(
+                                        _digits_only(region['text'])):
+                                    nik = match.group(0)
+                                    roi_hits[nik] = max(
+                                        roi_hits.get(nik, 0.0),
+                                        float(region['conf'] or 0))
+                        # Satu varian = satu suara, walau dibaca dua PSM.
+                        for nik, conf in roi_hits.items():
+                            nik_candidates.append({'nik': nik, 'conf': conf,
+                                                   'roi': True,
+                                                   'variant': variant})
 
-        nik_anchor = _find_anchor(words, 'NIK')
-        if nik_anchor:
-            region = _region_ocr(img, _right_box(nik_anchor, img, 0.62), '0123456789')
-            if region:
-                digits = re.sub(r'\D', '', region['text'])
-                for match in _NIK_DIGITS.finditer(digits):
-                    nik_candidates.append({'nik': match.group(0),
-                                           'conf': region['conf'],
-                                           'labelled': True})
+                    # Nama dari ROI hanya bila baris halaman penuh belum ada.
+                    if not _pick_nama(_aggregate_nama(nama_candidates)):
+                        nama_anchor = _find_anchor(words, 'NAMA')
+                        if nama_anchor:
+                            region = _region_ocr(
+                                img, _right_box(nama_anchor, img, 0.95))
+                            if region:
+                                value = _clean_name(region['text'])
+                                if value:
+                                    nama_candidates.append(
+                                        {'nama': value, 'conf': region['conf'],
+                                         'roi': True, 'variant': variant})
+                except (RuntimeError, OSError, ValueError):
+                    continue
 
-        nama_anchor = _find_anchor(words, 'NAMA')
-        if nama_anchor:
-            region = _region_ocr(img, _right_box(nama_anchor, img, 0.68))
-            if region:
-                value = _clean_name(region['text'])
-                if value:
-                    nama_candidates.append({'nama': value,
-                                            'conf': region['conf'],
-                                            'labelled': True})
+                nik = _pick_nik(_aggregate_nik(nik_candidates))
+                nama = _pick_nama(_aggregate_nama(nama_candidates))
+                # Berhenti cepat hanya bila NIK punya dukungan kuat
+                # (satu varian tajam = 6, atau dua varian lemah).
+                if nik and nama and nik.get('weight', 0.0) >= 6.0:
+                    break
 
-        if not _pick_nik(nik_candidates):
-            sparse = _lines_from_tsv(_ocr_tsv(prepared, '11'))
-            nik_candidates.extend(_nik_candidates(sparse))
-            nama_candidates.extend(_nama_candidates(sparse))
+            nik = _pick_nik(_aggregate_nik(nik_candidates))
+            nama = _pick_nama(_aggregate_nama(nama_candidates))
+            if nik and nama:
+                break
+            # Fallback halaman penuh (sparse) bila varian normal gagal.
+            try:
+                sparse_path = _save_temp(rotated)
+                try:
+                    sparse = _lines_from_tsv(_ocr_tsv(sparse_path, '11'))
+                finally:
+                    try:
+                        os.remove(sparse_path)
+                    except OSError:
+                        pass
+            except (RuntimeError, OSError):
+                continue
+            nik_candidates.extend(
+                _nik_candidates(sparse, roi=False, variant='sparse'))
+            nama_candidates.extend(
+                _nama_candidates(sparse, roi=False, variant='sparse'))
+            nik = _pick_nik(_aggregate_nik(nik_candidates))
+            nama = _pick_nama(_aggregate_nama(nama_candidates))
+            if nik and nama:
+                break
+    except (RuntimeError, OSError, ValueError):
+        # Mesin OCR rusak total: kembalikan apa pun yang sempat terkumpul.
+        nik = nik or None
+        nama = nama or None
 
-        nik = _pick_nik(nik_candidates) or {}
-        nama = _pick_nama(nama_candidates) or {}
-        confidence = max(float(nik.get('conf') or 0), float(nama.get('conf') or 0))
-        return {
-            'nik': nik.get('nik') or '',
-            'nama': nama.get('nama') or '',
-            'confidence': int(round(confidence)),
-            'lines': len(lines),
-        }
-    finally:
-        try:
-            os.remove(prepared)
-        except OSError:
-            pass
+    nik = nik or {}
+    nama = nama or {}
+    confidence = max(float(nik.get('conf') or 0), float(nama.get('conf') or 0))
+    return {
+        'nik': nik.get('nik') or '',
+        'nama': nama.get('nama') or '',
+        'confidence': int(round(confidence)),
+        'lines': lines_count,
+    }
