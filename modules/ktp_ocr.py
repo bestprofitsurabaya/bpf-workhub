@@ -1,12 +1,10 @@
-"""OCR KTP FirstWork (v2.111.1).
+"""OCR KTP FirstWork (v2.111.0).
 
 Membantu mengisi NIK & nama dari foto KTP. Sifatnya BANTUAN — keputusan
 verifikasi tetap manusia, dan pengguna wajib memeriksa hasilnya.
 
 v2.89.0 — jalur ROI berbasis kata kunci NIK/Nama.
 v2.91.0 — dua jalur (halaman penuh + ROI), voting sederhana.
-v2.111.1 — label NIK tidak lagi ikut dipetakan ke digit; baris NIK yang
-           disetujui >=3 varian diprioritaskan di atas crop token.
 v2.111.0 — model tessdata_best + voting berbobot lintas varian praproses.
 
 Empat varian gambar dibaca berurutan (berhenti begitu NIK & nama terkumpul):
@@ -185,20 +183,14 @@ def _nik_date_valid(nik):
     return 1 <= day <= 31 and 1 <= month <= 12
 
 
-def _digits_only(text, strip_labels=False):
-    text = str(text or '')
-    if strip_labels:
-        # Label 'NIK' mengandung huruf I yang dipetakan ke '1'. Bila tidak
-        # dibuang, baris 'NIK : 3379 6327 4393 5797' menjadi 17 digit dan
-        # NIK yang benar tidak pernah menjadi kandidat.
-        text = _NIK_LINE.sub(' ', text)
-    return re.sub(r'\D', '', text.translate(_DIGIT_FIX))
+def _digits_only(text):
+    return re.sub(r'\D', '', str(text or '').translate(_DIGIT_FIX))
 
 
 def _nik_candidates(lines, roi=False, variant=''):
     candidates = []
     for line in lines:
-        digits = _digits_only(line['text'], strip_labels=True)
+        digits = _digits_only(line['text'])
         labelled = bool(_NIK_LINE.search(line['text']))
         for match in _NIK_DIGITS.finditer(digits):
             candidates.append({'nik': match.group(0),
@@ -418,44 +410,6 @@ def _pick_nik(aggregated):
     return aggregated[0]
 
 
-def _nik_line_support(candidates):
-    """NIK yang muncul sebagai baris berlabel di beberapa varian."""
-    support = {}
-    for c in candidates:
-        nik = c.get('nik') or ''
-        if len(nik) != 16 or not _nik_date_valid(nik):
-            continue
-        if not c.get('labelled'):
-            continue
-        support.setdefault(nik, set()).add(c.get('variant') or '')
-    return support
-
-
-def _pick_nik_best(candidates, birth=None):
-    """Pilih NIK; baris yang disetujui >=3 varian mengalahkan crop token.
-
-    Ambang 3 (bukan 2) penting: pada KTP nyata, dua varian yang bersaudara
-    (gray+plain) bisa sama-sama salah membaca nomor seri, sementara crop
-    token yang benar hanya muncul di varian lain. Tiga varian baru cukup
-    kuat untuk mengalahkan bobot token.
-    """
-    aggregated = _aggregate_nik(candidates, birth)
-    if not aggregated:
-        return None
-    support = _nik_line_support(candidates)
-    for item in aggregated:
-        item['support'] = len(support.get(item['nik'], ()))
-    corroborated = [c for c in aggregated if c['support'] >= 3]
-    if corroborated:
-        corroborated.sort(key=lambda c: (c['weight'], c['support'], c['conf']),
-                          reverse=True)
-        return corroborated[0]
-    # Tanpa baris yang disetujui >=3 varian, bobot token tetap penentu.
-    # Dukungan 2 varian TIDAK boleh menang hanya karena jumlah varian.
-    aggregated.sort(key=lambda c: (c['weight'], c['conf']), reverse=True)
-    return aggregated[0]
-
-
 def _aggregate_nama(candidates):
     agg = {}
     for c in candidates:
@@ -499,12 +453,7 @@ def extract_ktp(src_path):
                              if angle else plain_base)
             nik_candidates = []
             nama_candidates = []
-            variant_images = []
             birth = None
-
-            # Tahap 1 — baca halaman penuh tiap varian. Baris NIK yang
-            # disetujui >=2 varian adalah bukti terkuat; jangan berhenti
-            # setelah varian pertama.
             for variant, img in _variants(rotated, rotated_plain):
                 try:
                     path = _save_temp(img)
@@ -518,98 +467,83 @@ def extract_ktp(src_path):
                     words = _words_from_tsv(tsv)
                     lines = _lines_from_tsv(tsv)
                     lines_count = max(lines_count, len(lines))
-                    variant_images.append((variant, img, words))
                     nik_candidates.extend(
                         _nik_candidates(lines, roi=False, variant=variant))
                     nama_candidates.extend(
                         _nama_candidates(lines, roi=False, variant=variant))
                     if birth is None:
                         birth = _birth_date_from_lines(lines)
+
+                    # NIK: crop kata-kata nilai di kanan label + voting
+                    # lintas varian. Ini jalur paling akurat.
+                    nik_candidates.extend(_nik_token_hits(img, words, variant))
+
+                    nik_anchor = _find_anchor(words, 'NIK')
+                    if nik_anchor:
+                        roi_hits = {}
+                        for psm in ('7', '13'):
+                            region = _region_ocr(
+                                img, _right_box(nik_anchor, img, 0.7),
+                                '0123456789', psm)
+                            if region:
+                                for match in _NIK_DIGITS.finditer(
+                                        _digits_only(region['text'])):
+                                    nik = match.group(0)
+                                    roi_hits[nik] = max(
+                                        roi_hits.get(nik, 0.0),
+                                        float(region['conf'] or 0))
+                        # Satu varian = satu suara, walau dibaca dua PSM.
+                        for nik, conf in roi_hits.items():
+                            nik_candidates.append({'nik': nik, 'conf': conf,
+                                                   'roi': True,
+                                                   'variant': variant})
+
+                    # Nama dari ROI hanya bila baris halaman penuh belum ada.
+                    if not _pick_nama(_aggregate_nama(nama_candidates)):
+                        nama_anchor = _find_anchor(words, 'NAMA')
+                        if nama_anchor:
+                            region = _region_ocr(
+                                img, _right_box(nama_anchor, img, 0.95))
+                            if region:
+                                value = _clean_name(region['text'])
+                                if value:
+                                    nama_candidates.append(
+                                        {'nama': value, 'conf': region['conf'],
+                                         'roi': True, 'variant': variant})
                 except (RuntimeError, OSError, ValueError):
                     continue
 
-            nik = _pick_nik_best(nik_candidates, birth)
-            nama = _pick_nama(_aggregate_nama(nama_candidates))
-            strong = bool(nik and nik.get('support', 0) >= 3)
-
-            # Tahap 2 — crop nilai di kanan label hanya bila baris belum
-            # disetujui dua varian. Di sinilah foto miring/hologram dibantu.
-            if not strong:
-                for variant, img, words in variant_images:
-                    # Token hanya pada dua varian terkuat; gray/plain sering
-                    # membaca nomor seri yang sama-sama salah dan membuat
-                    # scan dua kali lebih lama tanpa menambah bukti.
-                    if variant not in ('sharp', 'bin'):
-                        continue
-                    try:
-                        nik_candidates.extend(
-                            _nik_token_hits(img, words, variant))
-
-                        nik_anchor = _find_anchor(words, 'NIK')
-                        if nik_anchor:
-                            roi_hits = {}
-                            for psm in ('7', '13'):
-                                region = _region_ocr(
-                                    img, _right_box(nik_anchor, img, 0.7),
-                                    '0123456789', psm)
-                                if region:
-                                    for match in _NIK_DIGITS.finditer(
-                                            _digits_only(region['text'])):
-                                        hit = match.group(0)
-                                        roi_hits[hit] = max(
-                                            roi_hits.get(hit, 0.0),
-                                            float(region['conf'] or 0))
-                            # Satu varian = satu suara, walau dua PSM.
-                            for hit, conf in roi_hits.items():
-                                nik_candidates.append({'nik': hit, 'conf': conf,
-                                                       'roi': True,
-                                                       'variant': variant})
-
-                        # Nama dari ROI hanya bila baris belum menghasilkan.
-                        if not nama:
-                            nama_anchor = _find_anchor(words, 'NAMA')
-                            if nama_anchor:
-                                region = _region_ocr(
-                                    img, _right_box(nama_anchor, img, 0.95))
-                                if region:
-                                    value = _clean_name(region['text'])
-                                    if value:
-                                        nama_candidates.append(
-                                            {'nama': value,
-                                             'conf': region['conf'],
-                                             'roi': True, 'variant': variant})
-                    except (RuntimeError, OSError, ValueError):
-                        continue
-
-                nik = _pick_nik_best(nik_candidates, birth)
+                nik = _pick_nik(_aggregate_nik(nik_candidates, birth))
                 nama = _pick_nama(_aggregate_nama(nama_candidates))
-                strong = bool(nik and nik.get('support', 0) >= 3)
-
-            if nik and (nama or strong):
-                break
-
-            # Fallback halaman penuh (sparse) hanya bila NIK belum ada —
-            # jangan biarkan hasil sparse menimpa kandidat yang sudah baik.
-            if nik is None:
-                try:
-                    sparse_path = _save_temp(rotated)
-                    try:
-                        sparse = _lines_from_tsv(_ocr_tsv(sparse_path, '11'))
-                    finally:
-                        try:
-                            os.remove(sparse_path)
-                        except OSError:
-                            pass
-                except (RuntimeError, OSError):
-                    continue
-                nik_candidates.extend(
-                    _nik_candidates(sparse, roi=False, variant='sparse'))
-                nama_candidates.extend(
-                    _nama_candidates(sparse, roi=False, variant='sparse'))
-                nik = _pick_nik_best(nik_candidates, birth)
-                nama = _pick_nama(_aggregate_nama(nama_candidates))
-                if nik and nama:
+                # Berhenti cepat hanya bila NIK punya dukungan kuat
+                # (satu varian tajam = 6, atau dua varian lemah).
+                if nik and nama and nik.get('weight', 0.0) >= 6.0:
                     break
+
+            nik = _pick_nik(_aggregate_nik(nik_candidates, birth))
+            nama = _pick_nama(_aggregate_nama(nama_candidates))
+            if nik and nama:
+                break
+            # Fallback halaman penuh (sparse) bila varian normal gagal.
+            try:
+                sparse_path = _save_temp(rotated)
+                try:
+                    sparse = _lines_from_tsv(_ocr_tsv(sparse_path, '11'))
+                finally:
+                    try:
+                        os.remove(sparse_path)
+                    except OSError:
+                        pass
+            except (RuntimeError, OSError):
+                continue
+            nik_candidates.extend(
+                _nik_candidates(sparse, roi=False, variant='sparse'))
+            nama_candidates.extend(
+                _nama_candidates(sparse, roi=False, variant='sparse'))
+            nik = _pick_nik(_aggregate_nik(nik_candidates, birth))
+            nama = _pick_nama(_aggregate_nama(nama_candidates))
+            if nik and nama:
+                break
     except (RuntimeError, OSError, ValueError):
         # Mesin OCR rusak total: kembalikan apa pun yang sempat terkumpul.
         nik = nik or None
