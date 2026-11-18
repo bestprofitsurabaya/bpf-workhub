@@ -204,9 +204,21 @@ class TestAdmin:
         rv = _delete(client)
         assert rv.status_code == 403
 
-    def test_admin_master_bisa_semua_cabang(self, monkeypatch):
-        """admin_master = Admin Pusat (nama legacy)."""
+    def test_admin_master_tanpa_flag_diperlakukan_admin_cabang(self, monkeypatch):
+        """v2.114.0: hak lintas cabang dari flag, bukan nama akun.
+
+        Dulu `admin_master` dianggap Pusat hanya karena namanya. Akun bernama
+        itu tanpa `admin_all_branches=1` kini terkunci ke cabang sesi.
+        """
         conn = FakeConn([_row(branch_code='MLG')])
+        client, _ = _client(monkeypatch, conn, role='admin',
+                            username='admin_master', branch='SBY')
+        rv = _delete(client)
+        assert rv.status_code == 403
+        assert 1849 in conn.rows
+
+    def test_admin_master_dengan_flag_bisa_semua_cabang(self, monkeypatch):
+        conn = FakeConn([_row(branch_code='MLG')], ho_flag=1)
         client, _ = _client(monkeypatch, conn, role='admin',
                             username='admin_master', branch='SBY')
         assert _delete(client).status_code == 200

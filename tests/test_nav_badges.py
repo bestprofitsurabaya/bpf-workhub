@@ -79,6 +79,16 @@ def _client(monkeypatch, role, username):
     monkeypatch.setattr(rn, 'get_db_connection', lambda: conn)
     # Badge FirstWork memakai DB master (tabel first_work_submissions)
     monkeypatch.setattr(rn, 'get_master_connection', lambda: conn)
+    # v2.114.0: Admin Pusat memakai total lintas cabang dari overview (cache).
+    # Di unit test, fan-out 12 DB tidak dijalankan — payload-nya di-fake.
+    import modules.branch_overview as bo
+    monkeypatch.setattr(bo, 'overview', lambda *a, **k: {
+        'totals': {
+            'bbm_pending': 30, 'bbm_ready': 20, 'water_pending': 40,
+            'cash_ga': 10, 'cash_finance': 20, 'assignments_pending': 11,
+            'cv_new': 60, 'first_work_new': 50,
+        },
+    })
     app = Flask(__name__)
     app.secret_key = 'test-secret'
     rn.register_nav_routes(app)
@@ -97,8 +107,26 @@ def _allow_first_approval(monkeypatch):
 
 
 class TestNavBadges:
-    def test_admin_mendapat_badge_operasional_tanpa_acc(self, monkeypatch):
+    def test_admin_pusat_memakai_total_lintas_cabang(self, monkeypatch):
         client, conn = _client(monkeypatch, 'admin', 'admin')
+        r = client.get('/api/nav/badges')
+        assert r.status_code == 200
+        # Angka = total overview (bukan cabang sesi): satu fan-out untuk semua
+        # badge, termasuk kasbon GA + Finance yang digabung.
+        assert r.get_json()['badges'] == {
+            'ga_pending': 30,
+            'assignments_pending': 11,
+            'water_pending': 40,
+            'bbm_verify_pending': 20,
+            'cash_pending': 30,
+            'first_work_pending': 50,
+            'cv_online_pending': 60,
+        }
+        assert not any('approval_requests' in q for q in conn.queries)
+        assert conn.closed is True
+
+    def test_admin_cabang_tetap_memakai_angka_cabang_sesi(self, monkeypatch):
+        client, _ = _client(monkeypatch, 'admin', 'admin_sby')
         r = client.get('/api/nav/badges')
         assert r.status_code == 200
         assert r.get_json()['badges'] == {
@@ -110,8 +138,6 @@ class TestNavBadges:
             'first_work_pending': 5,
             'cv_online_pending': 6,
         }
-        assert not any('approval_requests' in q for q in conn.queries)
-        assert conn.closed is True
 
     def test_ga_hanya_antrean_ga_dan_cash_lpj(self, monkeypatch):
         _allow_first_approval(monkeypatch)

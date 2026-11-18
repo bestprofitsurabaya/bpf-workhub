@@ -1,4 +1,4 @@
-# 📋 Daftar User & Role — BPF WorkHub v2.113.2
+# 📋 Daftar User & Role — BPF WorkHub v2.114.0
 
 Dokumen ini menjelaskan semua role yang didukung sistem, siapa yang memakainya, dan apa yang bisa dilakukan masing-masing.
 
@@ -120,6 +120,13 @@ Sistem mendukung **11 peran inti** (peran `it` dipecah per cabang pada daftar di
   tampil, tapi operasional terkunci ke cabangnya: tidak bisa ganti cabang,
   tidak bisa aksi lintas cabang (menu Access Review & Audit Log disembunyikan
   dari sidebar-nya).
+
+**Panel Pusat (v2.114.0):** Admin Pusat melihat satu tabel antrean semua cabang
+di Dashboard (klaim BBM, siap cair, kasbon di driver, LPJ > 7 hari, SPBU
+mismatch, air minum, CV Online, FirstWork). Klik angka = pindah ke cabang itu;
+banner kuning menandai konteks sampai **Kembali ke Pusat**. Badge sidebar Admin
+Pusat = total lintas cabang. Hak lintas cabang hanya dari flag
+`admin_all_branches`/username Pusat — bukan dari nama akun.
 
 **Fitur Khusus:**
 - Manajemen User (`/app/users`) — CRUD, sync, bulk create, reset PIN

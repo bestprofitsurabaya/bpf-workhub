@@ -37,6 +37,23 @@ function mockApi() {
       const id = Number(path.split('/').pop())
       return Promise.resolve(DETAIL(id))
     }
+    if (path.startsWith('/api/branches/overview')) {
+      const empty = { bbm_pending: 0, bbm_ready: 0, kasbon_driver: 0, lpj_late: 0,
+        spbu_mismatch: 0, water_pending: 0, cv_new: 0, first_work_new: 0 }
+      return Promise.resolve({
+        branches: [
+          { code: 'SBY', name: 'Surabaya', db_name: 'bpf_branch_sby', status: 'ok',
+            attention: 7, signals: { ...empty, bbm_pending: 4, bbm_ready: 1, kasbon_driver: 2 },
+            amounts: { kasbon_driver: 5000000 }, errors: [] },
+          { code: 'MLG', name: 'Malang', db_name: 'bpf_branch_mlg', status: 'inactive',
+            attention: 0, signals: { ...empty }, amounts: {}, errors: [] },
+        ],
+        totals: { ...empty, bbm_pending: 4, bbm_ready: 1, kasbon_driver: 2 },
+        amounts: { kasbon_driver: 5000000 },
+        summary: { branches_total: 2, branches_attention: 1, signals_total: 7 },
+        cached: false,
+      })
+    }
     if (path.startsWith('/api/cross-check/')) return Promise.resolve(CROSS)
     return Promise.resolve({ status: 'success', msg: 'ok' })
   })
@@ -317,5 +334,43 @@ describe('AdminDashboard', () => {
     await flushPromises()
     await confirmYes(w)
     expect(apiMock).toHaveBeenCalledWith('/api/queue/unverify/5', { method: 'POST' })
+  })
+})
+
+// v2.114.0 — panel Pusat: satu tabel untuk 12 cabang, klik angka = buka cabang.
+describe('AdminDashboard — panel Pusat', () => {
+  it('Admin Pusat melihat antrean semua cabang & status DB per cabang', async () => {
+    const w = await mountWith('admin')
+    expect(w.text()).toContain('Antrean Semua Cabang')
+    expect(w.text()).toContain('SBY')
+    expect(w.text()).toContain('Surabaya')
+    expect(w.text()).toContain('Terhubung')
+    expect(w.text()).toContain('Nonaktif')
+    // Angka per cabang + total lintas cabang.
+    expect(w.findAll('.ov-count')[0].text()).toContain('4')
+    expect(w.find('tfoot').text()).toContain('4')
+  })
+
+  it('klik angka antrean mengganti cabang aktif (bukan membuka 12 tab)', async () => {
+    const w = await mountWith('admin')
+    await w.findAll('.ov-count')[0].trigger('click')
+    await flushPromises()
+    expect(apiMock).toHaveBeenCalledWith('/api/branches/switch', {
+      method: 'POST', body: { code: 'SBY' },
+    })
+  })
+
+  it('Admin cabang tidak melihat panel Pusat', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    const auth = useAuthStore()
+    auth.user = { role: 'admin', full_name: 'Admin Cabang', user_name: 'admin_sby', is_ho_admin: false }
+    mockApi()
+    const w = mount(AdminDashboard, {
+      global: { plugins: [pinia], stubs: { 'router-link': { template: '<a><slot /></a>' } } },
+    })
+    await flushPromises()
+    await flushPromises()
+    expect(w.text()).not.toContain('Antrean Semua Cabang')
   })
 })

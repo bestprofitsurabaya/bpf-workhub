@@ -49,21 +49,25 @@ Status: **selesai — dirilis v2.113.2.**
 Prinsip yang disepakati: **Pusat = pengawas + pengelola konfigurasi +
 operator darurat (break-glass)**. ACC harian tetap di GA/Finance cabang.
 
-### Fase 1 — "Pusat" yang benar (target rilis v2.114.0)
+### Fase 1 — "Pusat" yang benar (rilis v2.114.0) ✅
 
-- [ ] Endpoint `GET /api/branches/overview` — fan-out ringan ke DB tiap
-      cabang + cache 60 detik; 6 sinyal: klaim BBM menunggu, kasbon di driver,
-      LPJ terlambat, air minum menunggu, overtime menunggu, CV Online /
-      FirstWork baru; status DB per cabang (hasil parsial, bukan gagal total).
-- [ ] Tab **Pusat** di Dashboard Admin: tabel 12 cabang + sinyal + tombol
-      "Buka cabang".
-- [ ] Banner konteks permanen saat Admin Pusat berada di cabang
-      ("Anda Admin Pusat sedang melihat SBY — aksi tercatat atas nama SBY")
-      + tombol "Kembali ke Pusat".
-- [ ] Branch switcher di topbar khusus HO (bukan hanya di Pengaturan).
-- [ ] Badge menu menampilkan total lintas cabang untuk HO.
-- [ ] Hapus sisa cek `admin_master` berbasis **nama** di modul CV Online —
+- [x] Endpoint `GET /api/branches/overview` — fan-out ringan ke DB tiap
+      cabang + cache 60 detik (`?refresh=1`); sinyal: klaim BBM menunggu,
+      siap cair, kasbon di driver (nominal), LPJ > 7 hari, SPBU mismatch, air
+      minum, CV Online, FirstWork (+ kasbon GA/Finance & penugasan untuk
+      badge); status DB per cabang (parsial, bukan gagal total).
+      *Overtime tidak dihitung — tabelnya bukan antrean persetujuan.*
+- [x] Panel **Pusat** di Dashboard Admin: tabel semua cabang + sinyal +
+      status DB + tombol "Buka" dan sel angka yang bisa diklik.
+- [x] Banner konteks permanen saat Admin Pusat berada di cabang
+      ("Anda Admin Pusat sedang melihat SBY — aksi tercatat atas nama cabang")
+      + tombol "Kembali ke Pusat"; disimpan di localStorage agar tahan reload.
+- [x] Branch switcher di topbar khusus HO (bukan hanya di Pengaturan).
+- [x] Badge menu menampilkan total lintas cabang untuk HO (satu cache).
+- [x] Hapus cek `admin_master` berbasis **nama** di CV Online & FirstWork —
       hak lintas cabang hanya dari `admin_all_branches`/`is_ho_admin`.
+- [x] Uji: 346 tes frontend, 103 tes backend terkait, fan-out live 12 cabang
+      (`summary.branches_total=12`, semua `status=ok`), health `v2.114.0`.
 
 ### Fase 2 — Register lintas cabang (target rilis v2.115.0)
 
@@ -86,3 +90,4 @@ operator darurat (break-glass)**. ACC harian tetap di GA/Finance cabang.
 |---|---|---|
 | 18 Nov 2026 | Audit menu "Laporan & Analisis" → v2.113.1 | commit `a5236cf`, health `v2.113.1` |
 | 18 Nov 2026 | Helper CSV + dasar hitung + perbaikan redirect (v2.113.2) | 335 tes frontend + 10 guard lulus, health `v2.113.2` |
+| 18 Nov 2026 | Panel Pusat + switcher + banner + badge total + scope berbasis flag (v2.114.0) | 346 tes frontend, 103 tes backend, fan-out live 12 cabang, health `v2.114.0` |

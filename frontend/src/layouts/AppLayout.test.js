@@ -4,6 +4,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { createRouter, createMemoryHistory } from 'vue-router'
 import AppLayout from './AppLayout.vue'
 import { useAuthStore } from '../stores/auth'
+import { BRANCH_CTX_KEY, _resetBranchContext } from '../stores/branchContext'
 
 const { apiMock, rtMock } = vi.hoisted(() => ({
   apiMock: vi.fn(),
@@ -50,6 +51,8 @@ async function mountLayout({ role = 'admin', userName = 'admin', isHo = true, pa
 describe('AppLayout — P1 navigasi', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    localStorage.removeItem(BRANCH_CTX_KEY)
+    _resetBranchContext()
     localStorage.setItem('bpf_onboarded:admin', '1')
     localStorage.setItem('bpf_onboarded:admin_sby', '1')
   })
@@ -154,6 +157,34 @@ describe('AppLayout — P1 navigasi', () => {
     await flushPromises()
     expect(router.currentRoute.value.path).toBe('/cash')
     expect(w.find('.search-overlay').exists()).toBe(false)
+    w.unmount()
+  })
+
+  // v2.114.0 — Admin Pusat: switcher cabang di topbar + banner konteks.
+  it('switcher cabang hanya muncul untuk Admin Pusat', async () => {
+    const ho = await mountLayout({ userName: 'admin_master', isHo: true })
+    expect(ho.w.find('.ho-branch-switch').exists()).toBe(true)
+    ho.w.unmount()
+
+    const cabang = await mountLayout({ userName: 'admin_sby', isHo: false })
+    expect(cabang.w.find('.ho-branch-switch').exists()).toBe(false)
+    cabang.w.unmount()
+  })
+
+  it('banner konteks Pusat tampil & "Kembali ke Pusat" membersihkannya', async () => {
+    localStorage.setItem(BRANCH_CTX_KEY, JSON.stringify({ code: 'SBY', name: 'Surabaya' }))
+    _resetBranchContext()
+    const { w, router } = await mountLayout({ userName: 'admin_master', isHo: true })
+    const banner = w.find('.ho-ctx')
+    expect(banner.exists()).toBe(true)
+    expect(banner.text()).toContain('Admin Pusat')
+    expect(banner.text()).toContain('Surabaya')
+
+    await banner.find('button').trigger('click')
+    await flushPromises()
+    expect(w.find('.ho-ctx').exists()).toBe(false)
+    expect(localStorage.getItem(BRANCH_CTX_KEY)).toBeNull()
+    expect(router.currentRoute.value.path).toBe('/dashboard')
     w.unmount()
   })
 })

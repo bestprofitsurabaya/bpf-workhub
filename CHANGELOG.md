@@ -7,6 +7,33 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.114.0 — 18 November 2026 (Fase 1: Panel Pusat — antrean semua cabang)
+
+- 🏛 **Panel "Pusat" di Dashboard Admin.** Satu tabel menjawab "cabang mana
+  yang perlu ditindak" tanpa membuka 12 dashboard: klaim BBM menunggu GA,
+  klaim siap dicairkan, kasbon yang masih di driver (dengan nominal), LPJ
+  terlambat > 7 hari, SPBU mismatch, air minum, CV Online, dan FirstWork.
+  Klik angka → langsung pindah ke cabang itu di halaman antreannya.
+- 🔌 **`GET /api/branches/overview`** — fan-out ringan ke DB tiap cabang,
+  **cache 60 detik** (`?refresh=1` untuk angka langsung). DB satu cabang mati
+  atau tabel lama belum ada **tidak** mematikan panel: sinyal itu ditandai
+  "tidak tersedia" dan sisanya tetap tampil. Definisi antrean sama dengan
+  badge sidebar & tab Laporan (tidak ada aturan baru).
+- 🏷 **Badge sidebar Admin Pusat = total lintas cabang**, bukan cabang sesi —
+  dihitung dari cache overview yang sama (satu fan-out untuk semua badge).
+- 🧭 **Switcher cabang di topbar + banner konteks.** Saat Pusat membuka
+  cabang, banner kuning menandai bahwa aksi tercatat atas nama cabang itu,
+  bertahan walau halaman dimuat ulang, dan tombol **🏛 Kembali ke Pusat**
+  membersihkannya.
+- 🔐 **Hak lintas cabang hanya dari flag.** Cek nama `admin_master` di modul
+  CV Online & FirstWork dihapus; `is_ho_admin` (`admin_all_branches` /
+  username Pusat) satu-satunya sumber. Akun bernama itu tanpa flag kini
+  fail-closed sebagai Admin cabang.
+- ✅ Tes: 6 unit `branch_overview` (cache, scope, DB mati, partial), badge
+  Pusat vs cabang, switcher/banner layout, panel Pusat di dashboard.
+- 🧹 Overtime sengaja **tidak** dihitung sebagai antrean: tabelnya mencatat
+  kehadiran, bukan status persetujuan — tidak ada "menunggu" yang jujur.
+
 ## v2.113.2 — 18 November 2026 (Rapikan CSV & tautan laporan lama — Fase 4)
 
 - 🧾 **Satu helper CSV** (`frontend/src/utils/csv.js`) dipakai Rekap, Realisasi,

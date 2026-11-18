@@ -1,4 +1,4 @@
-# 📖 Panduan Pengguna BPF WorkHub v2.113.2
+# 📖 Panduan Pengguna BPF WorkHub v2.114.0
 
 > **Siapa pun kamu — sopir, OB, admin, atau pimpinan — panduan ini ditulis untuk kamu.**
 > Tidak perlu paham teknis. Cukup ikuti langkah-langkah sesuai bagianmu.
@@ -1185,6 +1185,40 @@ Semua kejadian dicatat di **Audit Log**: `mfa_challenge`, `mfa_enroll`,
 `mfa_policy_change`.
 
 ---
+
+### 12.13 Panel Pusat — Mengawasi Semua Cabang 🏛️ (sejak v2.114.0)
+
+Admin Pusat (`admin`, atau akun dengan flag `admin_all_branches=1`) membuka
+**Dashboard → 🏛 Pusat — Antrean Semua Cabang**. Satu tabel menjawab pertanyaan
+"cabang mana yang perlu ditindak hari ini" tanpa membuka 12 dashboard.
+
+**Cara membaca tabel**
+
+- Kolom per antrean: **BBM ⏳** (klaim menunggu GA), **Siap cair** (menunggu
+  Finance), **Kasbon** (dana masih di driver, plus nominal), **LPJ >7h**
+  (LPJ sudah masuk tetapi belum diverifikasi lebih dari 7 hari), **SPBU**
+  (nilai tidak cocok), **Air ⏳**, **CV baru**, dan **FirstWork**.
+- **Klik angka** untuk langsung berpindah ke cabang itu di halaman antreannya.
+  Tidak perlu mengganti cabang dulu di Pengaturan.
+- **Status DB**: *Terhubung* (semua sumber terbaca), *Sebagian* (ada tabel/kolom
+  lama yang belum ada — angka lain tetap tampil), *Gangguan* (DB cabang tidak
+  bisa dihubungi), *Nonaktif* (cabang dimatikan).
+- Angka dibaca dari **cache 60 detik**; klik **🔄** untuk memaksa angka terbaru.
+
+**Konteks cabang & pengaman**
+
+Saat Pusat membuka sebuah cabang, banner kuning muncul di semua halaman:
+*"Anda Admin Pusat sedang melihat SBY — aksi di halaman ini tercatat atas nama
+cabang tersebut."* Banner bertahan walau halaman dimuat ulang. Klik
+**🏛 Kembali ke Pusat** untuk membersihkannya. Switcher cabang juga tersedia di
+topbar (khusus Admin Pusat).
+
+Pusat **bukan approver harian**: ACC BBM/kasbon tetap di GA/Finance cabang.
+Panel Pusat hanya membaca dan menunjuk pekerjaan; tidak mengubah status.
+
+> Hak lintas cabang ditentukan **flag akun**, bukan nama. Sejak v2.114.0 akun
+> bernama `admin_master` tanpa `admin_all_branches=1` diperlakukan sebagai
+> Admin cabang (fail-closed).
 
 ## 13. Kasbon: Alur Lengkap dari A sampai Z
 

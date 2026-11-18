@@ -12,6 +12,7 @@ import LoadingState from '../../components/LoadingState.vue'
 import EmptyState from '../../components/EmptyState.vue'
 import ErrorState from '../../components/ErrorState.vue'
 import { useStepupStore } from '../../stores/stepup'
+import { useBranchContext } from '../../stores/branchContext'
 import { markFirstAction } from '../../utils/usability.js'
 
 const stepup = useStepupStore()
@@ -36,6 +37,7 @@ onMounted(async () => {
   loadQueue()
   loadBranchStats()
   loadNavBadges()
+  loadOverview()
 })
 
 async function refreshStats() {
@@ -114,6 +116,80 @@ function openConsolidatedPdf() {
 
 function openConsolidatedExcel() {
   window.open('/api/branches/consolidated-excel', '_blank')
+}
+
+// ============================================================
+// Pusat (v2.114.0 — Fase 1) — antrean kerja lintas cabang
+// ============================================================
+// Satu tabel menjawab "cabang mana yang perlu ditindak", tanpa membuka 12
+// dashboard. Angka berasal dari /api/branches/overview (cache 60 detik) dan
+// memakai definisi antrean yang sama dengan badge sidebar.
+const branchCtx = useBranchContext()
+const overview = ref(null)
+const overviewLoading = ref(false)
+const overviewErr = ref('')
+const overviewBusy = ref('')
+
+const OVERVIEW_SIGNALS = [
+  { key: 'bbm_pending', label: 'BBM ⏳', title: 'Klaim BBM menunggu verifikasi GA', target: '/ga' },
+  { key: 'bbm_ready', label: 'Siap cair', title: 'Klaim terverifikasi GA, menunggu pencairan Finance', target: '/finance' },
+  { key: 'kasbon_driver', label: 'Kasbon', title: 'Kasbon yang dananya masih di driver', target: '/cash', money: true },
+  { key: 'lpj_late', label: 'LPJ >7h', title: 'LPJ sudah masuk tetapi belum diverifikasi lebih dari 7 hari', target: '/cash', money: true },
+  { key: 'spbu_mismatch', label: 'SPBU', title: 'Nilai BBM tidak cocok dengan data SPBU', target: '/cash' },
+  { key: 'water_pending', label: 'Air ⏳', title: 'Pengajuan air minum menunggu verifikasi', target: '/water' },
+  { key: 'cv_new', label: 'CV baru', title: 'Registrasi CV Online menunggu verifikasi', target: '/cv-online' },
+  { key: 'first_work_new', label: 'FirstWork', title: 'Absensi FirstWork menunggu verifikasi', target: '/first-work' },
+]
+
+async function loadOverview(force = false) {
+  if (!isAdmin.value) return
+  overviewLoading.value = true
+  overviewErr.value = ''
+  try {
+    const d = await api('/api/branches/overview' + (force ? '?refresh=1' : ''))
+    if (!d || !Array.isArray(d.branches)) {
+      throw new Error(d?.error || 'Format ringkasan Pusat tidak dikenali')
+    }
+    overview.value = d
+  } catch (e) {
+    overviewErr.value = e.message
+    overview.value = null
+  } finally {
+    overviewLoading.value = false
+  }
+}
+
+/** Buka satu cabang: ganti sesi, catat konteks, lalu ke halaman antreannya. */
+async function openBranch(b, target) {
+  if (!b || overviewBusy.value) return
+  overviewBusy.value = b.code
+  overviewErr.value = ''
+  try {
+    await api('/api/branches/switch', { method: 'POST', body: { code: b.code } })
+    branchCtx.enter(b.code, b.name)
+    await auth.bootstrap()
+    markFirstAction('pusat:buka-cabang')
+    router.push(target || '/dashboard')
+  } catch (e) {
+    overviewErr.value = e.message
+  } finally {
+    overviewBusy.value = ''
+  }
+}
+
+function overviewCount(b, key) {
+  const v = b?.signals?.[key]
+  return v === null || v === undefined ? null : Number(v)
+}
+
+function dbStatusLabel(status) {
+  return { ok: 'Terhubung', partial: 'Sebagian', inactive: 'Nonaktif' }[status] || 'Gangguan'
+}
+
+function dbStatusTitle(b) {
+  const errors = b?.errors || []
+  if (!errors.length) return 'Semua sumber terbaca'
+  return errors.map((e) => `${e.signal}: ${e.error}`).join('\n')
 }
 
 function exportQueueExcel() {
@@ -511,6 +587,84 @@ watch(queueTab, (tab) => {
       <h2 class="sec-title">📊 Ringkasan Angka</h2>
       <div class="stat-grid">
         <StatCard v-for="c in cards" :key="c.label" :icon="c.icon" :label="c.label" :value="c.value" :color="c.color" :sub="c.sub" />
+      </div>
+
+      <!-- Pusat (v2.114.0) — antrean kerja lintas cabang untuk Admin Pusat -->
+      <div v-if="isHoAdmin" class="card card-pad" style="margin-top:18px;">
+        <div class="row" style="flex-wrap:wrap;gap:8px;align-items:center;">
+          <h3 style="margin:0;">🏛 Pusat — Antrean Semua Cabang</h3>
+          <span class="muted" style="font-size:11px;">
+            Pilih cabang yang perlu ditindak tanpa membuka 12 dashboard.
+          </span>
+          <span v-if="overview?.cached" class="badge" title="Dibaca dari cache 60 detik — klik ⟳ untuk angka langsung">cache 60 dtk</span>
+          <div class="spacer"></div>
+          <button class="btn btn-sm" :disabled="overviewLoading" title="Baca ulang semua cabang (melewati cache)" aria-label="Muat ulang ringkasan Pusat" @click="loadOverview(true)">
+            {{ overviewLoading ? '⏳' : '🔄' }}
+          </button>
+        </div>
+        <p class="muted" style="font-size:11px;margin:8px 0 0;">
+          Klik angka untuk langsung membuka cabang itu di halaman antreannya. Aksi di cabang
+          tercatat atas nama cabang tersebut — kembali ke Pusat lewat banner di atas.
+        </p>
+        <div v-if="overviewErr" class="alert alert-error" style="margin-top:10px;">{{ overviewErr }}</div>
+        <div v-else-if="overviewLoading && !overview" class="empty" style="padding:14px;">⏳ Menghubungi cabang…</div>
+        <div v-else-if="overview?.branches?.length" class="table-wrap" style="margin-top:10px;">
+          <table class="tbl ov-tbl">
+            <thead>
+              <tr>
+                <th>Cabang</th>
+                <th v-for="sig in OVERVIEW_SIGNALS" :key="sig.key" :title="sig.title">{{ sig.label }}</th>
+                <th>Status DB</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="b in overview.branches" :key="b.code" :class="{ 'ov-row-att': b.attention > 0 }">
+                <td>
+                  <b>{{ b.code }}</b>
+                  <div class="muted" style="font-size:10.5px;">{{ b.name }}</div>
+                </td>
+                <td v-for="sig in OVERVIEW_SIGNALS" :key="sig.key" class="ov-cell">
+                  <button v-if="overviewCount(b, sig.key)" type="button" class="ov-count"
+                          :title="sig.title + ' — buka ' + b.code"
+                          :disabled="overviewBusy === b.code"
+                          @click="openBranch(b, sig.target)">
+                    <span>{{ overviewCount(b, sig.key) }}</span>
+                    <span v-if="sig.money && b.amounts?.[sig.key]" class="ov-money">{{ formatRupiah(b.amounts[sig.key]) }}</span>
+                  </button>
+                  <span v-else-if="overviewCount(b, sig.key) === null" class="muted"
+                        title="Tabel/kolom belum ada di DB cabang ini">–</span>
+                  <span v-else class="muted">0</span>
+                </td>
+                <td>
+                  <span class="badge"
+                        :class="b.status === 'ok' ? 'badge-green' : (b.status === 'inactive' ? '' : 'badge-red')"
+                        :title="dbStatusTitle(b)">
+                    {{ dbStatusLabel(b.status) }}
+                  </span>
+                </td>
+                <td>
+                  <button class="btn btn-sm" :disabled="overviewBusy === b.code" @click="openBranch(b)">
+                    {{ overviewBusy === b.code ? '⏳' : 'Buka →' }}
+                  </button>
+                </td>
+              </tr>
+              <tr v-if="!overview.branches.length">
+                <td :colspan="OVERVIEW_SIGNALS.length + 3" class="empty">Belum ada cabang terdaftar.</td>
+              </tr>
+            </tbody>
+            <tfoot v-if="overview?.branches?.length">
+              <tr>
+                <td><b>Total</b></td>
+                <td v-for="sig in OVERVIEW_SIGNALS" :key="sig.key" class="ov-cell">
+                  <b>{{ overview.totals?.[sig.key] ?? 0 }}</b>
+                  <div v-if="sig.money" class="muted" style="font-size:10px;">{{ formatRupiah(overview.amounts?.[sig.key] || 0) }}</div>
+                </td>
+                <td colspan="2"></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
       </div>
 
       <!-- Ringkasan Cabang (Admin) -->
@@ -913,6 +1067,20 @@ watch(queueTab, (tab) => {
 .action-clear { display: flex; flex-direction: column; gap: 3px; border-left: 4px solid var(--success); margin-bottom: 18px; }
 .help-details { margin-top: 18px; }
 .help-details summary { cursor: pointer; font-weight: 700; font-size: 13px; }
+
+/* v2.114.0 — tabel Pusat (antrean lintas cabang) */
+.ov-tbl th { white-space: nowrap; }
+.ov-cell { text-align: center; }
+.ov-count {
+  display: inline-flex; flex-direction: column; align-items: center; gap: 1px;
+  border: 1px solid transparent; background: transparent; color: #dc2626;
+  font: inherit; font-weight: 800; font-size: 13px; line-height: 1.15;
+  padding: 3px 7px; border-radius: 8px; cursor: pointer;
+}
+.ov-count:hover:not(:disabled) { background: rgba(220, 38, 38, .08); border-color: rgba(220, 38, 38, .45); }
+.ov-count:disabled { opacity: .55; cursor: progress; }
+.ov-money { font-weight: 500; font-size: 10px; color: var(--text-3); }
+.ov-row-att { background: rgba(220, 38, 38, .03); }
 
 /* v2.52.0 — checklist verifikasi + zoom foto (modal detail) */
 .verify-checklist {

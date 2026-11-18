@@ -61,6 +61,24 @@ def register_branch_routes(app):
         except Exception as e:
             return jsonify({'error': str(e)}), 500
 
+    @app.route('/api/branches/overview')
+    @role_required(['admin'])
+    def api_branches_overview():
+        """Antrean kerja lintas cabang untuk panel "Pusat" (v2.114.0).
+
+        Admin Pusat melihat semua cabang; Admin cabang hanya cabangnya.
+        `?refresh=1` melewati cache 60 detik (pemeriksaan langsung).
+        """
+        try:
+            from modules import branch_overview
+            codes, all_b = admin_branches()
+            data = branch_overview.overview(
+                codes=None if all_b else codes,
+                force=request.args.get('refresh') in ('1', 'true', 'yes'))
+            return jsonify(data)
+        except Exception as e:
+            return jsonify({'error': str(e)[:200]}), 500
+
     @app.route('/api/branches/current')
     def api_branches_current():
         """Info cabang sesi + daftar cabang yang bisa dipilih.
@@ -96,6 +114,13 @@ def register_branch_routes(app):
             log_activity_async(0, 'branch_save', 'admin', actor,
                                new_data={'code': branch['code'], 'db_name': branch['db_name']},
                                ip=request.remote_addr)
+            # Panel Pusat menyimpan daftar cabang di cache 60 detik — daftar
+            # yang baru disimpan harus langsung terlihat.
+            try:
+                from modules import branch_overview
+                branch_overview.invalidate_cache()
+            except Exception:
+                pass
             # Bila diminta & db_name baru → langsung buat database cabang
             msg = f'Cabang {branch["code"]} disimpan'
             if data.get('ensure_db') and branch.get('db_name'):

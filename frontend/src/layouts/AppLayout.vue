@@ -11,11 +11,57 @@ import HelpCenter from '../components/HelpCenter.vue'
 import OnboardingTour from '../components/OnboardingTour.vue'
 import { onboardingSteps } from '../content/help.js'
 import { enableUsabilityModeFromUrl, markFirstAction, markSessionStart } from '../utils/usability.js'
+import { useBranchContext } from '../stores/branchContext'
 
 const auth = useAuthStore()
 const rt = useRealtimeStore()
 const route = useRoute()
 const router = useRouter()
+// Ref di-destructure agar template otomatis meng-unwrap (`branchActive`),
+// bukan objek pembungkus yang tidak reaktif di template.
+const { active: branchActive, enter: enterBranchCtx, leave: leaveBranchCtx } = useBranchContext()
+
+// v2.114.0 — switcher cabang di topbar khusus Admin Pusat. Admin cabang tetap
+// terkunci (server menolak /api/branches/switch).
+const branches = ref([])
+const currentBranchCode = ref('')
+const branchBusy = ref(false)
+const branchSwitchErr = ref('')
+const showBranchSwitcher = computed(() => auth.role === 'admin' && auth.isHoAdmin)
+
+async function loadBranches() {
+  if (!showBranchSwitcher.value) return
+  try {
+    const d = await api('/api/branches/current')
+    branches.value = (d?.branches || []).filter((b) => b.is_active)
+    currentBranchCode.value = d?.current?.code || auth.user?.branch_code || ''
+  } catch { /* switcher opsional — jangan ganggu layout */ }
+}
+
+async function onSwitchBranch(ev) {
+  const code = ev?.target?.value
+  if (!code || code === currentBranchCode.value || branchBusy.value) return
+  branchBusy.value = true
+  branchSwitchErr.value = ''
+  try {
+    await api('/api/branches/switch', { method: 'POST', body: { code } })
+    const b = branches.value.find((x) => x.code === code)
+    enterBranchCtx(code, b?.name || code)
+    // Semua halaman menyimpan data per cabang di memori — muat ulang bersih
+    // lebih aman daripada mencoba menyegarkan belasan komponen satu per satu.
+    window.location.reload()
+  } catch (e) {
+    branchSwitchErr.value = e.message
+    if (ev?.target) ev.target.value = currentBranchCode.value
+  } finally {
+    branchBusy.value = false
+  }
+}
+
+function backToPusat() {
+  leaveBranchCtx()
+  router.push('/dashboard')
+}
 
 const open = ref(false)
 const rtOn = ref(false)
@@ -264,6 +310,7 @@ onMounted(() => {
   document.documentElement.classList.toggle('hc', hc.value)
   connectRealtime()
   loadBadges()
+  loadBranches()
   unwatchBadges = [
     watch(() => rt.items.length, scheduleBadges),
     watch(() => rt.receptionistSeq, scheduleBadges),
@@ -337,6 +384,13 @@ onBeforeUnmount(() => {
         </button>
         <span class="muted topbar-date" style="font-size:11px;">{{ new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) }}</span>
         <div class="spacer"></div>
+        <label v-if="showBranchSwitcher" class="ho-branch-switch" title="Cabang kerja Admin Pusat — aksi di halaman ini tercatat atas nama cabang yang dipilih">
+          <span aria-hidden="true">🏛</span>
+          <select class="select" :value="currentBranchCode" :disabled="branchBusy"
+                  aria-label="Ganti cabang kerja" @change="onSwitchBranch">
+            <option v-for="b in branches" :key="b.code" :value="b.code">{{ b.code }} — {{ b.name }}</option>
+          </select>
+        </label>
         <span class="rt-dot" :class="rtOn ? 'on' : 'off'" :title="rtOn ? 'Realtime terhubung' : 'Realtime terputus'">
           {{ rtOn ? '⚡ Realtime' : '🔴 Offline' }}
         </span>
@@ -347,6 +401,15 @@ onBeforeUnmount(() => {
       </header>
 
       <main class="content" id="konten" tabindex="-1">
+        <!-- v2.114.0 — banner konteks Admin Pusat: jangan sampai aksi nyasar -->
+        <div v-if="showBranchSwitcher && branchActive" class="ho-ctx" role="status">
+          <span>
+            ⚠️ Anda <b>Admin Pusat</b> sedang melihat <b>{{ branchActive.name }}</b>
+            ({{ branchActive.code }}). Aksi di halaman ini tercatat atas nama cabang tersebut.
+          </span>
+          <button class="btn btn-sm" @click="backToPusat">🏛 Kembali ke Pusat</button>
+        </div>
+        <div v-if="branchSwitchErr" class="alert alert-error" style="margin-bottom:10px;">{{ branchSwitchErr }}</div>
         <nav v-if="breadcrumb.length" class="crumb" aria-label="Breadcrumb">
           <router-link to="/">Beranda</router-link>
           <template v-for="(c, i) in breadcrumb" :key="`${c}-${i}`">
@@ -446,7 +509,24 @@ onBeforeUnmount(() => {
 .search-item b { display: block; font-size: 12.5px; }
 .search-item small { display: block; font-size: 10px; color: var(--text-3); }
 .search-foot { padding: 8px 14px; border-top: 1px solid var(--border); font-size: 10px; color: var(--text-3); }
+
+/* v2.114.0 — switcher & banner konteks Admin Pusat */
+.ho-branch-switch {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 4px; border: 1px solid var(--border); border-radius: 8px;
+  background: var(--surface-2); font-size: 11px;
+}
+.ho-branch-switch .select { border: none; background: transparent; font-size: 11px; padding: 3px 2px; max-width: 150px; }
+.ho-ctx {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+  justify-content: space-between;
+  margin-bottom: 12px; padding: 10px 14px;
+  border: 1px solid #f59e0b; border-left: 4px solid #f59e0b;
+  border-radius: 10px; background: rgba(245, 158, 11, .1);
+  font-size: 12px; color: var(--text);
+}
 @media (max-width: 900px) {
+  .ho-branch-switch { display: none; }
   .topbar-date { display: none; }
   .search-label, .search-trigger kbd { display: none; }
 }

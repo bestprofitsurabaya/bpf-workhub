@@ -103,6 +103,8 @@ const PAGE_HELP = [
       'Gunakan tab antrean (GA/Finance/Konfirmasi Driver) sesuai pekerjaan Anda.',
       'Klik 👁 Detail untuk melihat foto bukti, ODO, liter, dan cross-check sebelum memutuskan.',
       'Angka badge di sidebar ikut berubah setelah aksi berhasil.',
+      'Admin Pusat: panel 🏛 Pusat merangkum antrean semua cabang — klik angka untuk membuka cabang itu.',
+      'Saat berada di cabang, banner kuning menandai konteks; klik 🏛 Kembali ke Pusat untuk menutupnya.',
     ],
     terms: ['GA', 'Finance', 'Anomali ML', 'Step-up PIN'],
   },

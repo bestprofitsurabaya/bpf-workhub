@@ -643,12 +643,11 @@ def _mask(value, keep=4):
 
 
 def _scope_branch(conn=None):
-    """None = semua cabang (admin pusat/admin_master), selain itu kode cabang."""
+    """None = semua cabang (Admin Pusat), selain itu kode cabang sesi."""
     role = session.get('user_role', '')
-    username = (session.get('user_name') or '').strip().lower()
     if role == 'admin':
-        if username in ('admin', 'admin_master'):
-            return None
+        # v2.114.0: hak lintas cabang hanya dari is_ho_admin (flag
+        # `admin_all_branches` / username Pusat) — bukan dari nama akun.
         try:
             from modules.admin_scope import is_ho_admin
             if is_ho_admin(conn):

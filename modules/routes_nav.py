@@ -181,6 +181,30 @@ def register_nav_routes(app):
             # GA/HR (lihat), dan admin (lihat + verifikasi).
             if role in ('traineer', 'ga_hr', 'admin'):
                 out['cv_online_pending'] = _cv_online_pending()
+
+            # v2.114.0 — Admin Pusat: badge = total lintas cabang, bukan cabang
+            # sesi. Sumbernya cache overview 60 detik (satu fan-out untuk semua
+            # badge), jadi sidebar tidak menghantam 12 DB tiap event realtime.
+            if role == 'admin':
+                try:
+                    from modules.admin_scope import is_ho_admin
+                    if is_ho_admin():
+                        from modules import branch_overview
+                        totals = branch_overview.overview().get('totals') or {}
+
+                        def _total(key):
+                            return int(totals.get(key) or 0)
+
+                        out['ga_pending'] = _total('bbm_pending')
+                        out['bbm_verify_pending'] = _total('bbm_ready')
+                        out['water_pending'] = _total('water_pending')
+                        out['cash_pending'] = _total('cash_ga') + _total('cash_finance')
+                        out['assignments_pending'] = _total('assignments_pending')
+                        out['cv_online_pending'] = _total('cv_new')
+                        out['first_work_pending'] = _total('first_work_new')
+                except Exception:
+                    # Gagal menghitung total → biarkan angka cabang sesi.
+                    pass
         finally:
             try:
                 conn.close()
