@@ -1,6 +1,6 @@
 <script setup>
 import { onMounted, ref, watch } from 'vue'
-import { useDriverStore } from '../../stores/driverStore'
+import { useDriverStore, newSubmitId, isNetworkError } from '../../stores/driverStore'
 import { api } from '../../api'
 import ConfirmDialog from '../../components/ConfirmDialog.vue'
 
@@ -14,6 +14,8 @@ const props = defineProps({ refresh: { type: Number, default: 0 } })
 
 const baseAmount = ref(0)
 const submitting = ref(false)
+// v2.120.0: UUID per percobaan submit (idempotensi server).
+let cashUuid = null
 const history = ref([])
 const pendingLpj = ref([])
 const loading = ref(false)
@@ -42,26 +44,52 @@ async function submit() {
   if (base <= 0) { emit('toast', '⚠️ Isi nominal dulu', 'error'); return }
   const total = totalAmount()
   if (!(await ask(`Ajukan dana sebesar Rp ${total.toLocaleString('id-ID')}?\n\nNominal ini sudah termasuk kode unik hari ini.`, { confirmText: 'Ya, lanjutkan' }))) return
+  if (!cashUuid) cashUuid = newSubmitId()
+  const payload = {
+    client_uuid: cashUuid,
+    driver_name: store.driverName,
+    nopol: store.profile?.nopol || '',
+    vehicle_type: store.profile?.vehicle_type || 'AVANZA',
+    bbm_type: store.profile?.bbm_type || 'PERTALITE',
+    base_amount: base,
+  }
+  // v2.120.0: kasbon kini bisa offline — kode unik & total dihitung server
+  // saat antrean dikirim, jadi tidak pernah memakai kode harian kedaluwarsa.
+  if (!store.online) {
+    await store.enqueue('cash_queue', payload)
+    cashUuid = null
+    baseAmount.value = 0
+    emit('toast', '🟡 Offline — pengajuan kasbon disimpan lokal, dikirim saat online', 'warning')
+    return
+  }
   submitting.value = true
   try {
     const j = await api('/api/cash/request', {
       method: 'POST',
-      body: {
-        driver_name: store.driverName,
-        nopol: store.profile?.nopol || '',
-        vehicle_type: store.profile?.vehicle_type || 'AVANZA',
-        bbm_type: store.profile?.bbm_type || 'PERTALITE',
-        base_amount: base,
-      },
+      body: payload,
     })
     if (j.status === 'success') {
       emit('toast', `✅ ${j.msg || 'Pengajuan berhasil'}`, 'success')
       baseAmount.value = 0
+      cashUuid = null
       loadData()
     } else {
       emit('toast', '❌ ' + (j.msg || 'Gagal'), 'error')
     }
-  } catch (e) { emit('toast', '❌ ' + (e.message || 'Gagal'), 'error') }
+  } catch (e) {
+    if (isNetworkError(e)) {
+      try {
+        await store.enqueue('cash_queue', payload)
+        cashUuid = null
+        baseAmount.value = 0
+        emit('toast', '🟡 Koneksi terputus — kasbon disimpan lokal', 'warning')
+      } catch {
+        emit('toast', '❌ ' + (e.message || 'Gagal'), 'error')
+      }
+    } else {
+      emit('toast', '❌ ' + (e.message || 'Gagal'), 'error')
+    }
+  }
   finally { submitting.value = false }
 }
 

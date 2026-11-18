@@ -1,4 +1,4 @@
-# 📖 Panduan Pengguna BPF WorkHub v2.119.0
+# 📖 Panduan Pengguna BPF WorkHub v2.120.0
 
 > **Siapa pun kamu — sopir, OB, admin, atau pimpinan — panduan ini ditulis untuk kamu.**
 > Tidak perlu paham teknis. Cukup ikuti langkah-langkah sesuai bagianmu.
@@ -317,15 +317,16 @@ Laporan ini dipakai GA untuk meninjau dan menghitung efisiensi kendaraan.
 
 ### 4.5 Cek Performa Kendaraan (Rapor)
 
-Di tab **📊 Rapor**, masukkan **nomor polisi** kendaraanmu untuk melihat performa bahan bakar (rata-rata km/liter). Statusnya: **HEMAT**, **CUKUP**, atau **BOROS**.
+Di tab **📊 Rapor**, masukkan **nomor polisi** kendaraanmu untuk melihat performa bahan bakar (rata-rata km/liter). Statusnya: **HEMAT**, **CUKUP**, atau **BOROS**. Hanya klaim yang sah yang dihitung — klaim ditolak tidak lagi menurunkan nilai. Rapor hanya bisa dibuka untuk nopol milikmu.
 
 ### 4.6 Mode Offline 📡
 
 Pernah di jalan tanpa sinyal? Tenang:
 
-- Data yang kamu isi **tersimpan otomatis di HP**.
+- Data yang kamu isi **tersimpan otomatis di HP** — klaim BBM, LPJ kasbon, log trip, overtime, dan pengajuan kasbon.
 - Saat sinyal kembali, aplikasi **mengirim sendiri datanya** ke server.
 - Tanda **🟡 Offline** di atas layar berarti datamu belum terkirim. Tekan **🔄 Sinkron** untuk mengirim manual.
+- Pengiriman ulang tidak membuat data dobel: server mengenali pengajuan yang sama, termasuk saat koneksi putus di tengah jalan.
 
 ### 4.7 Jadwal Appointment Saya
 
@@ -1449,7 +1450,7 @@ tanpa membekukan PC user.
 
 ## 15. Mengatasi Masalah (Troubleshooting)
 
-> **Membaca `/api/health` (v2.119.0):** selain `database`, `redis`, dan
+> **Membaca `/api/health` (v2.120.0):** selain `database`, `redis`, dan
 > `deploy`, ada `checks.integrity`. Bila angkanya bukan nol, ada operasi yang
 > gagal tetapi sengaja tidak menghentikan pengguna — mis. query laporan
 > gagal di satu cabang. `recent_critical > 0` (30 menit terakhir) membuat

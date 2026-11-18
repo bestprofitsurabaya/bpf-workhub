@@ -9,49 +9,12 @@ from modules.helpers import (save_file, resolve_driver_form_context, validate_bb
 from modules.engine import PerformanceAnalyzer
 from modules.approvals import hook_create_approval  # v2.36.0
 from modules.voucher_schema import ensure_voucher_schema  # v2.107.0
+from modules.bbm_guard import register_proof_hashes as _register_proof_hashes
+from modules import idempotency
 from datetime import datetime
 import os
 import json
 import threading
-
-
-def _register_proof_hashes(tx_id, display_id, driver_name, nopol, photo_meta, branch_db=''):
-    """Catat hash bukti ke proof_registry (master) — best-effort (v2.49.3).
-
-    Gagal tidak menggagalkan klaim (fail-open ala doc_integrity) — tapi
-    duplikasi PENUH setelah foto ini tak terdeteksi hanya bila DB mati;
-    saat startup normal registry selalu ada.
-    """
-    if not photo_meta:
-        return False
-    try:
-        conn = get_master_connection()
-        if not conn:
-            return False
-        cur = conn.cursor()
-        try:
-            for field, meta in photo_meta.items():
-                h = (meta or {}).get('sha256')
-                if not h:
-                    continue
-                cur.execute(
-                    "INSERT INTO proof_registry (sha256, field, tx_id, display_id, "
-                    "driver_name, nopol, branch_db) VALUES (%s,%s,%s,%s,%s,%s,%s)",
-                    (h, field, tx_id, display_id, driver_name, nopol, branch_db))
-            conn.commit()
-            return True
-        finally:
-            try:
-                cur.close()
-            except Exception:
-                pass
-            try:
-                conn.close()
-            except Exception:
-                pass
-    except Exception as e:
-        print(f"[proof_registry] gagal catat hash #{display_id}: {e}")
-        return False
 
 
 def register_driver_routes(app, socketio):
@@ -146,6 +109,15 @@ def register_driver_routes(app, socketio):
                 if not conn:
                     return jsonify({'status': 'error', 'msg': 'Database error'}), 500
                 cursor = conn.cursor(dictionary=True)
+
+                # v2.120.0: kunci idempotensi — retry/antrean tidak membuat
+                # klaim ganda. Klaim ikut rollback bila submit gagal.
+                client_uuid = (request.form.get('client_uuid') or '').strip()
+                idem_state, idem_row = idempotency.begin(conn, client_uuid, 'bbm_claim')
+                if idem_state == 'replay':
+                    payload, code = idempotency.replay_payload(idem_row, 'bbm')
+                    cursor.close(); conn.close(); conn = None
+                    return jsonify(payload), code
 
                 # --- Voucher: nilai dari konfigurasi cabang + kode harian ---
                 voucher_value = 0.0
@@ -478,6 +450,7 @@ def register_driver_routes(app, socketio):
                       voucher_value, daily_code, (voucher_partner or None), (nota_no or None)))
 
                 tx_id = cursor.lastrowid
+                idempotency.finish(cursor, client_uuid, display_id, tx_id)
                 conn.commit()
                 # v2.36.0: jurnal ACC berjenjang (Chief Driver → GA) untuk klaim.
                 # Voucher diverifikasi langsung GA (bukan klaim reimbursement).
@@ -604,6 +577,15 @@ def register_driver_routes(app, socketio):
                 return jsonify({'status': 'error', 'msg': 'DB error — koneksi database gagal'}), 500
             cursor = conn.cursor()
 
+            # v2.120.0: idempotensi — log trip yang dikirim ulang (antrean/
+            # retry) tidak membuat trip_masters ganda.
+            client_uuid = (request.form.get('client_uuid') or '').strip()
+            idem_state, idem_row = idempotency.begin(conn, client_uuid, 'trip')
+            if idem_state == 'replay':
+                payload, code = idempotency.replay_payload(idem_row, 'trip')
+                cursor.close(); conn.close(); conn = None
+                return jsonify(payload), code
+
             trip_display_id = generate_trip_display_id(conn)
             gps_lat = request.form.get('gps_lat', '')
             gps_lon = request.form.get('gps_lon', '')
@@ -664,6 +646,7 @@ def register_driver_routes(app, socketio):
                 return jsonify({'status': 'error',
                                 'msg': 'Minimal 1 rute (lokasi berangkat & tujuan) wajib diisi!'}), 400
 
+            idempotency.finish(cursor, client_uuid, trip_display_id, trip_id)
             conn.commit()
 
             # Notifikasi real-time utk setiap appointment yang auto-complete

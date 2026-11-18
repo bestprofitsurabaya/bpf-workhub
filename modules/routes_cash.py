@@ -1,5 +1,6 @@
 """Cash Request / Kasbon BBM Routes"""
 import random
+import json
 from datetime import date
 from flask import request, jsonify, session, make_response
 import os
@@ -9,6 +10,7 @@ from modules.helpers import (log_activity_async, generate_display_id, safe_float
 from modules.notifications import push_driver_notification
 from modules.stepup import stepup_required
 from modules.approvals import hook_create_approval, gate_approval  # v2.36.0
+from modules import bbm_guard, idempotency  # v2.120.0
 
 def register_cash_routes(app):
 
@@ -106,6 +108,15 @@ def register_cash_routes(app):
             conn = get_db_connection()
             cursor = conn.cursor(dictionary=True)
 
+            # v2.120.0: kunci idempotensi — retry/antrean tidak menggandakan
+            # pengajuan kasbon (nominal sudah termasuk kode unik hari itu).
+            client_uuid = (data.get('client_uuid') or '').strip()
+            idem_state, idem_row = idempotency.begin(conn, client_uuid, 'cash_request')
+            if idem_state == 'replay':
+                payload, code = idempotency.replay_payload(idem_row, 'cash')
+                cursor.close(); conn.close()
+                return jsonify(payload), code
+
             # Get today's unique code
             code_val = get_or_create_daily_code_with_lock(cursor, conn)
             unique_cents = code_val
@@ -120,6 +131,7 @@ def register_cash_routes(app):
                   base_amount, unique_cents, total_amount, code_val, data.get('notes', '')))
 
             cash_id = cursor.lastrowid
+            idempotency.finish(cursor, client_uuid, display_id, cash_id)
             conn.commit()
 
             # v2.36.0: jurnal ACC berjenjang (Chief Driver → GA) — best-effort,
@@ -592,6 +604,14 @@ def register_cash_routes(app):
             odo_km = int(request.form.get('odo_km', 0))
             spbu_type = request.form.get('spbu_type', 'rekanan')
 
+            # v2.120.0: kunci idempotensi LPJ (retry/antrean tidak dobel).
+            client_uuid = (request.form.get('client_uuid') or '').strip()
+            idem_state, idem_row = idempotency.begin(conn, client_uuid, 'cash_lpj')
+            if idem_state == 'replay':
+                payload, code = idempotency.replay_payload(idem_row, 'bbm')
+                cursor.close(); conn.close()
+                return jsonify(payload), code
+
             from modules.helpers import save_file
             upload_dir = app.config['UPLOAD_FOLDER']
             foto_odo = save_file(request.files.get('foto_odo_sebelum'), 'ODO1', nopol, upload_dir)
@@ -602,23 +622,58 @@ def register_cash_routes(app):
             # Validasi server: foto wajib yang gagal disimpan (format tidak aman) harus menolak LPJ
             # — jangan pernah menyimpan LPJ tanpa bukti (ISO 9001:8.6). Termasuk foto dispenser
             # (wajib utk SPBU non-rekanan).
-            rejected_photos = [field for field, saved in (
-                ('foto_odo_sebelum', foto_odo),
-                ('foto_nota_odo_sesudah', foto_nota),
-                ('foto_struk', foto_struk),
-                ('foto_struk_dispenser', foto_dispenser),
-            ) if request.files.get(field) and not saved]
+            saved_photos = {
+                'foto_odo_sebelum': foto_odo,
+                'foto_nota_odo_sesudah': foto_nota,
+                'foto_struk': foto_struk,
+                'foto_struk_dispenser': foto_dispenser,
+            }
+            rejected_photos = [field for field, saved in saved_photos.items()
+                               if request.files.get(field) and not saved]
             if rejected_photos:
-                for saved in (foto_odo, foto_nota, foto_struk, foto_dispenser):
-                    if saved:
-                        try:
-                            _p = os.path.join(upload_dir, saved)
-                            if os.path.exists(_p):
-                                os.remove(_p)
-                        except OSError:
-                            pass
+                bbm_guard.delete_saved_photos(upload_dir, saved_photos.values())
                 cursor.close(); conn.close()
                 return jsonify({'status': 'error', 'msg': 'Foto wajib gagal disimpan (format tidak didukung): ' + ', '.join(rejected_photos)}), 400
+
+            # v2.120.0: paritas guard klaim BBM — file harus benar-benar gambar
+            # sah, bukan sekadar berekstensi .jpg.
+            invalid_photos = bbm_guard.invalid_saved_photos(upload_dir, saved_photos)
+            if invalid_photos:
+                bbm_guard.delete_saved_photos(upload_dir, saved_photos.values())
+                cursor.close(); conn.close()
+                return jsonify({'status': 'error',
+                                'msg': 'File foto tidak valid / rusak: ' + ', '.join(invalid_photos)}), 400
+
+            # v2.120.0: baseline ODO & kapasitas. LPJ bisa menutup beberapa
+            # pengisian, jadi ODO mundur / liter besar = ANOMALI untuk GA,
+            # bukan penolakan (beda dari klaim BBM).
+            previous = bbm_guard.previous_valid_claim(cursor, nopol)
+            capacity = bbm_guard.fuel_capacity(cursor, vehicle_type)
+            backward_msg = bbm_guard.odo_backward_message(previous, odo_km)
+
+            photo_paths = {
+                'foto_odo_sebelum': os.path.join(upload_dir, foto_odo) if foto_odo else None,
+                'foto_nota_odo_sesudah': os.path.join(upload_dir, foto_nota) if foto_nota else None,
+                'foto_struk': os.path.join(upload_dir, foto_struk) if foto_struk else None,
+                'foto_struk_dispenser': os.path.join(upload_dir, foto_dispenser) if foto_dispenser else None,
+            }
+            hashes, photo_meta = bbm_guard.hashes_and_meta(photo_paths)
+            dup_hits = bbm_guard.find_duplicate_proofs(hashes)
+            if dup_hits:
+                bbm_guard.delete_saved_photos(upload_dir, saved_photos.values())
+                cursor.close(); conn.close()
+                ids = ', '.join(str(d.get('display_id') or '?') for d in dup_hits[:3])
+                return jsonify({'status': 'error',
+                                'msg': (f"Foto bukti sudah pernah dipakai di pengajuan #{ids}. "
+                                        "Setiap pengisian wajib foto asli baru — foto ulang "
+                                        "di tempat pengisian.")}), 400
+
+            anomalies = bbm_guard.anomaly_reasons(
+                cursor, driver_name, previous, odo_km, liter, capacity,
+                photo_meta, nominal, odo_backward=bool(backward_msg))
+            if backward_msg:
+                anomalies.insert(0, backward_msg)
+
             gps_lat = request.form.get('gps_lat') or None
             gps_lon = request.form.get('gps_lon') or None
             gps_address = request.form.get('gps_address', '')
@@ -631,18 +686,29 @@ def register_cash_routes(app):
 
             display_id = generate_display_id('BPF', conn)
             cursor.execute(
-                "INSERT INTO transactions (display_id, transaction_type, cash_request_id, driver_name, nopol, vehicle_type, bbm_type, nominal, liter, price_per_liter, odo_km, spbu_type, foto_odo_sebelum, foto_nota_odo_sesudah, foto_struk, foto_struk_dispenser, status, km_per_liter, gps_latitude, gps_longitude, gps_address, gps_kelurahan, gps_kecamatan, gps_kota, gps_provinsi, gps_kode_pos, jumlah_appointment) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
-                (display_id, 'CASH_LPJ', cash_id, driver_name, nopol, vehicle_type, bbm_type, nominal, liter, price_per_liter, odo_km, spbu_type, foto_odo, foto_nota, foto_struk, foto_dispenser, 'pending', 0, gps_lat, gps_lon, gps_address, gps_kelurahan, gps_kecamatan, gps_kota, gps_provinsi, gps_kode_pos, jumlah_appointment)
+                "INSERT INTO transactions (display_id, transaction_type, cash_request_id, driver_name, nopol, vehicle_type, bbm_type, nominal, liter, price_per_liter, odo_km, spbu_type, foto_odo_sebelum, foto_nota_odo_sesudah, foto_struk, foto_struk_dispenser, status, km_per_liter, gps_latitude, gps_longitude, gps_address, gps_kelurahan, gps_kecamatan, gps_kota, gps_provinsi, gps_kode_pos, jumlah_appointment, ml_anomaly_flag, proof_meta) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+                (display_id, 'CASH_LPJ', cash_id, driver_name, nopol, vehicle_type, bbm_type, nominal, liter, price_per_liter, odo_km, spbu_type, foto_odo, foto_nota, foto_struk, foto_dispenser, 'pending', 0, gps_lat, gps_lon, gps_address, gps_kelurahan, gps_kecamatan, gps_kota, gps_provinsi, gps_kode_pos, jumlah_appointment,
+                 1 if anomalies else 0,
+                 (json.dumps(photo_meta, default=str) if photo_meta else None))
             )
             tx_id = cursor.lastrowid
 
             cursor.execute("UPDATE fuel_cash_requests SET status = 'LPJ_SUBMITTED', lpj_transaction_id = %s, lpj_submitted_at = NOW() WHERE id = %s", (tx_id, cash_id))
+            idempotency.finish(cursor, client_uuid, display_id, tx_id)
             conn.commit()
 
+            # v2.120.0: catat hash bukti LPJ ke registry lintas cabang supaya
+            # foto yang sama tidak bisa dipakai ulang di klaim/LPJ lain.
+            bbm_guard.register_proof_hashes(tx_id, display_id, driver_name, nopol, photo_meta)
             log_activity_async(0, 'cash_lpj_submit', 'driver', driver_name, new_data={'cash_id': cash_id, 'tx_id': tx_id})
             cursor.close(); conn.close()
 
-            return jsonify({'status': 'success', 'msg': 'LPJ selesai!', 'transaction_id': display_id, 'numeric_id': tx_id, 'cash_id': cash_id})
+            msg = 'LPJ selesai!'
+            if anomalies:
+                msg += ' Catatan GA: ' + '; '.join(anomalies)
+            return jsonify({'status': 'success', 'msg': msg,
+                            'transaction_id': display_id, 'numeric_id': tx_id,
+                            'cash_id': cash_id, 'anomalies': anomalies})
         except Exception as e:
             return jsonify({'status': 'error', 'msg': str(e)}), 500
 

@@ -3,6 +3,22 @@ import { api } from '../api'
 import { addToQueue, getAllFromQueue, deleteFromQueue, countAllQueues } from '../utils/idb'
 import { locateWithAddress, detailedLocation } from '../utils/gps'
 
+/** UUID sekali pakai per percobaan submit — kunci idempotensi server. */
+export function newSubmitId() {
+  try {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+      return crypto.randomUUID()
+    }
+  } catch { /* lanjut ke fallback */ }
+  return 'id-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 12)
+}
+
+/** Error jaringan (tanpa status HTTP) vs penolakan server (punya status). */
+export function isNetworkError(err) {
+  if (!err || err.status) return false
+  return /koneksi|network|failed to fetch|load failed/i.test(err.message || '')
+}
+
 function csrfHeader() {
   const csrf = localStorage.getItem('bpf_csrf') || sessionStorage.getItem('bpf_csrf')
   return csrf ? { 'X-CSRF-Token': csrf } : {}
@@ -40,7 +56,7 @@ export const useDriverStore = defineStore('driver', {
     profileErr: '',
     online: typeof navigator !== 'undefined' ? navigator.onLine : true,
     gps: { lat: null, lon: null, addr: '', spbu: '', locating: false, detail: null },
-    queue: { fuel: 0, trip: 0, lpj: 0 },
+    queue: { fuel: 0, trip: 0, lpj: 0, overtime: 0, cash: 0 },
     syncing: false,
     lastSync: null,
     dailyCode: null,
@@ -52,7 +68,7 @@ export const useDriverStore = defineStore('driver', {
   }),
   getters: {
     driverName: (s) => (s.profile?.name || '').toUpperCase(),
-    queueTotal: (s) => s.queue.fuel + s.queue.trip + s.queue.lpj,
+    queueTotal: (s) => Object.values(s.queue).reduce((a, b) => a + (Number(b) || 0), 0),
   },
   actions: {
     async loadProfile() {
@@ -118,6 +134,16 @@ export const useDriverStore = defineStore('driver', {
           try {
             const data = await api('/api/overtime/driver/submit', { method: 'POST', body: item.data })
             if (data?.status === 'success') { await deleteFromQueue('overtime_queue', item.id); sent++ }
+          } catch { /* retry nanti */ }
+        }
+        // 5) Pengajuan kasbon offline → POST /api/cash/request
+        // Kode unik & total dihitung server saat pengiriman (bukan saat antre),
+        // sehingga antrean tidak pernah memakai kode harian yang kedaluwarsa.
+        const cash = await getAllFromQueue('cash_queue')
+        for (const item of cash) {
+          try {
+            const data = await api('/api/cash/request', { method: 'POST', body: item.data })
+            if (data?.status === 'success') { await deleteFromQueue('cash_queue', item.id); sent++ }
           } catch { /* retry nanti */ }
         }
         this.lastSync = new Date().toISOString()

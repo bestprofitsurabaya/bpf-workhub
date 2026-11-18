@@ -1,14 +1,17 @@
 /**
  * IndexedDB wrapper — antrean offline driver + trip drafts (auto-save).
- * 4 stores: fuel_queue, trip_queue, lpj_queue, trip_drafts
+ * Store: fuel_queue, trip_queue, lpj_queue, overtime_queue, cash_queue,
+ * trip_drafts (v2.120.0 menambah overtime & kasbon — sebelumnya overtime
+ * sudah diantrekan kode pemanggil tetapi store-nya tidak pernah dibuat).
  *
  * v2.50.1: self-heal — bila bundel baru menagih store yang belum ada di DB
  * browser (dibuat versi lama), store otomatis dibuat via version-bump tanpa
  * error 'object store not found' berulang. Bump DB_VER juga paksa upgrade.
  */
 const DB_NAME = 'BPF_Driver_DB'
-const DB_VER = 5
-const STORES = ['fuel_queue', 'trip_queue', 'lpj_queue', 'trip_drafts']
+const DB_VER = 6
+export const QUEUE_STORES = ['fuel_queue', 'trip_queue', 'lpj_queue', 'overtime_queue', 'cash_queue']
+const STORES = [...QUEUE_STORES, 'trip_drafts']
 
 let _dbPromise = null
 
@@ -106,12 +109,13 @@ export async function countQueue(store) {
 /** Hitung semua antrean sekaligus → { fuel, trip, lpj }. */
 export async function countAllQueues() {
   try {
-    const [fuel, trip, lpj] = await Promise.all([
+    const [fuel, trip, lpj, overtime, cash] = await Promise.all([
       countQueue('fuel_queue'), countQueue('trip_queue'), countQueue('lpj_queue'),
+      countQueue('overtime_queue'), countQueue('cash_queue'),
     ])
-    return { fuel, trip, lpj }
+    return { fuel, trip, lpj, overtime, cash }
   } catch {
-    return { fuel: 0, trip: 0, lpj: 0 }
+    return { fuel: 0, trip: 0, lpj: 0, overtime: 0, cash: 0 }
   }
 }
 

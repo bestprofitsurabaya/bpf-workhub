@@ -43,6 +43,7 @@ from modules.overtime_shared import (
 )
 from modules.pdf_generator import OvertimeReportPDF
 from modules.approvals import hook_create_approval, gate_approval  # v2.36.0
+from modules import idempotency  # v2.120.0
 
 # v2.39: role yang boleh mengisi overtime dari dalam aplikasi (halaman "Overtime
 # Saya") & melihat riwayatnya sendiri — OB dan Security (identitas dari sesi).
@@ -881,6 +882,16 @@ def register_overtime_routes(app):
             if not conn:
                 return jsonify({'status': 'error', 'msg': 'DB error'}), 500
             cursor = conn.cursor(dictionary=True)
+
+            # v2.120.0: idempotensi — antrean offline/retry tidak membuat
+            # dua baris overtime untuk satu pengajuan.
+            client_uuid = (data.get('client_uuid') or '').strip()
+            idem_state, idem_row = idempotency.begin(conn, client_uuid, 'overtime_driver')
+            if idem_state == 'replay':
+                payload, code = idempotency.replay_payload(idem_row, 'overtime')
+                cursor.close(); conn.close()
+                return jsonify(payload), code
+
             display_id = generate_display_id(get_display_prefix('driver'), conn)
 
             # Simpan foto bukti
@@ -894,6 +905,7 @@ def register_overtime_routes(app):
                                          source_uid=_fuid)
             cursor.execute(sql, params)
             ot_row_id = cursor.lastrowid
+            idempotency.finish(cursor, client_uuid, display_id, ot_row_id)
             conn.commit()
 
             # v2.36.0: jurnal ACC berjenjang (GA HR → Admin) — best-effort.

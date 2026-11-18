@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
-import { useDriverStore } from '../../stores/driverStore'
+import { useDriverStore, newSubmitId } from '../../stores/driverStore'
 import { api } from '../../api'
 import { applyWatermark, fileToDataUrl } from '../../utils/watermark'
 
@@ -34,6 +34,9 @@ const wmState = ref({})
 const wmBlobs = ref({})
 const saving = ref(false)
 const submitting = computed(() => saving.value || store.syncing)
+// v2.120.0: satu UUID per percobaan submit, dipertahankan sampai sukses agar
+// retry/enqueue dikenali server sebagai pengiriman yang sama (idempoten).
+let submitUuid = null
 
 const PHOTO_FIELDS = [
   { key: 'foto_odo_sebelum', label: 'Foto ODO Sebelum', required: true },
@@ -142,6 +145,7 @@ function resetForm() {
   previews.value = {}; wmState.value = {}; wmBlobs.value = {}
   loadAllowedBbm(store.profile?.bbm_type)
   store.setActiveLpj(null)
+  submitUuid = null
 }
 
 function buildPayload() {
@@ -207,7 +211,9 @@ async function submit() {
     return
   }
   const isLpj = !!store.activeLpj
+  if (!submitUuid) submitUuid = newSubmitId()
   const payload = buildPayload()
+  payload.client_uuid = submitUuid
   const files = {}
   for (const f of PHOTO_FIELDS) {
     if (f.onlyNonRekanan && form.value.spbu_type !== 'non_rekanan') continue
@@ -237,7 +243,17 @@ async function submit() {
         emit('toast', '❌ ' + (j?.msg || 'Gagal mengirim'), 'error')
       }
     } catch {
-      emit('toast', '❌ Error koneksi — data tidak terkirim', 'error')
+      // v2.120.0: koneksi putus di tengah submit → simpan ke antrean, jangan
+      // buang bukti. UUID yang sama ikut terkirim saat sync (idempoten).
+      try {
+        const queued = { ...payload, ...files }
+        const cashId = isLpj ? store.activeLpj?.cashId : null
+        await store.enqueue(isLpj ? 'lpj_queue' : 'fuel_queue', queued, cashId)
+        resetForm()
+        emit('toast', '🟡 Koneksi terputus — data disimpan lokal, akan dikirim otomatis', 'warning')
+      } catch {
+        emit('toast', '❌ Error koneksi — data tidak terkirim', 'error')
+      }
     } finally { saving.value = false }
   } else {
     // Offline: simpan ke antrean (foto asli + data; watermark saat pengiriman ulang tidak ada — setia ke perilaku klasik)

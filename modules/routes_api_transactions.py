@@ -4,11 +4,34 @@ import json
 import os
 from flask import request, jsonify, session
 from modules.config import get_db_connection
-from modules.helpers import log_activity_async, role_required, save_file
+from modules.helpers import log_activity_async, role_required, save_file, session_driver_name
 from modules import bbm_scope
 from modules.engine import generate_human_insight
 from modules.admin_scope import is_ho_admin
 from datetime import datetime, timedelta
+
+# v2.120.0: performa hanya dari klaim yang benar-benar sah. Status 'rejected'
+# (dan 'verified' warisan) tidak boleh menilai km/L kendaraan/driver.
+_PERF_STATUSES = tuple(dict.fromkeys(
+    bbm_scope.CLAIM_READY_STATUSES + bbm_scope.CLAIM_PAID_STATUSES))
+
+
+def _driver_owns_nopol(cursor, nopol):
+    """Driver hanya boleh membaca performa nopol miliknya (anti-IDOR lunak)."""
+    if session.get('user_role') != 'driver':
+        return True
+    name = session_driver_name()
+    if not name:
+        return False
+    cursor.execute(
+        "SELECT 1 FROM drivers WHERE name=%s AND UPPER(nopol)=UPPER(%s) LIMIT 1",
+        (name, nopol))
+    return bool(cursor.fetchone())
+
+
+def _perf_sql(statuses):
+    return ','.join(['%s'] * len(statuses))
+
 
 def register_transaction_api(app):
 
@@ -473,7 +496,13 @@ def register_transaction_api(app):
     def get_performance(plat_nomor):
         try:
             conn = get_db_connection(); cursor = conn.cursor(dictionary=True)
-            cursor.execute("SELECT km_per_liter, jumlah_appointment FROM transactions WHERE nopol=%s AND status IN ('verified','archived','os_finance','verified_ga','rejected') AND (is_dummy=0 OR is_dummy IS NULL) AND km_per_liter>0 AND created_at>=DATE_SUB(NOW(), INTERVAL 1 MONTH)", (plat_nomor,))
+            cursor.execute(
+                "SELECT km_per_liter, jumlah_appointment FROM transactions "
+                "WHERE nopol=%s AND transaction_type='CLAIM' "
+                f"AND status IN ({_perf_sql(_PERF_STATUSES)}) "
+                "AND (is_dummy=0 OR is_dummy IS NULL) AND km_per_liter>0 "
+                "AND created_at>=DATE_SUB(NOW(), INTERVAL 1 MONTH)",
+                (plat_nomor,) + _PERF_STATUSES)
             data = cursor.fetchall(); cursor.close(); conn.close()
             if not data: return jsonify({"nopol": plat_nomor, "status": "BELUM CUKUP DATA", "avg_kml": 0})
             avg_kml = sum([d['km_per_liter'] for d in data if d['km_per_liter']]) / len(data)
@@ -488,7 +517,17 @@ def register_transaction_api(app):
     def get_vehicle_feedback(nopol):
         try:
             conn = get_db_connection(); cursor = conn.cursor(dictionary=True)
-            cursor.execute("SELECT km_per_liter, jumlah_appointment FROM transactions WHERE nopol=%s AND status IN ('verified','archived','os_finance','verified_ga','rejected') AND (is_dummy=0 OR is_dummy IS NULL) AND km_per_liter>0 ORDER BY created_at DESC LIMIT 10", (nopol,))
+            if not _driver_owns_nopol(cursor, nopol):
+                cursor.close(); conn.close()
+                return jsonify({"status": "error",
+                                "msg": "Rapor hanya untuk kendaraan Anda."}), 403
+            cursor.execute(
+                "SELECT km_per_liter, jumlah_appointment FROM transactions "
+                "WHERE nopol=%s AND transaction_type='CLAIM' "
+                f"AND status IN ({_perf_sql(_PERF_STATUSES)}) "
+                "AND (is_dummy=0 OR is_dummy IS NULL) AND km_per_liter>0 "
+                "ORDER BY created_at DESC LIMIT 10",
+                (nopol,) + _PERF_STATUSES)
             data = cursor.fetchall(); cursor.close(); conn.close()
             if not data: return jsonify({"status": "info", "msg": f"Belum ada data untuk {nopol}."})
             km_values = [d['km_per_liter'] for d in data if d['km_per_liter'] and d['km_per_liter']>0]

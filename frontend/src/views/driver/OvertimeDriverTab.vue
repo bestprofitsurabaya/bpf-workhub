@@ -1,6 +1,6 @@
 <script setup>
 import { computed, ref, watch, onMounted } from 'vue'
-import { useDriverStore } from '../../stores/driverStore'
+import { useDriverStore, newSubmitId, isNetworkError } from '../../stores/driverStore'
 import { api } from '../../api'
 import { applyWatermark, fileToDataUrl } from '../../utils/watermark'
 
@@ -39,6 +39,8 @@ const form = ref({
 const error = ref('')
 const loading = ref(false)
 const done = ref(null)
+// v2.120.0: UUID per percobaan submit (idempotensi server).
+let otUuid = null
 
 // Foto
 const fotoMulaiFile = ref(null)
@@ -98,19 +100,21 @@ async function submit() {
     return
   }
   loading.value = true
+  if (!otUuid) otUuid = newSubmitId()
+  const payload = {
+    ...form.value,
+    client_uuid: otUuid,
+    nama: store.profile?.name || '',
+    gps_lat: store.gps.lat ?? '',
+    gps_lon: store.gps.lon ?? '',
+    gps_address: store.gps.addr || '',
+    gps_kelurahan: store.gps.detail?.kelurahan || '',
+    gps_kecamatan: store.gps.detail?.kecamatan || '',
+    gps_kota: store.gps.detail?.kota || '',
+    gps_provinsi: store.gps.detail?.provinsi || '',
+    gps_kode_pos: store.gps.detail?.kode_pos || '',
+  }
   try {
-    const payload = {
-      ...form.value,
-      nama: store.profile?.name || '',
-      gps_lat: store.gps.lat ?? '',
-      gps_lon: store.gps.lon ?? '',
-      gps_address: store.gps.addr || '',
-      gps_kelurahan: store.gps.detail?.kelurahan || '',
-      gps_kecamatan: store.gps.detail?.kecamatan || '',
-      gps_kota: store.gps.detail?.kota || '',
-      gps_provinsi: store.gps.detail?.provinsi || '',
-      gps_kode_pos: store.gps.detail?.kode_pos || '',
-    }
     if (fotoMulaiFile.value) payload.foto_mulai = await blobToBase64(fotoMulaiFile.value)
     if (fotoSelesaiFile.value) payload.foto_selesai = await blobToBase64(fotoSelesaiFile.value)
 
@@ -118,16 +122,31 @@ async function submit() {
       const d = await api('/api/overtime/driver/submit', { method: 'POST', body: payload })
       done.value = { display_id: d.display_id, msg: d.msg }
       submitLate.value = !!d.submit_late
+      otUuid = null
       emit('toast', d.submit_late ? `⏳ Overtime tercatat (LEWAT BATAS): ${d.display_id}` : `✅ Overtime tercatat: ${d.display_id}`, d.submit_late ? 'warning' : 'success')
     } else {
       // Offline: simpan ke antrean
       await store.enqueue('overtime_queue', payload)
+      otUuid = null
       done.value = { display_id: '-', msg: 'Offline — akan dikirim saat online' }
       emit('toast', '🟡 Offline — data disimpan lokal, akan dikirim otomatis', 'warning')
     }
   } catch (e) {
-    error.value = e.message || 'Gagal mengirim.'
-    emit('toast', '❌ ' + (e.message || 'Gagal mengirim overtime'), 'error')
+    // v2.120.0: koneksi putus di tengah submit → antrekan, bukan buang data.
+    if (isNetworkError(e)) {
+      try {
+        await store.enqueue('overtime_queue', payload)
+        otUuid = null
+        done.value = { display_id: '-', msg: 'Koneksi terputus — akan dikirim saat online' }
+        emit('toast', '🟡 Koneksi terputus — overtime disimpan lokal', 'warning')
+      } catch {
+        error.value = e.message || 'Gagal mengirim.'
+        emit('toast', '❌ ' + error.value, 'error')
+      }
+    } else {
+      error.value = e.message || 'Gagal mengirim.'
+      emit('toast', '❌ ' + error.value, 'error')
+    }
   } finally {
     loading.value = false
   }

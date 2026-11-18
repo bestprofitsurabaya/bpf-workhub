@@ -447,6 +447,14 @@ def ensure_anti_fraud_schema(conn=None):
                 # Kolom sudah ada / ALTER tidak bisa — jangan gagalkan startup.
                 print(f"[anti-fraud] kolom {col}: {col_err}")
         conn.commit()
+        # v2.120.0: kunci idempotensi submit (per DB cabang). Dijalankan di
+        # ensure yang sama karena modul ini sudah dipanggil untuk semua cabang
+        # saat startup maupun dari endpoint klaim.
+        try:
+            from modules.idempotency import ensure_table as _ensure_idem
+            _ensure_idem(conn)
+        except Exception as idem_err:
+            print(f"[anti-fraud] idempotency table: {idem_err}")
         return True
     finally:
         try:

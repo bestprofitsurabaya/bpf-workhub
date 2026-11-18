@@ -7,6 +7,37 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.120.0 — 18 November 2026 (Klaim & LPJ setara, submit tak lagi dobel)
+
+- 🛡️ **LPJ kasbon kini melewati guard yang sama dengan klaim BBM.** Sebelumnya
+  jalur `/api/cash/submit-lpj/<id>` menyimpan bukti tanpa memeriksa isi file,
+  hash foto yang pernah dipakai, ODO mundur, atau kapasitas tangki. Sekarang
+  foto rusak dan foto bekas **ditolak**; ODO lebih rendah / pengisian > 90%
+  kapasitas / tanpa EXIF menjadi **anomali** yang ditandai untuk GA — bukan
+  penolakan, karena satu kasbon bisa menutup beberapa pengisian.
+  `ml_anomaly_flag`, `proof_meta`, dan registri hash lintas cabang ikut diisi.
+- 🔁 **Submit idempoten.** Klaim BBM, kasbon, LPJ, log trip, dan overtime
+  menerima `client_uuid`. Retry manual, antrean offline, atau respons yang
+  hilang tidak lagi membuat baris ganda: pengiriman ulang mengembalikan
+  dokumen yang sama (`duplicate: true`). Bila masih diproses → 409, bukan
+  salinan kedua. Klaim ikut rollback bila submit gagal, jadi retry tetap sah.
+- 📴 **Antrean offline benar-benar lengkap.** `overtime_queue` dulu dipanggil
+  kode tetapi store IndexedDB-nya tidak pernah dibuat (pengajuan OT offline
+  selalu gagal), dan badge tidak menghitungnya. Kini ada 5 antrean — BBM, LPJ,
+  trip, overtime, kasbon — dengan badge yang menghitung semuanya.
+- 🧾 **Kasbon bisa diajukan offline.** Kode unik dan total dihitung server saat
+  antrean dikirim, sehingga tidak memakai kode harian yang kedaluwarsa.
+- 📶 **Koneksi putus di tengah submit tidak membuang data.** Keempat tab
+  driver menyimpan payload ke antrean saat fetch/`api()` gagal karena jaringan;
+  penolakan validasi server tetap ditampilkan sebagai error, bukan diantrekan.
+- 📊 **Rapor tidak lagi menghitung klaim `rejected`** (dan status warisan
+  `verified`) dalam rata-rata km/L. Definisi status memakai `bbm_scope`.
+- 🔒 **Rapor driver hanya untuk nopol sendiri.** Driver yang mencoba membaca
+  performa nopol lain mendapat 403; GA/Finance/Admin tetap lintas nopol.
+- ✅ Tes: guard (6), idempotensi (5), antrean/badge/UUID (4) — suite penuh
+  **1364 lulus**, 13 skip; sisa 4 gagal + 11 error adalah baseline environment
+  (`segno`, `SECRET_KEY`, MySQL), bukan regresi. Frontend: **366 lulus**.
+
 ## v2.119.0 — 18 November 2026 (Kegagalan yang ditelan kini terlihat)
 
 - 🔍 **Sinyal integritas di `/api/health`.** Sebelumnya ratusan

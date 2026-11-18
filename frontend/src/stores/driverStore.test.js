@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
-import { useDriverStore, toForm } from './driverStore'
+import { useDriverStore, toForm, newSubmitId, isNetworkError } from './driverStore'
 
 const { apiMock } = vi.hoisted(() => ({ apiMock: vi.fn() }))
 vi.mock('../api', () => ({ api: apiMock }))
@@ -9,7 +9,7 @@ const idb = vi.hoisted(() => ({
   addToQueue: vi.fn(() => Promise.resolve(1)),
   getAllFromQueue: vi.fn(() => Promise.resolve([])),
   deleteFromQueue: vi.fn(() => Promise.resolve()),
-  countAllQueues: vi.fn(() => Promise.resolve({ fuel: 0, trip: 0, lpj: 0 })),
+  countAllQueues: vi.fn(() => Promise.resolve({ fuel: 0, trip: 0, lpj: 0, overtime: 0, cash: 0 })),
 }))
 vi.mock('../utils/idb', () => idb)
 
@@ -39,11 +39,18 @@ describe('driver store', () => {
   it('enqueue menambah antrean dan memperbarui badge', async () => {
     const s = useDriverStore()
     await s.loadProfile()
-    idb.countAllQueues.mockResolvedValueOnce({ fuel: 1, trip: 0, lpj: 0 })
+    idb.countAllQueues.mockResolvedValueOnce({ fuel: 1, trip: 0, lpj: 0, overtime: 0, cash: 0 })
     await s.enqueue('fuel_queue', { driver_name: 'RIVAN', nominal: 100000 })
     expect(idb.addToQueue).toHaveBeenCalledWith('fuel_queue', expect.objectContaining({ data: expect.objectContaining({ driver_name: 'RIVAN' }) }))
     expect(s.queue.fuel).toBe(1)
     expect(s.queueTotal).toBe(1)
+  })
+
+  it('badge menghitung antrean overtime dan kasbon (v2.120.0)', async () => {
+    const s = useDriverStore()
+    idb.countAllQueues.mockResolvedValueOnce({ fuel: 0, trip: 0, lpj: 0, overtime: 2, cash: 1 })
+    await s.refreshQueue()
+    expect(s.queueTotal).toBe(3)
   })
 
   it('syncAll mengirim antrean fuel lalu menghapusnya', async () => {
@@ -72,6 +79,28 @@ describe('driver store', () => {
     expect(n).toBe(1)
     expect(apiMock).toHaveBeenCalledWith('/api/overtime/driver/submit', expect.objectContaining({ method: 'POST' }))
     expect(idb.deleteFromQueue).toHaveBeenCalledWith('overtime_queue', 11)
+  })
+
+  it('syncAll mengirim antrean kasbon offline (v2.120.0)', async () => {
+    const s = useDriverStore()
+    idb.getAllFromQueue.mockImplementation((store) => {
+      if (store === 'cash_queue') return Promise.resolve([{ id: 21, data: { base_amount: 50000, client_uuid: 'abc' }, timestamp: 'x' }])
+      return Promise.resolve([])
+    })
+    apiMock.mockResolvedValueOnce({ status: 'success', msg: 'ok' })
+    const n = await s.syncAll()
+    expect(n).toBe(1)
+    expect(apiMock).toHaveBeenCalledWith('/api/cash/request', expect.objectContaining({ method: 'POST' }))
+    expect(idb.deleteFromQueue).toHaveBeenCalledWith('cash_queue', 21)
+  })
+
+  it('newSubmitId menghasilkan kunci berbeda & isNetworkError membedakan HTTP', () => {
+    expect(newSubmitId()).not.toBe(newSubmitId())
+    const net = new Error('Koneksi ke server gagal. Periksa jaringan Anda.')
+    expect(isNetworkError(net)).toBe(true)
+    const http = new Error('Gagal')
+    http.status = 400
+    expect(isNetworkError(http)).toBe(false)
   })
 
   it('pushNotification menambah notifikasi & menaikkan unread', () => {

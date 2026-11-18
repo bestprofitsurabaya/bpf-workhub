@@ -1,6 +1,6 @@
 <script setup>
 import { onMounted, onUnmounted, ref, watch } from 'vue'
-import { useDriverStore } from '../../stores/driverStore'
+import { useDriverStore, newSubmitId } from '../../stores/driverStore'
 import { api } from '../../api'
 import { saveTripDraft, loadTripDraft, deleteTripDraft } from '../../utils/idb'
 
@@ -18,6 +18,8 @@ const rows = ref([])
 const appointments = ref([])
 const apptLoading = ref(false)
 const saving = ref(false)
+// v2.120.0: UUID per percobaan submit trip (idempotensi server).
+let tripUuid = null
 
 // Modal hasil kunjungan (🏁 Selesai Dikunjungi)
 const visitAppt = ref(null)
@@ -161,7 +163,9 @@ async function submit() {
 
   // Simpan sebagai ARRAY per key agar rute ganda tidak saling menimpa
   // (object biasa tidak bisa menampung key duplikat — bug multi-rute).
+  if (!tripUuid) tripUuid = newSubmitId()
   const payload = {
+    client_uuid: tripUuid,
     driver_name: store.driverName,
     nopol: nopol.value,
     trip_date: tripDate.value,
@@ -204,16 +208,27 @@ async function submit() {
         emit('toast', `✅ Log perjalanan terkirim (${j.routes || validRows.length} rute)`, 'success')
         await deleteTripDraft(store.driverName, tripDate.value)
         rows.value = []; kmAwal.value = 0; kmAkhir.value = 0; jamBerangkat.value = ''; jamTiba.value = ''
+        tripUuid = null
         loadAppointments()
       } else {
         emit('toast', '❌ ' + (j?.msg || 'Gagal mengirim'), 'error')
       }
-    } catch { emit('toast', '❌ Error koneksi', 'error') }
+    } catch {
+      // v2.120.0: koneksi putus → antrekan payload yang sama (UUID ikut).
+      try {
+        await store.enqueue('trip_queue', payload)
+        await deleteTripDraft(store.driverName, tripDate.value)
+        rows.value = []; kmAwal.value = 0; kmAkhir.value = 0; jamBerangkat.value = ''; jamTiba.value = ''
+        tripUuid = null
+        emit('toast', '🟡 Koneksi terputus — log trip disimpan lokal', 'warning')
+      } catch { emit('toast', '❌ Error koneksi', 'error') }
+    }
     finally { saving.value = false }
   } else {
     await store.enqueue('trip_queue', payload)
     await deleteTripDraft(store.driverName, tripDate.value)
     rows.value = []; kmAwal.value = 0; kmAkhir.value = 0; jamBerangkat.value = ''; jamTiba.value = ''
+    tripUuid = null
     emit('toast', '🟡 Offline — data disimpan lokal, akan dikirim otomatis', 'warning')
   }
 }
