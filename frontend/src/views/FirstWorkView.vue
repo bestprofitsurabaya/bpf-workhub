@@ -64,8 +64,13 @@ const syncInfo = ref(null)
 // v2.82.0: tiap cabang punya tautan ber-token sendiri; tautan cabang A tidak
 // bisa dipakai mengirim isian atas nama cabang B.
 const branchForms = ref([])
+// Admin Pusat (scope_branch = null) memakai cabang yang sedang difilter.
+// Tanpa pilihan, tautan kosong dan UI meminta memilih cabang — bukan
+// menyuruh "muat ulang halaman" padahal datanya sudah termuat.
+const activeBranchCode = computed(() => scopeBranch.value || filters.branch || '')
 const formLink = computed(() => {
-  const scope = scopeBranch.value
+  const scope = activeBranchCode.value
+  if (!scope) return ''
   const entry = branchForms.value.find((b) => b.branch_code === scope)
   // v2.86.2: tautan form WAJIB ber-token. Jangan pernah fallback ke tautan
   // tokenless — backend menolaknya (v2.84.0+) dan traineer akan membagikan
@@ -442,7 +447,9 @@ async function downloadKtp(row) {
 
 async function copyFormLink() {
   if (!formLink.value) {
-    err.value = 'Tautan form ber-token belum termuat — muat ulang halaman.'
+    err.value = activeBranchCode.value
+      ? `Cabang ${activeBranchCode.value} belum punya tautan form ber-token.`
+      : 'Pilih cabang dulu untuk menyalin tautan form.'
     return
   }
   await copyLink(formLink.value, 'Link form publik')
@@ -477,7 +484,12 @@ function branchUrl(entry) {
 }
 
 async function showQr(url, label) {
-  if (!url) { err.value = 'Link form belum tersedia — muat ulang halaman.'; return }
+  if (!url) {
+    err.value = activeBranchCode.value
+      ? `Cabang ${activeBranchCode.value} belum punya tautan form ber-token.`
+      : 'Pilih cabang dulu untuk menampilkan QR.'
+    return
+  }
   Object.assign(qrModal, {
     show: true, label, url, dataUrl: '',
     file: 'qr-firstwork-' + (label.toLowerCase().replace(/[^a-z0-9]+/g, '-')) + '.png',
@@ -590,8 +602,11 @@ onMounted(() => {
   <div class="fw-view">
     <PageHeader icon="📝" title="Absensi FirstWork" :subtitle="subtitle">
       <a v-if="canVerify && formLink" class="btn" :href="formLink" target="_blank" rel="noopener">↗ Buka Form Publik</a>
-      <button v-if="canVerify" class="btn" @click="copyFormLink">🔗 Salin Link</button>
-      <button v-if="canVerify" class="btn" @click="showQr(formLink, 'Form FirstWork ' + (scopeBranch || 'SBY'))">▦ QR</button>
+      <button v-if="canVerify && formLink" class="btn" @click="copyFormLink">🔗 Salin Link</button>
+      <button v-if="canVerify && formLink" class="btn" @click="showQr(formLink, 'Form FirstWork ' + activeBranchCode)">▦ QR</button>
+      <span v-if="canVerify && !formLink" class="fw-hint">
+        {{ activeBranchCode ? 'Cabang ' + activeBranchCode + ' belum punya token form.' : 'Pilih cabang untuk tautan form.' }}
+      </span>
       <a class="btn" :href="exportUrl" target="_blank" rel="noopener">⬇️ Ekspor CSV</a>
       <button v-if="isAdmin" class="btn" :disabled="busy" @click="runSync(true)">🧪 Cek Sync</button>
       <button v-if="isAdmin" class="btn btn-primary" :disabled="busy" @click="runSync(false)">🔄 Sync Sheet</button>

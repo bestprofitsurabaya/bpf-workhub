@@ -7,6 +7,25 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.118.2 — 18 November 2026 (Perbaikan tautan form untuk Admin Pusat)
+
+- 🐞 **"Tautan form ber-token belum termuat — muat ulang halaman" muncul di
+  akun Admin Pusat** saat menekan 🔗 Salin Link / ▦ QR di halaman **Registrasi
+  CV Online** dan **Absensi FirstWork**. Penyebabnya: kedua halaman mencari
+  tautan berdasarkan `scope_branch` (satu cabang sesi), sedangkan Admin Pusat
+  memang tidak punya cabang sesi (`null`) karena melihat semua cabang. Tidak
+  ada data yang gagal dimuat — pesannya saja yang salah.
+- ✅ **Sekarang tautan mengikuti cabang yang dipilih.** Bila Admin Pusat memilih
+  cabang di filter, tombol Buka Form Publik / Salin Link / QR menunjuk token
+  cabang itu. Bila belum memilih, tombol tautan disembunyikan dan muncul
+  petunjuk **"Pilih cabang untuk tautan form."** — bukan menyuruh reload.
+- ✅ **Pesan diperjelas:** bila cabang sudah dipilih tetapi tokennya belum ada,
+  pesannya menyebut cabang tersebut ("Cabang SBY belum punya tautan form
+  ber-token"), bukan "muat ulang halaman".
+- 🧪 Tes UI: 4 tes baru (CV Online & FirstWork) — Admin Pusat tanpa cabang tidak
+  melihat tombol tautan & tidak ada pesan reload; setelah memilih cabang,
+  tautan mengarah ke token cabang itu.
+
 ## v2.118.1 — 18 November 2026 (Pembersihan pasca-Fase 3)
 
 Bukan fitur baru — membuang sisa yang menyesatkan dan menutup celah kecil

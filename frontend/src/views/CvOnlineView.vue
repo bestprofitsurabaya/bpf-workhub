@@ -33,8 +33,14 @@ const confirmDelete = ref('')
 
 const branchForms = ref([])
 const showForms = ref(false)
+// Admin Pusat tidak punya satu cabang sesi (scope_branch = null), jadi tautan
+// mengikuti filter cabang yang sedang dipilih. Tanpa pilihan, tautan kosong —
+// UI menampilkan petunjuk "pilih cabang", bukan pesan "muat ulang halaman".
+const activeBranchCode = computed(() => scopeBranch.value || filters.branch || '')
 const formLink = computed(() => {
-  const entry = branchForms.value.find((b) => b.branch_code === scopeBranch.value)
+  const code = activeBranchCode.value
+  if (!code) return ''
+  const entry = branchForms.value.find((b) => b.branch_code === code)
   return entry?.form_path ? window.location.origin + entry.form_path : ''
 })
 
@@ -152,7 +158,9 @@ async function loadBranchForms() {
 
 async function copyLink(url, label = 'Link form publik') {
   if (!url) {
-    err.value = 'Tautan form ber-token belum termuat — muat ulang halaman.'
+    err.value = activeBranchCode.value
+      ? `Cabang ${activeBranchCode.value} belum punya tautan form ber-token.`
+      : 'Pilih cabang dulu untuk menyalin tautan form.'
     return
   }
   try {
@@ -268,8 +276,11 @@ onMounted(() => {
   <div class="cv-view">
     <PageHeader icon="📄" title="Registrasi CV Online" :subtitle="subtitle">
       <a v-if="canVerify && formLink" class="btn" :href="formLink" target="_blank" rel="noopener">↗ Buka Form Publik</a>
-      <button v-if="canVerify" class="btn" @click="copyLink(formLink)">🔗 Salin Link</button>
-      <button v-if="canVerify" class="btn" @click="showQr(formLink, 'Form CV Online ' + (scopeBranch || 'SBY'))">▦ QR</button>
+      <button v-if="canVerify && formLink" class="btn" @click="copyLink(formLink)">🔗 Salin Link</button>
+      <button v-if="canVerify && formLink" class="btn" @click="showQr(formLink, 'Form CV Online ' + activeBranchCode)">▦ QR</button>
+      <span v-if="canVerify && !formLink" class="cv-hint">
+        {{ activeBranchCode ? 'Cabang ' + activeBranchCode + ' belum punya token form.' : 'Pilih cabang untuk tautan form.' }}
+      </span>
       <button class="btn" @click="showForms = !showForms">🔗 Link per Cabang</button>
       <a class="btn" :href="exportUrl" target="_blank" rel="noopener">⬇️ Ekspor CSV</a>
     </PageHeader>

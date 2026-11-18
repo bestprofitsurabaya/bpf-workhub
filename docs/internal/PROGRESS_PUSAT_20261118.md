@@ -115,6 +115,7 @@ operator darurat (break-glass)**. ACC harian tetap di GA/Finance cabang.
 | 18 Nov 2026 | Audit menu "Laporan & Analisis" → v2.113.1 | commit `a5236cf`, health `v2.113.1` |
 | 18 Nov 2026 | Helper CSV + dasar hitung + perbaikan redirect (v2.113.2) | 335 tes frontend + 10 guard lulus, health `v2.113.2` |
 | 18 Nov 2026 | Panel Pusat + switcher + banner + badge total + scope berbasis flag (v2.114.0) | 346 tes frontend, 103 tes backend, fan-out live 12 cabang, health `v2.114.0` |
+| 18 Nov 2026 | Perbaikan tautan form Admin Pusat di CV Online & FirstWork: tautan ikut cabang filter, petunjuk "pilih cabang" menggantikan pesan "muat ulang" (v2.118.2) | 17 tes UI CV/FirstWork lulus |
 | 18 Nov 2026 | Audit & pembersihan pasca-Fase 3: bulan invalid→400, argumen angka aman, error DB tidak bocor, kode mati & nomor bab panduan dirapikan (v2.118.1) | 23 tes backend + 37 tes UI lulus |
 | 18 Nov 2026 | Laporan bulanan Pusat: agregasi per cabang + CSV + email opsional + status bulanan (v2.118.0) | 9 tes backend + 2 tes UI lulus, health `v2.118.0` |
 | 18 Nov 2026 | Break-glass hapus transaksi Pusat: alasan + step-up + token sekali pakai + audit (v2.117.0) | 8 tes backend + 20 tes UI dashboard lulus, health `v2.117.0` |

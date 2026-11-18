@@ -109,4 +109,35 @@ describe('FirstWorkView (Absensi FirstWork)', () => {
       expect(w.findAll('a').some((a) => (a.attributes('href') || '').includes('first-work-form'))).toBe(false)
     })
   }
+
+  // v2.118.2 — Admin Pusat (semua cabang) diminta memilih cabang, bukan
+  // disuruh "muat ulang halaman" saat menekan Salin/QR.
+  it('Admin Pusat tanpa cabang diminta memilih cabang (bukan "muat ulang")', async () => {
+    const w = await mountRole('admin', {
+      scope: null,
+      branches: [
+        { branch_code: 'SBY', branch_name: 'Surabaya', form_path: '/app/first-work-form?cabang=SBY&t=tok-sby' },
+        { branch_code: 'MLG', branch_name: 'Cabang Malang', form_path: '/app/first-work-form?cabang=MLG&t=tok-mlg' },
+      ],
+    })
+    expect(labels(w)).not.toContain('🔗 Salin Link')
+    expect(labels(w)).not.toContain('▦ QR')
+    expect(w.text()).toContain('Pilih cabang untuk tautan form')
+    expect(w.text()).not.toContain('muat ulang halaman')
+  })
+
+  it('Admin Pusat memilih cabang → tautan form mengikuti cabang itu', async () => {
+    const w = await mountRole('admin', {
+      scope: null,
+      branches: [
+        { branch_code: 'SBY', branch_name: 'Surabaya', form_path: '/app/first-work-form?cabang=SBY&t=tok-sby' },
+        { branch_code: 'MLG', branch_name: 'Cabang Malang', form_path: '/app/first-work-form?cabang=MLG&t=tok-mlg' },
+      ],
+    })
+    await w.find('select[aria-label="Filter cabang"]').setValue('MLG')
+    await flushPromises()
+    const link = w.findAll('a').find((a) => a.text().includes('Buka Form Publik'))
+    expect(link).toBeTruthy()
+    expect(link.attributes('href')).toContain('cabang=MLG')
+  })
 })
