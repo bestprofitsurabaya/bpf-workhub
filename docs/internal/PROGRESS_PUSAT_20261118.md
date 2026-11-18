@@ -10,6 +10,11 @@ Aturan main: setiap langkah yang selesai dicentang di sini **dan** dirilis
 dengan entri CHANGELOG + bump 7 titik stamp versi. Jangan ada perubahan yang
 hanya hidup di working tree.
 
+**Status roadmap (18 Nov 2026):** Fase 1 ✅ v2.114.0 · Fase 2 ✅ v2.115.0 ·
+Fase 3 ✅ v2.116.0–v2.118.0. Satu catatan jujur: **penjadwalan cron/email
+otomatis** belum berjalan sendiri — endpoint email & CSV sudah siap, tetapi
+SMTP dan cron adalah konfigurasi ops (tidak ada kredensial di deploy ini).
+
 ---
 
 ## Bagian A — v2.113.2 (Fase 4: rapikan CSV & tautan lama)
@@ -82,7 +87,7 @@ operator darurat (break-glass)**. ACC harian tetap di GA/Finance cabang.
 - [x] Uji: 29 tes backend (6 ekspor lintas cabang + CV Online) & 13 tes UI CV/
       FirstWork lulus di NAS.
 
-### Fase 3 — Tata kelola (mulai v2.116.0)
+### Fase 3 — Tata kelola (rilis v2.116.0–v2.118.0) ✅
 
 - [x] **Audit lintas cabang (v2.116.0):** `GET /api/admin/audit-logs/all`
       menggabungkan log DB cabang aktif (7 hari, maks. 50/cabang), urut waktu,
