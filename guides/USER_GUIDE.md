@@ -1,4 +1,4 @@
-# 📖 Panduan Pengguna BPF WorkHub v2.115.0
+# 📖 Panduan Pengguna BPF WorkHub v2.116.0
 
 > **Siapa pun kamu — sopir, OB, admin, atau pimpinan — panduan ini ditulis untuk kamu.**
 > Tidak perlu paham teknis. Cukup ikuti langkah-langkah sesuai bagianmu.
@@ -921,6 +921,12 @@ Sejak v2.37.0, Audit Log juga menyimpan **snapshot data lama** saat Finance
 mengedit/menghapus transaksi air minum — sehingga isi sebelum koreksi tetap
 terbaca. Catatan: Admin cabang (`admin_<kode>`) hanya bisa melihat audit log
 cabangnya sendiri.
+
+**Admin Pusat (sejak v2.116.0):** pilih **🌐 Semua cabang (Pusat)** di Filter
+Cabang untuk menggabungkan 7 hari terakhir dari semua cabang aktif. Tabel
+tetap menampilkan kolom cabang; klik 🔍 untuk membaca snapshot dari DB cabang
+asal. Bila satu DB cabang tidak terbaca, panel memberi tahu cabang mana yang
+gagal dan entri cabang lain tetap tampil.
 
 ### 12.5 Dark Mode 🌙
 

@@ -7,6 +7,24 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.116.0 — 18 November 2026 (Fase 3a: Audit log lintas cabang untuk Pusat)
+
+- 🌐 **Filter "Semua cabang (Pusat)" di halaman Log.** Admin Pusat tidak perlu
+  lagi berpindah cabang 12 kali untuk menjawab "siapa mengubah apa hari ini".
+  Log dari seluruh DB cabang aktif digabung, diurutkan waktu, dan tetap
+  menampilkan kolom **Cabang**.
+- 🧩 **Gagal sebagian boleh.** DB satu cabang mati tidak mengosongkan layar:
+  ringkasan menunjukkan cabang mana yang tidak terbaca, cabang lain tetap
+  tampil (`GET /api/admin/audit-logs/all`).
+- 🔍 **Detail snapshot tetap utuh.** Klik 🔍 pada baris gabungan membaca DB
+  cabang asal (`GET /api/admin/audit-logs/all/<cabang>/<id>`) — old_data /
+  new_data tidak diambil massal agar respons ringan.
+- 📏 **Batas wajar:** 7 hari terakhir & maks. 50 entri per cabang (bisa
+  diubah lewat parameter; batas keras 90 hari/200 entri). Admin cabang tetap
+  memakai tampilan per cabang dan ditolak 403 di endpoint baru.
+- ✅ Tes: 6 tes backend (gabungan, isolasi DB mati, filter, 403, detail) +
+  3 tes UI (opsi Pusat, gabungan, detail per cabang).
+
 ## v2.115.0 — 18 November 2026 (Fase 2: register lintas cabang CV & FirstWork)
 
 - 🌐 **Filter cabang untuk Admin Pusat** di **Registrasi CV Online** dan

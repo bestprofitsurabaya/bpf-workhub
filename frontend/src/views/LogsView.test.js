@@ -2,8 +2,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import LogsView from './LogsView.vue'
 
-const { apiMock } = vi.hoisted(() => ({ apiMock: vi.fn() }))
+const { apiMock, authMock } = vi.hoisted(() => ({
+  apiMock: vi.fn(),
+  authMock: { isHoAdmin: false },
+}))
 vi.mock('../api', () => ({ api: apiMock }))
+vi.mock('../stores/auth', () => ({ useAuthStore: () => authMock }))
 
 const now = new Date()
 const LOGS = [
@@ -34,6 +38,7 @@ const mockApi = (logs = LOGS, report = PK_REPORT) => (path) =>
 describe('LogsView', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    authMock.isHoAdmin = false
     apiMock.mockImplementation(mockApi())
   })
 
@@ -197,5 +202,68 @@ describe('LogsView — detail snapshot (v2.37.3)', () => {
     expect(w.text()).toContain('Data Lama')
     await w.findAll('button').find((b) => b.text() === 'Tutup').trigger('click')
     expect(w.text()).not.toContain('Data Lama')
+  })
+})
+
+
+// v2.116.0 — audit lintas cabang untuk Admin Pusat.
+describe('LogsView — audit lintas cabang (Pusat)', () => {
+  const CROSS = {
+    logs: [
+      { id: 9, branch: 'MLG', branch_code: 'MLG', action: 'delete_tx',
+        user_type: 'admin', user_name: 'admin_mlg', created_at: now.toISOString() },
+      { id: 3, branch: 'SBY', branch_code: 'SBY', action: 'approve_ga',
+        user_type: 'ga', user_name: 'ga_sby', created_at: now.toISOString() },
+    ],
+    summary: { branches: 2, returned: 2, days: 7, per_branch: 50,
+               generated_at: '2026-11-18 12:00:00' },
+    errors: [{ branch: 'BDG', error: 'DB tidak dapat dihubungi' }],
+  }
+
+  it('Admin cabang tidak melihat pilihan Semua cabang', async () => {
+    authMock.isHoAdmin = false
+    const w = mount(LogsView)
+    await flushPromises()
+    expect(w.findAll('select')[0].find('option[value="all"]').exists()).toBe(false)
+  })
+
+  it('Admin Pusat bisa menggabungkan log semua cabang', async () => {
+    authMock.isHoAdmin = true
+    apiMock.mockImplementation((path) => {
+      if (path === '/api/admin/audit-logs/all') return Promise.resolve(CROSS)
+      if (path === '/api/pdfkit/report') return Promise.resolve(PK_REPORT)
+      return Promise.resolve(LOGS)
+    })
+    const w = mount(LogsView)
+    await flushPromises()
+    const select = w.find('select')
+    expect(select.find('option[value="all"]').exists()).toBe(true)
+    await select.setValue('all')
+    await flushPromises()
+    expect(apiMock).toHaveBeenCalledWith('/api/admin/audit-logs/all',
+      { params: { days: 7, per_branch: 50 } })
+    expect(w.text()).toContain('admin_mlg')
+    expect(w.text()).toContain('ga_sby')
+    expect(w.text()).toContain('2 cabang')
+    expect(w.text()).toContain('BDG')
+  })
+
+  it('detail baris gabungan memakai endpoint per cabang', async () => {
+    authMock.isHoAdmin = true
+    apiMock.mockImplementation((path) => {
+      if (path === '/api/admin/audit-logs/all') return Promise.resolve(CROSS)
+      if (path === '/api/admin/audit-logs/all/MLG/9') {
+        return Promise.resolve({ ...CROSS.logs[0], old_data: null, new_data: null })
+      }
+      if (path === '/api/pdfkit/report') return Promise.resolve(PK_REPORT)
+      return Promise.resolve(LOGS)
+    })
+    const w = mount(LogsView)
+    await flushPromises()
+    await w.find('select').setValue('all')
+    await flushPromises()
+    await w.find('.tbl-logs tbody tr button').trigger('click')
+    await flushPromises()
+    expect(apiMock).toHaveBeenCalledWith('/api/admin/audit-logs/all/MLG/9')
   })
 })

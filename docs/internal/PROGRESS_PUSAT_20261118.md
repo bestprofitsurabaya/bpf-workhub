@@ -82,9 +82,13 @@ operator darurat (break-glass)**. ACC harian tetap di GA/Finance cabang.
 - [x] Uji: 29 tes backend (6 ekspor lintas cabang + CV Online) & 13 tes UI CV/
       FirstWork lulus di NAS.
 
-### Fase 3 — Tata kelola (target rilis v2.116.0)
+### Fase 3 — Tata kelola (mulai v2.116.0)
 
-- [ ] Access review & audit lintas cabang untuk HO.
+- [x] **Audit lintas cabang (v2.116.0):** `GET /api/admin/audit-logs/all`
+      menggabungkan log DB cabang aktif (7 hari, maks. 50/cabang), urut waktu,
+      kolom cabang, detail snapshot per cabang, isolasi DB mati, khusus HO.
+- [x] Access review sudah global sejak v2.37.0 (`/api/admin/access-review`,
+      `is_ho_admin`); tidak perlu fan-out karena user ada di DB master.
 - [ ] Break-glass: alasan wajib + step-up + jejak audit + notifikasi.
 - [ ] Laporan bulanan terjadwal (unduh/email).
 
@@ -97,4 +101,5 @@ operator darurat (break-glass)**. ACC harian tetap di GA/Finance cabang.
 | 18 Nov 2026 | Audit menu "Laporan & Analisis" → v2.113.1 | commit `a5236cf`, health `v2.113.1` |
 | 18 Nov 2026 | Helper CSV + dasar hitung + perbaikan redirect (v2.113.2) | 335 tes frontend + 10 guard lulus, health `v2.113.2` |
 | 18 Nov 2026 | Panel Pusat + switcher + banner + badge total + scope berbasis flag (v2.114.0) | 346 tes frontend, 103 tes backend, fan-out live 12 cabang, health `v2.114.0` |
+| 18 Nov 2026 | Audit log lintas cabang untuk HO: gabungan 12 DB cabang + detail per cabang (v2.116.0) | 6 tes backend + 3 tes UI lulus, health `v2.116.0` |
 | 18 Nov 2026 | Register lintas cabang: filter cabang + ekspor CSV mengikuti layar di CV Online & FirstWork (v2.115.0) | 352 tes frontend + 75 tes backend terkait lulus; live: Pusat `?branch=MLG`=0 vs `SBY`=1738 baris, `admin_sby` `?branch=MLG` tetap 1738 (terkunci); health `v2.115.0` |

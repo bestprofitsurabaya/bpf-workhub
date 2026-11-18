@@ -7,6 +7,11 @@ import ErrorState from '../components/ErrorState.vue'
 import Modal from '../components/Modal.vue'
 import PageHeader from '../components/PageHeader.vue'
 import { formatDateTime } from '../utils/format.js'
+import { useAuthStore } from '../stores/auth'
+
+const auth = useAuthStore()
+// v2.116.0 — audit lintas cabang hanya untuk Admin Pusat.
+const isHoAdmin = computed(() => auth.isHoAdmin)
 
 const logs = ref([])
 const loading = ref(true)
@@ -18,6 +23,8 @@ const fBranch = ref('current')
 const branchLoading = ref(false)
 const page = ref(1)
 const PER_PAGE = 25
+const crossInfo = ref(null)   // ringkasan fan-out saat "Semua cabang"
+const crossErrors = ref([])
 
 async function loadBranches() {
   try {
@@ -28,10 +35,20 @@ async function loadBranches() {
 
 async function loadLogs() {
   loading.value = true; err.value = ''
+  crossInfo.value = null; crossErrors.value = []
   try {
-    logs.value = await api('/api/audit-logs', {
-      params: fBranch.value === 'current' ? {} : { branch: fBranch.value },
-    }) || []
+    if (fBranch.value === 'all') {
+      const d = await api('/api/admin/audit-logs/all', {
+        params: { days: 7, per_branch: 50 },
+      })
+      logs.value = d?.logs || []
+      crossInfo.value = d?.summary || null
+      crossErrors.value = d?.errors || []
+    } else {
+      logs.value = await api('/api/audit-logs', {
+        params: fBranch.value === 'current' ? {} : { branch: fBranch.value },
+      }) || []
+    }
   } catch (e) { err.value = e.message }
   finally { loading.value = false }
 }
@@ -57,8 +74,13 @@ const detailErr = ref('')
 async function openDetail(l) {
   detailErr.value = ''; detail.value = null; detailLoading.value = true
   try {
-    const q = fBranch.value !== 'current' ? `?branch=${encodeURIComponent(fBranch.value)}` : ''
-    detail.value = await api(`/api/audit-logs/${l.id}${q}`)
+    if (fBranch.value === 'all') {
+      const code = l.branch || l.branch_code
+      detail.value = await api(`/api/admin/audit-logs/all/${encodeURIComponent(code)}/${l.id}`)
+    } else {
+      const q = fBranch.value !== 'current' ? `?branch=${encodeURIComponent(fBranch.value)}` : ''
+      detail.value = await api(`/api/audit-logs/${l.id}${q}`)
+    }
   } catch (e) { detailErr.value = e.message }
   finally { detailLoading.value = false }
 }
@@ -86,7 +108,8 @@ async function loadPkReport() {
       params: {
         ...(pkFrom.value ? { date_from: pkFrom.value } : {}),
         ...(pkTo.value ? { date_to: pkTo.value } : {}),
-        ...(fBranch.value !== 'current' ? { branch: fBranch.value } : {}),
+        ...(fBranch.value !== 'current' && fBranch.value !== 'all'
+            ? { branch: fBranch.value } : {}),
       },
     })
     pk.value = (d && d.data) || null
@@ -191,6 +214,7 @@ onMounted(async () => {
             <label>Filter Cabang</label>
             <select class="select" v-model="fBranch" @change="applyFilters; loadLogs(); loadPkReport()">
               <option value="current">Cabang aktif</option>
+              <option v-if="isHoAdmin" value="all">🌐 Semua cabang (Pusat)</option>
               <option v-for="b in branches" :key="b.code" :value="b.code">{{ b.name }} ({{ b.code }})</option>
             </select>
           </div>
@@ -207,6 +231,15 @@ onMounted(async () => {
             </select>
           </div>
         </div>
+      </div>
+
+      <div v-if="crossInfo" class="alert" style="margin-bottom:12px;background:#f0f9ff;border-color:#bae6fd;">
+        🌐 Menggabungkan <b>{{ crossInfo.branches }} cabang</b> · {{ crossInfo.returned }} entri
+        ({{ crossInfo.days }} hari terakhir, maks. {{ crossInfo.per_branch }}/cabang) ·
+        dibuat {{ crossInfo.generated_at }}.
+        <span v-if="crossErrors.length" style="color:#b45309;">
+          {{ crossErrors.length }} cabang tidak terbaca: {{ crossErrors.map((e) => e.branch).join(', ') }}.
+        </span>
       </div>
 
       <div class="card">

@@ -207,8 +207,9 @@ const PAGE_HELP = [
     title: 'Audit Log',
     summary: 'Telusuri jejak aktivitas untuk investigasi dan kepatuhan.',
     steps: [
-      'Filter berdasarkan tanggal, pengguna, atau aksi.',
+      'Filter berdasarkan pengguna, aksi, atau peran.',
       'Buka detail untuk melihat IP, referensi transaksi, dan data lama.',
+      'Admin Pusat: pilih Semua cabang untuk menggabungkan log 7 hari terakhir; cabang yang DB-nya mati ditandai terpisah.',
       'Gunakan arsip audit di Pengaturan untuk data yang sangat lama.',
     ],
     terms: ['Audit Log'],
