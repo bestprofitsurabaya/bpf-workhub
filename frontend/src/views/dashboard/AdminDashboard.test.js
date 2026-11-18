@@ -54,16 +54,19 @@ function mockApi() {
         cached: false,
       })
     }
+    if (path === '/api/admin/break-glass') {
+      return Promise.resolve({ status: 'success', token: 'tok-uji' })
+    }
     if (path.startsWith('/api/cross-check/')) return Promise.resolve(CROSS)
     return Promise.resolve({ status: 'success', msg: 'ok' })
   })
 }
 
-async function mountWith(role) {
+async function mountWith(role, userName = role) {
   const pinia = createPinia()
   setActivePinia(pinia)
   const auth = useAuthStore()
-  auth.user = { role, full_name: 'User ' + role, user_name: role }
+  auth.user = { role, full_name: 'User ' + role, user_name: userName }
   mockApi()
   const w = mount(AdminDashboard, {
     global: {
@@ -208,8 +211,8 @@ describe('AdminDashboard', () => {
     expect(apiMock).toHaveBeenCalledWith('/api/queue/approve-ga/1', { method: 'POST' })
   })
 
-  it('role admin melihat tombol Hapus (🗑 Hapus) di modal yang memanggil /api/queue/delete', async () => {
-    const w = await mountWith('admin')
+  it('Admin cabang menghapus lewat alur normal /api/queue/delete', async () => {
+    const w = await mountWith('admin', 'admin_sby')
     await btnByText(w, '👁 Detail').trigger('click')
     await flushPromises()
     await flushPromises()
@@ -217,6 +220,27 @@ describe('AdminDashboard', () => {
     await flushPromises()
     await confirmYes(w)
     expect(apiMock).toHaveBeenCalledWith('/api/queue/delete/1', { method: 'POST' })
+  })
+
+  it('Admin Pusat wajib break-glass: alasan + token sebelum hapus permanen', async () => {
+    const w = await mountWith('admin')
+    await btnByText(w, '👁 Detail').trigger('click')
+    await flushPromises()
+    await flushPromises()
+    await btnByText(w, '🗑 Hapus').trigger('click')
+    await flushPromises()
+    await w.find('textarea').setValue('transaksi uji ganda, GA cabang tidak masuk')
+    await btnByText(w, 'Minta izin & hapus').trigger('click')
+    await flushPromises()
+    await flushPromises()
+    expect(apiMock).toHaveBeenCalledWith('/api/admin/break-glass', {
+      method: 'POST',
+      body: { action: 'delete_tx', target: '1',
+              reason: 'transaksi uji ganda, GA cabang tidak masuk' },
+    })
+    expect(apiMock).toHaveBeenCalledWith('/api/queue/delete/1', {
+      method: 'POST', body: { break_glass_token: 'tok-uji' },
+    })
   })
 
   it('P2: kartu Perlu Tindakan membuka tab antrean terkait', async () => {

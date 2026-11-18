@@ -531,6 +531,7 @@ from modules.security import register_health_routes
 from modules.stepup import register_stepup_routes
 from modules.routes_accessreview import register_access_review_routes
 from modules.routes_audit_cross import register_audit_cross_routes  # v2.116.0
+from modules.break_glass import register_break_glass_routes  # v2.117.0
 from modules.routes_retention import register_retention_routes
 from modules.routes_documents import register_document_routes
 from modules.routes_subsidy import register_subsidy_routes  # v2.50.0
@@ -580,6 +581,7 @@ register_health_routes(app)
 register_stepup_routes(app)
 register_access_review_routes(app)
 register_audit_cross_routes(app)   # v2.116.0 — audit lintas cabang (HO)
+register_break_glass_routes(app)   # v2.117.0 — break-glass (alasan + step-up + audit)
 register_retention_routes(app)
 register_document_routes(app)
 register_approval_routes(app)

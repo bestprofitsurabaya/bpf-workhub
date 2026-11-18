@@ -747,6 +747,32 @@ def register_spa_routes(app):
             if not tx:
                 cursor.close(); conn.close()
                 return jsonify({'status': 'error', 'msg': f'Transaksi #{tx_id} tidak ditemukan.'}), 404
+
+            # v2.117.0 — Pusat tidak menghapus permanen tanpa break-glass:
+            # alasan wajib + step-up + token sekali pakai + jejak audit.
+            # Admin cabang tetap memakai alur normal (tercatat di audit).
+            from modules.admin_scope import is_ho_admin
+            if is_ho_admin():
+                from modules.break_glass import consume as _bg_consume
+                data = request.get_json(silent=True) or {}
+                ok_bg, bg = _bg_consume(
+                    data.get('break_glass_token'),
+                    str(session.get('branch_code') or '').strip().upper(),
+                    'delete_tx', str(tx_id), actor)
+                if not ok_bg:
+                    cursor.close(); conn.close()
+                    return jsonify({
+                        'status': 'error',
+                        'msg': f'Break-glass diperlukan: {bg}',
+                        'code': 'BREAK_GLASS_REQUIRED',
+                    }), 428
+                log_activity_async(
+                    None, 'break_glass_use', 'admin', actor,
+                    new_data={'grant_id': bg.get('id'), 'action': 'delete_tx',
+                              'target': str(tx_id), 'reason': bg.get('reason'),
+                              'issued_by': bg.get('issued_by')},
+                    ip=_client_ip())
+
             # Hapus file bukti terkait (aman: tidak menggagalkan jika file tak ada)
             import os as _os
             upload_dir = _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))), 'uploads')

@@ -1,4 +1,4 @@
-# 📖 Panduan Pengguna BPF WorkHub v2.116.0
+# 📖 Panduan Pengguna BPF WorkHub v2.117.0
 
 > **Siapa pun kamu — sopir, OB, admin, atau pimpinan — panduan ini ditulis untuk kamu.**
 > Tidak perlu paham teknis. Cukup ikuti langkah-langkah sesuai bagianmu.
@@ -944,6 +944,25 @@ verifikasi air minum.
 - Verifikasi berlaku **10 menit** — aksi uang berikutnya dalam rentang itu
   tidak perlu PIN ulang.
 - Grant hilang saat **logout** — selalu logout setelah selesai bekerja.
+
+### 12.6a Break-glass — Aksi Darurat Admin Pusat 🛡 (sejak v2.117.0)
+
+Admin Pusat **tidak** menghapus transaksi permanen dengan sekali klik. Untuk
+aksi destruktif ini berlaku **break-glass**:
+
+1. Klik 🗑 Hapus → tulis **alasan darurat** (minimal 15 karakter). Alasan ini
+   masuk audit log, bukan sekadar konfirmasi.
+2. Sistem meminta **PIN ulang** (step-up) bila grant 10 menit sudah habis.
+3. Setelah PIN benar, sistem menerbitkan **izin sekali pakai** yang terikat
+   pada cabang, aksi, dan ID transaksi — berlaku 5 menit.
+4. Penghapusan berjalan hanya dengan izin itu. Izin yang sudah dipakai,
+   kedaluwarsa, atau menyasar transaksi/cabang lain ditolak.
+
+Admin cabang **tidak** memakai break-glass; alur hapus normalnya tetap dan
+tetap tercatat di Audit Log. Riwayat izin darurat bisa diperiksa lewat
+`GET /api/admin/break-glass` (Admin Pusat) dan entri `break_glass_issue` /
+`break_glass_use` di Log cabang. Email/WhatsApp belum dikonfigurasi, jadi
+"notifikasi" saat ini = entri audit yang terlihat di Log.
 
 ### 12.7 Access Review (Admin) 🛂
 

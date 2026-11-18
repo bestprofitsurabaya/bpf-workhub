@@ -1,4 +1,4 @@
-# 📋 Daftar User & Role — BPF WorkHub v2.116.0
+# 📋 Daftar User & Role — BPF WorkHub v2.117.0
 
 Dokumen ini menjelaskan semua role yang didukung sistem, siapa yang memakainya, dan apa yang bisa dilakukan masing-masing.
 
@@ -120,6 +120,10 @@ Sistem mendukung **11 peran inti** (peran `it` dipecah per cabang pada daftar di
   tampil, tapi operasional terkunci ke cabangnya: tidak bisa ganti cabang,
   tidak bisa aksi lintas cabang (menu Access Review & Audit Log disembunyikan
   dari sidebar-nya).
+
+**Break-glass (v2.117.0):** penghapusan transaksi permanen oleh Admin Pusat
+wajib alasan darurat + step-up PIN + token sekali pakai; Admin cabang memakai
+alur normal. Jejak `break_glass_issue`/`break_glass_use` ada di audit log cabang.
 
 **Panel Pusat (v2.114.0):** Admin Pusat melihat satu tabel antrean semua cabang
 di Dashboard (klaim BBM, siap cair, kasbon di driver, LPJ > 7 hari, SPBU

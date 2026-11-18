@@ -389,6 +389,48 @@ async function modalAction(path, label) {
   return ok
 }
 
+// v2.117.0 — Admin Pusat tidak menghapus permanen tanpa break-glass:
+// alasan darurat + step-up PIN + token sekali pakai + jejak audit.
+async function breakGlassDelete(tx) {
+  const reason = await ask(
+    `Menghapus PERMANEN ${tx.display_id || tx.id} (${tx.driver_name || ''}).\n\n` +
+    'Tulis alasan darurat (min. 15 karakter). Alasan ini tercatat di audit log cabang.',
+    {
+      title: '🛡 Break-glass — hapus permanen',
+      confirmText: 'Minta izin & hapus',
+      danger: true,
+      input: true,
+      required: true,
+      placeholder: 'mis. transaksi uji ganda, GA cabang tidak bisa masuk',
+    })
+  if (reason === null) return
+  const clean = String(reason).trim()
+  if (clean.length < 15) {
+    queueMsg.value = '❌ Alasan darurat minimal 15 karakter.'
+    return
+  }
+  qBusy.value = true; queueMsg.value = ''
+  try {
+    const grant = await stepup.require(
+      () => api('/api/admin/break-glass', {
+        method: 'POST',
+        body: { action: 'delete_tx', target: String(tx.id), reason: clean },
+      }),
+      `izin darurat menghapus ${tx.display_id || tx.id}`)
+    if (!grant?.token) {
+      queueMsg.value = '❌ Izin darurat tidak diterbitkan.'
+      return
+    }
+    const r = await api(`/api/queue/delete/${tx.id}`, {
+      method: 'POST', body: { break_glass_token: grant.token },
+    })
+    queueMsg.value = '✅ ' + (r.msg || 'Transaksi dihapus')
+    sel.value = null; selData.value = null; selCross.value = null
+    loadQueue(); refreshStats()
+  } catch (e) { queueMsg.value = '❌ ' + e.message }
+  finally { qBusy.value = false }
+}
+
 function doApprove(tx) {
   if (tx.ml_anomaly_flag) {
     queueMsg.value = '⚠️ Transaksi ber-flag anomali ML — buka 👁 Detail lalu pilih 🛡 Verifikasi Anomali untuk verifikasi penuh.'
@@ -989,7 +1031,10 @@ watch(queueTab, (tab) => {
           <button v-if="selData.status === 'verified_ga' && canFinance" class="btn btn-sm btn-primary" :disabled="qBusy" @click="modalAction(`/api/queue/payout/${selData.id}`, 'mencairkan dana klaim ini', true)">💰 Cairkan</button>
           <button v-if="selData.status === 'os_finance' && canFinance" class="btn btn-sm btn-primary" :disabled="qBusy" @click="modalAction(`/api/queue/archive/${selData.id}`, 'mengarsipkan klaim ini')">📦 Arsipkan</button>
           <button v-if="selData.status === 'verified_ga' && canApprove" class="btn btn-sm" :disabled="qBusy" @click="modalAction(`/api/queue/unverify/${selData.id}`, 'mengembalikan klaim ke antrean GA')">↩️ Unverify</button>
-          <button v-if="isAdmin" class="btn btn-sm btn-danger" :disabled="qBusy" @click="modalAction(`/api/queue/delete/${selData.id}`, 'menghapus PERMANEN transaksi ini')">🗑 Hapus</button>
+          <button v-if="isAdmin && isHoAdmin" class="btn btn-sm btn-danger" :disabled="qBusy"
+                  title="Admin Pusat: hapus permanen wajib break-glass (alasan + PIN + audit)"
+                  @click="breakGlassDelete(selData)">🗑 Hapus</button>
+          <button v-else-if="isAdmin" class="btn btn-sm btn-danger" :disabled="qBusy" @click="modalAction(`/api/queue/delete/${selData.id}`, 'menghapus PERMANEN transaksi ini')">🗑 Hapus</button>
         </div>
       </div>
     </Modal>

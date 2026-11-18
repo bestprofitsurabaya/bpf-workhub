@@ -7,6 +7,28 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.117.0 — 18 November 2026 (Fase 3b: Break-glass untuk aksi destruktif Pusat)
+
+- 🛡 **Pusat tidak lagi bisa menghapus transaksi permanen dengan sekali klik.**
+  Admin Pusat wajib **break-glass**: menulis alasan darurat (min. 15 karakter),
+  verifikasi **PIN ulang (step-up)**, lalu sistem menerbitkan **token sekali
+  pakai** yang terikat pada cabang + aksi + ID transaksi dan kedaluwarsa dalam
+  5 menit.
+- 🔐 **Token disimpan sebagai hash**, bukan teks mentah; dipakai tepat sekali
+  (`used_at`), dan ditolak bila cabang/aksi/target tidak cocok atau sudah lewat
+  waktu. Admin cabang tetap memakai alur hapus normal.
+- 🧾 **Jejak audit + notifikasi in-app:** `break_glass_issue` dan
+  `break_glass_use` (dengan alasan, penerbit, target) masuk `activity_logs`
+  cabang sehingga Admin cabang melihatnya di Log. Riwayat izin juga tersedia
+  lewat `GET /api/admin/break-glass`. Email/WA belum dikonfigurasi — tidak
+  diklaim ada.
+- 🖥 **UI:** tombol 🗑 Hapus milik Pusat membuka dialog alasan, lalu modal PIN
+  bila grant step-up sudah habis; setelah token sah, penghapusan berjalan dan
+  pesan sukses/penolakan ditampilkan.
+- ✅ Tes: 8 tes backend (step-up, 403 admin cabang, alasan pendek, allowlist,
+  token sekali pakai, kedaluwarsa, target/cabang salah) + tes UI alur Pusat vs
+  Admin cabang.
+
 ## v2.116.0 — 18 November 2026 (Fase 3a: Audit log lintas cabang untuk Pusat)
 
 - 🌐 **Filter "Semua cabang (Pusat)" di halaman Log.** Admin Pusat tidak perlu
