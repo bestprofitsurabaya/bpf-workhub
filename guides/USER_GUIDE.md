@@ -1,4 +1,4 @@
-# 📖 Panduan Pengguna BPF WorkHub v2.120.0
+# 📖 Panduan Pengguna BPF WorkHub v2.121.0
 
 > **Siapa pun kamu — sopir, OB, admin, atau pimpinan — panduan ini ditulis untuk kamu.**
 > Tidak perlu paham teknis. Cukup ikuti langkah-langkah sesuai bagianmu.
@@ -1035,6 +1035,8 @@ back-office — sesuai struktur perusahaan:
    keputusan Anda (nama pengaju, jenis, nomor dokumen, cabang, rantai ACC).
 3. Klik **Keputusan**: **ACC** untuk melanjutkan ke langkah berikutnya,
    atau **Tolak** (wajib mengisi alasan) untuk menghentikan pengajuan.
+   Sejak **v2.121.0**, keputusan ACC meminta **PIN ulang** (step-up) — PIN
+   milik akun yang sedang login, bukan PIN orang lain.
 4. Setelah seluruh langkah ACC selesai, back-office (GA/Admin) dapat
    memproses seperti biasa.
 
@@ -1293,6 +1295,12 @@ Setelah dana diterima, driver mengisi **LPJ (Laporan Pertanggungjawaban)** — b
 ### Langkah 5 — GA memverifikasi LPJ 🧾
 GA memeriksa LPJ. Jika sesuai, status menjadi **Selesai** 🎉. Jika tidak, dikembalikan ke driver untuk diperbaiki.
 
+> **Sejak v2.121.0:** bila LPJ ditandai **anomali** (ODO lebih rendah, pengisian
+> hampir penuh, atau tanpa EXIF), sistem **menahan** approve dengan pesan
+> "periksa foto bukti lalu gunakan Verifikasi penuh". Setelah GA memeriksa foto
+> dan mengonfirmasi anomali (PIN), approve LPJ dapat dilanjutkan. Approve LPJ
+> juga mencatat nama & waktu GA di transaksi.
+
 ### Apa itu Kode Unik? 🤔
 Angka "receh" yang ditambahkan ke nominal kasbon (mis. Rp 100.023, bukan Rp 100.000). Tujuannya: saat Finance membayar, **nominal persis ini** memastikan uang itu memang untuk kasbon tersebut — mencegah kesalahan pembayaran. Kode unik harian diatur oleh **Finance**.
 
@@ -1450,7 +1458,7 @@ tanpa membekukan PC user.
 
 ## 15. Mengatasi Masalah (Troubleshooting)
 
-> **Membaca `/api/health` (v2.120.0):** selain `database`, `redis`, dan
+> **Membaca `/api/health` (v2.121.0):** selain `database`, `redis`, dan
 > `deploy`, ada `checks.integrity`. Bila angkanya bukan nol, ada operasi yang
 > gagal tetapi sengaja tidak menghentikan pengguna — mis. query laporan
 > gagal di satu cabang. `recent_critical > 0` (30 menit terakhir) membuat

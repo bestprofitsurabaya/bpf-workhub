@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
+import { createPinia, setActivePinia } from 'pinia'
 import ApprovalsView from './ApprovalsView.vue'
+import { useStepupStore } from '../stores/stepup'
 
 const { apiMock } = vi.hoisted(() => ({ apiMock: vi.fn() }))
 vi.mock('../api', () => ({ api: apiMock }))
@@ -29,6 +31,7 @@ async function mountView() {
 describe('ApprovalsView', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    setActivePinia(createPinia())
     vi.stubGlobal('confirm', vi.fn(() => true))
     vi.stubGlobal('alert', vi.fn())
   })
@@ -74,6 +77,39 @@ describe('ApprovalsView', () => {
       '/api/approvals/cash/5/decision',
       expect.objectContaining({ method: 'POST', body: { decision: 'approved', note: '' } }),
     )
+  })
+
+  it('ACC ditolak 428 STEPUP_REQUIRED: modal PIN terbuka, lalu retry setelah PIN (v2.121.0)', async () => {
+    let decisions = 0
+    apiMock.mockImplementation((path) => {
+      if (path === '/api/approvals') return Promise.resolve({ status: 'success', data: ITEMS })
+      if (String(path).endsWith('/decision')) {
+        decisions += 1
+        if (decisions === 1) {
+          const e = new Error('Verifikasi PIN ulang diperlukan untuk aksi ini.')
+          e.status = 428
+          e.data = { code: 'STEPUP_REQUIRED' }
+          return Promise.reject(e)
+        }
+        return Promise.resolve({ status: 'success', msg: 'ACC langkah 1' })
+      }
+      if (path === '/api/step-up') return Promise.resolve({ status: 'success', expires_in: 600 })
+      return Promise.resolve({})
+    })
+    const w = await mountView()
+    await w.findAll('button').find((b) => b.text() === 'Keputusan').trigger('click')
+    await flushPromises()
+    const accBtn = w.findAll('button').find((b) => b.text().includes('ACC') && !b.text().includes('Tolak'))
+    await accBtn.trigger('click')
+    await flushPromises()
+
+    const stepup = useStepupStore()
+    expect(stepup.open).toBe(true)
+    await stepup.submit('123456')
+    await flushPromises()
+    expect(stepup.open).toBe(false)
+    expect(decisions).toBe(2)
+    expect(w.text()).toContain('ACC langkah 1')
   })
 
   it('menolak tanpa alasan → alert, tidak memanggil endpoint', async () => {

@@ -7,6 +7,34 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.121.0 — 18 November 2026 (Gerbang ACC tidak bisa dilewati)
+
+Enam temuan dari peta alur GA/Verifikasi (18 Nov 2026) ditutup.
+
+- 🚧 **Verifikasi penuh tidak lagi melewati ACC atasan.** Jalur
+  `/api/queue/verify/<id>` dulu bisa mengubah klaim `pending` menjadi
+  `verified_ga` walau ACC Chief Driver masih menunggu — tombol "Verifikasi
+  penuh" menjadi pintu belakang. Sekarang jalur itu memakai gate yang sama
+  dengan `approve-ga`: pending/ditolak → 409 `SUPERVISOR_APPROVAL_REQUIRED`.
+- 🪪 **Identitas aksi uang selalu dari sesi.** `cash/handover` dan
+  `cash/approve-lpj` berhenti membaca `ga_name` dari body. Nama pelaku diambil
+  dari sesi; sesi tanpa nama ditolak 401. Nama generik "GA Officer"/"Admin"
+  tidak pernah lagi masuk audit trail.
+- 🔑 **ACC atasan & verifikasi voucher meminta PIN.** Endpoint keputusan ACC
+  dan `/api/voucher/verify/<id>` kini `@stepup_required`. SPA
+  (`ApprovalsView`, `VoucherPanel`) membuka modal PIN lalu mengulang aksi —
+  sama seperti aksi uang lain.
+- 🧾 **Approve LPJ mencatat jejak GA dan menolak sukses palsu.** Transaksi LPJ
+  kini menyimpan `ga_approved_by`, `ga_approved_at`, dan `approved_by_user`;
+  UPDATE yang tidak mengenai baris dibalas 409, bukan "success". LPJ ber-flag
+  anomali ditahan `409 ANOMALY_NEEDS_CLEAR` sampai GA memeriksa foto dan
+  meng-clear anomali.
+- 🗺️ Peta `docs/internal/PETA_GA_VERIFIKASI_20261118.md` diperbarui — keenam
+  temuan ditandai selesai, matriks step-up ikut disesuaikan.
+- ✅ Tes: 8 tes kontrol GA baru + 2 tes step-up + 2 tes UI. Suite penuh
+  **1374 lulus** (13 skip); frontend **368 lulus**. Sisa 4 gagal + 11 error
+  adalah baseline environment (`segno`, `SECRET_KEY`, MySQL) — bukan regresi.
+
 ## v2.120.0 — 18 November 2026 (Klaim & LPJ setara, submit tak lagi dobel)
 
 - 🛡️ **LPJ kasbon kini melewati guard yang sama dengan klaim BBM.** Sebelumnya

@@ -3,6 +3,7 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import VoucherPanel from './VoucherPanel.vue'
 import { useAuthStore } from '../stores/auth'
+import { useStepupStore } from '../stores/stepup'
 
 const { apiMock } = vi.hoisted(() => ({ apiMock: vi.fn() }))
 vi.mock('../api', () => ({ api: apiMock }))
@@ -86,6 +87,38 @@ describe('VoucherPanel — meja kerja voucher rekanan', () => {
     await btn.trigger('click')
     await flushPromises()
     expect(apiMock).toHaveBeenCalledWith('/api/voucher/verify/1', { method: 'POST' })
+    w.unmount()
+  })
+
+  it('verifikasi voucher 428 STEPUP_REQUIRED: modal PIN lalu retry (v2.121.0)', async () => {
+    const w = await mountView('ga')
+    const base = apiMock.getMockImplementation()
+    let calls = 0
+    apiMock.mockImplementation((path, opts) => {
+      if (path === '/api/voucher/verify/1') {
+        calls += 1
+        if (calls === 1) {
+          const e = new Error('Verifikasi PIN ulang diperlukan untuk aksi ini.')
+          e.status = 428
+          e.data = { code: 'STEPUP_REQUIRED' }
+          return Promise.reject(e)
+        }
+        return Promise.resolve({ status: 'success', msg: 'Voucher diverifikasi GA' })
+      }
+      if (path === '/api/step-up') return Promise.resolve({ status: 'success' })
+      return base(path, opts)
+    })
+    const btn = w.findAll('button').find((b) => b.text().includes('Verifikasi'))
+    await btn.trigger('click')
+    await flushPromises()
+
+    const stepup = useStepupStore()
+    expect(stepup.open).toBe(true)
+    await stepup.submit('123456')
+    await flushPromises()
+    expect(stepup.open).toBe(false)
+    expect(calls).toBe(2)
+    expect(w.text()).toContain('Voucher diverifikasi')
     w.unmount()
   })
 

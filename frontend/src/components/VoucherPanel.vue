@@ -97,7 +97,13 @@ async function verify(row) {
   busy.value = true
   msg.value = ''
   try {
-    const r = await api(`/api/voucher/verify/${row.id}`, { method: 'POST' })
+    // v2.121.0: verifikasi voucher kini butuh step-up PIN (keputusan bernilai
+    // uang). Bila grant belum ada, modal PIN terbuka lalu aksi diulang.
+    const r = await stepup.require(
+      () => api(`/api/voucher/verify/${row.id}`, { method: 'POST' }),
+      `memverifikasi voucher ${row.display_id || row.id}`,
+    )
+    if (!r) return
     msg.value = '✅ ' + (r?.msg || 'Voucher diverifikasi')
     await reload()
   } catch (e) {

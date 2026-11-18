@@ -35,6 +35,7 @@ from flask import jsonify, request, session
 
 from modules.helpers import client_ip, log_activity_async, role_required
 from modules.config import get_master_connection
+from modules.stepup import stepup_required  # v2.121.0
 
 APPROVAL_CODE = 'SUPERVISOR_APPROVAL_REQUIRED'
 APPROVAL_MSG = 'Menunggu persetujuan atasan (approval berjenjang).'
@@ -515,6 +516,7 @@ def register_approval_routes_full(app, role_required):
 
     @app.route('/api/approvals/<doc_type>/<int:doc_ref>/decision', methods=['POST'])
     @role_required(['admin', 'ga', 'finance', 'chief_driver', 'ga_hr'])
+    @stepup_required  # v2.121.0: ACC menggerakkan dokumen menuju uang
     def api_approvals_decision(doc_type, doc_ref):
         """Catat ACC/tolak atasan pada langkah aktif."""
         if doc_type not in DOC_TYPES:

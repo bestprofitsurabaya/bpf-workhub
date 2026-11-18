@@ -355,7 +355,17 @@ def register_spa_routes(app):
     # bukan dari body/query seperti endpoint klasik.
     # ================================================================
     def _queue_actor():
-        return (session.get('full_name') or session.get('user_name') or 'Admin').strip()
+        # v2.121.0: audit trail tidak boleh diisi nama generik. Bila sesi tidak
+        # punya nama sama sekali, endpoint menolak (401) daripada menulis
+        # "Admin"/"GA Officer" yang tidak bisa dipertanggungjawabkan.
+        return (session.get('full_name') or session.get('user_name') or '').strip()
+
+    def _queue_actor_or_401():
+        actor = _queue_actor()
+        if not actor:
+            return None, (jsonify({'status': 'error',
+                                   'msg': 'Sesi tidak lengkap — silakan login ulang.'}), 401)
+        return actor, None
 
     @app.route('/api/queue')
     @role_required(['ga', 'finance', 'admin'])
@@ -389,7 +399,9 @@ def register_spa_routes(app):
     @role_required(['ga', 'admin'])
     @stepup_required
     def api_queue_approve_ga(tx_id):
-        actor = _queue_actor()
+        actor, denied = _queue_actor_or_401()
+        if denied:
+            return denied
         try:
             # v2.36.0: ACC berjenjang — klaim masih menunggu/ditolak atasan
             # (Chief Driver) → proses ditahan (409).
@@ -445,7 +457,9 @@ def register_spa_routes(app):
         Wajib step-up PIN (modal PIN 10 menit) — sama seangkatan aksi uang.
         Finance kemudian boleh payout karena anomali sudah disaksikan GA.
         """
-        actor = _queue_actor()
+        actor, denied = _queue_actor_or_401()
+        if denied:
+            return denied
         try:
             conn = get_db_connection()
             if not conn:
@@ -468,7 +482,9 @@ def register_spa_routes(app):
     @role_required(['finance', 'admin'])
     @stepup_required
     def api_queue_payout(tx_id):
-        actor = _queue_actor()
+        actor, denied = _queue_actor_or_401()
+        if denied:
+            return denied
         try:
             conn = get_db_connection()
             if not conn:
@@ -507,7 +523,9 @@ def register_spa_routes(app):
     @app.route('/api/queue/archive/<int:tx_id>', methods=['POST'])
     @role_required(['finance', 'admin'])
     def api_queue_archive(tx_id):
-        actor = _queue_actor()
+        actor, denied = _queue_actor_or_401()
+        if denied:
+            return denied
         try:
             conn = get_db_connection()
             if not conn:
@@ -536,7 +554,9 @@ def register_spa_routes(app):
     @app.route('/api/queue/reject/<int:tx_id>', methods=['POST'])
     @role_required(['ga', 'admin'])
     def api_queue_reject(tx_id):
-        actor = _queue_actor()
+        actor, denied = _queue_actor_or_401()
+        if denied:
+            return denied
         data = request.get_json(silent=True) or {}
         reason = str(data.get('reason') or 'Tanpa alasan').strip()[:500]
         try:
@@ -571,7 +591,24 @@ def register_spa_routes(app):
         Termasuk jalur verifikasi transaksi ber-flag anomali ML: GA/Admin memeriksa
         foto bukti & mengonfirmasi eksplisit (confirm_anomaly) — kontrol ISO 9001.
         """
-        actor = _queue_actor()
+        actor, denied = _queue_actor_or_401()
+        if denied:
+            return denied
+        # v2.121.0: jalur verifikasi penuh dulu bisa melewati ACC atasan.
+        # Samakan gate dengan approve-ga — klaim yang masih menunggu/tolak
+        # Chief Driver tidak boleh berubah menjadi verified_ga dari sini.
+        _gconn = get_db_connection()
+        if not _gconn:
+            return jsonify({'status': 'error', 'msg': 'DB error'}), 500
+        try:
+            allowed, resp = gate_approval(_gconn, 'bbm', tx_id)
+        finally:
+            try:
+                _gconn.close()
+            except Exception:
+                pass
+        if not allowed:
+            return resp
         data = request.form or (request.get_json(silent=True) or {})
         try:
             conn = get_db_connection()
@@ -612,7 +649,9 @@ def register_spa_routes(app):
     def api_queue_modify(tx_id):
         """Perbaiki data transaksi dari SPA (pengganti form klasik /admin action=modify).
         Perubahan menandai status 'modified' untuk review ulang."""
-        actor = _queue_actor()
+        actor, denied = _queue_actor_or_401()
+        if denied:
+            return denied
         data = request.get_json(silent=True) or {}
         try:
             conn = get_db_connection()
@@ -714,7 +753,9 @@ def register_spa_routes(app):
     @app.route('/api/queue/unverify/<int:tx_id>', methods=['POST'])
     @role_required(['ga', 'admin'])
     def api_queue_unverify(tx_id):
-        actor = _queue_actor()
+        actor, denied = _queue_actor_or_401()
+        if denied:
+            return denied
         try:
             conn = get_db_connection()
             if not conn:
@@ -738,7 +779,9 @@ def register_spa_routes(app):
     @app.route('/api/queue/delete/<int:tx_id>', methods=['POST'])
     @role_required(['admin'])
     def api_queue_delete(tx_id):
-        actor = _queue_actor()
+        actor, denied = _queue_actor_or_401()
+        if denied:
+            return denied
         try:
             conn = get_db_connection()
             if not conn:

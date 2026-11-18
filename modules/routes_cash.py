@@ -267,8 +267,12 @@ def register_cash_routes(app):
     def api_cash_handover(cash_id):
         """GA confirms funds handed to driver"""
         try:
-            data = request.get_json() or {}
-            ga_name = data.get('ga_name', 'GA Officer').strip()
+            # v2.121.0: identitas pelaku WAJIB dari sesi, bukan body. Body
+            # `ga_name` dulu bisa dipalsukan klien dan merusak audit trail.
+            ga_name = (session.get('full_name', '') or session.get('user_name', '')).strip()
+            if not ga_name:
+                return jsonify({'status': 'error',
+                                'msg': 'Sesi tidak lengkap — silakan login ulang.'}), 401
 
             conn = get_db_connection()
             cursor = conn.cursor(dictionary=True)
@@ -335,9 +339,15 @@ def register_cash_routes(app):
     def api_cash_approve_lpj(cash_id):
         """GA verifies LPJ -> marks cash as COMPLETED and transaction as verified_ga"""
         try:
-            data = request.get_json() or {}
-            ga_name = data.get('ga_name', 'GA Officer').strip()
-            notes = data.get('notes', '').strip()
+            # v2.121.0: identitas dari sesi (bukan body), dan LPJ ber-flag
+            # anomali tidak boleh lolos diam-diam ke Finance — GA harus
+            # memeriksa foto lalu meng-clear anomali lebih dulu.
+            ga_name = (session.get('full_name', '') or session.get('user_name', '')).strip()
+            if not ga_name:
+                return jsonify({'status': 'error',
+                                'msg': 'Sesi tidak lengkap — silakan login ulang.'}), 401
+            data = request.get_json(silent=True) or {}
+            notes = str(data.get('notes', '') or '').strip()
 
             conn = get_db_connection()
             cursor = conn.cursor(dictionary=True)
@@ -354,7 +364,36 @@ def register_cash_routes(app):
                 cursor.close(); conn.close()
                 return jsonify({'status': 'error', 'msg': 'Tidak ada transaksi LPJ terkait'}), 400
 
-            cursor.execute("UPDATE transactions SET status = 'verified_ga' WHERE id = %s AND status = 'pending'", (tx_id,))
+            cursor.execute(
+                "SELECT status, ml_anomaly_flag, anomaly_cleared_by FROM transactions WHERE id = %s",
+                (tx_id,))
+            tx = cursor.fetchone()
+            if not tx:
+                cursor.close(); conn.close()
+                return jsonify({'status': 'error', 'msg': f'Transaksi LPJ #{tx_id} tidak ditemukan'}), 404
+            if tx.get('ml_anomaly_flag') and not (tx.get('anomaly_cleared_by') or '').strip():
+                cursor.close(); conn.close()
+                return jsonify({
+                    'status': 'error',
+                    'code': 'ANOMALY_NEEDS_CLEAR',
+                    'msg': (f'LPJ #{tx_id} ber-flag anomali — periksa foto bukti lalu '
+                            'gunakan Verifikasi penuh (anomali) sebelum approve.'),
+                }), 409
+            if tx.get('status') != 'pending':
+                cursor.close(); conn.close()
+                return jsonify({'status': 'error',
+                                'msg': f'Transaksi LPJ #{tx_id} berstatus {tx.get("status")} — tidak bisa di-approve.'}), 409
+
+            cursor.execute(
+                "UPDATE transactions SET status = 'verified_ga', "
+                "ga_approved_by = %s, ga_approved_at = NOW(), approved_by_user = %s "
+                "WHERE id = %s AND status = 'pending'",
+                (ga_name, ga_name, tx_id))
+            if cursor.rowcount == 0:
+                conn.rollback()
+                cursor.close(); conn.close()
+                return jsonify({'status': 'error',
+                                'msg': f'Transaksi LPJ #{tx_id} sudah diproses — approve dibatalkan.'}), 409
 
             cursor.execute("""
                 UPDATE fuel_cash_requests

@@ -1,8 +1,8 @@
 # Peta Alur GA / Verifikasi — BPF WorkHub
 
-Tanggal: 18 Nov 2026 · Basis kode: **v2.120.0** (`20ea0d5`)
+Tanggal: 18 Nov 2026 · Basis kode: **v2.121.0**
 Sifat dokumen: **peta baca-saja** (tidak mengubah perilaku). Semua nomor baris
-mengacu pada kode v2.120.0.
+mengacu pada kode v2.120.0; temuan §11 sudah ditutup di v2.121.0.
 
 Tujuan: menjawab "apa yang diverifikasi GA, dengan kontrol apa, dan di mana
 celahnya" — bukan mendesain ulang. Alur driver ada di dokumen terpisah.
@@ -176,43 +176,37 @@ per request (`:186-205`).
 | `queue/approve-ga`, `queue/verify`, `queue/anomaly-clear` | ✅ |
 | `queue/payout` | ✅ |
 | `cash/approve-ga`, `cash/approve-finance`, `cash/handover`, `cash/approve-lpj` | ✅ |
-| `water/purchases/<id>/verify` | ✅ |
+| `water/purchases/<id>/verify`, `voucher/verify` | ✅ |
+| `approvals/<doc>/<ref>/decision` (v2.121.0) | ✅ |
 | `queue/reject`, `queue/modify`, `queue/unverify`, `queue/archive` | ❌ |
 | `cash/reject`, `cash/reject-lpj` | ❌ |
-| `voucher/verify`, `trips/verify`, `trips/reject` | ❌ |
-| `approvals/<doc>/<ref>/decision` | ❌ |
+| `trips/verify`, `trips/reject` | ❌ |
 
 Grant step-up: 10 menit (env `STEPUP_TTL_SECONDS`), PIN user sesi sendiri,
 rate-limited, dicabut saat logout (`modules/stepup.py:63-100`).
 
 ---
 
-## 11. Temuan saat pemetaan (belum diperbaiki — kandidat rilis berikut)
+## 11. Temuan saat pemetaan — **sudah diperbaiki di v2.121.0**
 
-1. **Jalur verifikasi melewati ACC atasan.** `POST /api/queue/verify/<id>`
+1. ✅ **Jalur verifikasi melewati ACC atasan.** `POST /api/queue/verify/<id>`
    (`routes_spa.py:566`) menyetel `verified_ga` **tanpa** memanggil
    `gate_approval`, padahal `approve-ga` (`:400`) memanggilnya. Klaim yang
    masih menunggu Chief Driver bisa lolos lewat modal "Verifikasi penuh".
-   Perbaikan: panggil gate yang sama sebelum update, atau tolak bila
-   `approval_requests.status='pending'`.
-2. **Identitas pelaku dari body pada dua aksi uang.** `cash/handover` dan
-   `cash/approve-lpj` memakai `data.get('ga_name', 'GA Officer')`
-   (`routes_cash.py:268`, `:339`) — berbeda dari `approve-ga/finance` yang
-   memakai sesi. Ini melemahkan audit trail (nama bisa dipalsukan klien).
-3. **Keputusan ACC tanpa step-up.** `approvals/.../decision` menggerakkan
-   dokumen menuju pencairan tetapi tidak meminta PIN ulang; aksi yang
-   *belum* menyetujui uang sudah step-up, sedangkan ACC atasan tidak.
-4. **Approve LPJ tanpa jejak GA & tanpa cek rowcount.** LPJ diubah ke
-   `verified_ga` tanpa `ga_approved_by`/`ga_approved_at`, dan `UPDATE` yang
-   tidak mengenai baris tetap dibalas sukses (`routes_cash.py:357`). Bila
-   transaksi LPJ ber-flag anomali, payout Finance akan tertahan sampai
-   `/api/queue/anomaly-clear` dipanggil — alur ini tidak dijelaskan ke GA.
-5. **Verifikasi voucher tanpa step-up** meski nilainya masuk tagihan
-   (`routes_voucher.py:254`). Bukan payout langsung, tetapi tetap keputusan
-   bernilai uang.
-6. **Fallback nama audit.** `_queue_actor()`/`_actor()` jatuh ke `'Admin'`/
-   `'GA Officer'` bila sesi tidak lengkap; sebaiknya tolak (401) daripada
-   menulis nama generik.
+   **Perbaikan:** gate yang sama dipasang sebelum update; pending/ditolak → 409.
+2. ✅ **Identitas pelaku dari body pada dua aksi uang.** `cash/handover` dan
+   `cash/approve-lpj` memakai `data.get('ga_name', 'GA Officer')`.
+   **Perbaikan:** identitas dari sesi; sesi tanpa nama → 401.
+3. ✅ **Keputusan ACC tanpa step-up.** **Perbaikan:** `@stepup_required`
+   dipasang pada endpoint keputusan; SPA membuka modal PIN lalu mengulang aksi.
+4. ✅ **Approve LPJ tanpa jejak GA & tanpa cek rowcount.** **Perbaikan:**
+   `ga_approved_by/ga_approved_at/approved_by_user` diisi, UPDATE tanpa baris
+   → 409, dan LPJ ber-flag anomali ditahan `ANOMALY_NEEDS_CLEAR` sampai GA
+   memeriksa foto & meng-clear anomali.
+5. ✅ **Verifikasi voucher tanpa step-up.** **Perbaikan:** `@stepup_required`
+   pada `/api/voucher/verify/<id>`; `VoucherPanel` memakai modal PIN.
+6. ✅ **Fallback nama audit.** **Perbaikan:** `_queue_actor()` tidak lagi
+   memakai `'Admin'`; endpoint menolak 401 bila sesi tanpa nama.
 
 ---
 
@@ -221,5 +215,5 @@ rate-limited, dicabut saat logout (`modules/stepup.py:63-100`).
 GA adalah **gerbang verifikasi tunggal** untuk klaim BBM, kasbon, LPJ, trip,
 dan voucher; uang baru bergerak setelah GA (`verified_ga`/`COMPLETED`) dan
 Finance (`os_finance`/`FINANCE_APPROVED`), dengan ACC atasan sebagai prasyarat
-di dua alur uang besar. Kontrol terkuat ada di jalur cepat (gate + step-up),
-sedangkan jalur "verifikasi penuh" justru menjadi celah ACC (temuan #1).
+di dua alur uang besar. Sejak v2.121.0 jalur "verifikasi penuh" memakai gate
+ACC yang sama, sehingga tidak ada lagi pintu belakang menuju `verified_ga`.

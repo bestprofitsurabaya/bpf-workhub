@@ -20,6 +20,7 @@ Jalankan:
 import sys
 import os
 import json
+import time
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
@@ -325,6 +326,7 @@ class TestDecide:
         with c.session_transaction() as s:
             s['user_role'] = 'chief_driver'
             s['user_name'] = 'chief'
+            s['stepup_until'] = time.time() + 600
         r = c.post('/api/approvals/cash/1/decision', json={'decision': 'rejected'})
         assert r.status_code == 400
 
@@ -438,6 +440,8 @@ def _login(c, role, username):
         s['user_role'] = role
         s['user_name'] = username
         s['full_name'] = username
+        # v2.121.0: keputusan ACC kini butuh step-up PIN.
+        s['stepup_until'] = time.time() + 600
 
 
 class TestEndpoints:

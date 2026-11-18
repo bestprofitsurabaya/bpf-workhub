@@ -5,6 +5,11 @@ import Modal from '../components/Modal.vue'
 import StatCard from '../components/StatCard.vue'
 import PageHeader from '../components/PageHeader.vue'
 import { formatDateTime } from '../utils/format.js'
+import { useStepupStore } from '../stores/stepup'
+
+// v2.121.0 — ACC menggerakkan dokumen menuju pencairan, jadi keputusan
+// atasan kini meminta PIN ulang (step-up) seperti aksi uang lainnya.
+const stepup = useStepupStore()
 
 // v2.36.0 — Approval Berjenjang: antrean ACC atasan (Chief Driver → GA,
 // GA HR → Admin). Daftar hanya pengajuan yang langkah aktifnya milik sesi
@@ -80,10 +85,14 @@ async function decide(decision) {
   noteError.value = ''
   busy.value = true
   try {
-    const d = await api(`/api/approvals/${r.doc_type}/${r.doc_ref}/decision`, {
-      method: 'POST',
-      body: { decision, note: note.value },
-    })
+    const d = await stepup.require(
+      () => api(`/api/approvals/${r.doc_type}/${r.doc_ref}/decision`, {
+        method: 'POST',
+        body: { decision, note: note.value },
+      }),
+      `${decision === 'rejected' ? 'menolak' : 'menyetujui'} ${r.display_id || r.doc_ref}`,
+    )
+    if (!d) return // PIN dibatalkan — tidak ada perubahan
     msg.value = d.msg || 'Keputusan tercatat'
     decideFor.value = null
     await load()

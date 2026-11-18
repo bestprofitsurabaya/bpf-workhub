@@ -253,6 +253,7 @@ def register_voucher_routes(app):
 
     @app.route('/api/voucher/verify/<int:tx_id>', methods=['POST'])
     @role_required(['ga', 'admin'])
+    @stepup_required  # v2.121.0: verifikasi voucher = keputusan bernilai uang
     def api_voucher_verify(tx_id):
         """GA memverifikasi pemakaian voucher (foto & ODO) → verified_ga."""
         conn = None

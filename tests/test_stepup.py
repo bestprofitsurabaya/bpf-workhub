@@ -277,9 +277,13 @@ class TestRealEndpointsProtected:
         from modules.routes_cash import register_cash_routes
         from modules.routes_spa import register_spa_routes
         from modules.routes_water import register_water_routes
+        from modules.routes_voucher import register_voucher_routes
+        from modules.approvals import register_approval_routes
         register_cash_routes(a)
         register_spa_routes(a)
         register_water_routes(a)
+        register_voucher_routes(a)
+        register_approval_routes(a)
         return a
 
     def _login(self, client, role, username=None):
@@ -336,6 +340,18 @@ class TestRealEndpointsProtected:
         c = app_real.test_client()
         self._login(c, 'finance')
         self._expect_428(c, 'POST', '/api/water/purchases/1/verify')
+
+    def test_approvals_decision(self, app_real):
+        """v2.121.0: ACC atasan menggerakkan dokumen menuju uang → step-up."""
+        c = app_real.test_client()
+        self._login(c, 'chief_driver')
+        self._expect_428(c, 'POST', '/api/approvals/cash/1/decision')
+
+    def test_voucher_verify(self, app_real):
+        """v2.121.0: verifikasi voucher rekanan = keputusan bernilai uang."""
+        c = app_real.test_client()
+        self._login(c, 'ga')
+        self._expect_428(c, 'POST', '/api/voucher/verify/1')
 
     def test_grant_aktif_lolos_hanya_role_sesuai(self, app_real):
         """Grant aktif → aksi kasbon GA bisa jalan (bukan 428 lagi).
