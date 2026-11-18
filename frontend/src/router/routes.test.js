@@ -16,3 +16,19 @@ describe('path Absensi FirstWork', () => {
     expect(route.meta.public).toBe(true)
   })
 })
+
+// v2.113.0 — Registrasi CV Online: halaman data hanya untuk traineer/GA-HR/admin,
+// form publik di path terpisah dan tanpa login.
+describe('path Registrasi CV Online', () => {
+  it('/cv-online menampilkan halaman data untuk traineer, ga_hr, admin', () => {
+    const route = router.resolve('/cv-online')
+    expect(route.name).toBe('cv-online')
+    expect(route.meta.roles).toEqual(['traineer', 'ga_hr', 'admin'])
+  })
+
+  it('form publik punya path sendiri dan tetap tanpa login', () => {
+    const route = router.resolve('/cv-online-form')
+    expect(route.name).toBe('cv-online-form')
+    expect(route.meta.public).toBe(true)
+  })
+})

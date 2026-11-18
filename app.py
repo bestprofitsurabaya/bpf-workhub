@@ -141,6 +141,14 @@ for _attempt in range(5):
         break
     _time.sleep(3)
 
+# Registrasi CV Online (v2.113.0): tabel cv_online_* — form publik pelamar,
+# hanya dilihat traineer/ga_hr/admin. Aman diulang saat startup.
+from modules.cv_online_schema import ensure_cv_online_schema
+for _attempt in range(5):
+    if ensure_cv_online_schema():
+        break
+    _time.sleep(3)
+
 # Receptionist sheet sync (v2.41.0): tabel employee_inout + kolom sync di
 # applicants (safe on every startup, paritas schema ensure lainnya).
 from modules.routes_receptionist import ensure_receptionist_schema
@@ -535,6 +543,7 @@ from modules.pdfkit import register_pdfkit_routes
 from modules.deploy_guard import install_deploy_guard  # v2.98.0
 from modules.routes_voucher import register_voucher_routes              # v2.107.0
 from modules.routes_mfa import register_mfa_routes                      # v2.112.0
+from modules.routes_cv_online import register_cv_online_routes          # v2.113.0
 
 # v2.98.0: tolak request bila image lebih lama dari CHANGELOG repo (mount).
 install_deploy_guard(app)
@@ -544,6 +553,7 @@ register_auth_routes(app)
 register_expense_routes(app)
 register_it_asset_routes(app)
 register_first_work_routes(app)   # v2.80.0 — Absensi FirstWork (trainee)
+register_cv_online_routes(app)    # v2.113.0 — Registrasi CV Online (trainee/GA-HR)
 register_profile_routes(app)      # v2.81.0 — Profil Saya (ganti nama & PIN)
 register_master_api(app)
 register_transaction_api(app)
@@ -624,6 +634,10 @@ CSRF_EXEMPT_PREFIXES = (
     # dalam 0 ms) dan OCR tampak "tidak berfungsi". Endpoint tetap dijaga
     # token cabang + rate limit + validasi isi file.
     '/api/first-work/ocr-ktp',
+    # v2.113.0: form Registrasi CV Online juga dibuka tanpa login. Pengunjung
+    # yang kebetulan masih bersesi login tidak boleh tertahan token CSRF basi;
+    # endpoint tetap dijaga rate limit per IP + token cabang + validasi isian.
+    '/api/cv-online/public',
 )
 
 @app.context_processor

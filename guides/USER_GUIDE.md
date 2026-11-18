@@ -1,4 +1,4 @@
-# 📖 Panduan Pengguna BPF WorkHub v2.112.0
+# 📖 Panduan Pengguna BPF WorkHub v2.113.0
 
 > **Siapa pun kamu — sopir, OB, admin, atau pimpinan — panduan ini ditulis untuk kamu.**
 > Tidak perlu paham teknis. Cukup ikuti langkah-langkah sesuai bagianmu.
@@ -645,7 +645,31 @@ Semua perubahan papan berjalan realtime — saat driver menyelesaikan tugas, sta
 - **⬇️ Ekspor CSV** mengikuti filter yang aktif. Finance & GA HR hanya bisa melihat.
 - **Lupa PIN?** Ganti sendiri lewat **Profil Saya** (ikon 👤) — butuh PIN saat ini, dan PIN baru harus kuat (123456/angka berulang ditolak sistem).
 
-### 10.2 Rekrutmen `/app/receptionist` (mode lihat saja)
+### 10.2 Registrasi CV Online `/app/cv-online` (sejak v2.113.0)
+
+- Menu baru **📄 Registrasi CV Online** — isinya data pelamar yang masuk lewat
+  **form publik ber-token per cabang**: `/app/cv-online-form?cabang=<KODE>&t=<token>`
+  (tanpa login). Isiannya mengikuti Google Form *Registrasi CV Online*: sumber
+  informasi, diundang oleh, User (EF 1–8), dua kontak darurat, data pribadi
+  (nama, tempat/tanggal lahir, jenis kelamin, domisili, alamat, No. HP),
+  pendidikan, dan pengalaman bekerja.
+- **Siapa yang bisa melihat:** hanya **Traineer**, **GA/HR**, dan **Admin**
+  (termasuk Admin Pusat). Role lain tidak melihat menu ini dan backend menolak.
+- **Traineer & Admin** dapat **✅ Verifikasi**, **✕ Tolak** (alasan wajib), atau
+  **↩️ Buka Ulang**. **GA/HR hanya melihat & mengekspor** — cocok untuk memilah
+  kandidat yang akan dihubungi HRD.
+- Tombol **↗ Buka Form Publik / 🔗 Salin Link / ▦ QR** ada di header; tabel
+  **🔗 Link per Cabang** menampilkan tautan semua cabang (Admin Pusat) atau
+  cabang sendiri. QR bisa diunduh PNG dan dibagikan ke pengundang.
+- **Filter**: chip status, User (EF), rentang tanggal, dan pencarian nama/HP/
+  pengundang/no. registrasi. **⬇️ Ekspor CSV** mengikuti filter aktif.
+- Detail pelamar menampilkan seluruh isian + tombol **💬 WhatsApp** (langsung ke
+  nomor HP pelamar) dan riwayat verifikasi. Data uji bisa dihapus dengan mengetik
+  **HAPUS** (data terverifikasi hanya oleh Admin Pusat).
+- Pelamar wajib mencentang **syarat & ketentuan + persetujuan data pribadi**
+  sebelum mengirim; tanpa itu kiriman ditolak dan tidak tersimpan.
+
+### 10.3 Rekrutmen `/app/receptionist` (mode lihat saja)
 
 - Data pelamar kerja cabangmu: nama, posisi, upline, user, jadwal interview, **chip kehadiran** (I · H1 · H2 · H3 · H4), dan status.
 - **Filter & cari**: rentang tanggal, UPLINE/User/Status, kotak pencarian, dan tombol Reset.

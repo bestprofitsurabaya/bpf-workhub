@@ -28,6 +28,8 @@ class FakeCursor:
             self._one = {'c': self.conn.counts['assignments_pending']}
         elif 'first_work_submissions' in s:
             self._one = {'c': self.conn.counts['first_work_pending']}
+        elif 'cv_online_submissions' in s:
+            self._one = {'c': self.conn.counts['cv_online_pending']}
         elif 'water_purchases' in s:
             self._one = {'c': self.conn.counts['water_pending']}
         elif 'fuel_cash_requests' in s:
@@ -58,6 +60,7 @@ class FakeConn:
             'ga_pending': 3, 'finance_pending': 2, 'water_pending': 4,
             'assignments_pending': 1, 'cash_lpj': 1, 'cash_finance': 2,
             'bbm_verify_pending': 2, 'first_work_pending': 5,
+            'cv_online_pending': 6,
         }
         self.approvals = [{'show': True}, {'show': False}]
         self.queries = []
@@ -105,6 +108,7 @@ class TestNavBadges:
             'bbm_verify_pending': 2,
             'cash_pending': 3,
             'first_work_pending': 5,
+            'cv_online_pending': 6,
         }
         assert not any('approval_requests' in q for q in conn.queries)
         assert conn.closed is True
@@ -139,9 +143,22 @@ class TestNavBadges:
         client, conn = _client(monkeypatch, 'traineer', 'traineer_sby')
         r = client.get('/api/nav/badges')
         assert r.status_code == 200
-        assert r.get_json()['badges'] == {'first_work_pending': 5}
+        assert r.get_json()['badges'] == {'first_work_pending': 5,
+                                          'cv_online_pending': 6}
         # scope cabang sesi dipakai pada query DB master
         assert any('first_work_submissions' in q and 'branch_code' in q
+                   for q in conn.queries)
+
+    def test_ga_hr_mendapat_badge_cv_online(self, monkeypatch):
+        _allow_first_approval(monkeypatch)
+        client, conn = _client(monkeypatch, 'ga_hr', 'ga_hr_sby')
+        r = client.get('/api/nav/badges')
+        assert r.status_code == 200
+        assert r.get_json()['badges'] == {
+            'approvals_pending': 1,
+            'cv_online_pending': 6,
+        }
+        assert any('cv_online_submissions' in q and 'branch_code' in q
                    for q in conn.queries)
 
     def test_chief_driver_hanya_acc(self, monkeypatch):

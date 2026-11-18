@@ -15,6 +15,10 @@ const routes = [
   // Kalau sama, Vue Router memilih record pertama (form) sehingga user login
   // yang membuka menu "Absensi FirstWork" justru melihat form, bukan datanya.
   { path: '/first-work-form', name: 'first-work-form', component: () => import('../views/FirstWorkFormView.vue'), meta: { public: true } },
+  // Form publik Registrasi CV Online (v2.113.0) — tanpa login, mobile-first.
+  // Dipisah dari /cv-online supaya menu "Registrasi CV Online" tetap membuka
+  // halaman data, bukan form.
+  { path: '/cv-online-form', name: 'cv-online-form', component: () => import('../views/CvOnlineFormView.vue'), meta: { public: true } },
   // Driver PWA (v2.4): layout mobile mandiri, wajib login PIN driver
   { path: '/driver', name: 'driver', component: () => import('../views/driver/DriverView.vue'), meta: { roles: ['driver'] } },
   {
@@ -54,6 +58,9 @@ const routes = [
       { path: 'inout', name: 'inout', component: () => import('../views/dashboard/EmployeeInOutView.vue'), meta: { roles: ['receptionist', 'admin'] } },
       // Absensi FirstWork (v2.80.0) — verifikasi Traineer, lihat Finance, kelola Admin
       { path: 'first-work', name: 'first-work', component: () => import('../views/FirstWorkView.vue'), meta: { roles: ['traineer', 'finance', 'ga_hr', 'admin'], title: 'Absensi FirstWork' } },
+      // Registrasi CV Online (v2.113.0) — data pelamar; hanya traineer, GA/HR,
+      // dan admin (termasuk Admin Pusat) yang boleh melihat.
+      { path: 'cv-online', name: 'cv-online', component: () => import('../views/CvOnlineView.vue'), meta: { roles: ['traineer', 'ga_hr', 'admin'], title: 'Registrasi CV Online' } },
       { path: 'assets', name: 'assets', component: () => import('../views/dashboard/AssetsView.vue'), meta: { roles: ['ga', 'admin'] } },
       { path: 'ga-hr', name: 'ga-hr', component: () => import('../views/dashboard/OvertimeView.vue'), meta: { roles: ['ga_hr', 'admin'] } },
       { path: 'it', name: 'it', component: () => import('../views/ItEfView.vue'), meta: { roles: ['it_sby', 'it_hu', 'it_jkt2', 'it_bdg', 'it_smg', 'it_mlg', 'it_mdn', 'it_bjm', 'it_plm', 'it_lpg', 'admin'] } },

@@ -7,6 +7,33 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.113.0 — 18 November 2026 (Registrasi CV Online)
+
+Form baru **Registrasi CV Online** — konsepnya sama dengan Absensi FirstWork,
+isinya mengikuti Google Form "Registrasi CV Online": sumber informasi & undangan,
+data pribadi, latar pendidikan, pendidikan formal, dan pengalaman bekerja.
+
+**Akses**
+- Hanya `traineer`, `ga_hr`, dan `admin` (termasuk Admin Pusat) yang dapat
+  melihat data. Traineer & Admin memverifikasi/menolak; GA/HR hanya melihat
+  dan mengekspor.
+- Form publik tanpa login di `/app/cv-online-form?cabang=<KODE>&t=<token>` —
+  token per cabang, sama seperti FirstWork. Tautan cabang A tidak bisa dipakai
+  mengirim isian atas nama cabang B.
+
+**Teknis**
+- `modules/cv_online_schema.py` — tabel `cv_online_submissions`,
+  `cv_online_events`, `cv_online_branch_forms` (idempoten tiap startup).
+- `modules/routes_cv_online.py` — info form publik, submit (rate limit per IP,
+  token cabang, validasi pilihan baku, persetujuan S&K wajib), daftar/detail,
+  verifikasi/tolak/buka ulang, ekspor CSV, tautan+QR per cabang, hapus data uji.
+- Frontend: `CvOnlineFormView.vue` (4 langkah + draf otomatis) dan
+  `CvOnlineView.vue` (statistik, filter, detail, tombol WhatsApp, riwayat).
+- Menu "Registrasi CV Online" + badge antrean; rute `/cv-online`.
+- Tes: `tests/test_cv_online.py`, `CvOnlineView.test.js`, dan uji rute.
+
+---
+
 ## v2.112.0 — 17 November 2026 (Verifikasi Dua Langkah / MFA TOTP)
 
 Login kini bisa memakai **faktor kedua**: kode 6 digit dari aplikasi

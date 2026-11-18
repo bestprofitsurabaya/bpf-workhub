@@ -1,4 +1,4 @@
-# 📋 Daftar User & Role — BPF WorkHub v2.112.0
+# 📋 Daftar User & Role — BPF WorkHub v2.113.0
 
 Dokumen ini menjelaskan semua role yang didukung sistem, siapa yang memakainya, dan apa yang bisa dilakukan masing-masing.
 
@@ -91,8 +91,8 @@ Sistem mendukung **11 peran inti** (peran `it` dipecah per cabang pada daftar di
 | 7 | `ob` | 🧹 OB | `/app/water` | Pengajuan pembelian air minum + **Overtime Saya** (v2.39) |
 | 8 | `security` | 🛡️ Security | `/app/overtime-me` | **Overtime Saya** — pengajuan lembur Security (v2.39) |
 | 9 | `receptionist` | 🪪 Receptionist | `/app/receptionist` | Rekrutmen: verifikasi pelamar kerja & kehadiran |
-| 10 | `traineer` | 🎯 Traineer | `/app/first-work` | Verifikasi Absensi FirstWork; Rekrutmen cabang (read-only) |
-| 11 | `ga_hr` | ⏰ GA HR | `/app/ga-hr` | Data overtime Driver & OB/Security — termasuk ACC berjenjang (langkah 1) & atur batas waktu submit (v2.40.0) |
+| 10 | `traineer` | 🎯 Traineer | `/app/first-work` | Verifikasi Absensi FirstWork & Registrasi CV Online; Rekrutmen cabang (read-only) |
+| 11 | `ga_hr` | ⏰ GA HR | `/app/ga-hr` | Data overtime Driver & OB/Security — termasuk ACC berjenjang (langkah 1) & atur batas waktu submit (v2.40.0); lihat & ekspor Registrasi CV Online (v2.113.0) |
 | 11 | `it_sby` | 📰 IT Surabaya | `/app/it` | News Scraper (SBY) |
 | 12 | `it_hu` | 📰 IT Jakarta HO | `/app/it` | News Scraper (JKT) — lihat semua site |
 | 13 | `it_jkt2` | 📰 IT Jakarta 2 | `/app/it` | News Scraper (JKT2) |

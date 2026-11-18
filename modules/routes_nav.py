@@ -94,6 +94,35 @@ def _first_work_pending():
                 pass
 
 
+def _cv_online_pending():
+    """Antrean verifikasi Registrasi CV Online (v2.113.0).
+
+    Sumbernya DB master dengan kolom `branch_code`; scope cabang sesi
+    (Admin Pusat = semua cabang). Badge opsional: error apa pun → 0.
+    """
+    conn = None
+    try:
+        from modules.routes_cv_online import _scope_branch
+        conn = get_master_connection()
+        if not conn:
+            return 0
+        scope = _scope_branch(conn)
+        sql = "SELECT COUNT(*) FROM cv_online_submissions WHERE status='submitted'"
+        params = []
+        if scope:
+            sql += ' AND branch_code=%s'
+            params.append(scope)
+        return _count(conn, sql, params)
+    except Exception:
+        return 0
+    finally:
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+
 def register_nav_routes(app):
 
     @app.route('/api/nav/badges')
@@ -147,6 +176,11 @@ def register_nav_routes(app):
             # yang memang boleh memverifikasi) — sumbernya DB master.
             if role in ('traineer', 'admin'):
                 out['first_work_pending'] = _first_work_pending()
+
+            # v2.113.0: antrean verifikasi Registrasi CV Online — traineer,
+            # GA/HR (lihat), dan admin (lihat + verifikasi).
+            if role in ('traineer', 'ga_hr', 'admin'):
+                out['cv_online_pending'] = _cv_online_pending()
         finally:
             try:
                 conn.close()

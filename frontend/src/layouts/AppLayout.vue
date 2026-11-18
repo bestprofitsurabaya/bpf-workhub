@@ -76,6 +76,8 @@ const MENU_GROUPS = [
       { label: 'Rekrutmen', path: '/receptionist', icon: '🪪', roles: ['receptionist', 'traineer', 'admin'], keywords: 'pelamar kerja recruitment rekrutmen' },
       // v2.80.0: form publik trainee + verifikasi (traineer, finance read-only, admin)
       { label: 'Absensi FirstWork', path: '/first-work', icon: '📝', roles: ['traineer', 'finance', 'ga_hr', 'admin'], badge: 'first_work_pending', keywords: 'absensi first work trainee verifikasi' },
+      // v2.113.0: form publik registrasi CV + verifikasi data pelamar.
+      { label: 'Registrasi CV Online', path: '/cv-online', icon: '📄', roles: ['traineer', 'ga_hr', 'admin'], badge: 'cv_online_pending', keywords: 'cv online registrasi pelamar rekrutmen data pribadi' },
     ],
   },
   {
