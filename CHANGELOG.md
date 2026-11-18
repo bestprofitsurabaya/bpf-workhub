@@ -7,6 +7,33 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.118.1 — 18 November 2026 (Pembersihan pasca-Fase 3)
+
+Bukan fitur baru — membuang sisa yang menyesatkan dan menutup celah kecil
+yang ditemukan saat audit kode sendiri.
+
+- 🐞 **Bulan laporan tidak lagi "diam-diam" salah.** `?month=2026-13` dulu
+  dianggap bulan ini; sekarang endpoint laporan/ekspor/email/status menjawab
+  **400** dengan pesan format `YYYY-MM`. Parameter kosong tetap berarti bulan
+  ini.
+- 🐞 **Parameter angka audit lintas cabang aman.** `days=abc` / `per_branch=`
+  rusak tidak lagi memicu 500; nilai tak valid kembali ke default dan tetap
+  dijepit ke batas atas/bawah.
+- 🐞 **Pesan error DB tidak bocor ke klien.** Kegagalan memakai token
+  break-glass kini hanya "*Gagal memakai token*"; detail driver/SQL dicatat
+  di log server. Kegagalan mencatat jejak unduh tidak lagi menggagalkan CSV.
+- 🐞 **Email SMTP_PORT salah ketik** tidak lagi melempar error sebelum
+  mengirim; port tidak valid jatuh ke 587.
+- 🧹 **Kode mati dibuang:** konstanta `DEFAULT_DAYS`, helper `monthlyCsv()`
+  yang tak terpakai (tautan CSV sudah `<a href>` biasa), `branchLoading` di
+  LogsView, dan impor `generate_display_id` yang tak dipakai di FirstWork.
+- 📚 **Nomor bab panduan dirapikan:** TOC §12.11/12.12 dulu menunjuk ke
+  bagian yang salah dan nomor ganda; kini §12.11–12.16 berurutan (Admin
+  per-cabang, Identitas Cabang, Sumber Sheet, MFA, Panel Pusat, Laporan
+  Bulanan) dan rujukan teks ikut diperbarui.
+- ✅ Tes: 8 tes laporan bulanan (termasuk 400 untuk bulan rusak) + 8 tes
+  break-glass lulus; 37 tes UI Dashboard/Logs lulus.
+
 ## v2.118.0 — 18 November 2026 (Fase 3c: Laporan bulanan lintas cabang)
 
 - 📊 **Laporan Bulanan Pusat** dari panel 🏛: satu tabel per cabang berisi

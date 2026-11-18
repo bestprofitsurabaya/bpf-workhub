@@ -55,6 +55,8 @@ class FakeConn:
 
 
 def _route_client(monkeypatch, role='admin', username='admin', stepup=True):
+    monkeypatch.setattr(bg.bm, 'get_branch',
+                        lambda code, conn=None: {'code': 'SBY', 'is_active': 1})
     app = Flask(__name__)
     app.secret_key = 'uji-break-glass'
     bg.register_break_glass_routes(app)

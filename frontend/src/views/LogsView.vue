@@ -20,7 +20,6 @@ const fAction = ref('all')
 const fRole = ref('all')
 const branches = ref([])
 const fBranch = ref('current')
-const branchLoading = ref(false)
 const page = ref(1)
 const PER_PAGE = 25
 const crossInfo = ref(null)   // ringkasan fan-out saat "Semua cabang"

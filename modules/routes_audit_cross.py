@@ -13,6 +13,7 @@ lalu mengurutkan berdasarkan waktu. Prinsipnya sama dengan panel Pusat:
 - **Khusus HO** — Admin cabang ditolak; mereka tetap memakai endpoint per
   cabang yang sudah ada.
 """
+import json
 from datetime import datetime
 from flask import jsonify, request
 
@@ -29,6 +30,15 @@ def _clean(value, length=100):
     return str(value or '').strip()[:length]
 
 
+def _int_arg(name, default, low, high):
+    """Baca parameter angka dengan aman: nilai rusak kembali ke default."""
+    try:
+        value = int(request.args.get(name, default) or default)
+    except (TypeError, ValueError):
+        value = default
+    return max(low, min(value, high))
+
+
 def _connect_db(db_name):
     from modules.config import DB_CONFIG, _pool_for, get_master_connection
     if not db_name:
@@ -40,7 +50,6 @@ def _connect_db(db_name):
 
 
 def _parse_json_cols(row):
-    import json
     for key in ('old_data', 'new_data'):
         value = row.get(key)
         if isinstance(value, str):
@@ -141,9 +150,8 @@ def register_audit_cross_routes(app):
         if not is_ho_admin():
             return scope_denied_response()
         try:
-            days = max(1, min(int(request.args.get('days', 7) or 7), MAX_DAYS))
-            per_branch = max(10, min(
-                int(request.args.get('per_branch', 50) or 50), MAX_PER_BRANCH))
+            days = _int_arg('days', 7, 1, MAX_DAYS)
+            per_branch = _int_arg('per_branch', 50, 10, MAX_PER_BRANCH)
             branch_filter = _clean(request.args.get('branch'), 10).upper()
             args = {
                 'action': _clean(request.args.get('action'), 60),

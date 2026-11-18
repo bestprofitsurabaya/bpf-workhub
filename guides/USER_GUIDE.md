@@ -1,4 +1,4 @@
-# 📖 Panduan Pengguna BPF WorkHub v2.118.0
+# 📖 Panduan Pengguna BPF WorkHub v2.118.1
 
 > **Siapa pun kamu — sopir, OB, admin, atau pimpinan — panduan ini ditulis untuk kamu.**
 > Tidak perlu paham teknis. Cukup ikuti langkah-langkah sesuai bagianmu.
@@ -34,8 +34,12 @@
     - [12.8 Retensi & Arsip Dokumen (Admin) 🗄️](#128-retensi--arsip-dokumen-admin-)
     - [12.9 Verifikasi & Registri Dokumen (Admin) 🔏](#129-verifikasi--registri-dokumen-admin-)
     - [12.10 ACC Berjenjang — Persetujuan Atasan ✅](#1210-acc-berjenjang--persetujuan-atasan--sejak-v2360)
-    - [12.11 Sumber Sheet Receptionist & Bridge Apps Script 🔗](#1211-sumber-sheet-receptionist--bridge-apps-script-)
-    - [12.12 Verifikasi Dua Langkah (MFA) — Kebijakan Admin 🔐](#1212-verifikasi-dua-langkah-mfa--kebijakan-admin--sejak-v21120)
+    - [12.11 Admin per-cabang 🛡️](#1211-admin-per-cabang--sejak-v2370)
+    - [12.12 Mengedit Identitas Cabang ✏️](#1212-mengedit-identitas-cabang--sejak-v2377--admin-pusat)
+    - [12.13 Sumber Sheet Receptionist & Bridge Apps Script 🔗](#1213-sumber-sheet-receptionist--bridge-apps-script--sejak-v2412-realtime-sejak-v2420)
+    - [12.14 Verifikasi Dua Langkah (MFA) — Kebijakan Admin 🔐](#1214-verifikasi-dua-langkah-mfa--kebijakan-admin--sejak-v21120)
+    - [12.15 Panel Pusat — Mengawasi Semua Cabang 🏛️](#1215-panel-pusat--mengawasi-semua-cabang--sejak-v21140)
+    - [12.16 Laporan Bulanan Pusat 📊](#1216-laporan-bulanan-pusat--sejak-v21180)
 13. [Kasbon: Alur Lengkap dari A sampai Z](#13-kasbon-alur-lengkap-dari-a-sampai-z)
 14. [Untuk IT — News Scraper & Content Management 📰](#14-untuk-it-sebagai-cabang--news-scraper--content-management-)
     - [14.11 Transcoder Media (IT) 🎬](#1411-transcoder-media-it)
@@ -619,14 +623,14 @@ Semua perubahan papan berjalan realtime — saat driver menyelesaikan tugas, sta
 
 ### 9.5 Data Google Sheet & Input Manual (sejak v2.41.0) 🔄
 
-- **🔄 Sync Sheet** — tarik data terbaru dari Google Sheet pendaftaran (Google Form lama). Sync juga berjalan **otomatis tiap 30 menit**, saat login/logout, dan **realtime** — setiap edit di sheet langsung terdorong ke aplikasi lewat Apps Script (bridge v2, lihat §12.11). Data yang sudah kamu kelola di sini (status, kehadiran, verifikasi) **tidak tersentuh** sync.
+- **🔄 Sync Sheet** — tarik data terbaru dari Google Sheet pendaftaran (Google Form lama). Sync juga berjalan **otomatis tiap 30 menit**, saat login/logout, dan **realtime** — setiap edit di sheet langsung terdorong ke aplikasi lewat Apps Script (bridge v2, lihat §12.13). Data yang sudah kamu kelola di sini (status, kehadiran, verifikasi) **tidak tersentuh** sync.
 - **＋ Input Pelamar** — catat pelamar baru langsung dari aplikasi (pengganti input manual di sheet). Tanggal & jam interview kosong = otomatis waktu submit; kolom Tanggal H2 opsional. **Isi kolom Jabatan untuk langsung menjadikannya karyawan** — catatan in-out aktif dibuat seketika. User baru otomatis masuk pilihan dropdown (§9.4).
 - **🚪 In-Out Karyawan** (menu terpisah, sejak v2.42.0 bukan lagi read-only):
   - **📤 Keluar / 📥 Masuk** — catat karyawan keluar-masuk kantor; waktu diambil otomatis dari *sekarang*. Catatan **Masuk** otomatis melengkapi baris **Keluar** yang masih terbuka; karyawan yang sudah tercatat keluar dan belum kembali ditolak agar tidak dobel.
   - **Badge sumber** per baris: 📱 App (input resepsionis), 🆕 Karyawan (hasil registrasi pelamar), 📄 Sheet (dari Google Sheet). Baris 📄 Sheet tetap dikelola di sheet-nya; hanya baris App/Karyawan yang bisa **✏️ Edit** / **🗑 Hapus** — keduanya butuh **verifikasi PIN (step-up)** dan tercatat di audit log (riwayat per baris bisa dibuka lewat 🕘).
   - **👥 Daftar Karyawan** di bagian bawah — agregat dari riwayat in-out; chip oranye artinya *masih di luar*, klik chip untuk mencatat cepat.
   - **📄 Laporan Harian PDF** — laporan in-out satu tanggal, berkop resmi + TTD Receptionist.
-- Bila sync gagal berulang (mis. sheet dibuat privat), Admin mendapat notifikasi dan mengatur sumbernya lewat **Pengaturan → 🔗 Sumber Sheet** (lihat §12.11).
+- Bila sync gagal berulang (mis. sheet dibuat privat), Admin mendapat notifikasi dan mengatur sumbernya lewat **Pengaturan → 🔗 Sumber Sheet** (lihat §12.13).
 
 ---
 
@@ -1109,7 +1113,7 @@ telepon berubah, Admin Pusat memperbaruinya langsung dari UI — tanpa SQL:
 > `frontend/scripts/verify_branch_edit_ui.mjs` (puppeteer, 9 cek — login,
 > buka modal, ubah alamat, cek DB, restore).
 
-### 12.11 Sumber Sheet Receptionist & Bridge Apps Script 🔗 (sejak v2.41.2, realtime sejak v2.42.0)
+### 12.13 Sumber Sheet Receptionist & Bridge Apps Script 🔗 (sejak v2.41.2, realtime sejak v2.42.0)
 
 Data **Pelamar Kerja** dan **In-Out Karyawan** bersumber dari Google Sheet dan
 otomatis tersinkron ke aplikasi: **realtime** (setiap edit di sheet langsung
@@ -1188,7 +1192,7 @@ mengelola sumbernya di **Pengaturan → 🔗 Sumber Sheet Receptionist** dan
 
 ---
 
-### 12.12 Verifikasi Dua Langkah (MFA) — Kebijakan Admin 🔐 (sejak v2.112.0)
+### 12.14 Verifikasi Dua Langkah (MFA) — Kebijakan Admin 🔐 (sejak v2.112.0)
 
 Buka **Pengaturan → 🔐 MFA**. Hanya **Admin** yang dapat mengubah kebijakan.
 
@@ -1220,7 +1224,7 @@ Semua kejadian dicatat di **Audit Log**: `mfa_challenge`, `mfa_enroll`,
 
 ---
 
-### 12.13 Panel Pusat — Mengawasi Semua Cabang 🏛️ (sejak v2.114.0)
+### 12.15 Panel Pusat — Mengawasi Semua Cabang 🏛️ (sejak v2.114.0)
 
 Admin Pusat (`admin`, atau akun dengan flag `admin_all_branches=1`) membuka
 **Dashboard → 🏛 Pusat — Antrean Semua Cabang**. Satu tabel menjawab pertanyaan
@@ -1254,7 +1258,7 @@ Panel Pusat hanya membaca dan menunjuk pekerjaan; tidak mengubah status.
 > bernama `admin_master` tanpa `admin_all_branches=1` diperlakukan sebagai
 > Admin cabang (fail-closed).
 
-### 12.14 Laporan Bulanan Pusat 📊 (sejak v2.118.0)
+### 12.16 Laporan Bulanan Pusat 📊 (sejak v2.118.0)
 
 Dari panel 🏛 Pusat, klik **📊 Laporan Bulanan**. Pilih bulan, lalu:
 

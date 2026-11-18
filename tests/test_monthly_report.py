@@ -131,11 +131,16 @@ def test_csv_memuat_total_dan_bulan(monkeypatch):
     assert 'SBY' in text and 'Surabaya' in text
 
 
-def test_bulan_tidak_valid_jatuh_ke_bulan_ini():
+def test_bulan_tidak_valid_mengembalikan_none_dan_400(monkeypatch):
     now = mr.datetime.now().strftime('%Y-%m')
-    assert mr._month('2026-13') == now
+    assert mr._month('2026-13') is None
     assert mr._month('') == now
     assert mr._month('2026-02') == '2026-02'
+
+    _patch(monkeypatch)
+    client = _client(monkeypatch)
+    assert client.get('/api/admin/monthly-report?month=2026-13').status_code == 400
+    assert client.get('/api/admin/monthly-report/export?month=abc').status_code == 400
 
 
 def test_endpoint_menolak_admin_cabang(monkeypatch):

@@ -35,7 +35,7 @@ from modules.config import get_master_connection
 # v2.85.0: import counter Redis (lihat helpers.redis_rate_hit — kini memakai
 # helper ini untuk limit submit & cek NIK).
 from modules.helpers import (role_required, log_activity_async, client_ip,
-                             generate_display_id, save_file, redis_rate_hit)
+                             save_file, redis_rate_hit)
 from modules.routes_overtime import _check_public_url
 # v2.88.0: normalisasi scan KTP di server (auto-orient, trim, watermark, SHA-256).
 from modules.ktp_scan import normalize_ktp

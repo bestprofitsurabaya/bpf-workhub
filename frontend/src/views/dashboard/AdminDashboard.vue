@@ -216,11 +216,6 @@ async function loadMonthly() {
   finally { monthlyLoading.value = false }
 }
 
-function monthlyCsv() {
-  if (!monthlyMonth.value) return
-  window.open('/api/admin/monthly-report/export?month=' + monthlyMonth.value, '_blank')
-}
-
 async function emailMonthly() {
   monthlyMsg.value = ''
   if (!monthlyEmail.value.includes('@')) {
@@ -888,7 +883,7 @@ watch(queueTab, (tab) => {
           <input class="input" type="month" v-model="monthlyMonth" />
         </div>
         <button class="btn" :disabled="monthlyLoading" @click="loadMonthly">🔄 Muat</button>
-        <a class="btn" :href="'/api/admin/monthly-report/export?month=' + monthlyMonth" target="_blank" rel="noopener" @click="loadMonthly">⬇ CSV</a>
+        <a class="btn" :href="'/api/admin/monthly-report/export?month=' + monthlyMonth" target="_blank" rel="noopener">⬇ CSV</a>
       </div>
 
       <p v-if="monthlyStatus" class="muted" style="font-size:11px;margin:10px 0 0;">

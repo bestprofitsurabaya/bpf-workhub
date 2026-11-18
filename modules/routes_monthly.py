@@ -31,7 +31,6 @@ from modules.config import get_master_connection
 from modules.helpers import client_ip, log_activity_async, role_required
 
 MONTH_FMT = '%Y-%m'
-DEFAULT_DAYS = 31
 
 
 def _connect_db(db_name):
@@ -45,11 +44,18 @@ def _connect_db(db_name):
 
 
 def _month(value):
+    """Bulan valid `YYYY-MM`, atau bulan ini bila parameter kosong.
+
+    Nilai yang diisi tetapi tidak valid mengembalikan None — route menjawab 400
+    agar tidak diam-diam melaporkan bulan yang salah.
+    """
     raw = str(value or '').strip()
+    if not raw:
+        return datetime.now().strftime(MONTH_FMT)
     try:
         return datetime.strptime(raw, MONTH_FMT).strftime(MONTH_FMT)
     except (TypeError, ValueError):
-        return datetime.now().strftime(MONTH_FMT)
+        return None
 
 
 def _branch_month(conn, month):
@@ -178,10 +184,8 @@ def build_report(month):
             totals[key] += row.get(key) or 0
         rows.append(row)
 
-    for key, value in (('cv_new', 'cv_online_submissions'),
-                       ('first_work_new', 'first_work_submissions')):
-        if value in ' '.join(master_errors):
-            errors.append({'branch': '-', 'error': f'{key}: tidak tersedia'})
+    for err in master_errors:
+        errors.append({'branch': '-', 'error': err})
 
     return {
         'month': month, 'branches': rows, 'totals': totals,
@@ -227,7 +231,10 @@ def send_email(report, to_addr):
         return False, ('Email belum dikonfigurasi: isi SMTP_HOST/PORT/USER/PASS '
                        'di environment server.'), 'EMAIL_NOT_CONFIGURED'
     host = os.environ.get('SMTP_HOST')
-    port = int(os.environ.get('SMTP_PORT', '587') or 587)
+    try:
+        port = int(os.environ.get('SMTP_PORT', '587') or 587)
+    except (TypeError, ValueError):
+        port = 587
     user = os.environ.get('SMTP_USER', '')
     password = os.environ.get('SMTP_PASS', '')
     sender = os.environ.get('SMTP_FROM', user or 'no-reply@localhost')
@@ -259,19 +266,28 @@ def send_email(report, to_addr):
 
 
 def _record(key, value):
-    conn = get_master_connection()
-    if not conn:
-        return
-    cur = conn.cursor()
+    """Catat jejak unduh/kirim. Kegagalan catatan tidak boleh membatalkan CSV."""
+    conn = None
+    cur = None
     try:
+        conn = get_master_connection()
+        if not conn:
+            return
+        cur = conn.cursor()
         cur.execute(
             "INSERT INTO system_config (config_key, config_value) VALUES (%s,%s) "
             "ON DUPLICATE KEY UPDATE config_value=VALUES(config_value)",
             (key, value))
         conn.commit()
+    except Exception as exc:
+        print(f'[monthly-report] record gagal: {exc}')
     finally:
-        cur.close()
-        conn.close()
+        if cur:
+            try: cur.close()
+            except Exception: pass
+        if conn:
+            try: conn.close()
+            except Exception: pass
 
 
 def _who():
@@ -285,15 +301,22 @@ def register_monthly_report_routes(app):
     def api_monthly_report():
         if not is_ho_admin():
             return scope_denied_response()
-        report = build_report(_month(request.args.get('month')))
-        return jsonify(report)
+        month = _month(request.args.get('month'))
+        if not month:
+            return jsonify({'status': 'error',
+                            'msg': 'Format bulan harus YYYY-MM'}), 400
+        return jsonify(build_report(month))
 
     @app.route('/api/admin/monthly-report/export')
     @role_required(['admin'])
     def api_monthly_report_export():
         if not is_ho_admin():
             return scope_denied_response()
-        report = build_report(_month(request.args.get('month')))
+        month = _month(request.args.get('month'))
+        if not month:
+            return jsonify({'status': 'error',
+                            'msg': 'Format bulan harus YYYY-MM'}), 400
+        report = build_report(month)
         text = _csv(report)
         resp = make_response(text)
         resp.headers['Content-Type'] = 'text/csv; charset=utf-8'
@@ -314,6 +337,9 @@ def register_monthly_report_routes(app):
             return scope_denied_response()
         data = request.get_json(silent=True) or {}
         month = _month(data.get('month'))
+        if not month:
+            return jsonify({'status': 'error',
+                            'msg': 'Format bulan harus YYYY-MM'}), 400
         to_addr = str(data.get('to') or '').strip()[:200]
         if '@' not in to_addr:
             return jsonify({'status': 'error', 'msg': 'Alamat email tidak valid'}), 400
@@ -335,6 +361,9 @@ def register_monthly_report_routes(app):
         if not is_ho_admin():
             return scope_denied_response()
         month = _month(request.args.get('month'))
+        if not month:
+            return jsonify({'status': 'error',
+                            'msg': 'Format bulan harus YYYY-MM'}), 400
         conn = get_master_connection()
         if not conn:
             return jsonify({'status': 'error', 'msg': 'DB master tidak tersedia'}), 500

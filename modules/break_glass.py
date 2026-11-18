@@ -25,6 +25,7 @@ from datetime import datetime, timedelta
 from flask import jsonify, request, session
 
 from modules.admin_scope import is_ho_admin, scope_denied_response
+from modules import branch_manager as bm
 from modules.config import get_master_connection
 from modules.helpers import client_ip, log_activity_async, role_required
 from modules.stepup import stepup_required
@@ -135,7 +136,9 @@ def consume(token, branch, action, target, username):
         finally:
             cur.close()
     except Exception as exc:
-        return False, f'Gagal memakai token: {str(exc)[:120]}'
+        # Jangan bocorkan detail driver/SQL ke klien; cukup catat di server.
+        print(f'[break-glass] consume: {exc}')
+        return False, 'Gagal memakai token'
     finally:
         conn.close()
 
@@ -163,6 +166,10 @@ def register_break_glass_routes(app):
         if not branch:
             return jsonify({'status': 'error',
                             'msg': 'Cabang sesi tidak diketahui'}), 400
+        info = bm.get_branch(branch)
+        if not info or not info.get('is_active'):
+            return jsonify({'status': 'error',
+                            'msg': 'Cabang sesi tidak aktif'}), 400
         if not target:
             return jsonify({'status': 'error', 'msg': 'Target aksi wajib'}), 400
         if len(reason) < REASON_MIN:
