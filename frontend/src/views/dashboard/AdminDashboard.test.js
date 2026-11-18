@@ -54,6 +54,29 @@ function mockApi() {
         cached: false,
       })
     }
+    if (path.startsWith('/api/admin/monthly-report/status')) {
+      return Promise.resolve({ month: '2026-10', downloaded_at: '',
+        emailed_at: '', email_configured: false, due: true })
+    }
+    if (path.startsWith('/api/admin/monthly-report?')) {
+      const empty = { bbm_count: 0, bbm_amount: 0, bbm_archived: 0,
+        kasbon_count: 0, kasbon_amount: 0, water_count: 0, water_verified: 0,
+        cv_new: 0, first_work_new: 0 }
+      return Promise.resolve({
+        month: '2026-10',
+        branches: [
+          { code: 'SBY', name: 'Surabaya', status: 'ok', ...empty,
+            bbm_count: 3, bbm_amount: 450000, kasbon_count: 2,
+            kasbon_amount: 1000000, water_count: 5, water_verified: 4,
+            cv_new: 7, first_work_new: 11 },
+        ],
+        totals: { ...empty, bbm_count: 3, bbm_amount: 450000, kasbon_count: 2,
+          kasbon_amount: 1000000, water_count: 5, water_verified: 4,
+          cv_new: 7, first_work_new: 11 },
+        summary: { branches: 1, errors: 0, generated_at: '2026-11-18 12:00:00' },
+        errors: [],
+      })
+    }
     if (path === '/api/admin/break-glass') {
       return Promise.resolve({ status: 'success', token: 'tok-uji' })
     }
@@ -396,5 +419,29 @@ describe('AdminDashboard — panel Pusat', () => {
     await flushPromises()
     await flushPromises()
     expect(w.text()).not.toContain('Antrean Semua Cabang')
+  })
+})
+
+
+// v2.118.0 — laporan bulanan Pusat (unduh CSV; email bila SMTP siap).
+describe('AdminDashboard — laporan bulanan Pusat', () => {
+  it('Admin Pusat membuka laporan bulanan & melihat angka per cabang', async () => {
+    const w = await mountWith('admin')
+    await btnByText(w, '📊 Laporan Bulanan').trigger('click')
+    await flushPromises()
+    await flushPromises()
+    expect(apiMock).toHaveBeenCalledWith(
+      expect.stringContaining('/api/admin/monthly-report?month='))
+    expect(w.text()).toContain('Laporan Bulanan Pusat')
+    expect(w.text()).toContain('Surabaya')
+    expect(w.text()).toContain('TOTAL')
+    // Email belum dikonfigurasi → tombol kirim dinonaktifkan, bukan gagal diam.
+    const send = btnByText(w, '✉ Kirim')
+    expect(send.attributes('disabled')).toBeDefined()
+  })
+
+  it('Admin cabang tidak melihat tombol laporan bulanan', async () => {
+    const w = await mountWith('admin', 'admin_sby')
+    expect(w.findAll('button').some((b) => b.text().includes('Laporan Bulanan'))).toBe(false)
   })
 })

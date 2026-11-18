@@ -106,6 +106,7 @@ const PAGE_HELP = [
       'Admin Pusat: panel 🏛 Pusat merangkum antrean semua cabang — klik angka untuk membuka cabang itu.',
       'Saat berada di cabang, banner kuning menandai konteks; klik 🏛 Kembali ke Pusat untuk menutupnya.',
       'Admin Pusat: hapus permanen wajib break-glass — alasan darurat + PIN + token sekali pakai, tercatat di Log cabang.',
+      'Admin Pusat: tombol 📊 Laporan Bulanan merangkum BBM, kasbon, air, CV & FirstWork per cabang; unduh CSV atau kirim email bila SMTP aktif.',
     ],
     terms: ['GA', 'Finance', 'Anomali ML', 'Step-up PIN'],
   },

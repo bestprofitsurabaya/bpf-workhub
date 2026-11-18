@@ -7,6 +7,27 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.118.0 — 18 November 2026 (Fase 3c: Laporan bulanan lintas cabang)
+
+- 📊 **Laporan Bulanan Pusat** dari panel 🏛: satu tabel per cabang berisi
+  klaim BBM (jumlah + nominal + arsip), kasbon (jumlah + nominal), air minum
+  (jumlah + terverifikasi), CV Online, dan FirstWork untuk bulan yang dipilih.
+  Tombol **⬇ CSV** mengunduh satu berkas siap Excel (UTF-8 BOM, ada baris
+  TOTAL).
+- ✉️ **Kirim email opsional.** Bila server punya `SMTP_HOST`/`SMTP_PORT`/
+  `SMTP_USER`/`SMTP_PASS`/`SMTP_FROM` (dan `SMTP_SSL=1` bila perlu), laporan
+  bisa dikirim sebagai lampiran CSV. Tanpa konfigurasi, endpoint menjawab
+  **503 `EMAIL_NOT_CONFIGURED`** dan tombol kirim dinonaktifkan — tidak ada
+  klaim "terkirim" palsu.
+- 🗓 **Pengingat bulanan.** Status per bulan mencatat kapan terakhir diunduh /
+  dikirim; bulan yang belum pernah dibuat ditandai ⚠️ di dialog. Penjadwalan
+  otomatis di server masih membutuhkan cron/SMTP dari ops — aplikasi tidak
+  memasang cron sendiri.
+- 🧩 **Gagal sebagian boleh:** DB cabang yang mati ditandai `partial/error`
+  dan tetap muncul di CSV dengan catatan; cabang lain tidak ikut kosong.
+- ✅ Tes: 9 tes backend (agregasi, isolasi DB mati, CSV, bulan invalid, 403,
+  email belum dikonfigurasi/alamat salah, status) + 2 tes UI.
+
 ## v2.117.0 — 18 November 2026 (Fase 3b: Break-glass untuk aksi destruktif Pusat)
 
 - 🛡 **Pusat tidak lagi bisa menghapus transaksi permanen dengan sekali klik.**

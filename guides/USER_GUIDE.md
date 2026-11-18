@@ -1,4 +1,4 @@
-# 📖 Panduan Pengguna BPF WorkHub v2.117.0
+# 📖 Panduan Pengguna BPF WorkHub v2.118.0
 
 > **Siapa pun kamu — sopir, OB, admin, atau pimpinan — panduan ini ditulis untuk kamu.**
 > Tidak perlu paham teknis. Cukup ikuti langkah-langkah sesuai bagianmu.
@@ -1253,6 +1253,21 @@ Panel Pusat hanya membaca dan menunjuk pekerjaan; tidak mengubah status.
 > Hak lintas cabang ditentukan **flag akun**, bukan nama. Sejak v2.114.0 akun
 > bernama `admin_master` tanpa `admin_all_branches=1` diperlakukan sebagai
 > Admin cabang (fail-closed).
+
+### 12.14 Laporan Bulanan Pusat 📊 (sejak v2.118.0)
+
+Dari panel 🏛 Pusat, klik **📊 Laporan Bulanan**. Pilih bulan, lalu:
+
+- **Tabel per cabang**: klaim BBM (jumlah + nominal + arsip), kasbon (jumlah +
+  nominal), air minum (jumlah + terverifikasi), CV Online, FirstWork; baris
+  **TOTAL** di bawah. Cabang yang DB-nya tidak terbaca tetap muncul dengan
+  tanda `partial/error`.
+- **⬇ CSV** — satu berkas untuk rapat/arsip (UTF-8, langsung rapi di Excel).
+- **✉ Kirim** — hanya aktif bila server sudah diisi `SMTP_HOST` dkk. Tanpa
+  konfigurasi, tombol nonaktif dan pesan menjelaskan bahwa email belum siap.
+- Status di atas tabel mengingatkan bila bulan itu **belum pernah** diunduh
+  atau dikirim. Penjadwalan otomatis (cron) adalah pekerjaan ops, bukan
+  tombol di aplikasi.
 
 ## 13. Kasbon: Alur Lengkap dari A sampai Z
 

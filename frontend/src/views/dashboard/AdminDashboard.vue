@@ -177,6 +177,69 @@ async function openBranch(b, target) {
   }
 }
 
+// ============================================================
+// Laporan bulanan Pusat (v2.118.0) — unduh CSV / email bila SMTP siap.
+// ============================================================
+const monthlyOpen = ref(false)
+const monthly = ref(null)
+const monthlyLoading = ref(false)
+const monthlyErr = ref('')
+const monthlyMsg = ref('')
+const monthlyEmail = ref('')
+const monthlyStatus = ref(null)
+const monthlyMonth = ref(prevMonth())
+
+function prevMonth() {
+  const d = new Date()
+  d.setDate(1)
+  d.setMonth(d.getMonth() - 1)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+}
+
+function openMonthly() {
+  monthlyOpen.value = true
+  monthlyMsg.value = ''
+  loadMonthly()
+}
+
+async function loadMonthly() {
+  if (!monthlyMonth.value) return
+  monthlyLoading.value = true; monthlyErr.value = ''
+  try {
+    const [report, status] = await Promise.all([
+      api('/api/admin/monthly-report?month=' + monthlyMonth.value),
+      api('/api/admin/monthly-report/status?month=' + monthlyMonth.value).catch(() => null),
+    ])
+    monthly.value = report
+    monthlyStatus.value = status
+  } catch (e) { monthlyErr.value = e.message; monthly.value = null }
+  finally { monthlyLoading.value = false }
+}
+
+function monthlyCsv() {
+  if (!monthlyMonth.value) return
+  window.open('/api/admin/monthly-report/export?month=' + monthlyMonth.value, '_blank')
+}
+
+async function emailMonthly() {
+  monthlyMsg.value = ''
+  if (!monthlyEmail.value.includes('@')) {
+    monthlyMsg.value = '❌ Alamat email tidak valid.'
+    return
+  }
+  monthlyLoading.value = true
+  try {
+    const r = await api('/api/admin/monthly-report/email', {
+      method: 'POST',
+      body: { month: monthlyMonth.value, to: monthlyEmail.value.trim() },
+    })
+    monthlyMsg.value = '✅ ' + (r.msg || 'Laporan dikirim.')
+    loadMonthly()
+  } catch (e) {
+    monthlyMsg.value = '❌ ' + e.message
+  } finally { monthlyLoading.value = false }
+}
+
 function overviewCount(b, key) {
   const v = b?.signals?.[key]
   return v === null || v === undefined ? null : Number(v)
@@ -640,6 +703,7 @@ watch(queueTab, (tab) => {
           </span>
           <span v-if="overview?.cached" class="badge" title="Dibaca dari cache 60 detik — klik ⟳ untuk angka langsung">cache 60 dtk</span>
           <div class="spacer"></div>
+          <button class="btn btn-sm" title="Laporan bulanan semua cabang (CSV/email)" @click="openMonthly">📊 Laporan Bulanan</button>
           <button class="btn btn-sm" :disabled="overviewLoading" title="Baca ulang semua cabang (melewati cache)" aria-label="Muat ulang ringkasan Pusat" @click="loadOverview(true)">
             {{ overviewLoading ? '⏳' : '🔄' }}
           </button>
@@ -816,6 +880,64 @@ watch(queueTab, (tab) => {
     </template>
 
     <!-- Modal Detail Transaksi -->
+    <!-- v2.118.0: Laporan bulanan Pusat -->
+    <Modal v-if="monthlyOpen" title="📊 Laporan Bulanan Pusat" @close="monthlyOpen = false">
+      <div class="row" style="flex-wrap:wrap;gap:8px;align-items:end;">
+        <div class="field" style="margin:0;">
+          <label>Bulan</label>
+          <input class="input" type="month" v-model="monthlyMonth" />
+        </div>
+        <button class="btn" :disabled="monthlyLoading" @click="loadMonthly">🔄 Muat</button>
+        <a class="btn" :href="'/api/admin/monthly-report/export?month=' + monthlyMonth" target="_blank" rel="noopener" @click="loadMonthly">⬇ CSV</a>
+      </div>
+
+      <p v-if="monthlyStatus" class="muted" style="font-size:11px;margin:10px 0 0;">
+        <template v-if="monthlyStatus.due">⚠️ Laporan bulan ini belum pernah diunduh/dikirim.</template>
+        <template v-else>Terakhir diunduh: {{ monthlyStatus.downloaded_at || '—' }}.
+          Email: {{ monthlyStatus.emailed_at || 'belum' }}.</template>
+        <span v-if="!monthlyStatus.email_configured"> · Email belum dikonfigurasi server.</span>
+      </p>
+      <div v-if="monthlyErr" class="alert alert-error" style="margin-top:10px;">{{ monthlyErr }}</div>
+      <div v-if="monthlyMsg" class="alert" style="margin-top:10px;">{{ monthlyMsg }}</div>
+      <div v-if="monthlyLoading && !monthly" class="empty" style="padding:12px;">⏳ Menghitung…</div>
+
+      <div v-else-if="monthly" class="table-wrap" style="margin-top:10px;max-height:46vh;overflow:auto;">
+        <table class="tbl">
+          <thead><tr><th>Cabang</th><th>BBM</th><th>Kasbon</th><th>Air</th><th>CV</th><th>FirstWork</th></tr></thead>
+          <tbody>
+            <tr v-for="b in monthly.branches" :key="b.code" :class="{ 'ov-row-att': b.status !== 'ok' }">
+              <td><b>{{ b.code }}</b><div class="muted" style="font-size:10px;">{{ b.name }}</div></td>
+              <td>{{ num(b.bbm_count) }}<div class="muted" style="font-size:10px;">{{ fmt(b.bbm_amount) }}</div></td>
+              <td>{{ num(b.kasbon_count) }}<div class="muted" style="font-size:10px;">{{ fmt(b.kasbon_amount) }}</div></td>
+              <td>{{ num(b.water_count) }}<div class="muted" style="font-size:10px;">✅ {{ num(b.water_verified) }}</div></td>
+              <td>{{ num(b.cv_new) }}</td>
+              <td>{{ num(b.first_work_new) }}</td>
+            </tr>
+          </tbody>
+          <tfoot>
+            <tr><td><b>TOTAL</b></td>
+              <td>{{ num(monthly.totals.bbm_count) }}<div class="muted" style="font-size:10px;">{{ fmt(monthly.totals.bbm_amount) }}</div></td>
+              <td>{{ num(monthly.totals.kasbon_count) }}<div class="muted" style="font-size:10px;">{{ fmt(monthly.totals.kasbon_amount) }}</div></td>
+              <td>{{ num(monthly.totals.water_count) }}</td>
+              <td>{{ num(monthly.totals.cv_new) }}</td>
+              <td>{{ num(monthly.totals.first_work_new) }}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      <p v-if="monthly?.errors?.length" class="muted" style="font-size:11px;color:#b45309;margin-top:8px;">
+        {{ monthly.errors.length }} sumber tidak terbaca: {{ monthly.errors.map((e) => e.branch).join(', ') }}
+      </p>
+
+      <div class="row" style="gap:8px;margin-top:14px;flex-wrap:wrap;">
+        <input class="input" v-model="monthlyEmail" type="email" placeholder="email penerima (opsional)" style="flex:1;min-width:180px;" />
+        <button class="btn" :disabled="monthlyLoading || !monthlyStatus?.email_configured" @click="emailMonthly">✉ Kirim</button>
+      </div>
+      <p class="muted" style="font-size:10.5px;margin:6px 0 0;">
+        Email hanya terkirim bila server punya SMTP_HOST. Tanpa itu, gunakan ⬇ CSV.
+      </p>
+    </Modal>
+
     <Modal v-if="sel" :title="'🔍 ' + (selData?.display_id || sel.display_id || 'Detail Transaksi')" @close="sel = null; selData = null; selCross = null">
       <div v-if="selLoading" class="empty" style="padding:16px;">⏳ Memuat detail…</div>
       <div v-else-if="selData">
