@@ -5,6 +5,7 @@ aktif/nonaktif, buat database cabang (salinan skema), ganti cabang aktif
 (sesi) + laporan konsolidasi lintas cabang (PDF/Excel, v2.21) —
 memungkinkan satu instalasi melayani banyak cabang.
 """
+from modules.integrity import note
 from datetime import datetime
 from flask import request, jsonify, session, make_response
 
@@ -119,8 +120,8 @@ def register_branch_routes(app):
             try:
                 from modules import branch_overview
                 branch_overview.invalidate_cache()
-            except Exception:
-                pass
+            except Exception as exc:
+                note('branches.overview_cache', exc, critical=False)
             # Bila diminta & db_name baru → langsung buat database cabang
             msg = f'Cabang {branch["code"]} disimpan'
             if data.get('ensure_db') and branch.get('db_name'):

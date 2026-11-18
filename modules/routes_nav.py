@@ -7,6 +7,7 @@ cabang otomatis hanya melihat antrean cabangnya.
 Endpoint ini sengaja tanpa `log_activity_async`: dipanggil saat layout dimuat
 dan setelah event realtime, bukan aksi pengguna yang perlu diaudit.
 """
+from modules.integrity import note
 from flask import jsonify, session
 
 from modules.config import get_db_connection, get_master_connection
@@ -202,9 +203,9 @@ def register_nav_routes(app):
                         out['assignments_pending'] = _total('assignments_pending')
                         out['cv_online_pending'] = _total('cv_new')
                         out['first_work_pending'] = _total('first_work_new')
-                except Exception:
+                except Exception as exc:
                     # Gagal menghitung total → biarkan angka cabang sesi.
-                    pass
+                    note('nav.branch_totals', exc, critical=False)
         finally:
             try:
                 conn.close()

@@ -12,6 +12,7 @@ Alur bisnis (menggantikan Google Form + Google Sheet):
     hanya untuk receptionist/admin; endpoint baca memakai DB cabang sesi
     sehingga data antar cabang tidak pernah tercampur.
 """
+from modules.integrity import note
 import io
 import time
 from datetime import datetime, date
@@ -95,8 +96,8 @@ def _scope_branch():
         from modules.admin_scope import is_ho_admin
         if is_ho_admin():
             return None
-    except Exception:
-        pass
+    except Exception as exc:
+        note('applicants.ho_scope', exc, critical=False)
     return (session.get('branch_code') or '').strip().upper() or None
 
 

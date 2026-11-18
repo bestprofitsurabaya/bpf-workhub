@@ -4,6 +4,7 @@
 - /api/trips*  : JSON endpoints log perjalanan (dipakai view SPA Trips).
 - /app/*       : serve SPA bundle (static/app) dengan fallback ke index.html.
 """
+from modules.integrity import note
 import os
 import secrets
 import time
@@ -74,8 +75,9 @@ def register_spa_routes(app):
                 try:
                     from modules.admin_scope import is_ho_admin as _is_ho_fn
                     _is_ho = bool(_is_ho_fn())
-                except Exception:
-                    pass
+                except Exception as exc:
+                    _is_ho = False
+                    note('spa.ho_admin', exc, critical=True)
             return jsonify({
                 'authenticated': True,
                 'user': {

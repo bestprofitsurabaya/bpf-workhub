@@ -23,6 +23,7 @@ Dua kelompok endpoint:
 
 Semua kejadian penting dicatat ke activity_logs (ISO/IEC 27001 A.8.15/A.8.16).
 """
+from modules.integrity import note
 import time
 
 from flask import jsonify, request, session
@@ -345,8 +346,8 @@ def register_mfa_routes(app):
                 return jsonify({'status': 'error',
                                 'msg': 'Cabang tidak aktif. Hubungi Admin.'}), 403
             branch_code, branch_name = branch['code'], branch['name']
-        except Exception:
-            pass
+        except Exception as exc:
+            note('mfa.branch_recheck', exc, critical=True)
 
         _clear_pending()
         payload = _login_payload(user, branch_code, branch_name,

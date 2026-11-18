@@ -13,6 +13,7 @@ Dua modul overtime:
 
 Role: `ga_hr` (halaman sendiri) & `admin`.
 """
+from modules.integrity import note
 import csv
 import io
 import re
@@ -1155,8 +1156,8 @@ def register_overtime_routes(app):
             # v2.37.7: kop mengikuti cabang sesi (tabel branches).
             try:
                 pdf.set_identity(branch_code=session_user('branch_code', ''))
-            except Exception:
-                pass
+            except Exception as exc:
+                note('overtime.pdf_identity', exc, critical=False)
             pdf.generate(rows, modul=modul, date_label=date_label,
                          filters=filters, generated_by=user_info['full_name'])
             buf = io.BytesIO()
@@ -1238,8 +1239,8 @@ def register_overtime_routes(app):
                 # v2.37.7: kop mengikuti cabang sesi (tabel branches).
                 try:
                     pdf.set_identity(branch_code=session_user('branch_code', ''))
-                except Exception:
-                    pass
+                except Exception as exc:
+                    note('overtime.pdf_identity', exc, critical=False)
                 pdf.generate(rows, driver_name=nama, driver_role=driver_role,
                              date_label=date_label, generated_by=user_info['full_name'], modul=modul)
                 buf = io.BytesIO()

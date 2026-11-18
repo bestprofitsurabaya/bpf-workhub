@@ -11,6 +11,7 @@ Alur:
 
 Role lihat: `traineer`, `finance`, `ga_hr`, `admin` (termasuk `admin_master`).
 """
+from modules.integrity import note
 import base64
 import csv
 import hashlib
@@ -316,8 +317,8 @@ def _counter_branch_scope(conn=None):
                      if str(c or '').strip()]
             if codes:
                 return codes
-        except Exception:
-            pass
+        except Exception as exc:
+            note('first_work.branch_scope', exc, critical=False)
     return [own] if own else []
 
 
@@ -652,8 +653,8 @@ def _scope_branch(conn=None):
             from modules.admin_scope import is_ho_admin
             if is_ho_admin(conn):
                 return None
-        except Exception:
-            pass
+        except Exception as exc:
+            note('first_work.ho_scope', exc, critical=False)
         return (session.get('branch_code') or '').strip().upper() or _NO_BRANCH
     return (session.get('branch_code') or '').strip().upper() or _NO_BRANCH
 
@@ -833,8 +834,8 @@ def _referrer_index(conn):
             aliases = json.loads(row.get('aliases_json') or '[]')
             if isinstance(aliases, list):
                 keys |= {normalize_name(a) for a in aliases if str(a).strip()}
-        except Exception:
-            pass
+        except Exception as exc:
+            note('first_work.referrer_aliases', exc, critical=False)
         for key in keys:
             if key:
                 index.setdefault(key, row)

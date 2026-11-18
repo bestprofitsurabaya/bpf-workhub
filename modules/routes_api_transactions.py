@@ -1,4 +1,5 @@
 """API Routes - Transactions, Cross-Check, Analytics, Stats"""
+from modules.integrity import note
 import json
 import os
 from flask import request, jsonify, session
@@ -370,8 +371,8 @@ def register_transaction_api(app):
                         if delta_min is not None and delta_min > 1440:
                             proof_signals.append({'level': 'warning',
                                                   'msg': f'{label}: waktu kamera beda {delta_min/60:.0f} jam dari klaim'})
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        note('tx.proof_exif', exc, critical=True)
                 elif field != 'foto_struk_dispenser':
                     proof_signals.append({'level': 'info',
                                           'msg': f'{label}: tanpa EXIF (bukan langsung kamera / sudah diproses)'})
@@ -387,8 +388,8 @@ def register_transaction_api(app):
                         if dkm > 5:
                             proof_signals.append({'level': 'warning',
                                                   'msg': f'{label}: kamera {dkm:.1f} km dari GPS klaim'})
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        note('tx.proof_gps', exc, critical=True)
             cursor.close(); conn.close()
 
             return jsonify({

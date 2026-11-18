@@ -23,6 +23,7 @@ Aturan baru (satu sumber kebenaran)
 
 Modul ini murni backend dan idempoten; aman dipanggil tiap startup.
 """
+from modules.integrity import note
 import os
 
 # Tabel yang menyimpan nama driver sebagai teks (kunci operasional lama).
@@ -151,8 +152,8 @@ def rename_driver(conn, old_name, new_name):
         try:
             cursor.execute("UPDATE assignment_swaps SET old_driver=%s WHERE old_driver=%s", (new_name, old_name))
             cursor.execute("UPDATE assignment_swaps SET new_driver=%s WHERE new_driver=%s", (new_name, old_name))
-        except Exception:
-            pass
+        except Exception as exc:
+            note('driver_identity.swaps_rename', exc, critical=True)
         return changed
     finally:
         cursor.close()

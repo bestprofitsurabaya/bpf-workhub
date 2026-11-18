@@ -9,6 +9,7 @@ Routing:
 - get_db_connection()             → DB cabang aktif dari session['branch_code']
   (bila ada), selain itu DB master/default (pra-login & cabang utama).
 """
+from modules.integrity import note
 import os
 import threading
 import time
@@ -142,8 +143,8 @@ def resolve_db_name(branch_code=None):
             db = get_branch_db_name(branch_code)
             if db and db != DB_CONFIG['database']:
                 return db
-        except Exception:
-            pass
+        except Exception as exc:
+            note('config.resolve_db_name', exc, critical=True)
     return DB_CONFIG['database']
 
 

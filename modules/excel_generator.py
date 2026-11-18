@@ -1,4 +1,4 @@
-
+from modules.integrity import note
 # ============================================================
 # TRIP LOGSHEET EXPORT
 # ============================================================
@@ -176,8 +176,8 @@ def generate_trip_logsheet(master, details, identity=None):
                 ws.cell(row=r, column=4, value=f"{a.get('duration_days', '-')} hari").border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
                 ws.cell(row=r, column=5, value='✅' if a.get('confirmed_by_driver') else '❌').border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
                 ws.cell(row=r, column=6, value=a.get('driver_notes', '-')).border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
-    except Exception:
-        pass
+    except Exception as exc:
+        note('excel.assignment_history', exc, critical=True)
 
     ws[f'A{total_row}'] = 'TOTAL JARAK TEMPUH'
     ws[f'A{total_row}'].font = Font(name='Arial', bold=True, size=10)

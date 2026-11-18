@@ -17,6 +17,7 @@ Voucher dihitung sebagai beban BBM SEKALI saat pemakaian sah
 (`verified_ga`/`archived`). Pembayaran tagihan adalah kas keluar, bukan beban
 baru — karena itu tidak menambah `nominal` transaksi.
 """
+from modules.integrity import note
 import random
 from datetime import datetime
 
@@ -621,8 +622,8 @@ def register_voucher_routes(app):
             pdf = VoucherUsagePDF()
             try:
                 pdf.set_identity(branch_code=session.get('branch_code'))
-            except Exception:
-                pass
+            except Exception as exc:
+                note('voucher.pdf_identity', exc, critical=False)
             pdf.add_page()
             pdf.generate(tx, app.config.get('UPLOAD_FOLDER', 'uploads'))
             raw = pdf.output(dest='S')
@@ -641,8 +642,8 @@ def register_voucher_routes(app):
                              branch_code=session.get('branch_code') or '',
                              filename=fname,
                              meta={'tx_id': tx_id, 'status': tx.get('status')})
-            except Exception:
-                pass
+            except Exception as exc:
+                note('voucher.pdf_registry', exc, critical=True)
             return resp
         except Exception as exc:
             return make_response(f'Error: {exc}', 500)
@@ -679,8 +680,8 @@ def register_voucher_routes(app):
             pdf = VoucherSettlementPDF()
             try:
                 pdf.set_identity(branch_code=session.get('branch_code'))
-            except Exception:
-                pass
+            except Exception as exc:
+                note('voucher.pdf_identity', exc, critical=False)
             pdf.add_page()
             pdf.generate(head, items)
             raw = pdf.output(dest='S')
@@ -702,8 +703,8 @@ def register_voucher_routes(app):
                              meta={'settlement_id': settlement_id,
                                    'count': head.get('voucher_count'),
                                    'total': float(head.get('total_amount') or 0)})
-            except Exception:
-                pass
+            except Exception as exc:
+                note('voucher.pdf_registry', exc, critical=True)
             return resp
         except Exception as exc:
             return make_response(f'Error: {exc}', 500)

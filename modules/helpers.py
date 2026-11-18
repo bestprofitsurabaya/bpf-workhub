@@ -1,4 +1,5 @@
 """Helper functions for BPF WorkHub"""
+from modules.integrity import note
 import os
 import json
 import ipaddress
@@ -231,8 +232,8 @@ def generate_display_id(prefix='BPF', conn=None):
                 with _display_id_lock:
                     _generated_display_ids.add(unique_id)
                 return unique_id
-        except Exception:
-            pass
+        except Exception as exc:
+            note('helpers.display_id', exc, critical=True)
 
     # Fallback in-memory hanya saat DB tidak tersedia / error.
     seq = _alloc_seq_mem(branch, prefix, date_part)
@@ -1134,8 +1135,8 @@ class _RateStore:
                     if now < lock_ts:
                         return False, int(lock_ts - now)
                 return True, 0
-            except Exception:
-                pass
+            except Exception as exc:
+                note('helpers.lockout_redis', exc, critical=False)
         entry = self._mem.get(key)
         if not entry:
             return True, 0
@@ -1218,8 +1219,8 @@ def redis_rate_hit(key, limit, window, prefix='rl'):
             count = int(_counter_lua(keys=[f'bpf_rl:{prefix}:{key}'],
                                      args=[int(window)]))
             return count <= int(limit)
-        except Exception:
-            pass
+        except Exception as exc:
+            note('helpers.rate_limit_redis', exc, critical=False)
     now = time.time()
     stamps = [t for t in _counter_mem.get(key, []) if now - t < window]
     allowed = len(stamps) < limit

@@ -7,6 +7,7 @@ Dipakai oleh: PDF generator (kop surat & footer), branding frontend
 (login, sidebar, judul tab), watermark foto, dan halaman login — sehingga
 aplikasi bisa dipakai ulang oleh cabang perusahaan lain tanpa ubah kode.
 """
+from modules.integrity import note
 IDENTITY_KEYS = ('company_name', 'company_subtitle', 'system_name', 'system_version',
                   'company_address', 'company_phone')
 
@@ -14,7 +15,7 @@ IDENTITY_DEFAULTS = {
     'company_name': 'PT BESTPROFIT FUTURES',
     'company_subtitle': 'Kantor Pusat | Jakarta',
     'system_name': 'BPF WorkHub',
-    'system_version': 'v2.118.2',
+    'system_version': 'v2.119.0',
     'company_address': 'Equity Tower, SCBD Lot 9, Jl. Jend. Sudirman Kav. 52-53, Jakarta Selatan 12190',
     'company_phone': '031-5349888',
 }
@@ -43,8 +44,8 @@ def get_company_identity(conn=None):
             val = row.get('config_value')
             if val not in (None, ''):
                 result[row['config_key']] = str(val).strip()
-    except Exception:
-        pass
+    except Exception as exc:
+        note('company_identity.config_read', exc, critical=False)
     finally:
         cursor.close()
         if own_conn and conn:

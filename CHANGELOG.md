@@ -7,6 +7,29 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.119.0 — 18 November 2026 (Kegagalan yang ditelan kini terlihat)
+
+- 🔍 **Sinyal integritas di `/api/health`.** Sebelumnya ratusan
+  `except Exception: pass` membuat kegagalan berdampak data menghilang tanpa
+  jejak. Sekarang 25 titik berisiko mencatat ke penghitung di memori
+  (`modules/integrity.py`): resolusi DB cabang, penomoran dokumen, rename
+  driver, riwayat serah-terima Excel, validasi ulang cabang saat MFA, sinyal
+  anti-fraud EXIF/GPS, lookup atasan ACC, registri PDF voucher, dan cakupan
+  Admin Pusat.
+- 🚦 **Health jadi jujur:** `checks.integrity` menampilkan total, rincian per
+  konteks, dan 10 kejadian terakhir. Kegagalan **kritis** dalam 30 menit
+  terakhir menurunkan `status` ke `degraded` — tanpa mengubah alur aplikasi.
+- 🔐 **Satu perbaikan perilaku:** bila pemeriksaan `is_ho_admin` gagal di
+  `/api/auth/me`, sesi admin kini **fail-closed** (dianggap admin cabang),
+  bukan otomatis Pusat.
+- 🧾 Kegagalan non-kritis (Redis mati → rate limit/lockout memori, identitas
+  PDF default, alias referrer rusak) tetap dihitung tetapi tidak menurunkan
+  status. Tidak ada kegagalan yang "hilang" tanpa angka.
+- ✅ Tes: 7 tes baru (pencatatan, jendela 30 menit, `note()` tidak pernah
+  melempar, health `degraded`, resolusi DB gagal, rate limit fallback).
+  Suite penuh: **1353 lulus**; sisa kegagalan adalah baseline environment
+  (modul `segno`, `SECRET_KEY`), bukan regresi.
+
 ## v2.118.2 — 18 November 2026 (Perbaikan tautan form untuk Admin Pusat)
 
 - 🐞 **"Tautan form ber-token belum termuat — muat ulang halaman" muncul di

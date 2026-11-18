@@ -11,6 +11,8 @@ from functools import wraps
 
 from flask import jsonify, request, session
 
+from modules.integrity import snapshot as integrity_snapshot
+
 # ============================================================
 # RATE LIMIT SEDERHANA (in-memory, per-IP, window geser)
 # ============================================================
@@ -107,6 +109,15 @@ def health_payload(branches=False):
             status['status'] = 'degraded'
     except Exception:
         status['checks']['deploy'] = {'state': 'unknown', 'stale': False}
+
+    # Integritas data (v2.119.0): kegagalan yang sengaja ditelan tetapi bisa
+    # membuat angka/akses salah. Kritis dalam 30 menit terakhir → degraded.
+    # Bukan pengganti log — ini sinyal supaya "laporan tampak ok" tidak
+    # menyembunyikan query yang gagal.
+    integrity = integrity_snapshot()
+    status['checks']['integrity'] = integrity
+    if integrity.get('recent_critical'):
+        status['status'] = 'degraded'
 
     # Per cabang (admin)
     if branches and session.get('user_role') == 'admin':

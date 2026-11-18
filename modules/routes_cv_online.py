@@ -11,6 +11,7 @@ Isi formulir mengikuti Google Form "Registrasi CV Online" (26 item, 5 bagian):
 sumber informasi, data pribadi, latar pendidikan, pendidikan formal, dan
 pengalaman bekerja.
 """
+from modules.integrity import note
 import csv
 import io
 import re
@@ -144,8 +145,8 @@ def _scope_branch(conn=None):
             from modules.admin_scope import is_ho_admin
             if is_ho_admin(conn):
                 return None
-        except Exception:
-            pass
+        except Exception as exc:
+            note('cv_online.ho_scope', exc, critical=False)
         return (session.get('branch_code') or '').strip().upper() or _NO_BRANCH
     return (session.get('branch_code') or '').strip().upper() or _NO_BRANCH
 

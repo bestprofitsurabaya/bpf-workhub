@@ -28,6 +28,7 @@ Chain step: {'approver': <username | nama>, 'role': <role | None>}.
 Langkah ber-role cocok untuk siapa pun memegang role itu (divalidasi
 actor_role); langkah ber-nama hanya untuk user tersebut.
 """
+from modules.integrity import note
 import json
 
 from flask import jsonify, request, session
@@ -171,8 +172,8 @@ def _lookup_supervisor(conn, requester_name):
         cur.close()
         if row and row.get('manager'):
             return str(row['manager']).strip() or None
-    except Exception:
-        pass
+    except Exception as exc:
+        note('approvals.supervisor_lookup', exc, critical=True)
     return None
 
 

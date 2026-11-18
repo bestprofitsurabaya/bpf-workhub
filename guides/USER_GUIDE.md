@@ -1,4 +1,4 @@
-# 📖 Panduan Pengguna BPF WorkHub v2.118.2
+# 📖 Panduan Pengguna BPF WorkHub v2.119.0
 
 > **Siapa pun kamu — sopir, OB, admin, atau pimpinan — panduan ini ditulis untuk kamu.**
 > Tidak perlu paham teknis. Cukup ikuti langkah-langkah sesuai bagianmu.
@@ -1448,6 +1448,14 @@ tanpa membekukan PC user.
 ---
 
 ## 15. Mengatasi Masalah (Troubleshooting)
+
+> **Membaca `/api/health` (v2.119.0):** selain `database`, `redis`, dan
+> `deploy`, ada `checks.integrity`. Bila angkanya bukan nol, ada operasi yang
+> gagal tetapi sengaja tidak menghentikan pengguna — mis. query laporan
+> gagal di satu cabang. `recent_critical > 0` (30 menit terakhir) membuat
+> status `degraded`. Kirim isi `by_context`/`recent` saat melapor agar
+> penyebabnya cepat ditemukan; angka ini kembali nol setelah restart.
+
 
 | Masalah | Solusi |
 |---------|--------|
