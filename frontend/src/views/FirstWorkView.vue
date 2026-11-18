@@ -27,7 +27,7 @@ const page = ref(1)
 const limit = ref(25)
 const scopeBranch = ref(null)
 const referrers = ref([])
-const filters = reactive({ status: '', q: '', date_from: '', date_to: '', referrer_id: '' })
+const filters = reactive({ status: '', q: '', date_from: '', date_to: '', referrer_id: '', branch: '' })
 
 const detail = ref(null)
 const events = ref([])
@@ -75,7 +75,9 @@ const formLink = computed(() => {
 const subtitle = computed(() => {
   const scope = scopeBranch.value
     ? `Pendaftar & verifikasi — ${branchName.value || 'cabang ' + scopeBranch.value}`
-    : 'Pendaftar & verifikasi — semua cabang'
+    : (filters.branch
+        ? `Pendaftar & verifikasi — cabang ${filters.branch}`
+        : 'Pendaftar & verifikasi — semua cabang')
   return canVerify.value ? scope : `${scope} · hanya lihat`
 })
 // Chip status = cara tercepat traineer membuka antrean verifikasi.
@@ -93,6 +95,9 @@ const pages = computed(() => Math.max(1, Math.ceil(total.value / limit.value)))
 const exportUrl = computed(() => {
   const query = new URLSearchParams()
   if (filters.status) query.set('status', filters.status)
+  if (filters.q) query.set('q', filters.q)
+  if (filters.referrer_id) query.set('referrer_id', filters.referrer_id)
+  if (filters.branch) query.set('branch', filters.branch)
   if (filters.date_from) query.set('date_from', filters.date_from)
   if (filters.date_to) query.set('date_to', filters.date_to)
   const suffix = query.toString()
@@ -201,7 +206,7 @@ function applyFilters() {
 }
 
 function resetFilters() {
-  Object.assign(filters, { status: '', q: '', date_from: '', date_to: '', referrer_id: '' })
+  Object.assign(filters, { status: '', q: '', date_from: '', date_to: '', referrer_id: '', branch: '' })
   load(1)
 }
 
@@ -751,6 +756,10 @@ onMounted(() => {
         <select class="select" v-model="filters.referrer_id">
           <option value="">Semua referensi</option>
           <option v-for="ref in referrers" :key="ref.id" :value="String(ref.id)">{{ ref.name }}</option>
+        </select>
+        <select v-if="!scopeBranch" class="select" v-model="filters.branch" aria-label="Filter cabang">
+          <option value="">Semua cabang</option>
+          <option v-for="b in branchForms" :key="b.branch_code" :value="b.branch_code">{{ b.branch_code }} — {{ b.branch_name }}</option>
         </select>
         <input class="input" type="date" v-model="filters.date_from" />
         <input class="input" type="date" v-model="filters.date_to" />

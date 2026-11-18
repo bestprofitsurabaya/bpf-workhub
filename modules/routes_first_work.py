@@ -1779,10 +1779,15 @@ def register_first_work_routes(app):
                 rows = cursor.fetchall() or []
 
                 # Statistik memakai scope+filters selain status agar badge stabil.
+                # v2.115.0: bila Admin Pusat memilih satu cabang, chip & aging
+                # mengikuti cabang itu (bukan total semua cabang).
                 stat_where, stat_params = [], []
                 if scope:
                     stat_where.append('branch_code=%s')
                     stat_params.append(scope)
+                elif branch_filter:
+                    stat_where.append('branch_code=%s')
+                    stat_params.append(branch_filter)
                 cursor.execute(
                     "SELECT status, COUNT(*) AS n FROM first_work_submissions"
                     + ((' WHERE ' + ' AND '.join(stat_where)) if stat_where else '')
@@ -1798,10 +1803,11 @@ def register_first_work_routes(app):
                        if stat_where else ' WHERE referrer_needs_review=1'),
                     stat_params)
                 stats['needs_review'] = int((cursor.fetchone() or {}).get('n') or 0)
+                stat_branch = branch_filter if (not scope and branch_filter) else scope
                 cursor.execute(
                     "SELECT COUNT(*) AS n FROM first_work_submissions WHERE DATE(submitted_at)=CURDATE()"
-                    + ((' AND branch_code=%s') if scope else ''),
-                    ([scope] if scope else []))
+                    + ((' AND branch_code=%s') if stat_branch else ''),
+                    ([stat_branch] if stat_branch else []))
                 stats['today'] = int((cursor.fetchone() or {}).get('n') or 0)
                 # v2.93.0: umur antrean — pendaftar yang masih 'submitted'
                 # dan sudah menunggu >3 / >7 hari (scope cabang yang sama).
@@ -1812,8 +1818,8 @@ def register_first_work_routes(app):
                     "SUM(status='submitted' AND DATEDIFF(CURDATE(), "
                     "DATE(submitted_at))>=7) AS over7 "
                     "FROM first_work_submissions"
-                    + ((' WHERE branch_code=%s') if scope else ''),
-                    ([scope] if scope else []))
+                    + ((' WHERE branch_code=%s') if stat_branch else ''),
+                    ([stat_branch] if stat_branch else []))
                 aging = cursor.fetchone() or {}
                 stats['pending_over_3d'] = int(aging.get('over3') or 0)
                 stats['pending_over_7d'] = int(aging.get('over7') or 0)
@@ -2734,6 +2740,7 @@ def register_first_work_routes(app):
             if not conn:
                 return jsonify({'error': 'DB error'}), 500
             scope = _scope_branch(conn)
+            branch_filter = ''
             # NIK penuh hanya untuk role yang memang memverifikasi identitas;
             # finance/GA HR menerima NIK tersamar di CSV (minimalisasi data).
             allow_full_nik = session.get('user_role') in EDIT_ROLES
@@ -2741,6 +2748,22 @@ def register_first_work_routes(app):
             if scope:
                 where.append('s.branch_code=%s')
                 params.append(scope)
+            else:
+                # v2.115.0: Admin Pusat bisa memilih satu cabang atau semua.
+                branch_filter = _clean(request.args.get('branch'), 10).upper()
+                if branch_filter:
+                    where.append('s.branch_code=%s')
+                    params.append(branch_filter)
+            referrer_id = _clean(request.args.get('referrer_id'), 20)
+            if referrer_id.isdigit():
+                where.append('s.referrer_id=%s')
+                params.append(int(referrer_id))
+            q = _clean(request.args.get('q'), 100)
+            if q:
+                like = f'%{q}%'
+                where.append('(s.nama LIKE %s OR s.nik LIKE %s OR s.no_hp_norm LIKE %s '
+                             'OR s.referensi_raw LIKE %s OR s.registration_no LIKE %s)')
+                params += [like] * 5
             status = _clean(request.args.get('status'), 30)
             if status in VALID_STATUSES:
                 where.append('s.status=%s')
@@ -2795,14 +2818,16 @@ def register_first_work_routes(app):
                 ])
             response = make_response('\ufeff' + output.getvalue())
             response.headers['Content-Type'] = 'text/csv; charset=utf-8'
+            export_label = scope or branch_filter or 'SEMUA'
             response.headers['Content-Disposition'] = \
-                f"attachment; filename=first_work_export_{(scope or 'SEMUA')}.csv"
+                f"attachment; filename=first_work_export_{export_label}.csv"
             # v2.82.0: CSV berisi NIK & no. HP — jangan di-cache, dan unduhan
             # dicatat sebagai akses data pribadi.
             response.headers['Cache-Control'] = 'no-store'
             log_activity_async(None, 'first_work_export', session.get('user_role', ''),
                                session.get('full_name') or session.get('user_name') or '',
-                               new_data={'rows': len(rows), 'scope': scope or 'SEMUA',
+                               new_data={'rows': len(rows),
+                                         'scope': scope or branch_filter or 'SEMUA',
                                          'nik_full': allow_full_nik},
                                ip=client_ip())
             return response

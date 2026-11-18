@@ -236,6 +236,18 @@ const PAGE_HELP = [
     terms: ['Audit Log'],
   },
   {
+    paths: ['/cv-online'],
+    title: 'Registrasi CV Online',
+    summary: 'Pelamar mengisi form publik per cabang; Traineer/Admin memverifikasi.',
+    steps: [
+      'Bagikan tautan/QR form cabang ke pengundang — tautan tanpa token ditolak.',
+      'Chip status membuka antrean; Detail menampilkan seluruh isian pelamar.',
+      'Admin Pusat bisa memilih Semua cabang atau satu cabang; ekspor CSV ikut filter.',
+      'GA/HR hanya melihat dan mengekspor; verifikasi ada di Traineer/Admin.',
+    ],
+    terms: ['HO'],
+  },
+  {
     paths: ['/first-work'],
     title: 'Absensi FirstWork',
     summary: 'Pendaftar first work mengisi form publik; Traineer memverifikasi datanya.',
@@ -244,6 +256,7 @@ const PAGE_HELP = [
       'Buka Detail untuk memeriksa NIK, referensi, dan unduh KTP sebelum memutuskan.',
       'Penolakan wajib diberi alasan; semua keputusan tercatat di riwayat.',
       'Data hanya berisi cabang Anda — cabang lain tidak terlihat.',
+      'Admin Pusat: pilih Semua cabang/satu cabang; ekspor CSV ikut filter itu.',
     ],
     terms: ['HO'],
   },

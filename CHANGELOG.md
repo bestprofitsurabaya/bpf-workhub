@@ -7,6 +7,22 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.115.0 — 18 November 2026 (Fase 2: register lintas cabang CV & FirstWork)
+
+- 🌐 **Filter cabang untuk Admin Pusat** di **Registrasi CV Online** dan
+  **Absensi FirstWork**: pilihan **Semua cabang** atau satu cabang. Chip status,
+  angka "Hari Ini", dan umur antrean ikut menyesuaikan cabang yang dipilih.
+  Role cabang (traineer, GA/HR, finance) tetap terkunci — filter tidak muncul.
+- ⬇️ **Ekspor CSV mengikuti layar.** Unduhan sekarang membawa filter cabang,
+  pencarian, dan referensi/user yang sedang aktif — bukan lagi selalu seluruh
+  data. CSV tetap punya kolom **Cabang**, jadi satu file bisa memuat semua
+  cabang untuk rekonsiliasi.
+- 🔒 **Tidak bisa dibelokkan lewat URL.** `?branch=…` hanya berlaku untuk Admin
+  Pusat; role cabang selalu dipaksa ke cabang sesinya di server (bukan sekadar
+  menyembunyikan pilihan di UI).
+- ✅ Tes: 6 tes ekspor lintas cabang (scope, pencarian, statistik) + 6 tes UI
+  filter/cabang.
+
 ## v2.114.0 — 18 November 2026 (Fase 1: Panel Pusat — antrean semua cabang)
 
 - 🏛 **Panel "Pusat" di Dashboard Admin.** Satu tabel menjawab "cabang mana

@@ -69,12 +69,18 @@ operator darurat (break-glass)**. ACC harian tetap di GA/Finance cabang.
 - [x] Uji: 346 tes frontend, 103 tes backend terkait, fan-out live 12 cabang
       (`summary.branches_total=12`, semua `status=ok`), health `v2.114.0`.
 
-### Fase 2 — Register lintas cabang (target rilis v2.115.0)
+### Fase 2 — Register lintas cabang (rilis v2.115.0) ✅
 
-- [ ] CV Online: filter "Semua cabang" + ekspor gabungan (data di master).
-- [ ] FirstWork: filter "Semua cabang" + ekspor gabungan.
-- [ ] Konsolidasi periode: satu CSV/PDF berisi semua cabang dengan kolom
-      cabang.
+- [x] CV Online: filter "Semua cabang" + satu cabang untuk Admin Pusat; chip
+      status & angka hari ini mengikuti filter; ekspor CSV ikut filter (kolom
+      **Cabang** tetap ada). Role cabang tetap terkunci di server.
+- [x] FirstWork: filter "Semua cabang" + satu cabang; chip, aging, angka hari
+      ini, dan ekspor CSV ikut filter; pencarian/referensi ikut terbawa.
+- [x] Konsolidasi periode: CSV satu file untuk semua cabang (kolom cabang) atau
+      per cabang. PDF tidak ditambahkan — kedua modul memang tidak punya
+      laporan PDF; CSV adalah format serah-terima ke HRD/pengundang.
+- [x] Uji: 29 tes backend (6 ekspor lintas cabang + CV Online) & 13 tes UI CV/
+      FirstWork lulus di NAS.
 
 ### Fase 3 — Tata kelola (target rilis v2.116.0)
 
@@ -91,3 +97,4 @@ operator darurat (break-glass)**. ACC harian tetap di GA/Finance cabang.
 | 18 Nov 2026 | Audit menu "Laporan & Analisis" → v2.113.1 | commit `a5236cf`, health `v2.113.1` |
 | 18 Nov 2026 | Helper CSV + dasar hitung + perbaikan redirect (v2.113.2) | 335 tes frontend + 10 guard lulus, health `v2.113.2` |
 | 18 Nov 2026 | Panel Pusat + switcher + banner + badge total + scope berbasis flag (v2.114.0) | 346 tes frontend, 103 tes backend, fan-out live 12 cabang, health `v2.114.0` |
+| 18 Nov 2026 | Register lintas cabang: filter cabang + ekspor CSV mengikuti layar di CV Online & FirstWork (v2.115.0) | 352 tes frontend + 75 tes backend terkait lulus; live: Pusat `?branch=MLG`=0 vs `SBY`=1738 baris, `admin_sby` `?branch=MLG` tetap 1738 (terkunci); health `v2.115.0` |

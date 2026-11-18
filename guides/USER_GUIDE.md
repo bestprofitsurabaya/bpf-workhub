@@ -1,4 +1,4 @@
-# 📖 Panduan Pengguna BPF WorkHub v2.114.0
+# 📖 Panduan Pengguna BPF WorkHub v2.115.0
 
 > **Siapa pun kamu — sopir, OB, admin, atau pimpinan — panduan ini ditulis untuk kamu.**
 > Tidak perlu paham teknis. Cukup ikuti langkah-langkah sesuai bagianmu.
@@ -637,6 +637,9 @@ Semua perubahan papan berjalan realtime — saat driver menyelesaikan tugas, sta
 ### 10.1 Absensi FirstWork `/app/first-work`
 
 - Form publik **ber-token per cabang**: `/app/first-work-form?cabang=<KODE>&t=<token>` (tanpa login) dipakai pendaftar first work: NIK, nama, pendidikan, referensi, No. HP, dan foto KTP. Halaman `/app/first-work` sendiri selalu menampilkan **data** pengisian.
+- **Admin Pusat** bisa memilih **Semua cabang** atau satu cabang di filter;
+  chip umur antrean, angka hari ini, dan **⬇️ Ekspor CSV** mengikuti pilihan
+  itu (kolom **Cabang** tetap ada di CSV).
 - **Setiap cabang punya tautan + QR sendiri.** Ambil dari tabel *Referensi & Sync* (admin) atau tombol **↗ Buka Form Publik / 🔗 Salin Link / ▦ QR** di header. QR statis bisa **diunduh PNG** atau langsung **dicetak** dan ditempel di lokasi pendaftaran — QR tetap sah selamanya sampai token dirotasi admin. Isian lewat tautan cabang lain langsung ditolak; tautan tanpa token juga ditolak. **Tautan yang tidak sah** (token salah/kosong, cabang tidak dikenal) kini menampilkan halaman penolakan jelas *"Tautan Form Tidak Valid"* — form tidak pernah tampil untuk cabang yang bukan milik tautan tersebut, tanpa tampil branding cabang apa pun.
 - Setiap pengisian otomatis mendapat **ID Fingerprint** dan **ID BPF** — nomor dari kolom counter Google Spreadsheet, berlanjut dari data terakhir (1.831 data historis sudah membawa nomornya). Kedua ID langsung tampil di layar sukses pendaftar sebagai **nomor identitas kerja**, disertai arahan menyimpannya lalu mendaftarkannya ke mesin fingerprint bersama Traineer cabang.
 - Kolom **ID Fingerprint & ID BPF** tampil di tabel data; **Detail** menampilkan NIK, referensi, No. HP, riwayat, tombol **🪪 Unduh KTP**, dan kotak koreksi kedua ID tersebut (Traineer/Admin).
@@ -665,6 +668,12 @@ Semua perubahan papan berjalan realtime — saat driver menyelesaikan tugas, sta
   cabang sendiri. QR bisa diunduh PNG dan dibagikan ke pengundang.
 - **Filter**: chip status, User (EF), rentang tanggal, dan pencarian nama/HP/
   pengundang/no. registrasi. **⬇️ Ekspor CSV** mengikuti filter aktif.
+- **Admin Pusat** mendapat pilihan **Semua cabang / satu cabang**. Chip status,
+  angka hari ini, dan CSV ikut cabang yang dipilih, sehingga satu file bisa
+  memuat semua cabang (kolom **Cabang** tetap ada) atau hanya satu cabang saat
+  diserahkan ke pengundang. Role cabang tetap terkunci ke cabangnya — pilihan
+  ini hanya muncul untuk Admin Pusat dan server menolak `?branch=` dari role
+  cabang.
 - Detail pelamar menampilkan seluruh isian + tombol **💬 WhatsApp** (langsung ke
   nomor HP pelamar) dan riwayat verifikasi. Data uji bisa dihapus dengan mengetik
   **HAPUS** (data terverifikasi hanya oleh Admin Pusat).

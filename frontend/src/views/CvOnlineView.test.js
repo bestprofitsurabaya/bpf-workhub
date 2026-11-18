@@ -20,25 +20,24 @@ const ROWS = [
   },
 ]
 
-async function mountRole(role) {
+async function mountRole(role, { scope = 'MLG', branches } = {}) {
   authMock.role = role
+  const forms = branches || [{
+    branch_code: 'MLG', branch_name: 'Cabang Malang',
+    form_path: '/app/cv-online-form?cabang=MLG&t=tok-mlg',
+  }]
   apiMock.mockImplementation((path) => {
     if (path === '/api/cv-online') {
       return Promise.resolve({
         data: ROWS, stats: { total: 1, submitted: 1 }, total: 1, page: 1,
-        scope_branch: 'MLG',
+        scope_branch: scope,
       })
     }
     if (path === '/api/cv-online/meta') {
       return Promise.resolve({ options: { user: ['EF 1', 'EF 2'] } })
     }
     if (path === '/api/cv-online/branch-forms') {
-      return Promise.resolve({
-        data: [{
-          branch_code: 'MLG', branch_name: 'Cabang Malang',
-          form_path: '/app/cv-online-form?cabang=MLG&t=tok-mlg',
-        }],
-      })
+      return Promise.resolve({ data: forms })
     }
     return Promise.resolve({})
   })
@@ -70,6 +69,40 @@ describe('CvOnlineView (Registrasi CV Online)', () => {
     expect(w.text()).toContain('Budi Santoso')
     expect(w.text()).toContain('GA/HR')
     expect(labels(w)).not.toContain('↗ Buka Form Publik')
+  })
+
+  // v2.115.0 — register lintas cabang: Admin Pusat bisa memilih cabang.
+  it('Admin Pusat melihat filter Semua cabang + pilihan cabang', async () => {
+    const w = await mountRole('admin', {
+      scope: null,
+      branches: [
+        { branch_code: 'SBY', branch_name: 'Surabaya' },
+        { branch_code: 'MLG', branch_name: 'Cabang Malang' },
+      ],
+    })
+    const select = w.find('select[aria-label="Filter cabang"]')
+    expect(select.exists()).toBe(true)
+    expect(select.text()).toContain('Semua cabang')
+    expect(select.text()).toContain('SBY')
+    expect(select.text()).toContain('MLG')
+  })
+
+  it('role cabang tidak melihat filter cabang (tetap terkunci)', async () => {
+    const w = await mountRole('traineer')
+    expect(w.find('select[aria-label="Filter cabang"]').exists()).toBe(false)
+  })
+
+  it('cabang terpilih ikut terbawa ke tautan ekspor CSV', async () => {
+    const w = await mountRole('admin', {
+      scope: null,
+      branches: [
+        { branch_code: 'SBY', branch_name: 'Surabaya' },
+        { branch_code: 'MLG', branch_name: 'Cabang Malang' },
+      ],
+    })
+    await w.find('select[aria-label="Filter cabang"]').setValue('MLG')
+    const exportLink = w.findAll('a').find((a) => a.text().includes('Ekspor CSV'))
+    expect(exportLink.attributes('href')).toContain('branch=MLG')
   })
 
   it('menampilkan chip status & statistik antrean', async () => {

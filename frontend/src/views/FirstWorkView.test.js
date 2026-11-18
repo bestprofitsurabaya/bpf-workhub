@@ -18,22 +18,21 @@ const ROWS = [
   },
 ]
 
-async function mountRole(role) {
+async function mountRole(role, { scope = 'MLG', branches } = {}) {
   authMock.role = role
+  const forms = branches || [{
+    branch_code: 'MLG', branch_name: 'Cabang Malang',
+    form_path: '/app/first-work-form?cabang=MLG&t=tok-mlg',
+  }]
   apiMock.mockImplementation((path) => {
     if (path === '/api/first-work') {
-      return Promise.resolve({ data: ROWS, stats: { total: 1, submitted: 1 }, total: 1, page: 1, scope_branch: 'MLG' })
+      return Promise.resolve({ data: ROWS, stats: { total: 1, submitted: 1 }, total: 1, page: 1, scope_branch: scope })
     }
     if (path === '/api/first-work/meta') return Promise.resolve({ referrers: [] })
     // v2.97.1: tautan form butuh entri ber-token untuk cabang sesi; mock kosong
     // membuat tombol "Buka Form Publik" tidak pernah dirender.
     if (path === '/api/first-work/branch-forms') {
-      return Promise.resolve({
-        branches: [{
-          branch_code: 'MLG', branch_name: 'Cabang Malang',
-          form_path: '/app/first-work-form?cabang=MLG&t=tok-mlg',
-        }],
-      })
+      return Promise.resolve({ branches: forms })
     }
     return Promise.resolve({})
   })
@@ -58,6 +57,39 @@ describe('FirstWorkView (Absensi FirstWork)', () => {
     expect(labels(w)).toContain('🔗 Salin Link')
     const link = w.findAll('a').find((a) => a.text().includes('Buka Form Publik'))
     expect(link.attributes('href')).toContain('/app/first-work-form')
+  })
+
+  // v2.115.0 — register lintas cabang: Admin Pusat bisa memilih cabang.
+  it('Admin Pusat melihat filter Semua cabang + pilihan cabang', async () => {
+    const w = await mountRole('admin', {
+      scope: null,
+      branches: [
+        { branch_code: 'SBY', branch_name: 'Surabaya' },
+        { branch_code: 'MLG', branch_name: 'Cabang Malang' },
+      ],
+    })
+    const select = w.find('select[aria-label="Filter cabang"]')
+    expect(select.exists()).toBe(true)
+    expect(select.text()).toContain('Semua cabang')
+    expect(select.text()).toContain('SBY')
+  })
+
+  it('role cabang tidak melihat filter cabang', async () => {
+    const w = await mountRole('traineer')
+    expect(w.find('select[aria-label="Filter cabang"]').exists()).toBe(false)
+  })
+
+  it('cabang terpilih ikut terbawa ke tautan ekspor CSV', async () => {
+    const w = await mountRole('admin', {
+      scope: null,
+      branches: [
+        { branch_code: 'SBY', branch_name: 'Surabaya' },
+        { branch_code: 'MLG', branch_name: 'Cabang Malang' },
+      ],
+    })
+    await w.find('select[aria-label="Filter cabang"]').setValue('SBY')
+    const exportLink = w.findAll('a').find((a) => a.text().includes('Ekspor CSV'))
+    expect(exportLink.attributes('href')).toContain('branch=SBY')
   })
 
   it('admin juga melihat data & tautan form publik', async () => {

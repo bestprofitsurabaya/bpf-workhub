@@ -24,7 +24,7 @@ const page = ref(1)
 const limit = ref(25)
 const scopeBranch = ref(null)
 const userOptions = ref([])
-const filters = reactive({ status: '', q: '', user_ef: '', date_from: '', date_to: '' })
+const filters = reactive({ status: '', q: '', user_ef: '', branch: '', date_from: '', date_to: '' })
 
 const detail = ref(null)
 const showDetail = ref(false)
@@ -41,7 +41,9 @@ const formLink = computed(() => {
 const subtitle = computed(() => {
   const scope = scopeBranch.value
     ? `Data pelamar — ${branchName.value || 'cabang ' + scopeBranch.value}`
-    : 'Data pelamar — semua cabang'
+    : (filters.branch
+        ? `Data pelamar — cabang ${filters.branch}`
+        : 'Data pelamar — semua cabang')
   return canVerify.value ? scope : `${scope} · hanya lihat`
 })
 
@@ -56,6 +58,9 @@ const pages = computed(() => Math.max(1, Math.ceil(total.value / limit.value)))
 const exportUrl = computed(() => {
   const query = new URLSearchParams()
   if (filters.status) query.set('status', filters.status)
+  if (filters.q) query.set('q', filters.q)
+  if (filters.user_ef) query.set('user_ef', filters.user_ef)
+  if (filters.branch) query.set('branch', filters.branch)
   if (filters.date_from) query.set('date_from', filters.date_from)
   if (filters.date_to) query.set('date_to', filters.date_to)
   const suffix = query.toString()
@@ -103,6 +108,7 @@ async function load(target = 1) {
         status: filters.status,
         q: filters.q,
         user_ef: filters.user_ef,
+        branch: filters.branch,
         date_from: filters.date_from,
         date_to: filters.date_to,
       },
@@ -124,7 +130,7 @@ function applyFilters() {
 }
 
 function resetFilters() {
-  Object.assign(filters, { status: '', q: '', user_ef: '', date_from: '', date_to: '' })
+  Object.assign(filters, { status: '', q: '', user_ef: '', branch: '', date_from: '', date_to: '' })
   load(1)
 }
 
@@ -325,6 +331,10 @@ onMounted(() => {
         <select class="select" v-model="filters.user_ef">
           <option value="">Semua user</option>
           <option v-for="u in userOptions" :key="u" :value="u">{{ u }}</option>
+        </select>
+        <select v-if="!scopeBranch" class="select" v-model="filters.branch" aria-label="Filter cabang">
+          <option value="">Semua cabang</option>
+          <option v-for="b in branchForms" :key="b.branch_code" :value="b.branch_code">{{ b.branch_code }} — {{ b.branch_name }}</option>
         </select>
         <input class="input" type="date" v-model="filters.date_from" aria-label="Dari tanggal" />
         <input class="input" type="date" v-model="filters.date_to" aria-label="Sampai tanggal" />

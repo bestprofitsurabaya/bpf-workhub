@@ -604,10 +604,15 @@ def register_cv_online_routes(app):
                     params + [limit, offset])
                 rows = cursor.fetchall() or []
 
+                # v2.115.0: chip status mengikuti filter cabang yang dipilih
+                # Admin Pusat — bukan selalu total semua cabang.
                 stat_where, stat_params = [], []
                 if scope:
                     stat_where.append('branch_code=%s')
                     stat_params.append(scope)
+                elif branch_filter:
+                    stat_where.append('branch_code=%s')
+                    stat_params.append(branch_filter)
                 cursor.execute(
                     'SELECT status, COUNT(*) AS n FROM cv_online_submissions'
                     + ((' WHERE ' + ' AND '.join(stat_where)) if stat_where else '')
@@ -617,11 +622,17 @@ def register_cv_online_routes(app):
                 for stat in cursor.fetchall():
                     stats[stat['status']] = int(stat['n'] or 0)
                     stats['total'] += int(stat['n'] or 0)
+                today_where = ['DATE(submitted_at)=CURDATE()']
+                today_params = []
+                if scope:
+                    today_where.append('branch_code=%s')
+                    today_params.append(scope)
+                elif branch_filter:
+                    today_where.append('branch_code=%s')
+                    today_params.append(branch_filter)
                 cursor.execute(
-                    'SELECT COUNT(*) AS n FROM cv_online_submissions '
-                    'WHERE DATE(submitted_at)=CURDATE()'
-                    + ((' AND branch_code=%s') if scope else ''),
-                    ([scope] if scope else []))
+                    'SELECT COUNT(*) AS n FROM cv_online_submissions WHERE '
+                    + ' AND '.join(today_where), today_params)
                 stats['today'] = int((cursor.fetchone() or {}).get('n') or 0)
             finally:
                 cursor.close()
@@ -816,6 +827,24 @@ def register_cv_online_routes(app):
             if scope:
                 where.append('branch_code=%s')
                 params.append(scope)
+            else:
+                # v2.115.0: Admin Pusat bisa mengekspor satu cabang atau semua
+                # cabang; kolom Cabang sudah ada di CSV sejak v2.113.0.
+                branch_filter = _clean(request.args.get('branch'), 10).upper()
+                if branch_filter:
+                    where.append('branch_code=%s')
+                    params.append(branch_filter)
+            user_ef = _clean(request.args.get('user_ef'), 20)
+            if user_ef:
+                where.append('user_ef=%s')
+                params.append(user_ef)
+            q = _clean(request.args.get('q'), 100)
+            if q:
+                like = f'%{q}%'
+                where.append('(nama LIKE %s OR no_hp_norm LIKE %s OR '
+                             'diundang_oleh LIKE %s OR sumber_informasi LIKE %s OR '
+                             'registration_no LIKE %s OR tempat_lahir LIKE %s)')
+                params += [like] * 6
             status = _clean(request.args.get('status'), 30)
             if status and status in VALID_STATUSES:
                 where.append('status=%s')
