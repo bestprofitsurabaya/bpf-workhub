@@ -6,6 +6,8 @@ import LoadingState from '../components/LoadingState.vue'
 import ErrorState from '../components/ErrorState.vue'
 import PageHeader from '../components/PageHeader.vue'
 import ReportMeta from '../components/ReportMeta.vue'
+import { csvLine, csvMeta, downloadCsv } from '../utils/csv.js'
+import { BASIS_VERSION, REPORT_BASIS } from '../content/reportBasis.js'
 
 Chart.register(...registerables)
 
@@ -112,40 +114,35 @@ watch(() => props.scope, (s) => {
   load()
 })
 
-function csvCell(v) {
-  const s = String(v ?? '')
-  return /[",\n;]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s
-}
-
 function exportCsv() {
   notice.value = ''
   if (!d.value) { notice.value = 'Belum ada data untuk diekspor.'; return }
   const fin = d.value.finance || {}
+  // v2.113.2: kop CSV sama dengan kartu meta di layar — periode, cakupan,
+  // dasar hitung (versi bbm_scope), dan waktu dibuat.
   const lines = [
-    ['Analisis BBM & Armada', `${start.value} s/d ${end.value}`].map(csvCell).join(','),
-    ['Ringkasan', '', ''].map(csvCell).join(','),
-    ['Total Nominal', 'Jumlah Klaim', 'Rata-rata/Hari', 'Rata-rata/Klaim'].map(csvCell).join(','),
-    [fin.total_month, fin.total_tx, fin.avg_per_day, fin.avg_per_tx].map(csvCell).join(','),
-    [''],
-    ['Top 5 Driver (Nominal)', 'Nopol', 'Nominal', 'Transaksi'].map(csvCell).join(','),
-    ...(fin.top_drivers || []).map((t) => [t.driver_name, t.nopol, t.total, t.tx_count].map(csvCell).join(',')),
-    [''],
-    ['Kendaraan', 'km/L'].map(csvCell).join(','),
-    ...((d.value.fleet?.eff_labels || []).map((nopol, i) => [nopol, d.value.fleet.eff_values?.[i] ?? 0].map(csvCell).join(','))),
-    [''],
-    ['Fleet Health', 'Nopol', 'Kendaraan', 'Driver', 'km/L', 'Transaksi', 'Nominal', 'Skor', 'Status'].map(csvCell).join(','),
-    ...((vehicleHealth.value?.units || []).map((u) => [
+    csvMeta('Analisis BBM & Armada', 3),
+    csvMeta(`Periode ${start.value} s/d ${end.value}`, 3),
+    csvMeta('Cakupan cabang aktif sesuai sesi login', 3),
+    csvMeta(`Dasar hitung (${BASIS_VERSION}): ${REPORT_BASIS.analisis}`, 3),
+    csvMeta(`Dibuat: ${generatedAt.value}`, 3),
+    csvLine(['Ringkasan', '', '']),
+    csvLine(['Total Nominal', 'Jumlah Klaim', 'Rata-rata/Hari', 'Rata-rata/Klaim']),
+    csvLine([fin.total_month, fin.total_tx, fin.avg_per_day, fin.avg_per_tx]),
+    '',
+    csvLine(['Top 5 Driver (Nominal)', 'Nopol', 'Nominal', 'Transaksi']),
+    ...(fin.top_drivers || []).map((t) => csvLine([t.driver_name, t.nopol, t.total, t.tx_count])),
+    '',
+    csvLine(['Kendaraan', 'km/L']),
+    ...((d.value.fleet?.eff_labels || []).map((nopol, i) => csvLine([nopol, d.value.fleet.eff_values?.[i] ?? 0]))),
+    '',
+    csvLine(['Fleet Health', 'Nopol', 'Kendaraan', 'Driver', 'km/L', 'Transaksi', 'Nominal', 'Skor', 'Status']),
+    ...((vehicleHealth.value?.units || []).map((u) => csvLine([
       '', u.nopol, u.vehicle_type, u.current_driver || '', u.avg_kml || 0,
       u.total_tx, u.total_nominal, u.health_score, u.status,
-    ].map(csvCell).join(','))),
+    ]))),
   ]
-  const blob = new Blob(['\ufeff' + lines.join('\n')], { type: 'text/csv;charset=utf-8;' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `analisis_bbm_${start.value}_${end.value}.csv`
-  a.click()
-  URL.revokeObjectURL(url)
+  downloadCsv(`analisis_bbm_${start.value}_${end.value}.csv`, lines)
 }
 
 onMounted(load)
@@ -162,7 +159,7 @@ onBeforeUnmount(() => { [ch1, ch2, ch3].forEach((c) => c && c.destroy()) })
       :period="`${start} s/d ${end}`"
       scope="Cabang aktif sesuai sesi login"
       source="transactions (archived), drivers, vehicle_assignments, fuel_cash_requests"
-      basis="Klaim archived; kasbon COMPLETED pada handover_at; armada mengikuti periode"
+      :basis="`${BASIS_VERSION} — ${REPORT_BASIS.analisis}`"
       exclusions="Klaim pending/rejected dan data demo tidak dihitung"
       :generated-at="generatedAt"
       :rows="num(d?.finance?.total_tx || 0) + ' klaim'"

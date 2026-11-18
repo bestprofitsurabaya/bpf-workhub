@@ -7,6 +7,23 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.113.2 — 18 November 2026 (Rapikan CSV & tautan laporan lama — Fase 4)
+
+- 🧾 **Satu helper CSV** (`frontend/src/utils/csv.js`) dipakai Rekap, Realisasi,
+  Analisis, dan daftar user. Menutup bug lama: ekspor user membungkus semua sel
+  dengan kutip tanpa meng-escape kutip di dalamnya, sehingga nama seperti
+  `Budi "BS" Santoso` merusak kolom.
+- 📊 **CSV laporan kini seaudit layarnya.** Rekap, Realisasi, dan Analisis
+  mencantumkan periode, cakupan cabang, **dasar hitung berversi**
+  (`bbm-scope-2`), dan waktu dibuat di kepala file — teksnya diambil dari
+  `frontend/src/content/reportBasis.js`, sumber yang sama dengan kartu meta di
+  layar, jadi file ekspor tidak bisa lagi berbeda penjelasan.
+- 🔗 **Tautan laporan lama tidak kehilangan periode.** Bookmark berbentuk
+  `/rekap?start_date=…&end_date=…` atau `/expenses?from=…&to=…` dulu
+  kehilangan rentang tanggal setelah dialihkan ke `/cash`; sekarang parameter
+  lama dipetakan ke `start`/`end`. Query `tab`/`view` tidak bisa dibelokkan.
+- ✅ Tes baru: 4 tes helper CSV + 3 tes pemetaan tautan lama.
+
 ## v2.113.1 — 18 November 2026 (Rapikan menu laporan ganda GA & Admin)
 
 - 🧹 **Grup sidebar "Laporan & Analisis" dihapus.** Sejak v2.100.0 *Rekap Klaim

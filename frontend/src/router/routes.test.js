@@ -36,6 +36,8 @@ describe('path Registrasi CV Online', () => {
 // v2.113.1 — audit menu "Laporan & Analisis": tiga tautan lama tetap hidup
 // sebagai redirect ke tab Laporan di /cash (bookmark & tautan beredar tidak
 // putus), tetapi tidak lagi tampil sebagai menu terpisah di sidebar.
+// v2.113.2 — periode lama (`start_date`/`end_date`, `from`/`to`) dipetakan ke
+// `start`/`end` yang dibaca context bar /cash; dulu periode bookmark hilang.
 describe('tautan laporan lama', () => {
   it.each([
     ['rekap', 'rekap'],
@@ -49,5 +51,29 @@ describe('tautan laporan lama', () => {
       path: '/cash',
       query: { tab: 'laporan', view, start: '2026-11-01' },
     })
+  })
+
+  it('memetakan periode lama start_date/end_date dan from/to ke start/end', () => {
+    const find = (name) => router.getRoutes().find((r) => r.name === name)
+    expect(find('rekap').redirect({
+      query: { start_date: '2026-11-01', end_date: '2026-11-30', driver: 'Budi' },
+    })).toEqual({
+      path: '/cash',
+      query: {
+        tab: 'laporan', view: 'rekap',
+        start: '2026-11-01', end: '2026-11-30', driver: 'Budi',
+      },
+    })
+    expect(find('expenses').redirect({
+      query: { from: '2026-01-01', to: '2026-01-31' },
+    }).query).toEqual({
+      tab: 'laporan', view: 'realisasi', start: '2026-01-01', end: '2026-01-31',
+    })
+  })
+
+  it('tab & view tidak bisa dibelokkan oleh query lama', () => {
+    const record = router.getRoutes().find((r) => r.name === 'rekap')
+    expect(record.redirect({ query: { tab: 'bbm', view: 'analisis' } }).query)
+      .toMatchObject({ tab: 'laporan', view: 'rekap' })
   })
 })

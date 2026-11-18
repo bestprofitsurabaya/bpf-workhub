@@ -16,6 +16,8 @@ import PageHeader from '../components/PageHeader.vue'
 import ReportMeta from '../components/ReportMeta.vue'
 import LoadingState from '../components/LoadingState.vue'
 import ErrorState from '../components/ErrorState.vue'
+import { csvLine, csvMeta, downloadCsv } from '../utils/csv.js'
+import { BASIS_VERSION, REPORT_BASIS } from '../content/reportBasis.js'
 
 const auth = useAuthStore()
 const loading = ref(true)
@@ -174,29 +176,23 @@ async function openDetail(month) {
 function closeDetail() { detail.value.open = false }
 
 // === CSV ===
-function csvCell(v) {
-  const s = String(v ?? '')
-  return /[",\n;]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s
-}
-
 function exportCsv() {
   notice.value = ''
   if (!rowsBulan.value.length) { notice.value = 'Tidak ada data untuk diekspor.'; return }
   const header = ['Bulan', 'Kasbon Cair', 'Realisasi LPJ', 'Voucher Rekanan', 'Sisa Kasbon', 'Total Realisasi']
+  // v2.113.2: kop CSV sama dengan PDF & kartu meta (periode, cakupan, dasar
+  // hitung, waktu dibuat) — file ekspor bisa diaudit tanpa membuka layar.
   const lines = [
-    [`Realisasi Pengeluaran ${scopeLabel.value}`, '', '', '', '', ''].map(csvCell).join(','),
-    [`Periode ${periodLabel.value}`, '', '', '', '', ''].map(csvCell).join(','),
-    header.join(','),
-    ...rowsBulan.value.map((r) => [r.label, r.kasbon, r.lpj, r.voucher, r.sisa, r.total].map(csvCell).join(',')),
-    ['TOTAL', totals.value.kasbon, totals.value.lpj, totals.value.voucher, totals.value.sisa, totals.value.total].map(csvCell).join(','),
+    csvMeta(`Realisasi Pengeluaran — ${scopeLabel.value}`, header.length),
+    csvMeta(`Periode ${periodLabel.value}${isYtd.value ? ' (YTD)' : ''}`, header.length),
+    csvMeta(`Cakupan ${scopeLabel.value}`, header.length),
+    csvMeta(`Dasar hitung (${BASIS_VERSION}): ${REPORT_BASIS.realisasi}`, header.length),
+    csvMeta(`Dibuat: ${generatedAt.value}`, header.length),
+    csvLine(header),
+    ...rowsBulan.value.map((r) => csvLine([r.label, r.kasbon, r.lpj, r.voucher, r.sisa, r.total])),
+    csvLine(['TOTAL', totals.value.kasbon, totals.value.lpj, totals.value.voucher, totals.value.sisa, totals.value.total]),
   ]
-  const blob = new Blob(['\ufeff' + lines.join('\n')], { type: 'text/csv;charset=utf-8;' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `realisasi_pengeluaran_${branch.value}_${year.value}_${monthFrom.value}-${monthTo.value}.csv`
-  a.click()
-  URL.revokeObjectURL(url)
+  downloadCsv(`realisasi_pengeluaran_${branch.value}_${year.value}_${monthFrom.value}-${monthTo.value}.csv`, lines)
 }
 
 onMounted(load)
@@ -229,7 +225,7 @@ onMounted(load)
         :period="periodLabel + (isYtd ? ' (YTD)' : '')"
         :scope="scopeLabel"
         source="fuel_cash_requests, transactions (CASH_LPJ, CLAIM voucher)"
-        basis="Kasbon cair: handover_at terisi · LPJ sah: CASH_LPJ verified_ga/archived · Voucher: CLAIM berlabel rekanan, verified_ga/archived (sekali saat pemakaian)"
+        :basis="`${BASIS_VERSION} — ${REPORT_BASIS.realisasi}`"
         exclusions="Air minum & overtime belum menyimpan nominal; kasbon bukan pengeluaran final"
         :generated-at="generatedAt"
         :rows="rowsBulan.length + ' bulan'"

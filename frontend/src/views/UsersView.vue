@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import { api } from '../api'
+import { csvLine, downloadCsv } from '../utils/csv.js'
 import { useAuthStore } from '../stores/auth'
 import Modal from '../components/Modal.vue'
 import StatCard from '../components/StatCard.vue'
@@ -299,12 +300,10 @@ function exportCsv() {
     u.username, u.full_name, roleLabel(u.role), u.team_name || '-', u.branch_code || '-', 
     u.is_active ? 'Aktif' : 'Nonaktif', u.last_login || '-'
   ])
-  const csv = [headers, ...rows].map(r => r.map(c => `"${c}"`).join(',')).join('\n')
-  const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url; a.download = `users_${new Date().toISOString().slice(0, 10)}.csv`; a.click()
-  URL.revokeObjectURL(url)
+  // v2.113.2: escaping CSV bersama — nama dengan tanda kutip tidak lagi
+  // merusak kolom (sebelumnya semua sel dibungkus kutip tanpa escape).
+  const lines = [csvLine(headers), ...rows.map(csvLine)]
+  downloadCsv(`users_${new Date().toISOString().slice(0, 10)}.csv`, lines)
 }
 
 onMounted(load)

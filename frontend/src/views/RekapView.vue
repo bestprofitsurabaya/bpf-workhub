@@ -8,6 +8,8 @@ import ErrorState from '../components/ErrorState.vue'
 import PageHeader from '../components/PageHeader.vue'
 import ReportMeta from '../components/ReportMeta.vue'
 import { formatDateTime, formatRupiah, transactionStatusLabel } from '../utils/format.js'
+import { csvLine, csvMeta, downloadCsv } from '../utils/csv.js'
+import { BASIS_VERSION, REPORT_BASIS } from '../content/reportBasis.js'
 
 function localISO(d) {
   const mm = String(d.getMonth() + 1).padStart(2, '0')
@@ -87,11 +89,6 @@ function openPdf(dl) {
   window.open('/admin/rekap/pdf?' + pdfParams() + (dl ? '&dl=1' : ''), dl ? '_self' : '_blank')
 }
 
-function csvCell(v) {
-  const s = String(v ?? '')
-  return /[",\n;]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s
-}
-
 async function exportCsv() {
   notice.value = ''
   try {
@@ -107,27 +104,21 @@ async function exportCsv() {
     const header = ['ID', 'Driver', 'Nopol', 'BBM', 'Jenis', 'Nominal', 'Liter', 'km/L', 'Tanggal', 'Status']
     // v2.104.0: CSV membawa meta yang sama dengan PDF & UI (periode, cabang,
     // dasar hitung, waktu dibuat) — file export bisa diaudit sendiri.
-    const metaRow = (label) => [label, ...Array(header.length - 1).fill('')].map(csvCell).join(',')
+    // v2.113.2: dasar hitung & format file memakai helper bersama.
     const lines = [
-      metaRow('Rekap Klaim BBM'),
-      metaRow(`Periode ${start.value} s/d ${end.value}`),
-      metaRow(`Cabang ${(auth.user?.branch_code || '-').toUpperCase()}`),
-      metaRow('Basis: klaim dibayar (os_finance/archived) + LPJ sah (verified_ga/archived)'),
-      metaRow(`Dibuat: ${generatedAt.value}`),
-      header.join(','),
-      ...data.map((t) => [
+      csvMeta('Rekap Klaim BBM', header.length),
+      csvMeta(`Periode ${start.value} s/d ${end.value}`, header.length),
+      csvMeta(`Cabang ${(auth.user?.branch_code || '-').toUpperCase()}`, header.length),
+      csvMeta(`Dasar hitung (${BASIS_VERSION}): ${REPORT_BASIS.rekap}`, header.length),
+      csvMeta(`Dibuat: ${generatedAt.value}`, header.length),
+      csvLine(header),
+      ...data.map((t) => csvLine([
         t.display_id, t.driver_name, t.nopol, t.bbm_type, typeLabel(t.transaction_type),
         Number(t.nominal || 0), Number(t.liter || 0).toFixed(2),
         Number(t.km_per_liter || 0).toFixed(2), t.created_at, transactionStatusLabel(t.status),
-      ].map(csvCell).join(',')),
+      ])),
     ]
-    const blob = new Blob(['\ufeff' + lines.join('\n')], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `rekap_klaim_bbm_${start.value}_${end.value}.csv`
-    a.click()
-    URL.revokeObjectURL(url)
+    downloadCsv(`rekap_klaim_bbm_${start.value}_${end.value}.csv`, lines)
     if ((d.total || 0) > data.length) {
       notice.value = `CSV berisi ${data.length} dari ${d.total} baris (batas ekspor 5.000). Persempit periode untuk data lengkap.`
     }
@@ -154,7 +145,7 @@ onMounted(load)
       :period="`${start} s/d ${end}`"
       scope="Cabang aktif sesuai sesi login"
       source="Tabel transactions (klaim BBM & LPJ kasbon)"
-      basis="CLAIM berstatus os_finance/archived + LPJ CASH_LPJ verified_ga/archived; data demo dikecualikan"
+      :basis="`${BASIS_VERSION} — ${REPORT_BASIS.rekap}`"
       exclusions="Klaim pending/verified_ga (belum dibayar) dan rejected tidak dihitung"
       :generated-at="generatedAt"
       :rows="total"

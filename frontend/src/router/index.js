@@ -1,6 +1,21 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore, ROLE_META } from '../stores/auth'
 
+// v2.113.2 — tautan laporan lama (bookmark/WA/email) membawa periode dengan
+// nama lama: `start_date`/`end_date` (Rekap & Analisis) atau `from`/`to`.
+// Context bar /cash hanya membaca `start`/`end`, jadi dulu periode itu hilang
+// begitu redirect terjadi. Petakan eksplisit; parameter lain (driver/nopol/
+// type/year) tetap dibawa agar tautan tidak putus.
+function legacyReportQuery(query, view) {
+  const q = { ...(query || {}), tab: 'laporan', view }
+  const start = q.start || q.start_date || q.from
+  const end = q.end || q.end_date || q.to
+  if (start) q.start = start
+  if (end) q.end = end
+  for (const key of ['start_date', 'end_date', 'from', 'to']) delete q[key]
+  return q
+}
+
 const routes = [
   { path: '/login', name: 'login', component: () => import('../views/LoginView.vue'), meta: { public: true } },
   // v2.112.0 — langkah kedua login (kode authenticator / pendaftaran MFA).
@@ -35,9 +50,9 @@ const routes = [
       { path: 'assignments', name: 'assignments', component: () => import('../views/AssignmentsView.vue'), meta: { roles: ['ga', 'admin'] } },
       // v2.100.0 — laporan pindah ke meja kerja /cash (Fase 1). Rute lama tetap
       // hidup sebagai redirect dengan query dibawa agar bookmark tidak putus.
-      { path: 'rekap', name: 'rekap', redirect: (to) => ({ path: '/cash', query: { tab: 'laporan', view: 'rekap', ...to.query } }), meta: { roles: ['ga', 'finance', 'admin'] } },
+      { path: 'rekap', name: 'rekap', redirect: (to) => ({ path: '/cash', query: legacyReportQuery(to.query, 'rekap') }), meta: { roles: ['ga', 'finance', 'admin'] } },
       { path: 'cash', name: 'cash', component: () => import('../views/CashView.vue'), meta: { roles: ['ga', 'finance', 'admin'] } },
-      { path: 'analytics', name: 'analytics', redirect: (to) => ({ path: '/cash', query: { tab: 'laporan', view: 'analisis', ...to.query } }), meta: { roles: ['ga', 'finance', 'admin'] } },
+      { path: 'analytics', name: 'analytics', redirect: (to) => ({ path: '/cash', query: legacyReportQuery(to.query, 'analisis') }), meta: { roles: ['ga', 'finance', 'admin'] } },
       { path: 'users', name: 'users', component: () => import('../views/UsersView.vue'), meta: { roles: ['admin'] } },
       { path: 'approvals', name: 'approvals', component: () => import('../views/ApprovalsView.vue'), meta: { roles: ['chief_driver', 'ga', 'ga_hr'] } },
       { path: 'access-review', name: 'access-review', component: () => import('../views/AccessReviewView.vue'), meta: { roles: ['admin'] } },
@@ -47,7 +62,7 @@ const routes = [
       { path: 'logs', name: 'logs', component: () => import('../views/LogsView.vue'), meta: { roles: ['admin'] } },
       { path: 'water', name: 'water', component: () => import('../views/WaterView.vue'), meta: { roles: ['ob', 'finance', 'admin'] } },
       // Rekap Pengeluaran (v2.71.0) — lintas modul, angka terukur saja
-      { path: 'expenses', name: 'expenses', redirect: (to) => ({ path: '/cash', query: { tab: 'laporan', view: 'realisasi', ...to.query } }), meta: { roles: ['finance', 'admin'] } },
+      { path: 'expenses', name: 'expenses', redirect: (to) => ({ path: '/cash', query: legacyReportQuery(to.query, 'realisasi') }), meta: { roles: ['finance', 'admin'] } },
       // Form overtime user OB & Security (v2.39) — dari dalam aplikasi (login)
       { path: 'overtime-me', name: 'overtime-me', component: () => import('../views/OvertimeMeView.vue'), meta: { roles: ['ob', 'security'] } },
       // Rekrutmen (v2.80) — receptionist mengelola, traineer hanya melihat.
