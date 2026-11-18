@@ -137,7 +137,7 @@ const PAGE_HELP = [
       'Voucher Rekanan: verifikasi pemakaian voucher, buat tagihan periode, lalu tandai dibayar ke SPBU mitra.',
       'Kasbon & LPJ: setujui/tolak uang muka, serahkan dana, lalu periksa bukti LPJ driver.',
       'Subsidi Tepat: cocokkan data SPBU/OTP untuk rekonsiliasi — bukan tempat driver mengajukan.',
-      'Laporan: rekap, realisasi, dan analisis. Angka di sini hanya untuk melihat, bukan mengubah transaksi.',
+      'Laporan: sub-tab Rekap Klaim BBM, Realisasi Pengeluaran, dan Analisis BBM & Armada. Satu periode untuk ketiganya; angka di sini hanya untuk melihat, bukan mengubah transaksi. Ekspor CSV/PDF dan klik Rincian untuk melihat transaksi sumber.',
     ],
     terms: ['Klaim BBM', 'Voucher Rekanan', 'Kasbon', 'LPJ', 'Subsidi Tepat', 'Laporan', 'Step-up PIN'],
   },
@@ -163,39 +163,10 @@ const PAGE_HELP = [
     ],
     terms: ['ACC Atasan', 'Kasbon', 'Klaim BBM', 'Overtime'],
   },
-  {
-    paths: ['/rekap'],
-    title: 'Rekap Klaim BBM',
-    summary: 'Klaim BBM yang sudah diarsipkan: nominal, liter, efisiensi, dan ekspor.',
-    steps: [
-      'Pilih periode (atau tombol cepat 7/30 hari, bulan ini, tahun ini).',
-      'Saring driver/nopol/jenis bila perlu, lalu klik Tampilkan.',
-      'Unduh CSV untuk analisis lanjutan atau PDF untuk arsip.',
-    ],
-    terms: ['Rekap', 'Terarsip', 'CSV'],
-  },
-  {
-    paths: ['/expenses'],
-    title: 'Realisasi Pengeluaran',
-    summary: 'Uang yang benar-benar terpakai: LPJ BBM + voucher rekanan, dengan sisa kasbon.',
-    steps: [
-      'Pilih tahun, cabang, dan rentang bulan (default YTD).',
-      'Baca jembatan: kasbon cair − realisasi LPJ = sisa dana.',
-      'Klik Rincian pada bulan untuk melihat transaksi sumbernya.',
-    ],
-    terms: ['Kasbon', 'LPJ', 'Voucher rekanan', 'Realisasi'],
-  },
-  {
-    paths: ['/analytics'],
-    title: 'Analisis BBM & Armada',
-    summary: 'Pola biaya, frekuensi klaim, efisiensi kendaraan, dan kesehatan armada pada periode terpilih.',
-    steps: [
-      'Pilih periode (7/30 hari, bulan ini, tahun ini, atau kustom).',
-      'Bandingkan nominal, jumlah klaim, dan km/L antar driver/kendaraan.',
-      'Periksa Fleet Health: skor rendah berarti efisiensi/aktivitas perlu ditelusuri.',
-    ],
-    terms: ['ODO', 'km/L', 'Fleet Health', 'Klaim BBM'],
-  },
+  // v2.113.1: ketiga laporan hidup sebagai tab "Laporan" di /cash, jadi tidak
+  // ada lagi rute halaman sendiri; entri bantuan lama /rekap, /expenses, dan
+  // /analytics dihapus agar konteks bantuan tidak menunjuk halaman mati
+  // (rutenya hanya redirect). Isinya sudah dirangkum di entri /cash.
   {
     paths: ['/assets'],
     title: 'Aset & Pemeliharaan',

@@ -67,6 +67,23 @@ describe('AppLayout — P1 navigasi', () => {
     expect(nav).not.toContain('Rekrutan Saya')
     expect(nav).not.toContain('Access Review')
     expect(nav).not.toContain('Audit Log')
+    // v2.113.1: laporan tidak lagi jadi menu terpisah untuk admin (termasuk
+    // Admin Pusat) — semuanya ada di /cash tab Laporan.
+    expect(nav).not.toContain('Laporan & Analisis')
+    for (const gone of ['Rekap Klaim BBM', 'Realisasi Pengeluaran', 'Analisis BBM & Armada']) {
+      expect(nav).not.toContain(gone)
+    }
+    w.unmount()
+  })
+
+  it('menu GA tidak memuat laporan ganda — semuanya di /cash tab Laporan', async () => {
+    const { w } = await mountLayout({ role: 'ga', userName: 'ga_sby', isHo: false, path: '/cash' })
+    const nav = w.find('.side-nav').text()
+    expect(nav).toContain('BBM, Kasbon & SPBU')
+    expect(nav).not.toContain('Laporan & Analisis')
+    for (const gone of ['Rekap Klaim BBM', 'Realisasi Pengeluaran', 'Analisis BBM & Armada']) {
+      expect(nav).not.toContain(gone)
+    }
     w.unmount()
   })
 

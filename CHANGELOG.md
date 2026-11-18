@@ -7,6 +7,27 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.113.1 — 18 November 2026 (Rapikan menu laporan ganda GA & Admin)
+
+- 🧹 **Grup sidebar "Laporan & Analisis" dihapus.** Sejak v2.100.0 *Rekap Klaim
+  BBM*, *Realisasi Pengeluaran*, dan *Analisis BBM & Armada* sudah hidup sebagai
+  tab **Laporan** di `/cash`, dan v2.105.0 merampingkan sidebar **finance** —
+  tetapi GA dan Admin (termasuk Admin Pusat) masih melihat tiga menu yang
+  menuju halaman yang sama. Kini semua role memakai satu pintu:
+  **BBM, Kasbon & SPBU → tab Laporan**.
+- 🔗 **Tautan lama tetap hidup** — `/rekap`, `/analytics`, `/expenses` tetap
+  dialihkan ke `/cash?tab=laporan&view=…`, jadi bookmark, tautan WA/email, dan
+  tombol "Analytics" di Dashboard GA tidak putus.
+- 🧭 **Bantuan halaman dirapikan** — entri bantuan `/rekap`, `/expenses`, dan
+  `/analytics` (tidak pernah cocok lagi setelah redirect) dihapus; rinciannya
+  dirangkum di entri `/cash`.
+- 🧪 **Tes** — sidebar admin & GA dikunci agar tidak lagi memunculkan laporan
+  ganda; tes rute memastikan ketiga redirect tetap membawa `tab=laporan` +
+  `view` yang benar.
+- ℹ️ Tidak ada perubahan data atau endpoint — murni navigasi.
+
+---
+
 ## v2.113.0 — 18 November 2026 (Registrasi CV Online)
 
 Form baru **Registrasi CV Online** — konsepnya sama dengan Absensi FirstWork,

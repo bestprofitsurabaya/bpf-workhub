@@ -1,4 +1,4 @@
-# 📋 Daftar User & Role — BPF WorkHub v2.113.0
+# 📋 Daftar User & Role — BPF WorkHub v2.113.1
 
 Dokumen ini menjelaskan semua role yang didukung sistem, siapa yang memakainya, dan apa yang bisa dilakukan masing-masing.
 
@@ -136,9 +136,7 @@ Sistem mendukung **11 peran inti** (peran `it` dipecah per cabang pada daftar di
 - 💰 Dashboard Finance
 - 🗺️ Log Perjalanan
 - 🚗 Assignments
-- 📋 Rekap
-- 💵 BBM, Kasbon & SPBU
-- 📈 Analytics
+- 💵 BBM, Kasbon & SPBU (termasuk tab Laporan: Rekap, Realisasi, Analisis)
 - 🚛 Chief Driver
 - 👥 Manajemen User
 - ⚙️ Pengaturan
@@ -219,9 +217,7 @@ Sistem mendukung **11 peran inti** (peran `it` dipecah per cabang pada daftar di
 **Halaman Sidebar:**
 - 💰 Dashboard Finance
 - 🗺️ Log Perjalanan
-- 📋 Rekap
-- 💵 BBM, Kasbon & SPBU
-- 📈 Analytics
+- 💵 BBM, Kasbon & SPBU (termasuk tab Laporan: Rekap, Realisasi, Analisis)
 - 🚰 Air Minum
 - 🎟 Voucher Rekanan (tab di BBM, Kasbon & SPBU)
 

@@ -1,4 +1,4 @@
-# 📖 Panduan Pengguna BPF WorkHub v2.113.0
+# 📖 Panduan Pengguna BPF WorkHub v2.113.1
 
 > **Siapa pun kamu — sopir, OB, admin, atau pimpinan — panduan ini ditulis untuk kamu.**
 > Tidak perlu paham teknis. Cukup ikuti langkah-langkah sesuai bagianmu.
@@ -404,7 +404,7 @@ Setelah login, kamu langsung masuk **Dashboard Finance** (`/app/finance`). Di sa
 - **💧 Rekap Air Minum** — ringkasan pembelian (total, menunggu verifikasi, terverifikasi, ditolak), **per OB**, **per jenis** (gelas/botol/galon), dan **per merk**.
 - **💵 Kasbon menunggu Finance** — kasbon yang sudah disetujui GA & siap kamu cairkan, plus LPJ yang menunggu.
 
-> Sejak v2.105.0 menu finance dirampingkan: **Rekap Klaim BBM**, **Realisasi Pengeluaran**, dan **Analisis BBM & Armada** tidak lagi menjadi menu terpisah — semuanya ada di **BBM, Kasbon & SPBU → tab Laporan** (satu tempat, tanpa duplikasi).
+> Sejak v2.105.0 menu finance dirampingkan: **Rekap Klaim BBM**, **Realisasi Pengeluaran**, dan **Analisis BBM & Armada** tidak lagi menjadi menu terpisah — semuanya ada di **BBM, Kasbon & SPBU → tab Laporan** (satu tempat, tanpa duplikasi). Sejak v2.113.1 aturan yang sama berlaku untuk **GA dan Admin** (termasuk Admin Pusat): grup menu *Laporan & Analisis* dihapus.
 
 ### 6.2 Memverifikasi Pembelian Air Minum
 
@@ -466,14 +466,16 @@ kecil; jangan untuk mengubah riwayat secara luas.
 
 ### 6.7 Menu Lain
 
-- **Rekap** — mencetak rekap & laporan (PDF).
-- **BBM, Kasbon & SPBU**, **Analytics**, **Log Perjalanan**.
+- **BBM, Kasbon & SPBU** — termasuk tab **Laporan** (Rekap Klaim BBM, Realisasi
+  Pengeluaran, Analisis BBM & Armada). Tidak ada lagi menu laporan terpisah.
+- **Log Perjalanan**.
 
 ---
 
 ### 6.8 Rekap Pengeluaran 📊 (sejak v2.71.0)
 
-Menu **📊 Rekap Pengeluaran** (`/app/expenses`, Finance/Admin) — gabungan biaya
+Tab **📊 Laporan → Realisasi Pengeluaran** di `/app/cash` (Finance/Admin; dulu
+halaman `/app/expenses`, tautan lama tetap dialihkan) — gabungan biaya
 **TERUKUR** per bulan & cabang:
 
 - **Kasbon BBM** — Σ nilai kasbon yang sudah **COMPLETED** per bulan

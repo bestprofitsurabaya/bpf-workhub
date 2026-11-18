@@ -32,3 +32,22 @@ describe('path Registrasi CV Online', () => {
     expect(route.meta.public).toBe(true)
   })
 })
+
+// v2.113.1 — audit menu "Laporan & Analisis": tiga tautan lama tetap hidup
+// sebagai redirect ke tab Laporan di /cash (bookmark & tautan beredar tidak
+// putus), tetapi tidak lagi tampil sebagai menu terpisah di sidebar.
+describe('tautan laporan lama', () => {
+  it.each([
+    ['rekap', 'rekap'],
+    ['analytics', 'analisis'],
+    ['expenses', 'realisasi'],
+  ])('/%s dialihkan ke /cash tab Laporan (view %s)', (name, view) => {
+    const record = router.getRoutes().find((r) => r.name === name)
+    expect(record).toBeTruthy()
+    expect(typeof record.redirect).toBe('function')
+    expect(record.redirect({ query: { start: '2026-11-01' } })).toEqual({
+      path: '/cash',
+      query: { tab: 'laporan', view, start: '2026-11-01' },
+    })
+  })
+})

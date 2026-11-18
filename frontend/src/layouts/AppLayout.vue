@@ -80,14 +80,10 @@ const MENU_GROUPS = [
       { label: 'Registrasi CV Online', path: '/cv-online', icon: '📄', roles: ['traineer', 'ga_hr', 'admin'], badge: 'cv_online_pending', keywords: 'cv online registrasi pelamar rekrutmen data pribadi' },
     ],
   },
-  {
-    label: 'Laporan & Analisis',
-    items: [
-      { label: 'Rekap Klaim BBM', path: '/rekap', icon: '📋', roles: ['ga', 'admin'] },
-      { label: 'Realisasi Pengeluaran', path: '/expenses', icon: '📊', roles: ['admin'] },
-      { label: 'Analisis BBM & Armada', path: '/analytics', icon: '📈', roles: ['ga', 'admin'] },
-    ],
-  },
+  // v2.113.1: grup "Laporan & Analisis" dihapus. Sejak v2.100.0 ketiga laporan
+  // hidup sebagai tab Laporan di /cash; v2.105.0 baru merampingkan sidebar
+  // finance, sehingga GA & Admin masih melihat menu ganda. Rute lama
+  // /rekap, /expenses, /analytics tetap hidup sebagai redirect (bookmark aman).
   {
     label: 'Administrasi',
     items: [
