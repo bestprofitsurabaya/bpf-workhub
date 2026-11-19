@@ -1,4 +1,4 @@
-# 📖 Panduan Pengguna BPF WorkHub v2.126.0
+# 📖 Panduan Pengguna BPF WorkHub v2.127.0
 
 > **Siapa pun kamu — sopir, OB, admin, atau pimpinan — panduan ini ditulis untuk kamu.**
 > Tidak perlu paham teknis. Cukup ikuti langkah-langkah sesuai bagianmu.
@@ -326,7 +326,12 @@ Pernah di jalan tanpa sinyal? Tenang:
 - Data yang kamu isi **tersimpan otomatis di HP** — klaim BBM, LPJ kasbon, log trip, overtime, dan pengajuan kasbon.
 - Saat sinyal kembali, aplikasi **mengirim sendiri datanya** ke server.
 - Tanda **🟡 Offline** di atas layar berarti datamu belum terkirim. Tekan **🔄 Sinkron** untuk mengirim manual.
+- Ketuk **📦 (jumlah antrean)** untuk melihat **panel Sinkronisasi**: jenis data, waktu, pesan error, dan ukuran. Ada tombol **Coba lagi** per data.
+- Data yang **ditolak server** (mis. nominal salah) ditandai **Gagal** — perbaiki isinya, lalu hubungi admin bila perlu. Data itu tidak diulang terus-menerus.
+- Bila muncul **🔒 Sesi berakhir**, datamu **tetap aman**. Tekan **Masuk**, login lagi, dan antrean langsung dikirim.
 - Pengiriman ulang tidak membuat data dobel: server mengenali pengajuan yang sama, termasuk saat koneksi putus di tengah jalan.
+- Foto otomatis diperkecil (sisi terpanjang 1600 px) supaya antrean tidak cepat penuh dan unggahan lebih cepat di sinyal lemah.
+- **iPhone:** buka lewat **Safari** → **Bagikan** → **Tambah ke Layar Utama**. Jangan menghapus data situs di pengaturan Safari — data yang belum terkirim ikut terhapus.
 
 ### 4.7 Jadwal Appointment Saya
 

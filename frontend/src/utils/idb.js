@@ -119,6 +119,41 @@ export async function countAllQueues() {
   }
 }
 
+/**
+ * Perbarui metadata satu item antrean (read-modify-write atomik).
+ * Dipakai mesin sync untuk menyimpan state/attempts/nextAt/lastError tanpa
+ * menghapus payload (termasuk Blob foto) yang sudah tersimpan.
+ */
+export async function updateQueueItem(store, id, patch) {
+  const db = await openDB()
+  const t = db.transaction(store, 'readwrite')
+  return new Promise((resolve, reject) => {
+    const os = t.objectStore(store)
+    const get = os.get(id)
+    get.onsuccess = () => {
+      const current = get.result
+      if (!current) { resolve(null); return }
+      const next = { ...current, ...patch }
+      const put = os.put(next)
+      put.onsuccess = () => resolve(next)
+      put.onerror = (e) => reject(e)
+    }
+    get.onerror = (e) => reject(e)
+  })
+}
+
+/** Semua item antrean + nama store asal (untuk panel status & retry per item). */
+export async function getAllQueueItems() {
+  const out = []
+  for (const store of QUEUE_STORES) {
+    try {
+      const items = await getAllFromQueue(store)
+      for (const item of items) out.push({ ...item, store })
+    } catch { /* store hilang/terblokir — lewati, jangan gagalkan seluruh panel */ }
+  }
+  return out
+}
+
 // --- Trip Draft (auto-save) ---
 
 /** Simpan draft trip (upsert by key = driver+date). */

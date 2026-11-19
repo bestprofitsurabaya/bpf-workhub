@@ -7,6 +7,41 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.127.0 — 19 November 2026 (Sync driver v2: antrean tahan sinyal buruk)
+
+Input driver tidak lagi hilang atau menggantung saat sinyal buruk — di
+Android maupun iPhone. Seluruh perbaikan ada di sisi klien; server tetap
+memakai kunci idempotensi yang sudah ada.
+
+- 🔁 **Mesin sync berstatus**: setiap item antrean kini punya
+  `pending`/`failed`, jumlah percobaan, waktu coba berikutnya, dan pesan
+  error terakhir. Data yang **ditolak server** (4xx validasi) berhenti
+  diulang dan ditandai **Gagal**; data yang gagal karena jaringan/5xx/429
+  dicoba ulang dengan **backoff eksponensial + jitter** (30 dtk → maks 1 jam).
+- 🔒 **Sesi habis tidak membuang data**: 401/403 menghentikan seluruh sync,
+  item tetap tersimpan, muncul banner **"Sesi berakhir"** dengan tombol
+  Masuk. Setelah login ulang, antrean langsung dikirim.
+- 📦 **Panel Sinkronisasi**: ketuk badge antrean untuk melihat jenis data,
+  waktu, pesan error, ukuran total, serta tombol **Coba lagi** (paksa kirim
+  satu item) dan **Hapus** (dengan konfirmasi). Status bar menunjukkan
+  `Offline` / `Sinkron…` / `Perlu login` / `Ada data gagal`.
+- 📸 **Foto diperkecil sebelum disimpan**: sisi terpanjang **1600 px**,
+  JPEG kualitas **0.8** (dari resolusi asli 2–4 MB menjadi ±250–500 KB).
+  Teks watermark tetap tergambar.
+- 📱 **Pemicu sync lebih lengkap**: saat app dibuka, `online`,
+  `visibilitychange`, `pageshow` (kembali dari background di iOS), dan
+  interval 30 detik **hanya saat halaman terlihat**.
+- 💾 **Penyimpanan lebih tahan**: `navigator.storage.persist()` diminta
+  saat driver membuka halaman (best-effort; iOS terbatas).
+- 📚 **Dokumen**: `docs/internal/DRIVER_SYNC_MULTIPLATFORM.md` (audit,
+  desain, matriks platform Android/iPhone, rencana Web Push & TWA) dan
+  bagian **4.6 Mode Offline** di `guides/USER_GUIDE.md` diperbarui.
+- 🧪 **Tes**: 11 tes baru untuk backoff, klasifikasi error, item `failed`,
+  `retryItem`, dan metadata `enqueue` — berkas
+  `driverStore.test.js` **20 lulus**, suite frontend **379 lulus**.
+
+---
+
 ## v2.126.0 — 19 November 2026 (BPF Agenda 2.0.5: responsif + CORS bridge)
 
 Aplikasi Android akhirnya bisa menampilkan agenda lagi: penyebab "OFFLINE"

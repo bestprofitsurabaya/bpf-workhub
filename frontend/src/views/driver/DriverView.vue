@@ -3,7 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { io } from 'socket.io-client'
 import { useAuthStore } from '../../stores/auth'
-import { useDriverStore } from '../../stores/driverStore'
+import { useDriverStore, QUEUE_LABELS } from '../../stores/driverStore'
 import DriverNotifBell from '../../components/DriverNotifBell.vue'
 import BBMTab from './BBMTab.vue'
 import TripTab from './TripTab.vue'
@@ -51,6 +51,7 @@ const TABS = [
 const storedTab = localStorage.getItem('driverTab')
 const tab = ref(TABS.some((t) => t.key === storedTab) ? storedTab : 'bbm')
 const kasbonRefresh = ref(0)
+const syncOpen = ref(false)
 
 // v2.73.0 — konfirmasi serah terima kendaraan (confirmed_by_driver).
 // Import identitas dari sesi di backend; body hanya kirim nopol.
@@ -91,11 +92,75 @@ let syncTimer = null
 let toastSeq = 0
 let onOnline = null
 let onOffline = null
+let onVisible = null
+let onPageShow = null
 
 const queueLabel = computed(() => {
   const t = store.queueTotal
-  return t > 0 ? `${t} antrean` : ''
+  if (!t) return ''
+  return store.sync.failed ? `${t} antrean · ${store.sync.failed} gagal` : `${t} antrean`
 })
+const queueSizeLabel = computed(() => formatBytes(store.queueBytes))
+const syncStateLabel = computed(() => {
+  if (!store.online) return 'Offline'
+  if (store.syncing) return 'Sinkron…'
+  if (store.sync.auth) return 'Perlu login'
+  if (store.sync.failed) return 'Ada data gagal'
+  return 'Online'
+})
+
+function formatBytes(n) {
+  const v = Number(n) || 0
+  if (v < 1024) return `${v} B`
+  if (v < 1024 * 1024) return `${Math.round(v / 1024)} KB`
+  return `${(v / (1024 * 1024)).toFixed(1)} MB`
+}
+
+function formatTime(value) {
+  if (!value) return '—'
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return '—'
+  return d.toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' })
+}
+
+function itemStateLabel(it) {
+  if (it.state === 'failed') return 'Gagal'
+  if (it.nextAt && it.nextAt > Date.now()) return 'Tunggu'
+  return 'Menunggu'
+}
+
+async function runSync(force = false) {
+  let n = 0
+  try {
+    n = await store.syncAll({ force })
+  } catch {
+    toast('⚠️ Sinkronisasi gagal — akan dicoba lagi', 'error')
+    return 0
+  }
+  if (n > 0) toast(`✅ ${n} data offline terkirim`, 'success')
+  else if (store.sync.auth) toast('🔒 Sesi berakhir — login untuk mengirim antrean', 'warning')
+  else if (store.sync.failed) toast('⚠️ Ada data ditolak server — buka antrean', 'error')
+  return n
+}
+
+async function retryItem(it) {
+  const n = await store.retryItem(it.store, it.id)
+  if (n > 0) toast('✅ Data terkirim', 'success')
+  else if (store.sync.auth) toast('🔒 Sesi berakhir — login ulang', 'warning')
+  else toast('⚠️ Masih gagal — periksa pesan error', 'error')
+}
+
+async function dropItem(it) {
+  const label = QUEUE_LABELS[it.store] || it.store
+  if (!window.confirm(`Hapus data ${label} dari antrean? Data yang belum terkirim akan hilang.`)) return
+  await store.dropItem(it.store, it.id)
+  toast('🗑️ Data antrean dihapus', 'warning')
+}
+
+function goLogin() {
+  syncOpen.value = false
+  doLogout()
+}
 
 function toast(text, type = '') {
   const id = ++toastSeq
@@ -144,23 +209,36 @@ async function init() {
   await store.loadProfile()
   if (store.profile) {
     await store.refreshQueue()
+    store.ensurePersistentStorage()
     store.loadDailyCode()
     store.loadNotifications()
     connectSocket()
     store.locate().catch(() => { /* GPS opsional */ })
     loadPendingTask() // v2.73.0 — cek serah terima yang belum dikonfirmasi
+    // v2.127.0 — sync juga saat halaman dibuka (bukan hanya saat event
+    // online / timer 30 detik): antrean dari sesi sebelumnya langsung dicoba.
+    store.syncAll()
+      .then((n) => { if (n) toast(`✅ ${n} data offline terkirim`, 'success') })
+      .catch(() => { /* dicoba lagi oleh timer/event online */ })
   }
-  // Sinkronisasi: saat online kembali + interval 30 detik
-  onOnline = () => {
-    store.online = true
-    store.syncAll().then((n) => { if (n) toast(`✅ ${n} data offline terkirim`, 'success') })
-  }
+  // Sinkronisasi: saat online kembali, app kembali terlihat (iOS/Android),
+  // dan interval 30 detik selama halaman terlihat.
+  onOnline = () => { store.online = true; runSync() }
   onOffline = () => { store.online = false }
+  onVisible = () => {
+    if (document.visibilityState !== 'visible') return
+    store.online = navigator.onLine
+    runSync()
+  }
+  onPageShow = () => { store.online = navigator.onLine; runSync() }
   window.addEventListener('online', onOnline)
   window.addEventListener('offline', onOffline)
+  document.addEventListener('visibilitychange', onVisible)
+  window.addEventListener('pageshow', onPageShow)
   syncTimer = setInterval(() => {
+    if (document.visibilityState !== 'visible') return
     store.online = navigator.onLine
-    if (store.online) store.syncAll()
+    if (store.online) store.syncAll().catch(() => { /* retry berikutnya */ })
   }, 30000)
 }
 
@@ -176,6 +254,8 @@ onBeforeUnmount(() => {
   clearTimeout(tourTimer)
   if (onOnline) window.removeEventListener('online', onOnline)
   if (onOffline) window.removeEventListener('offline', onOffline)
+  if (onVisible) document.removeEventListener('visibilitychange', onVisible)
+  if (onPageShow) window.removeEventListener('pageshow', onPageShow)
 })
 </script>
 
@@ -196,12 +276,20 @@ onBeforeUnmount(() => {
 
     <!-- Status bar -->
     <div class="d-status" :class="store.online ? 'on' : 'off'">
-      <span>{{ store.online ? '🟢 Online' : '🟡 Offline — data tersimpan lokal' }}</span>
-      <span v-if="queueLabel" class="d-queue">📦 {{ queueLabel }}</span>
+      <span>{{ store.online ? '🟢' : '🟡' }} {{ syncStateLabel }}</span>
+      <button v-if="queueLabel" type="button" class="d-queue" :aria-label="'Buka antrean: ' + queueLabel" @click="syncOpen = true">
+        📦 {{ queueLabel }}
+      </button>
       <div class="spacer"></div>
-      <button class="btn btn-sm" :disabled="store.syncing || !store.online" @click="store.syncAll().then((n) => { if (n) toast(`✅ ${n} data offline terkirim`, 'success') })">
+      <button class="btn btn-sm" :disabled="store.syncing || !store.online" @click="runSync()">
         {{ store.syncing ? '⏳ Sinkron…' : '🔄 Sinkron' }}
       </button>
+    </div>
+
+    <!-- Sesi habis di tengah sync: antrean tetap aman, minta login ulang -->
+    <div v-if="store.sync.auth" class="d-auth" role="alert">
+      <span>🔒 Sesi berakhir — {{ store.queueTotal }} data menunggu dikirim.</span>
+      <button class="btn btn-sm btn-primary" @click="goLogin">Masuk</button>
     </div>
 
     <!-- Error profil -->
@@ -244,6 +332,53 @@ onBeforeUnmount(() => {
       </nav>
     </template>
 
+    <!-- Panel antrean & status sinkronisasi -->
+    <div v-if="syncOpen" class="d-sync-overlay" @click.self="syncOpen = false">
+      <section class="d-sync-panel" role="dialog" aria-modal="true" aria-label="Antrean sinkronisasi">
+        <header class="d-sync-head">
+          <b>📦 Sinkronisasi</b>
+          <button class="btn-icon" type="button" aria-label="Tutup" @click="syncOpen = false">✕</button>
+        </header>
+        <p class="d-sync-meta">
+          {{ store.lastSync ? 'Terakhir: ' + formatTime(store.lastSync) : 'Belum pernah sinkron' }}
+          · {{ store.sync.pending }} menunggu
+          <span v-if="store.sync.failed"> · {{ store.sync.failed }} gagal</span>
+          <span v-if="store.queueBytes"> · {{ queueSizeLabel }}</span>
+        </p>
+        <p v-if="store.sync.auth" class="d-sync-auth">
+          Sesi berakhir. Login ulang agar {{ store.queueTotal }} data bisa dikirim.
+        </p>
+        <div v-if="!store.queueItems.length" class="d-sync-empty">
+          ✅ Tidak ada data menunggu. Semua sudah terkirim.
+        </div>
+        <ul v-else class="d-sync-list">
+          <li v-for="it in store.queueItems" :key="it.store + ':' + it.id" class="d-sync-item">
+            <div class="d-sync-row">
+              <b>{{ QUEUE_LABELS[it.store] || it.store }}</b>
+              <span class="d-sync-time">{{ formatTime(it.timestamp) }}</span>
+              <span class="d-sync-badge" :class="it.state === 'failed' ? 'bad' : 'wait'">
+                {{ itemStateLabel(it) }}
+              </span>
+            </div>
+            <div v-if="it.lastError" class="d-sync-err">{{ it.lastError }}</div>
+            <div class="d-sync-actions">
+              <button class="btn btn-sm" type="button" :disabled="store.syncing" @click="retryItem(it)">
+                Coba lagi
+              </button>
+              <button class="btn btn-sm btn-danger" type="button" :disabled="store.syncing" @click="dropItem(it)">
+                Hapus
+              </button>
+            </div>
+          </li>
+        </ul>
+        <div class="d-sync-foot">
+          <button class="btn btn-primary" type="button" :disabled="store.syncing || !store.online" @click="runSync(true)">
+            {{ store.syncing ? '⏳ Mengirim…' : '🔄 Sinkron sekarang' }}
+          </button>
+        </div>
+      </section>
+    </div>
+
     <!-- Toasts -->
     <HelpCenter :open="helpOpen" path="/driver" :role="auth.role" @close="helpOpen = false" @replay-tour="startTour" />
     <OnboardingTour :open="tourOpen" :steps="tourSteps" @close="finishTour" @done="finishTour" />
@@ -272,7 +407,13 @@ onBeforeUnmount(() => {
 }
 .d-status.on { background: var(--bg-3, #f0fdf4); color: var(--success); }
 .d-status.off { background: var(--bg-2, #fef3c7); color: var(--warning); }
-.d-queue { background: var(--danger); color: #fff; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 10px; }
+.d-queue { background: var(--danger); color: #fff; font-size: 10px; font-weight: 700; padding: 4px 8px; border-radius: 10px; border: none; cursor: pointer; }
+.d-auth {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 8px 14px; font-size: 11px; font-weight: 600;
+  background: #fef2f2; color: #b91c1c; border-bottom: 1px solid #fecaca;
+}
+html.dark .d-auth { background: rgba(220, 38, 38, .15); border-color: rgba(220, 38, 38, .4); color: #fca5a5; }
 .d-error { padding: 30px 20px; text-align: center; }
 .d-handover {
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
@@ -298,6 +439,37 @@ html.dark .driver-app .d-handover { background: rgba(37, 99, 235, .15); border-c
 .d-nav-item.active .d-nav-ico { background: var(--primary-soft); }
 .d-nav-label { font-size: 10px; font-weight: 600; }
 .d-toasts { position: fixed; bottom: calc(76px + env(safe-area-inset-bottom, 0px)); left: 50%; transform: translateX(-50%); z-index: 200; display: flex; flex-direction: column; gap: 8px; width: min(92vw, 560px); align-items: center; pointer-events: none; }
+
+/* Panel sinkronisasi (v2.127.0) */
+.d-sync-overlay {
+  position: fixed; inset: 0; z-index: 150; display: flex; align-items: flex-end; justify-content: center;
+  background: rgba(15, 23, 42, .55);
+}
+.d-sync-panel {
+  width: 100%; max-width: 640px; max-height: 82vh; overflow: auto;
+  background: var(--surface); border-top: 1px solid var(--border);
+  border-radius: 18px 18px 0 0; padding: 14px 14px calc(14px + env(safe-area-inset-bottom, 0px));
+  box-shadow: 0 -12px 40px rgba(15, 23, 42, .35);
+}
+.d-sync-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.d-sync-meta { margin: 6px 0 10px; font-size: 11px; color: var(--text-3); }
+.d-sync-auth {
+  margin: 0 0 10px; padding: 8px 10px; border-radius: 10px; font-size: 11px;
+  background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca;
+}
+html.dark .d-sync-auth { background: rgba(220, 38, 38, .15); border-color: rgba(220, 38, 38, .4); color: #fca5a5; }
+.d-sync-empty { padding: 22px 8px; text-align: center; font-size: 12px; color: var(--text-3); }
+.d-sync-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.d-sync-item { border: 1px solid var(--border); border-radius: 12px; padding: 9px 10px; background: var(--bg); }
+.d-sync-row { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.d-sync-time { font-size: 10px; color: var(--text-3); }
+.d-sync-badge { margin-left: auto; font-size: 9px; font-weight: 700; padding: 2px 7px; border-radius: 8px; text-transform: uppercase; }
+.d-sync-badge.wait { background: var(--bg-2, #fef3c7); color: var(--warning); }
+.d-sync-badge.bad { background: #fee2e2; color: var(--danger); }
+.d-sync-err { margin-top: 4px; font-size: 10px; color: var(--danger); line-height: 1.35; }
+.d-sync-actions { display: flex; gap: 6px; margin-top: 7px; }
+.d-sync-foot { position: sticky; bottom: 0; padding-top: 12px; background: var(--surface); }
+.d-sync-foot .btn { width: 100%; justify-content: center; }
 .d-toast { background: var(--card, #1e293b); color: #fff; padding: 10px 16px; border-radius: 12px; font-size: 12px; font-weight: 600; box-shadow: 0 8px 24px rgba(15, 23, 42, .3); text-align: center; }
 .d-toast.error { background: var(--danger); }
 .d-toast.warning { background: var(--warning); }

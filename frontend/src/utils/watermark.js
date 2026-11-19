@@ -22,11 +22,20 @@ export async function applyWatermark(file, gpsText, dateText = null, gpsCoords =
       i.src = url
     })
 
+    // v2.127.0 — perkecil sebelum disimpan/diunggah. Foto kamera 12 MP
+    // (4000×3000, 2–4 MB) membuat antrean offline cepat penuh dan upload
+    // lambat di sinyal lemah. Sisi terpanjang 1600 px masih cukup untuk
+    // membaca ODO/struk, ukuran turun ke ±250–500 KB.
+    const MAX_EDGE = 1600
+    const scale = Math.min(1, MAX_EDGE / Math.max(img.width, img.height))
+    const width = Math.max(1, Math.round(img.width * scale))
+    const height = Math.max(1, Math.round(img.height * scale))
+
     const canvas = document.createElement('canvas')
     const ctx = canvas.getContext('2d')
-    canvas.width = img.width
-    canvas.height = img.height
-    ctx.drawImage(img, 0, 0)
+    canvas.width = width
+    canvas.height = height
+    ctx.drawImage(img, 0, 0, width, height)
 
     // Font proporsional: kecil tapi terbaca
     const fontSize = Math.max(12, Math.floor(canvas.width / 45))
@@ -60,7 +69,7 @@ export async function applyWatermark(file, gpsText, dateText = null, gpsCoords =
 
     URL.revokeObjectURL(url)
     return await new Promise((resolve) => {
-      canvas.toBlob((blob) => resolve(blob), 'image/jpeg', 0.85)
+      canvas.toBlob((blob) => resolve(blob), 'image/jpeg', 0.8)
     })
   } catch {
     return null

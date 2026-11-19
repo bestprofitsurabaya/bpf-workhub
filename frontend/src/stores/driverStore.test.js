@@ -1,14 +1,19 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
-import { useDriverStore, toForm, newSubmitId, isNetworkError } from './driverStore'
+import {
+  useDriverStore, toForm, newSubmitId, isNetworkError,
+  backoffDelay, classifySyncError, estimateItemSize,
+} from './driverStore'
 
-const { apiMock } = vi.hoisted(() => ({ apiMock: vi.fn() }))
-vi.mock('../api', () => ({ api: apiMock }))
+const { apiMock, notifyMock } = vi.hoisted(() => ({ apiMock: vi.fn(), notifyMock: vi.fn(() => Promise.resolve(false)) }))
+vi.mock('../api', () => ({ api: apiMock, notifyUnauthorized: notifyMock }))
 
 const idb = vi.hoisted(() => ({
   addToQueue: vi.fn(() => Promise.resolve(1)),
   getAllFromQueue: vi.fn(() => Promise.resolve([])),
   deleteFromQueue: vi.fn(() => Promise.resolve()),
+  updateQueueItem: vi.fn(() => Promise.resolve(null)),
+  getAllQueueItems: vi.fn(() => Promise.resolve([])),
   countAllQueues: vi.fn(() => Promise.resolve({ fuel: 0, trip: 0, lpj: 0, overtime: 0, cash: 0 })),
 }))
 vi.mock('../utils/idb', () => idb)
@@ -21,6 +26,11 @@ describe('driver store', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     setActivePinia(createPinia())
+    idb.getAllFromQueue.mockImplementation(() => Promise.resolve([]))
+    idb.getAllQueueItems.mockImplementation(() => Promise.resolve([]))
+    idb.countAllQueues.mockResolvedValue({ fuel: 0, trip: 0, lpj: 0, overtime: 0, cash: 0 })
+    idb.updateQueueItem.mockResolvedValue(null)
+    notifyMock.mockResolvedValue(false)
     apiMock.mockImplementation((path) => {
       if (path === '/api/driver/me') return Promise.resolve({ name: 'RIVAN', nopol: 'L 1 AB', vehicle_type: 'AVANZA', bbm_type: 'PERTALITE', is_active: true })
       if (path === '/api/cash/daily-code') return Promise.resolve({ code: 300, manual_mode: false })
@@ -126,5 +136,174 @@ describe('driver store', () => {
     expect(fd.getAll('lokasi_tujuan[]')).toEqual(['Jl. A', 'Jl. B', 'Jl. C'])
     expect(fd.getAll('km_tujuan[]')).toEqual(['1', '2', '3'])
     expect(fd.get('driver_name')).toBe('RIVAN')
+  })
+
+  it('classifySyncError: auth, retry, dan failed dipisahkan', () => {
+    expect(classifySyncError(401)).toBe('auth')
+    expect(classifySyncError(403)).toBe('auth')
+    expect(classifySyncError(undefined)).toBe('retry')
+    expect(classifySyncError(408)).toBe('retry')
+    expect(classifySyncError(429)).toBe('retry')
+    expect(classifySyncError(503)).toBe('retry')
+    expect(classifySyncError(400)).toBe('failed')
+    expect(classifySyncError(422)).toBe('failed')
+  })
+
+  it('backoffDelay tumbuh eksponensial, berjitter, dan dibatasi 1 jam', () => {
+    expect(backoffDelay(1, () => 0.5)).toBe(30000)
+    expect(backoffDelay(2, () => 0.5)).toBe(60000)
+    expect(backoffDelay(3, () => 0.5)).toBe(120000)
+    expect(backoffDelay(1, () => 0)).toBe(24000)   // jitter -20%
+    expect(backoffDelay(1, () => 1)).toBe(36000)   // jitter +20%
+    expect(backoffDelay(50, () => 0.5)).toBe(3600000)
+  })
+
+  it('estimateItemSize menghitung string dan Blob', () => {
+    expect(estimateItemSize({ a: '12345', b: null })).toBe(5)
+    if (typeof Blob !== 'undefined') {
+      expect(estimateItemSize({ a: '12345', b: new Blob(['abc']) })).toBe(8)
+    }
+  })
+
+  it('syncAll menandai 4xx sebagai failed dan tidak menghapus item', async () => {
+    const s = useDriverStore()
+    idb.getAllFromQueue.mockImplementation((store) => {
+      if (store === 'fuel_queue') {
+        return Promise.resolve([{ id: 7, data: { driver_name: 'RIVAN' }, timestamp: 'x', state: 'pending', attempts: 0 }])
+      }
+      return Promise.resolve([])
+    })
+    const fetchMock = vi.fn(() => Promise.resolve({
+      ok: false, status: 400,
+      json: () => Promise.resolve({ status: 'error', msg: 'Nominal tidak valid' }),
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const n = await s.syncAll()
+
+    expect(n).toBe(0)
+    expect(idb.deleteFromQueue).not.toHaveBeenCalled()
+    expect(idb.updateQueueItem).toHaveBeenCalledWith('fuel_queue', 7, expect.objectContaining({
+      state: 'failed',
+      lastError: 'Nominal tidak valid',
+      nextAt: 0,
+    }))
+    expect(s.sync.failed).toBe(0) // refreshQueue mock tidak mengembalikan item
+    vi.unstubAllGlobals()
+  })
+
+  it('syncAll menjadwalkan backoff pada 5xx tanpa menghapus item', async () => {
+    const s = useDriverStore()
+    idb.getAllFromQueue.mockImplementation((store) => {
+      if (store === 'trip_queue') {
+        return Promise.resolve([{ id: 9, data: { driver_name: 'RIVAN' }, timestamp: 'x', state: 'pending' }])
+      }
+      return Promise.resolve([])
+    })
+    const fetchMock = vi.fn(() => Promise.resolve({
+      ok: false, status: 503,
+      json: () => Promise.resolve({ status: 'error', msg: 'Server sibuk' }),
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const before = Date.now()
+    await s.syncAll()
+
+    const patch = idb.updateQueueItem.mock.calls[0][2]
+    expect(patch.state).toBe('pending')
+    expect(patch.attempts).toBe(1)
+    expect(patch.nextAt).toBeGreaterThanOrEqual(before + 24000)
+    expect(idb.deleteFromQueue).not.toHaveBeenCalled()
+    vi.unstubAllGlobals()
+  })
+
+  it('syncAll berhenti dan meminta login pada 401', async () => {
+    const s = useDriverStore()
+    idb.getAllFromQueue.mockImplementation((store) => {
+      if (store === 'fuel_queue') return Promise.resolve([{ id: 1, data: {}, timestamp: 'x', state: 'pending' }])
+      if (store === 'trip_queue') return Promise.resolve([{ id: 2, data: {}, timestamp: 'x', state: 'pending' }])
+      return Promise.resolve([])
+    })
+    const fetchMock = vi.fn(() => Promise.resolve({
+      ok: false, status: 401,
+      json: () => Promise.resolve({ status: 'error', msg: 'Sesi berakhir' }),
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const n = await s.syncAll()
+
+    expect(n).toBe(0)
+    expect(fetchMock).toHaveBeenCalledTimes(1) // tidak lanjut ke trip
+    expect(s.sync.auth).toBe(true)
+    expect(notifyMock).toHaveBeenCalled()
+    expect(idb.updateQueueItem).toHaveBeenCalledWith('fuel_queue', 1, expect.objectContaining({ state: 'pending' }))
+    expect(idb.deleteFromQueue).not.toHaveBeenCalled()
+    vi.unstubAllGlobals()
+  })
+
+  it('syncAll melewati item failed sampai dipaksa', async () => {
+    const s = useDriverStore()
+    idb.getAllFromQueue.mockImplementation((store) => {
+      if (store === 'fuel_queue') {
+        return Promise.resolve([{ id: 3, data: {}, timestamp: 'x', state: 'failed', attempts: 2 }])
+      }
+      return Promise.resolve([])
+    })
+    const fetchMock = vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve({ status: 'success' }) }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    expect(await s.syncAll()).toBe(0)
+    expect(fetchMock).not.toHaveBeenCalled()
+
+    expect(await s.syncAll({ force: true })).toBe(1)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    vi.unstubAllGlobals()
+  })
+
+  it('syncAll melewati item yang nextAt-nya belum tiba', async () => {
+    const s = useDriverStore()
+    idb.getAllFromQueue.mockImplementation((store) => {
+      if (store === 'fuel_queue') {
+        return Promise.resolve([{ id: 4, data: {}, timestamp: 'x', state: 'pending', nextAt: Date.now() + 60000 }])
+      }
+      return Promise.resolve([])
+    })
+    const fetchMock = vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve({ status: 'success' }) }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    expect(await s.syncAll()).toBe(0)
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(await s.syncAll({ force: true })).toBe(1)
+    vi.unstubAllGlobals()
+  })
+
+  it('retryItem mereset state lalu mengirim paksa', async () => {
+    const s = useDriverStore()
+    idb.getAllFromQueue.mockImplementation((store) => {
+      if (store === 'cash_queue') {
+        return Promise.resolve([{ id: 21, data: {}, timestamp: 'x', state: 'failed' }])
+      }
+      return Promise.resolve([])
+    })
+    apiMock.mockResolvedValueOnce({ status: 'success', msg: 'ok' })
+
+    const n = await s.retryItem('cash_queue', 21)
+
+    expect(n).toBe(1)
+    expect(idb.updateQueueItem).toHaveBeenCalledWith('cash_queue', 21, expect.objectContaining({
+      state: 'pending', attempts: 0, nextAt: 0, lastError: '',
+    }))
+    expect(idb.deleteFromQueue).toHaveBeenCalledWith('cash_queue', 21)
+  })
+
+  it('enqueue menyimpan metadata state/attempts/size untuk mesin sync', async () => {
+    const s = useDriverStore()
+    await s.enqueue('trip_queue', { driver_name: 'RIVAN', catatan: 'x'.repeat(100) })
+    const item = idb.addToQueue.mock.calls[0][1]
+    expect(item.state).toBe('pending')
+    expect(item.attempts).toBe(0)
+    expect(item.nextAt).toBe(0)
+    expect(item.size).toBeGreaterThan(100)
+    expect(item.createdAt).toBeTypeOf('number')
   })
 })
