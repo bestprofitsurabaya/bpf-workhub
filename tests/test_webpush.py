@@ -118,3 +118,36 @@ def test_pembersihan_langganan_mati_memakai_db_asal(monkeypatch):
     assert out == {'ok': 0, 'gone': 1, 'error': 0}
     assert named == ['bpf_branch_sby']
     assert deleted == ['https://push/contoh']
+
+
+def test_objek_vapid_dipakai_untuk_pengiriman():
+    """v2.128.3 — pywebpush 2.5 menolak string PEM; objek Vapid wajib dipakai."""
+    from py_vapid import Vapid01
+
+    pem, _pub = webpush.generate_vapid_keys()
+    obj = webpush._vapid_object(pem)
+    assert isinstance(obj, Vapid01)
+    # cache: kunci yang sama menghasilkan objek yang sama
+    assert webpush._vapid_object(pem) is obj
+
+
+def test_send_one_mengoper_objek_vapid(monkeypatch):
+    """_send_one tidak boleh meneruskan string PEM mentah ke pywebpush."""
+    import pywebpush as pywebpush_mod
+
+    captured = {}
+
+    def fake_webpush(**kwargs):
+        captured.update(kwargs)
+        return True
+
+    monkeypatch.setattr(pywebpush_mod, 'webpush', fake_webpush)
+    pem, _pub = webpush.generate_vapid_keys()
+    obj = webpush._vapid_object(pem)
+    out = webpush._send_one(
+        {'endpoint': 'https://push/contoh', 'p256dh': 'k', 'auth': 'a'},
+        '{}', pem,
+    )
+    assert out == 'ok'
+    assert captured['vapid_private_key'] is obj
+    assert not isinstance(captured['vapid_private_key'], str)

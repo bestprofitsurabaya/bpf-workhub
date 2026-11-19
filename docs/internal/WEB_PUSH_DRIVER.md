@@ -1,6 +1,6 @@
 # 🔔 Web Push Driver (VAPID) — Desain & Operasional
 
-Tanggal: 19 November 2026 · Versi: **v2.128.2**
+Tanggal: 19 November 2026 · Versi: **v2.128.3**
 Status: kode & tes unit selesai; **uji perangkat (Android + iPhone) menyusul**.
 
 ---
@@ -121,8 +121,14 @@ pernah terhapus.
 ## 6. Uji yang sudah & belum dilakukan
 
 Sudah:
-- 6 tes unit backend: validasi langganan, batas panjang payload, konsistensi
-  pasangan kunci P-256.
+- **Uji kirim nyata** (19 Nov 2026): langganan FCM dibuat dari Chromium
+  headless (`POST /api/push/subscribe` → `devices: 1`), lalu push dikirim;
+  FCM menerima **HTTP 201**. Langganan yang sudah mati dilaporkan `gone`
+  dan terhapus. Catatan: Chromium headless tidak menampilkan notifikasi
+  (`Notification.permission` di service worker = `denied`), jadi tampilan
+  notifikasi tetap harus diuji di perangkat.
+- **9 tes unit backend**: validasi langganan, batas panjang payload,
+  konsistensi pasangan kunci P-256, pembersihan di DB asal, objek Vapid.
 - 3 tes frontend: decode kunci VAPID base64url, deteksi iOS, fallback saat
   `PushManager` tidak ada.
 - SQL/endpoint dicek statis; `node --check` service worker.
@@ -143,4 +149,14 @@ Belum (butuh perangkat):
 - `frontend/src/utils/push.js` — subscribe/unsubscribe.
 - `frontend/src/components/DriverNotifBell.vue` — tombol Aktifkan/Matikan.
 - `frontend/public/sw.js` — `push` & `notificationclick`.
+
+---
+
+## 8. Catatan kompatibilitas kunci
+
+pywebpush **2.5.0** + py-vapid **1.9.6** tidak dapat memakai string PEM pada
+`vapid_private_key` (`Vapid.from_string()` menganggapnya base64 DER). Selalu
+oper **objek Vapid** (`Vapid.from_pem(pem.encode())`) — dilakukan otomatis
+oleh `_vapid_object()` di `modules/webpush.py` (v2.128.3). Gejala bila salah:
+semua push dicatat `error` dengan pesan "Could not deserialize key data".
 - `tests/test_webpush.py`, `frontend/src/utils/push.test.js`.

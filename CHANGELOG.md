@@ -7,6 +7,23 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.128.3 — 19 November 2026 (Pengiriman push benar-benar berfungsi)
+
+Ditemukan saat uji kirim nyata ke langganan FCM (Chromium).
+
+- 🐞 **Semua push gagal terkirim**: pywebpush 2.5.0 + py-vapid 1.9.6 tidak
+  menerima kunci privat berupa **string PEM** — `Vapid.from_string()`
+  menganggap seluruh PEM sebagai base64 DER lalu gagal
+  ("Could not deserialize key data"). Kini kunci dibaca lewat
+  `Vapid.from_pem()` menjadi objek Vapid (di-cache) sebelum dikirim.
+- ✅ **Terverifikasi nyata**: langganan FCM dibuat dari Chromium
+  (`devices: 1`), FCM menerima push (HTTP 201), dan langganan mati dilaporkan
+  `gone` serta terhapus — bukan lagi `error`.
+- 🧪 **9 tes** Web Push lulus (2 tes baru: objek Vapid di-cache & diteruskan
+  ke pywebpush, bukan string).
+
+---
+
 ## v2.128.2 — 19 November 2026 (Bersihkan langganan push mati di DB cabang)
 
 Temuan saat meninjau jalur kirim Web Push pasca v2.128.1.

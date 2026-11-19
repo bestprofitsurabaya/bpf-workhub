@@ -301,6 +301,31 @@ def build_payload(title, body, url='/app/driver', tag='bpf-driver'):
     }, ensure_ascii=False)
 
 
+_VAPID_OBJ = None
+_VAPID_SRC = None
+
+
+def _vapid_object(private_key):
+    """Objek Vapid dari kunci privat (PEM atau base64url).
+
+    v2.128.3: pywebpush 2.5.0 + py-vapid 1.9.6 **tidak** menerima string PEM —
+    `Vapid.from_string()` menganggap seluruh PEM sebagai base64 DER lalu gagal
+    ("Could not deserialize key data"). Kirim objek Vapid agar kunci dibaca
+    lewat `Vapid.from_pem()`. Objek di-cache karena pembuatan kunci relatif
+    mahal dan dipakai di setiap notifikasi.
+    """
+    global _VAPID_OBJ, _VAPID_SRC
+    if _VAPID_OBJ is not None and _VAPID_SRC == private_key:
+        return _VAPID_OBJ
+    from py_vapid import Vapid
+    if 'BEGIN' in private_key:
+        obj = Vapid.from_pem(private_key.encode())
+    else:
+        obj = Vapid.from_string(private_key)
+    _VAPID_OBJ, _VAPID_SRC = obj, private_key
+    return obj
+
+
 def _send_one(sub, payload, vapid_private_key):
     """Kirim satu push. Return 'ok' | 'gone' | 'error'."""
     from pywebpush import webpush, WebPushException
@@ -312,7 +337,7 @@ def _send_one(sub, payload, vapid_private_key):
         webpush(
             subscription_info=info,
             data=payload,
-            vapid_private_key=vapid_private_key,
+            vapid_private_key=_vapid_object(vapid_private_key),
             vapid_claims={'sub': SUBJECT},
             timeout=8,
         )
