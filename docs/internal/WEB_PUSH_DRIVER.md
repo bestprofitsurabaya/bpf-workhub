@@ -1,6 +1,6 @@
 # 🔔 Web Push Driver (VAPID) — Desain & Operasional
 
-Tanggal: 19 November 2026 · Versi: **v2.128.0**
+Tanggal: 19 November 2026 · Versi: **v2.128.1**
 Status: kode & tes unit selesai; **uji perangkat (Android + iPhone) menyusul**.
 
 ---
@@ -61,6 +61,12 @@ Urutan resolusi (`modules/webpush.py`):
 
 `VAPID_SUBJECT` default `mailto:admin@bpf.local`; ganti dengan email yang
 benar bila push service meminta kontak.
+
+> **v2.128.1** — build v2.128.0 sempat menukar urutan kunci saat menyimpan
+> ke `system_config` (PEM privat masuk kolom publik). Urutan sudah diperbaiki
+> dan `_load_db_keys()` kini menukar kembali otomatis bila mendeteksi baris
+> lama yang tertukar. Kunci publik yang benar adalah titik EC P-256
+> base64url ±87 karakter; kunci privat berupa blok PEM ±227 karakter.
 
 Membuat kunci manual (opsional):
 

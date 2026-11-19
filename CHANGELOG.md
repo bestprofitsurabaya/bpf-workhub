@@ -7,6 +7,20 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.128.1 — 19 November 2026 (Perbaikan urutan kunci VAPID)
+
+Ditemukan saat verifikasi pasca-deploy v2.128.0.
+
+- 🐞 **Kunci VAPID tertukar** saat dibuat otomatis: kunci privat (PEM)
+  tersimpan di `vapid_public_key` dan kunci publik di `vapid_private_key`,
+  sehingga frontend akan menerima kunci yang salah. Urutan diperbaiki.
+- 🩹 **Pemulihan otomatis**: bila baris lama terdeteksi tertukar, nilainya
+  ditukar kembali saat kunci dibaca — tanpa perlu intervensi manual.
+- ✅ Baris `system_config` di NAS sudah dipulihkan: publik 87 karakter
+  (titik EC P-256), privat PEM 227 karakter.
+
+---
+
 ## v2.128.0 — 19 November 2026 (Notifikasi HP saat aplikasi tertutup)
 
 Tahap 2 rencana multiplatform: **Web Push (VAPID)** untuk driver.

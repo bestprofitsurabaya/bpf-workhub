@@ -116,9 +116,18 @@ def _load_db_keys():
         rows = {r['config_key']: r['config_value'] for r in cur.fetchall()}
         pub = (rows.get('vapid_public_key') or '').strip()
         priv = (rows.get('vapid_private_key') or '').strip()
+        # Pertahanan: build v2.128.0 awal sempat menukar urutan (kunci privat
+        # tersimpan di kolom publik). Pulihkan dengan menukar bila terdeteksi.
+        if pub and priv and 'PRIVATE KEY' in pub and 'PRIVATE KEY' not in priv:
+            pub, priv = priv, pub
+            cur.execute(
+                "UPDATE system_config SET config_value=%s WHERE config_key='vapid_public_key'", (pub,))
+            cur.execute(
+                "UPDATE system_config SET config_value=%s WHERE config_key='vapid_private_key'", (priv,))
+            conn.commit()
         if pub and priv:
             return pub, priv
-        pub, priv = generate_vapid_keys()
+        priv, pub = generate_vapid_keys()
         cur.execute(
             "INSERT INTO system_config (config_key, config_value) VALUES (%s, %s) "
             "ON DUPLICATE KEY UPDATE config_value=VALUES(config_value)",
