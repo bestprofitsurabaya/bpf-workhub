@@ -123,10 +123,14 @@ pernah terhapus.
 Sudah:
 - **Uji kirim nyata** (19 Nov 2026): langganan FCM dibuat dari Chromium
   headless (`POST /api/push/subscribe` → `devices: 1`), lalu push dikirim;
-  FCM menerima **HTTP 201**. Langganan yang sudah mati dilaporkan `gone`
-  dan terhapus. Catatan: Chromium headless tidak menampilkan notifikasi
-  (`Notification.permission` di service worker = `denied`), jadi tampilan
-  notifikasi tetap harus diuji di perangkat.
+  FCM menerima **HTTP 201** dan alur notifikasi penuh
+  (`push_driver_notification` → push latar) berjalan tanpa error. Langganan
+  yang sudah mati dilaporkan `gone` dan terhapus.
+- **Batas uji ini**: Chromium (bukan Chrome) gagal registrasi GCM
+  (`DEPRECATED_ENDPOINT`/`wrong_secret`) dan `Notification.permission` di
+  service worker = `denied`, sehingga **tampilan** notifikasi belum
+  terverifikasi. Penerimaan nyata tetap harus diuji di Chrome Android dan
+  Safari iOS ≥ 16.4 (PWA terpasang).
 - **9 tes unit backend**: validasi langganan, batas panjang payload,
   konsistensi pasangan kunci P-256, pembersihan di DB asal, objek Vapid.
 - 3 tes frontend: decode kunci VAPID base64url, deteksi iOS, fallback saat
