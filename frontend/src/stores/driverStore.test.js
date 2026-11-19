@@ -104,6 +104,34 @@ describe('driver store', () => {
     expect(idb.deleteFromQueue).toHaveBeenCalledWith('cash_queue', 21)
   })
 
+  it('syncAll tetap mengirim saat navigator.onLine tertinggal false (probe server)', async () => {
+    const s = useDriverStore()
+    const original = Object.getOwnPropertyDescriptor(navigator, 'onLine')
+    Object.defineProperty(navigator, 'onLine', { configurable: true, value: false })
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation((url) => Promise.resolve(
+      url === '/api/health'
+        ? { ok: true, status: 200 }
+        : { ok: true, status: 200, json: () => Promise.resolve({ status: 'success' }) }
+    ))
+    idb.getAllFromQueue.mockImplementation((name) => Promise.resolve(
+      name === 'fuel_queue'
+        ? [{ id: 7, data: { nopol: 'L 1 AB', nominal: 1000 }, state: 'pending', attempts: 0 }]
+        : []
+    ))
+    apiMock.mockResolvedValue({ status: 'success' })
+    try {
+      const n = await s.syncAll()
+      expect(fetchSpy).toHaveBeenCalledWith('/api/health', expect.anything())
+      expect(s.online).toBe(true)
+      expect(n).toBe(1)
+      expect(idb.deleteFromQueue).toHaveBeenCalledWith('fuel_queue', 7)
+    } finally {
+      fetchSpy.mockRestore()
+      if (original) Object.defineProperty(navigator, 'onLine', original)
+      else delete navigator.onLine
+    }
+  })
+
   it('newSubmitId menghasilkan kunci berbeda & isNetworkError membedakan HTTP', () => {
     expect(newSubmitId()).not.toBe(newSubmitId())
     const net = new Error('Koneksi ke server gagal. Periksa jaringan Anda.')

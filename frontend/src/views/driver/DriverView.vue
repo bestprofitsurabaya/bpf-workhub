@@ -236,20 +236,20 @@ async function init() {
   // dan interval 30 detik selama halaman terlihat.
   onOnline = () => { store.online = true; runSync() }
   onOffline = () => { store.online = false }
+  // v2.127.5 — pakai probe server, bukan hanya navigator.onLine yang bisa
+  // tertinggal `false` setelah mode pesawat dimatikan.
   onVisible = () => {
     if (document.visibilityState !== 'visible') return
-    store.online = navigator.onLine
     runSync()
   }
-  onPageShow = () => { store.online = navigator.onLine; runSync() }
+  onPageShow = () => { runSync() }
   window.addEventListener('online', onOnline)
   window.addEventListener('offline', onOffline)
   document.addEventListener('visibilitychange', onVisible)
   window.addEventListener('pageshow', onPageShow)
   syncTimer = setInterval(() => {
     if (document.visibilityState !== 'visible') return
-    store.online = navigator.onLine
-    if (store.online) store.syncAll().catch(() => { /* retry berikutnya */ })
+    runSync()
   }, 30000)
 }
 

@@ -99,6 +99,14 @@ agar laporan harian tidak terhambat satu item yang bermasalah.
 - interval 30 detik **hanya saat halaman terlihat**,
 - tombol manual: "Sinkron" di status bar & "Sinkron sekarang" di panel.
 
+**v2.127.5 — probe konektivitas.** `navigator.onLine` tidak bisa dipercaya
+begitu saja: setelah mode pesawat dimatikan, Chrome Android/Safari bisa tetap
+melaporkan `false` walau jaringan sudah pulih — antrean tidak pernah dicoba.
+Setiap `syncAll()` kini memanggil `probeConnectivity()`
+(`GET /api/health`, timeout 4 dtk) bila `navigator.onLine` bernilai `false`;
+jawaban 2xx/3xx/401/403 dianggap online. Sebaliknya `onLine === true` tetap
+dianggap online dan kegagalan jaringan ditangani backoff seperti biasa.
+
 ### 3.5 Perlindungan data lokal
 
 `navigator.storage.persist()` diminta sekali saat driver membuka halaman.

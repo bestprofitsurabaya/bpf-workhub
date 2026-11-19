@@ -5,6 +5,7 @@ import {
   updateQueueItem, getAllQueueItems,
 } from '../utils/idb'
 import { locateWithAddress } from '../utils/gps'
+import { probeConnectivity } from '../utils/connectivity'
 
 /** UUID sekali pakai per percobaan submit — kunci idempotensi server. */
 export function newSubmitId() {
@@ -249,9 +250,21 @@ export const useDriverStore = defineStore('driver', {
      *        (dipakai tombol "Coba lagi" per item).
      * @returns {Promise<number>} jumlah item yang berhasil terkirim.
      */
+    /** v2.127.5 — online bila browser mengira online, atau server terjangkau. */
+    async refreshConnectivity() {
+      if (typeof navigator !== 'undefined' && navigator.onLine) {
+        this.online = true
+        return true
+      }
+      this.online = await probeConnectivity()
+      return this.online
+    },
+
     async syncAll({ force = false } = {}) {
       if (this.syncing) return 0
-      this.online = typeof navigator === 'undefined' ? true : navigator.onLine
+      // v2.127.5 — jangan percaya navigator.onLine begitu saja: setelah mode
+      // pesawat, nilainya bisa tertinggal `false` walau jaringan sudah pulih.
+      await this.refreshConnectivity()
       if (!this.online) {
         this.sync.state = 'offline'
         return 0

@@ -7,6 +7,22 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.127.5 — 19 November 2026 (Sync tidak macet saat `navigator.onLine` salah)
+
+Ditemukan saat uji perangkat 19 Nov: setelah mode pesawat dimatikan,
+`navigator.onLine` tetap `false` walau `/api/health` sudah 200 — driver
+melihat status Offline dan antrean tidak pernah dikirim.
+
+- 📡 **Probe konektivitas nyata**: `GET /api/health` (timeout 4 dtk) dipakai
+  bila `navigator.onLine` bernilai `false`; jawaban 2xx/3xx/401/403 = online.
+- 🔁 **Semua pemicu sync** (mount, `online`, `visibilitychange`, `pageshow`,
+  timer 30 dtk, tombol manual) kini lewat jalur yang sama — tidak ada lagi
+  keputusan offline hanya dari flag browser.
+- 🧪 **Tes**: 3 tes probe + 1 regresi "onLine tertinggal false → antrean
+  tetap terkirim". Suite frontend **390 lulus**.
+
+---
+
 ## v2.127.4 — 19 November 2026 (Posisi terakhir saat GPS gagal)
 
 Menutup temuan **G7** audit GPS.
