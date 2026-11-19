@@ -20,6 +20,7 @@ describe('GPS utils', () => {
   const originalGeo = Object.getOwnPropertyDescriptor(navigator, 'geolocation')
   beforeEach(() => {
     vi.restoreAllMocks()
+    localStorage.clear()
   })
   afterEach(() => {
     vi.unstubAllGlobals()
@@ -79,5 +80,38 @@ describe('GPS utils', () => {
     expect(res.accuracy).toBe(25)
     expect(res.detail.kota).toBe('Jakarta Selatan')
     expect(res.at).toMatch(/\d{4}-\d{2}-\d{2}T/)
+    expect(res.stale).toBe(false)
+    expect(JSON.parse(localStorage.getItem('bpf_last_gps')).lat).toBe(-6.2)
+  })
+
+  it('GPS gagal memakai posisi terakhir yang tersimpan (ditandai stale)', async () => {
+    localStorage.setItem('bpf_last_gps', JSON.stringify({
+      lat: -7.2, lon: 112.7, addr: 'Jl. Lama, Surabaya',
+      detail: { kota: 'Surabaya', kecamatan: 'Gayungan' },
+      accuracy: 40, at: '2026-11-19T01:00:00.000Z', savedAt: Date.now() - 60_000,
+    }))
+    Object.defineProperty(navigator, 'geolocation', {
+      configurable: true,
+      value: { getCurrentPosition: (_ok, fail) => fail(new Error('denied')) },
+    })
+
+    const res = await locateWithAddress()
+    expect(res.stale).toBe(true)
+    expect(res.addr).toBe('Jl. Lama, Surabaya')
+    expect(res.accuracy).toBe(40)
+    expect(res.detail.kota).toBe('Surabaya')
+  })
+
+  it('posisi terakhir lebih dari 24 jam diabaikan', async () => {
+    localStorage.setItem('bpf_last_gps', JSON.stringify({
+      lat: -7.2, lon: 112.7, addr: 'Jl. Lama',
+      savedAt: Date.now() - 25 * 60 * 60 * 1000,
+    }))
+    Object.defineProperty(navigator, 'geolocation', {
+      configurable: true,
+      value: { getCurrentPosition: (_ok, fail) => fail(new Error('denied')) },
+    })
+
+    await expect(locateWithAddress()).rejects.toThrow('denied')
   })
 })

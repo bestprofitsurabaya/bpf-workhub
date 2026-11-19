@@ -1,4 +1,4 @@
-# 📖 Panduan Pengguna BPF WorkHub v2.127.3
+# 📖 Panduan Pengguna BPF WorkHub v2.127.4
 
 > **Siapa pun kamu — sopir, OB, admin, atau pimpinan — panduan ini ditulis untuk kamu.**
 > Tidak perlu paham teknis. Cukup ikuti langkah-langkah sesuai bagianmu.
@@ -316,7 +316,7 @@ Alur lengkapnya ada di [Bagian 10](#10-kasbon-alur-lengkap-dari-a-sampai-z).
 > 🛰️ **GPS tidak terdeteksi?** Aplikasi akan menampilkan pesan. Izinkan lokasi:
 > - **Android (Chrome):** ketuk ikon 🔒 di bilah alamat → **Izin** → **Lokasi** → **Izinkan**, lalu muat ulang.
 > - **iPhone (Safari):** **Pengaturan** → **Safari** → **Lokasi** → **Tanya/ Izinkan**, atau **Pengaturan** → **Privasi & Keamanan** → **Layanan Lokasi** → **Safari** → **Saat Menggunakan App**.
-> - Di dalam gedung GPS bisa lemah — keluar sebentar atau tunggu 10–30 detik, lalu tekan **Isi Lokasi & Jam** lagi.
+> - Di dalam gedung GPS bisa lemah — keluar sebentar atau tunggu 10–30 detik, lalu tekan **Isi Lokasi & Jam** lagi. Bila tetap gagal, aplikasi memakai **posisi terakhir** yang tersimpan (maksimal 24 jam) dan menandainya sebagai posisi lama — jadi sebaiknya tetap keluar ruangan untuk bukti yang akurat.
 
 Laporan ini dipakai GA untuk meninjau dan menghitung efisiensi kendaraan.
 

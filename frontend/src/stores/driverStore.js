@@ -148,7 +148,7 @@ export const useDriverStore = defineStore('driver', {
     profile: null,
     profileErr: '',
     online: typeof navigator !== 'undefined' ? navigator.onLine : true,
-    gps: { lat: null, lon: null, addr: '', spbu: '', locating: false, detail: null, accuracy: null, at: null },
+    gps: { lat: null, lon: null, addr: '', spbu: '', locating: false, detail: null, accuracy: null, at: null, stale: false },
     queue: { fuel: 0, trip: 0, lpj: 0, overtime: 0, cash: 0 },
     queueItems: [],
     queueBytes: 0,

@@ -7,6 +7,24 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.127.4 — 19 November 2026 (Posisi terakhir saat GPS gagal)
+
+Menutup temuan **G7** audit GPS.
+
+- 📌 **Fallback posisi terakhir**: bila GPS tidak bisa dibaca (di dalam
+  gedung, izin ditolak, perangkat lambat), driver memakai posisi terakhir
+  yang tersimpan di HP — maksimal **24 jam** — dan aplikasi menampilkan
+  peringatan bahwa itu posisi lama, bukan posisi sekarang.
+- 🕒 **Tetap jujur ke GA**: `gps_at` yang dikirim adalah waktu posisi asli
+  (bukan waktu submit), jadi umur bukti tetap terlihat.
+- 🧭 **Panduan izin lokasi** Android & iPhone ditambahkan ke USER_GUIDE §4.4.
+- 🧑‍💼 **GA melihat ketelitian bukti**: kartu verifikasi klaim kini
+  menampilkan `akurasi ±N m` dan waktu posisi.
+- 🧪 **Tes**: 2 tes fallback GPS (pakai cache, tolak cache > 24 jam) +
+  pengecekan posisi sukses ikut tersimpan. Suite frontend **386 lulus**.
+
+---
+
 ## v2.127.3 — 19 November 2026 (Bukti GPS: waktu & akurasi posisi)
 
 Menutup temuan **G5** audit GPS: server selama ini hanya menerima koordinat

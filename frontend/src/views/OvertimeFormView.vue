@@ -2,7 +2,7 @@
 import { ref, onMounted } from 'vue'
 import { api } from '../api'
 import { applyWatermark, fileToDataUrl } from '../utils/watermark'
-import { getPosition, detailedLocation } from '../utils/gps'
+import { getPosition, detailedLocation, loadLastPosition } from '../utils/gps'
 
 const brandIcon = '/static/icon-192.png'
 const form = ref({
@@ -34,7 +34,21 @@ async function locate() {
     }
     gpsStatus.value = '✅ ' + (d.full_address || `${d.lat}, ${d.lon}`)
   } catch {
-    gpsStatus.value = '⚠️ GPS tidak tersedia — foto tetap diberi watermark tanggal & perusahaan'
+    // v2.127.4: GPS gagal → pakai posisi terakhir (maks 24 jam), tandai jelas.
+    const cached = loadLastPosition()
+    if (cached) {
+      gps.value = {
+        lat: String(cached.lat ?? ''), lon: String(cached.lon ?? ''),
+        address: cached.addr || '', kelurahan: cached.detail?.kelurahan || '',
+        kecamatan: cached.detail?.kecamatan || '', kota: cached.detail?.kota || '',
+        provinsi: cached.detail?.provinsi || '', kode_pos: cached.detail?.kode_pos || '',
+        at: cached.at || '', accuracy: cached.accuracy ?? null,
+      }
+      gpsStatus.value = '⚠️ GPS tidak aktif — memakai posisi terakhir' +
+        (cached.at ? ' (' + new Date(cached.at).toLocaleString('id-ID') + ')' : '')
+    } else {
+      gpsStatus.value = '⚠️ GPS tidak tersedia — foto tetap diberi watermark tanggal & perusahaan'
+    }
   } finally {
     gpsLoading.value = false
   }

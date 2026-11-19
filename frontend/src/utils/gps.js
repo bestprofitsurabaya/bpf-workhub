@@ -15,6 +15,31 @@ const GEO_CACHE_TTL_MS = 10 * 60 * 1000
 const GEO_CACHE_MAX = 40
 const _geoCache = new Map()   // key: 'lat,lon' 4 desimal → { at, promise }
 
+// v2.127.4 — posisi terakhir disimpan agar GPS yang gagal (di dalam gedung /
+// izin ditolak) tidak membuat bukti tanpa lokasi. Umur maksimal 24 jam dan
+// selalu ditandai `stale` supaya pengguna & GA tahu itu posisi lama.
+const LAST_POS_KEY = 'bpf_last_gps'
+const LAST_POS_TTL_MS = 24 * 60 * 60 * 1000
+
+export function loadLastPosition() {
+  try {
+    const raw = localStorage.getItem(LAST_POS_KEY)
+    if (!raw) return null
+    const d = JSON.parse(raw)
+    if (!d || !Number.isFinite(Number(d.lat)) || !Number.isFinite(Number(d.lon))) return null
+    if (Date.now() - Number(d.savedAt || 0) > LAST_POS_TTL_MS) return null
+    return d
+  } catch {
+    return null
+  }
+}
+
+export function saveLastPosition(res) {
+  try {
+    localStorage.setItem(LAST_POS_KEY, JSON.stringify({ ...res, savedAt: Date.now() }))
+  } catch { /* kuota penuh / mode privat — abaikan */ }
+}
+
 async function fetchJson(url, timeoutMs = GEO_TIMEOUT_MS) {
   const ctrl = new AbortController()
   const timer = setTimeout(() => ctrl.abort(), timeoutMs)
@@ -171,7 +196,16 @@ export function getPosition(timeout = 15000, { maximumAge = 30000, highAccuracy 
 
 /** Ambil posisi + alamat + SPBU terdekat sekaligus (satu reverse geocode). */
 export async function locateWithAddress() {
-  const pos = await getPosition()
+  let pos = null
+  try {
+    pos = await getPosition()
+  } catch (err) {
+    // v2.127.4: GPS gagal → pakai posisi terakhir (maks 24 jam) bila ada.
+    // `stale: true` + `at` asli tetap dikirim ke server sebagai bukti jujur.
+    const cached = loadLastPosition()
+    if (cached) return { ...cached, stale: true }
+    throw err
+  }
   const { latitude: lat, longitude: lon, accuracy } = pos.coords
   let detail = null
   let addr = ''
@@ -182,9 +216,12 @@ export async function locateWithAddress() {
   if (!addr) addr = `${lat.toFixed(5)}, ${lon.toFixed(5)}`
   let spbu = ''
   try { spbu = await nearbySpbu(lat, lon) } catch { /* fallback */ }
-  return {
+  const result = {
     lat, lon, addr, spbu, detail,
     accuracy: Number.isFinite(accuracy) ? Math.round(accuracy) : null,
     at: pos.timestamp ? new Date(pos.timestamp).toISOString() : new Date().toISOString(),
+    stale: false,
   }
+  saveLastPosition(result)
+  return result
 }

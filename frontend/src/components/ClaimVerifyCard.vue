@@ -181,7 +181,14 @@ onMounted(load)
               <tr><th>Liter / Nominal</th><td>{{ fmtNum(data.liter) }} L · <b>{{ fmtRp(data.nominal) }}</b></td></tr>
               <tr><th>ODO</th><td>{{ fmtNum(data.odo_km) }} km<span v-if="data.km_per_liter" class="muted"> · {{ Number(data.km_per_liter).toFixed(1) }} km/L</span></td></tr>
               <tr><th>Waktu Klaim</th><td class="muted">{{ formatDateTime(data.created_at) }}</td></tr>
-              <tr v-if="data.gps_address"><th>Lokasi GPS</th><td>📍 {{ data.gps_address }}</td></tr>
+              <tr v-if="data.gps_address">
+                <th>Lokasi GPS</th>
+                <td>
+                  📍 {{ data.gps_address }}
+                  <span v-if="data.gps_accuracy" class="muted"> · akurasi ±{{ data.gps_accuracy }} m</span>
+                  <span v-if="data.gps_at" class="muted"> · {{ formatDateTime(data.gps_at) }}</span>
+                </td>
+              </tr>
               <tr v-if="data.ml_anomaly_flag || data.is_mypertamina_error">
                 <th>Penanda</th>
                 <td>

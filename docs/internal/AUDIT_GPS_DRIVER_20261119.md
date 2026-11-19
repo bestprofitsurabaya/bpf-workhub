@@ -5,8 +5,8 @@ Lingkup: `frontend/src/utils/gps.js`, `frontend/src/stores/driverStore.js`
 (`locate()`), pemakaian di `DriverView.vue`, `TripTab.vue`, `BBMTab.vue`,
 `OvertimeDriverTab.vue`.
 Metode: telaah kode + uji perangkat SM-A035F (Chrome Android) saat uji Sync v2.
-Status: **ditindaklanjuti di v2.127.2 & v2.127.3** — G1–G6, G8 sudah
-diperbaiki; G7 dicatat sebagai pekerjaan lanjutan.
+Status: **selesai ditindaklanjuti (v2.127.2–v2.127.4)** — G1–G8 sudah
+diperbaiki.
 
 ---
 
@@ -91,7 +91,7 @@ sebagai data uji.
 | G4 | ✅ | `DriverView` menampilkan toast saat GPS gagal |
 | G5 | ✅ | `gps_at`/`gps_accuracy` dikirim semua form & disimpan di 4 tabel; skema dipastikan saat startup (retry) + sekali per DB saat submit pertama (v2.127.3) |
 | G6 | ✅ | `nearbySpbu` timeout 6 dtk dan hanya dipanggil sekali per locate |
-| G7 | 🟡 | Panduan izin lokasi Android/iOS ditambahkan ke USER_GUIDE §4.4; cache posisi terakhir masih backlog |
+| G7 | ✅ | Posisi terakhir (maks 24 jam) dipakai saat GPS gagal & ditandai peringatan; GA melihat akurasi + waktu posisi; panduan izin lokasi Android/iOS di USER_GUIDE §4.4 |
 | G8 | ✅ | `pukul_*` default jam berangkat, validasi 400, error SQL tidak bocor |
 
 ---
