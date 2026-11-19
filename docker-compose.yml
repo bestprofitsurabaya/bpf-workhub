@@ -65,7 +65,7 @@ services:
       # v2.51.0: arsip Berita Acara Rekonsiliasi Subsidi Tepat (PDF + snapshot
       # JSON bukti hash) WAJIB persisten — dokumen resmi kantor pusat
       - /srv/bpf-workhub/data/subsidy_attest:/app/data/subsidy_attest
-      # v2.125.0: rilis APK BPF Agenda (manifest latest.json + file .apk)
+      # v2.126.0: rilis APK BPF Agenda (manifest latest.json + file .apk)
       # dibaca endpoint /api/app/* untuk update otomatis aplikasi Android.
       - /srv/bpf-workhub/apk:/app/data/apk
       - ./fonts:/app/fonts

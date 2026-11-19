@@ -1,318 +1,526 @@
-/* Palet di dasarkan logo BestProfit:
-   navy ellipse  #22307a-ish, merah #ed1c24, teks hitam #101014 */
+/* ==========================================================================
+   BPF Agenda — tema aplikasi (v2.0.0)
+   Palet mengikuti logo BestProfit: navy #22307a, merah #ed1c24, netral gelap.
+   Satu stylesheet, dua orientasi: portrait (kalender + daftar agenda) dan
+   landscape/tablet (kalender | agenda berdampingan).
+   ========================================================================== */
 
 :root, html[data-theme="dark"] {
-  --bg: #0e1220;
-  --bg2: #131a2b;           /* panel */
+  --bg: #0b1020;
+  --bg-grad: radial-gradient(1200px 600px at 80% -10%, #1a2550 0%, #0b1020 55%);
+  --surface: #141c31;
+  --surface-2: #1a2440;
   --panel: #1a2338;
-  --line: #2b3554;
-  --text: #e9edfa;
-  --muted: #97a2c0;
-  --primary: #22307a;       /* navy */
-  --primary-strong: #34499f;
-  --accent: #ed1c24;        /* merah */
-  --ok: #3ecf8e;
-  --warn: #f0a020;
-  --sel: #34499f;
+  --line: #2a3658;
+  --line-soft: #202a47;
+  --text: #eef1fb;
+  --muted: #9aa6c6;
+  --primary: #22307a;
+  --primary-strong: #3a52b8;
+  --primary-soft: #4d63d8;
+  --accent: #ed1c24;
+  --ok: #43d399;
+  --warn: #f5b544;
+  --sel: #3a52b8;
   --chip-bg: #ffffff;
+  --shadow: 0 18px 48px rgba(0, 0, 0, .38);
+  --shadow-soft: 0 6px 18px rgba(0, 0, 0, .22);
+  --cell: #18223a;
+  --cell-hover: #1e2a49;
+  --overlay: rgba(4, 7, 16, .66);
+  --radius: 16px;
+  --radius-sm: 11px;
 }
 
 html[data-theme="light"] {
-  --bg: #f3f5fb;
-  --bg2: #ffffff;
+  --bg: #eef1f8;
+  --bg-grad: radial-gradient(1000px 520px at 85% -10%, #dfe6ff 0%, #eef1f8 60%);
+  --surface: #ffffff;
+  --surface-2: #f5f7fd;
   --panel: #ffffff;
-  --line: #dfe3f0;
-  --text: #1b2135;
-  --muted: #5c6580;
+  --line: #dbe1f0;
+  --line-soft: #e8ecf7;
+  --text: #18203a;
+  --muted: #5f6a86;
   --primary: #22307a;
   --primary-strong: #34499f;
-  --accent: #ed1c24;
-  --ok: #1f9d67;
-  --warn: #b97a10;
+  --primary-soft: #3a52b8;
+  --accent: #d81720;
+  --ok: #12905f;
+  --warn: #b3720a;
   --sel: #34499f;
   --chip-bg: #ffffff;
+  --shadow: 0 18px 48px rgba(31, 48, 100, .16);
+  --shadow-soft: 0 6px 18px rgba(31, 48, 100, .10);
+  --cell: #f7f9ff;
+  --cell-hover: #eef2ff;
+  --overlay: rgba(18, 26, 48, .38);
 }
 
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; overflow: hidden; }
 body {
-  background: var(--bg); color: var(--text);
-  font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
-  -webkit-user-select: none; user-select: none; touch-action: manipulation;
-  transition: background .25s ease, color .25s ease;
+  background: var(--bg) var(--bg-grad);
+  color: var(--text);
+  font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  -webkit-user-select: none; user-select: none;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color .25s ease, color .25s ease;
+  overscroll-behavior: none;
 }
 
 .hidden { display: none !important; }
+.muted { color: var(--muted); }
+.error { color: var(--accent); font-size: 13px; margin: 10px 0 0; font-weight: 600; min-height: 18px; }
+.hint { color: var(--muted); font-size: 12px; margin: 12px 0 0; }
 
-.error { color: var(--accent); font-size: 13px; margin: 8px 0 0; font-weight: 600; }
-.hint { color: var(--muted); font-size: 12px; margin: 10px 0 0; }
+button { font: inherit; }
+:focus-visible { outline: 2px solid var(--primary-soft); outline-offset: 2px; }
 
-/* Kalender mengisi seluruh layar (satu panel); agenda ada di popup. */
+/* ==========================================================================
+   Kerangka aplikasi
+   ========================================================================== */
 .app {
   display: flex; flex-direction: column;
-  gap: 8px; height: 100vh;
-  /* iOS: sisipkan safe-area (notch kiri/kanan + home indicator) agar konten
-     tidak terpotong di iPhone landscape. env() = 0 di Android/browser. */
-  padding: calc(6px + env(safe-area-inset-top)) calc(6px + env(safe-area-inset-right))
-           calc(6px + env(safe-area-inset-bottom)) calc(6px + env(safe-area-inset-left));
+  gap: 10px; height: 100vh; height: 100dvh;
+  padding: calc(8px + env(safe-area-inset-top)) calc(8px + env(safe-area-inset-right))
+           calc(8px + env(safe-area-inset-bottom)) calc(8px + env(safe-area-inset-left));
 }
 
-.pane { background: var(--bg2); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; overflow: hidden; }
-.pane-left { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; }
-
-/* ---------- header kiri ---------- */
-.app-head { display: flex; align-items: center; gap: 8px; }
+.app-head {
+  flex: 0 0 auto;
+  display: flex; align-items: center; gap: 10px;
+  padding: 4px 4px 0;
+  min-width: 0;
+}
+.brand { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1 1 auto; }
 .logo-chip {
-  display: inline-flex; padding: 4px; border-radius: 8px;
-  background: var(--chip-bg); border: 1px solid var(--line);
+  flex: 0 0 auto; display: inline-flex; padding: 4px; border-radius: 12px;
+  background: var(--chip-bg); box-shadow: var(--shadow-soft);
 }
-.app-head img { height: 26px; width: auto; display: block; }
+.logo-chip img { height: 30px; width: auto; display: block; }
 .head-text { display: flex; flex-direction: column; min-width: 0; }
-.company { font-weight: 700; letter-spacing: .5px; font-size: 15px; }
-.tagline { font-size: 10px; color: var(--muted); }
+.company { font-weight: 800; letter-spacing: .2px; font-size: 16px; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; }
+.tagline { font-size: 11px; color: var(--muted); white-space: nowrap; }
 
-.head-actions { margin-left: auto; display: flex; align-items: center; gap: 6px; }
-.iconbtn {
-  border: 1px solid var(--line); background: var(--panel); color: var(--text);
-  border-radius: 8px; width: 30px; height: 28px; font-size: 14px; cursor: pointer;
+.head-actions { margin-left: auto; display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
+
+.live-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 11px; font-weight: 700; letter-spacing: .2px;
+  padding: 5px 10px; border-radius: 999px;
+  border: 1px solid var(--line); color: var(--muted);
+  background: var(--surface); white-space: nowrap;
 }
+.live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
+.live-badge.on { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 35%, var(--line)); }
+.live-badge.on .live-dot { background: var(--ok); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 22%, transparent); }
+.live-badge.warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 35%, var(--line)); }
+.live-badge.warn .live-dot { background: var(--warn); }
+
 .cat-chip {
-  font-size: 11px; padding: 3px 9px; border-radius: 999px;
+  font-size: 11px; font-weight: 700; padding: 5px 10px; border-radius: 999px;
   color: #fff; background: var(--primary); white-space: nowrap;
+  box-shadow: var(--shadow-soft);
 }
-.cat-chip.mkt { background: #34499f; }
-.cat-chip.bo { background: #84161b; }
+.cat-chip .cat-short { display: none; }
+.cat-chip.mkt { background: linear-gradient(135deg, #34499f, #4d63d8); }
+.cat-chip.bo { background: linear-gradient(135deg, #84161b, #c3222b); }
 
-/* ---------- navbar bulan ---------- */
-.month-nav { display: flex; align-items: center; justify-content: space-between; }
-.month-nav h2 { margin: 0; font-size: 15px; font-weight: 600; }
-.navbtn {
-  border: 1px solid var(--line); background: var(--panel); color: var(--text);
-  border-radius: 8px; width: 30px; height: 28px; font-size: 16px; cursor: pointer;
+.today-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 34px; padding: 0 12px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--line); background: var(--surface); color: var(--text);
+  font-size: 12px; font-weight: 700;
 }
+.today-btn:active { transform: scale(.97); }
+.today-ico { font-size: 11px; color: var(--accent); }
+
+.iconbtn {
+  width: 38px; height: 34px; flex: 0 0 auto;
+  border: 1px solid var(--line); background: var(--surface); color: var(--text);
+  border-radius: 10px; font-size: 18px; line-height: 1; cursor: pointer;
+}
+.iconbtn:active { transform: scale(.96); }
+
+/* menu ⋯ */
+.menu-wrap { position: relative; }
+.menu-sheet {
+  position: absolute; right: 0; top: calc(100% + 8px); z-index: 40;
+  width: min(258px, calc(100vw - 24px));
+  padding: 6px; border-radius: 14px;
+  background: var(--surface); border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+  animation: menu-in .14s ease-out;
+}
+@keyframes menu-in { from { opacity: 0; transform: translateY(-4px) scale(.98); } }
+.menu-item {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 11px 12px; border: 0; border-radius: 9px; cursor: pointer;
+  background: transparent; color: var(--text); text-align: left; font-size: 13.5px;
+}
+.menu-item:active, .menu-item:hover { background: var(--surface-2); }
+.mi-ico { width: 20px; text-align: center; font-size: 15px; }
+.menu-sep { height: 1px; margin: 5px 8px; background: var(--line-soft); }
+.menu-meta { padding: 7px 12px 5px; color: var(--muted); font-size: 11px; }
+
+/* ==========================================================================
+   Area kerja: portrait = tumpuk, landscape/tablet = berdampingan
+   ========================================================================== */
+.workspace {
+  flex: 1; min-height: 0;
+  display: grid; gap: 10px;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+.cal-pane, .agenda-pane {
+  min-height: 0; min-width: 0;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-soft);
+}
+.cal-pane { display: flex; flex-direction: column; padding: 8px 10px 6px; }
+.agenda-pane { display: flex; flex-direction: column; padding: 12px 14px 6px; overflow: hidden; }
+.agenda-pane.pulse { animation: pane-pulse .5s ease-out; }
+@keyframes pane-pulse {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--primary-soft) 45%, transparent); }
+  100% { box-shadow: 0 0 0 12px transparent; }
+}
+
+.month-nav { display: flex; align-items: center; gap: 8px; padding: 2px 0 8px; }
+.month-nav h2 {
+  flex: 1; margin: 0; text-align: center;
+  font-size: 16px; font-weight: 800; letter-spacing: .2px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.navbtn {
+  width: 40px; height: 36px; flex: 0 0 auto;
+  border: 1px solid var(--line); background: var(--surface-2); color: var(--text);
+  border-radius: 10px; font-size: 19px; line-height: 1; cursor: pointer;
+}
+.navbtn:active { transform: scale(.95); }
 
 /* ---------- kalender ---------- */
-/* grid hari melar memenuhi sisa tinggi layar (tanpa letterbox/black bar) */
-/* viewport + track 3 pane: bulan tetangga ikut bergeser saat swipe */
-.cal-viewport { position: relative; flex: 1; min-height: 0; overflow: hidden; }
+.cal-viewport {
+  position: relative; overflow: hidden;
+  flex: none; height: clamp(248px, 46vh, 420px);
+  border-radius: 12px;
+}
 .cal-track {
   display: flex; width: 300%; height: 100%;
-  transform: translateX(-33.3333%);          /* pane tengah = bulan aktif */
-  transition: transform 190ms cubic-bezier(.22,.75,.28,1);
+  transform: translateX(-33.3333%);
+  transition: transform 200ms cubic-bezier(.22,.75,.28,1);
   will-change: transform;
 }
 .cal-track.dragging, .cal-track.no-anim { transition: none; }
 .cal-track > .calendar { flex: 0 0 33.3333%; width: 33.3333%; min-width: 0; }
+
 .calendar {
   display: grid; grid-template-columns: repeat(7, 1fr);
-  gap: 6px; height: 100%; min-height: 0;
-  grid-auto-rows: minmax(0, 1fr);
+  gap: 5px; height: 100%; min-height: 0;
+  grid-auto-rows: minmax(32px, 1fr);
 }
 .cal-dow {
-  font-size: 12px; font-weight: 600; letter-spacing: .4px;
-  color: var(--muted); text-align: center; padding: 4px 0;
+  font-size: 11px; font-weight: 800; letter-spacing: .5px; text-transform: uppercase;
+  color: var(--muted); text-align: center; padding: 4px 0 2px;
 }
 .cal-day {
   position: relative; display: flex; align-items: center; justify-content: center;
-  font-size: clamp(16px, 3.4vh, 30px); line-height: 1; padding: 3px;
-  border-radius: 10px; background: var(--panel); border: 1px solid transparent; cursor: pointer;
+  font-size: clamp(15px, 2.4vh, 22px); line-height: 1; padding: 3px 3px 7px;
+  border-radius: var(--radius-sm);
+  background: var(--cell); border: 1px solid transparent;
+  cursor: pointer; transition: background .12s ease, transform .12s ease;
 }
-.cal-day.other { color: var(--muted); opacity: .4; }
-.cal-day.today { border-color: var(--ok); }
-.cal-day.sel { background: var(--sel); color: #fff; }
-
-/* hari libur nasional / cuti bersama: garis kuning di tepi atas sel
-   (libur nasional pekat, cuti bersama lebih pudar) */
+.cal-day:active { transform: scale(.94); }
+.cal-day.other { color: var(--muted); opacity: .35; }
+.cal-day.today { border-color: var(--ok); box-shadow: 0 0 0 1px color-mix(in srgb, var(--ok) 35%, transparent); }
+.cal-day.sel {
+  background: linear-gradient(160deg, var(--primary-soft), var(--primary));
+  border-color: transparent; color: #fff;
+  box-shadow: 0 8px 20px color-mix(in srgb, var(--primary) 45%, transparent);
+}
 .cal-day.libur { box-shadow: inset 0 3px 0 0 var(--warn); }
 .cal-day.libur.cuti { box-shadow: inset 0 3px 0 0 color-mix(in srgb, var(--warn) 55%, transparent); }
-
-/* judul + baris kecil penanggalan Jawa / keterangan libur */
-.modal-title { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.detail-meta { margin: 0; font-size: 12px; color: var(--muted); }
-.detail-meta.libur { color: var(--warn); }
-
-/* tanggal yang punya agenda: latar aksen + border, bukan cuma titik kecil */
 .cal-day.has {
-  background: color-mix(in srgb, var(--accent) 16%, var(--panel));
-  border-color: color-mix(in srgb, var(--accent) 42%, transparent);
-  font-weight: 700;
+  background: color-mix(in srgb, var(--accent) 12%, var(--cell));
+  border-color: color-mix(in srgb, var(--accent) 30%, transparent);
+  font-weight: 800;
 }
-.cal-day.has.sel {
-  background: var(--sel);
-  border-color: var(--accent);
-}
-/* penanda jumlah agenda pada tanggal beragenda */
+.cal-day.has.sel { background: linear-gradient(160deg, var(--primary-soft), var(--primary)); border-color: var(--accent); }
 .cal-count {
-  position: absolute; bottom: 5px; left: 50%; transform: translateX(-50%);
-  min-width: 17px; height: 17px; padding: 0 4px;
+  position: absolute; right: 4px; bottom: 3px;
+  min-width: 16px; height: 16px; padding: 0 4px;
   border-radius: 999px; background: var(--accent); color: #fff;
-  font-size: 11px; font-weight: 700; line-height: 17px; text-align: center;
+  font-size: 10px; font-weight: 800; line-height: 16px; text-align: center;
   font-variant-numeric: tabular-nums;
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
 }
+.cal-day.sel .cal-count { box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 70%, transparent); }
 
-/* ---------- popup agenda hari ---------- */
-.modal {
-  position: fixed; inset: 0; z-index: 60;
-  display: flex; align-items: center; justify-content: center;
-  padding: 12px;
-  background: rgba(4, 7, 16, .62);
-  -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
+/* ==========================================================================
+   Panel agenda
+   ========================================================================== */
+.agenda-head { padding-bottom: 9px; }
+.agenda-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.agenda-kicker {
+  margin: 0; font-size: 10px; font-weight: 800; letter-spacing: 1.2px;
+  text-transform: uppercase; color: var(--accent);
 }
-.modal-card {
-  background: var(--bg2); border: 1px solid var(--line); border-radius: 16px;
-  width: min(680px, 94vw); max-height: 92vh;
-  display: flex; flex-direction: column; overflow: hidden;
-  box-shadow: 0 24px 60px rgba(0,0,0,.45);
+.agenda-head h2 {
+  margin: 2px 0 0; font-size: 17px; font-weight: 800; line-height: 1.25;
+  overflow-wrap: anywhere;
 }
-.modal-head {
-  display: flex; align-items: center; gap: 10px;
-  padding: 10px 14px; border-bottom: 1px solid var(--line);
+.detail-meta { margin: 3px 0 0; font-size: 12px; color: var(--muted); min-height: 17px; }
+.detail-meta.libur { color: var(--warn); }
+.count-pill {
+  flex: 0 0 auto; font-size: 11px; font-weight: 800; white-space: nowrap;
+  padding: 5px 10px; border-radius: 999px;
+  color: var(--text); background: var(--surface-2); border: 1px solid var(--line);
 }
-.modal-head h2 { margin: 0; font-size: 17px; font-weight: 700; }
-.modal-close {
-  margin-left: auto; width: 34px; height: 34px; flex: 0 0 auto;
-  border-radius: 50%; border: 1px solid var(--line);
-  background: var(--panel); color: var(--text); font-size: 15px; cursor: pointer;
-}
+.count-pill.zero { color: var(--muted); }
 
-.live-badge {
-  font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 999px;
-  border: 1px solid var(--line); color: var(--muted); white-space: nowrap;
+.agenda {
+  flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+  display: flex; flex-direction: column; gap: 9px;
+  padding-bottom: 8px; -webkit-overflow-scrolling: touch;
 }
-.live-badge.on { color: var(--ok); }
-.live-badge.warn { color: var(--warn); }
-
-.agenda { overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 8px; }
-.modal-body { padding: 12px 14px; }
 .agenda-item {
-  background: color-mix(in srgb, var(--primary) 10%, transparent);
-  border-left: 3px solid var(--primary-strong);
-  border-radius: 0 9px 9px 0;
-  padding: 8px 12px;
+  background: var(--surface-2);
+  border-left: 3px solid var(--primary-soft);
+  border-radius: 4px 12px 12px 4px;
+  padding: 10px 12px;
 }
-.agenda-item.empty { border-left-color: var(--line); background: transparent; padding: 12px; text-align: center; }
-.agenda-item strong { display: block; font-size: 15px; margin-bottom: 2px; }
-.agenda-item span { color: var(--muted); font-size: 13px; white-space: pre-wrap; }
+.agenda-item.empty {
+  border: 1px dashed var(--line); border-left: 1px dashed var(--line);
+  background: transparent; text-align: center; padding: 22px 14px;
+  display: flex; flex-direction: column; gap: 6px; align-items: center;
+}
+.agenda-item.empty strong { font-size: 14px; }
+.empty-ico { display: inline-flex; color: var(--muted); opacity: .9; }
+.agenda-item strong { display: block; font-size: 15px; margin-bottom: 3px; line-height: 1.3; }
+.agenda-item > span { color: var(--muted); font-size: 13px; white-space: pre-wrap; }
 
-.detail-foot { color: var(--muted); font-size: 11px; text-align: right; padding-top: 6px; }
-.muted { color: var(--muted); }
-
-/* ---------- layar pilih kategori ---------- */
-.cat-screen {
-  position: fixed; inset: 0; z-index: 70; /* di atas popup agenda (60) */
-  display: flex; align-items: center; justify-content: center;
-  background: linear-gradient(160deg, var(--bg) 40%, color-mix(in srgb, var(--primary) 65%, var(--bg)) 100%);
+.pane-foot {
+  flex: 0 0 auto; padding-top: 5px;
+  color: var(--muted); font-size: 10.5px; text-align: right;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.cat-card {
-  background: var(--bg2); border: 1px solid var(--line); border-radius: 16px;
-  padding: 20px 24px; width: min(520px, 92vw); text-align: center;
-  box-shadow: 0 24px 60px rgba(0,0,0,.35);
-}
-.cat-card .cat-logo {
-  display: inline-block; padding: 8px; margin-bottom: 6px;
-  max-height: 76px; width: auto;
-  background: var(--chip-bg); border-radius: 12px; border: 1px solid var(--line);
-}
-.cat-card h1 { margin: 4px 0; font-size: 22px; line-height: 1.25; }
-.cat-card .muted { margin-bottom: 12px; }
-
-.cat-pin-form { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
-.cat-pin-form input {
-  font: inherit; font-size: 22px; letter-spacing: 8px; text-align: center;
-  padding: 12px 10px; border-radius: 12px;
-  border: 1px solid var(--line); background: var(--panel); color: var(--text);
-}
-.cat-btn {
-  display: flex; flex-direction: column; gap: 2px; width: 100%;
-  margin: 10px 0; padding: 12px 18px; text-align: left;
-  border: 1px solid var(--line); border-radius: 12px; cursor: pointer;
-  background: var(--panel); color: var(--text); font: inherit;
-}
-.cat-btn strong { font-size: 18px; }
-.cat-btn span { color: var(--muted); font-size: 13px; }
-.cat-marketing { border-left: 5px solid #34499f; }
-.cat-backoffice { border-left: 5px solid var(--accent); }
-.cat-btn:hover { filter: brightness(1.12); }
-.cat-primary { background: var(--primary); border-color: var(--primary); color: #fff; border-left-width: 5px; }
-.cat-primary strong { color: #fff; }
 
 /* ---------- media dalam agenda ---------- */
 .agenda-item .ag-img, .agenda-item .ag-video, .agenda-item .ag-frame {
-  display: block; width: 100%; border-radius: 8px; margin-top: 6px;
+  display: block; width: 100%; border-radius: 10px; margin-top: 8px;
   background: #0001; border: 1px solid var(--line);
 }
 .agenda-item .ag-frame { aspect-ratio: 16 / 9; border: 0; }
 .agenda-item .ag-link {
-  display: inline-block; margin-top: 6px; font-size: 13px; color: #fff;
-  background: var(--primary-strong); border-radius: 999px; padding: 4px 14px; text-decoration: none;
+  display: inline-block; margin-top: 8px; font-size: 13px; color: #fff;
+  background: var(--primary-strong); border-radius: 999px; padding: 5px 14px; text-decoration: none;
 }
-html[data-theme="light"] .agenda-item .ag-link { color: #fff; }
-
-/* tombol unduh / bagikan media */
-.ag-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.ag-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 9px; }
 .ag-act {
-  font: inherit; font-size: 12px; font-weight: 600;
-  padding: 5px 13px; border-radius: 999px; cursor: pointer;
-  border: 1px solid var(--line); background: var(--panel); color: var(--text);
+  font: inherit; font-size: 12px; font-weight: 700;
+  padding: 7px 14px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--line); background: var(--surface); color: var(--text);
 }
-.ag-act:active { filter: brightness(1.2); }
+.ag-act:active { filter: brightness(1.15); }
 
-/* ---------- viewer gambar ---------- */
+/* ==========================================================================
+   Popup / overlay
+   ========================================================================== */
+.modal {
+  position: fixed; inset: 0; z-index: 60;
+  display: flex; align-items: center; justify-content: center;
+  padding: 12px; background: var(--overlay);
+  -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
+}
 .viewer {
   position: fixed; inset: 0; z-index: 80;
-  background: rgba(5, 8, 18, .94);
+  background: rgba(4, 7, 16, .95);
   display: flex; align-items: center; justify-content: center;
 }
-.viewer img { max-width: 94vw; max-height: 92vh; object-fit: contain; border-radius: 10px; }
+.viewer img { max-width: 96vw; max-height: 92vh; object-fit: contain; border-radius: 12px; }
 .viewer-close {
-  position: absolute; top: 14px; right: 18px;
-  width: 44px; height: 44px; border-radius: 50%;
+  position: absolute; top: calc(14px + env(safe-area-inset-top)); right: 18px;
+  width: 46px; height: 46px; border-radius: 50%;
   border: 1px solid rgba(255,255,255,.4); background: rgba(255,255,255,.12);
   color: #fff; font-size: 18px; cursor: pointer;
 }
 
-/* ---------- footer kecil ---------- */
-.app-foot { color: var(--muted); font-size: 11px; text-align: right; padding-top: 4px; }
-
-/* perangkat portrait / layar sempit: tetap satu kolom, hari sedikit lebih kecil */
-@media (max-width: 640px) {
-  .calendar { grid-auto-rows: minmax(44px, 1fr); }
-  .cal-day { font-size: 16px; }
+/* ---------- layar PIN ---------- */
+.cat-screen {
+  position: fixed; inset: 0; z-index: 70;
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px 16px; overflow: auto;
+  background: var(--bg) var(--bg-grad);
 }
+.cat-card {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 20px;
+  padding: 26px 24px 22px; width: min(420px, 100%); text-align: center;
+  box-shadow: var(--shadow);
+}
+.cat-card .cat-logo {
+  display: inline-block; padding: 8px; margin-bottom: 12px;
+  max-height: 76px; width: auto;
+  background: var(--chip-bg); border-radius: 14px; box-shadow: var(--shadow-soft);
+}
+.cat-card h1 { margin: 4px 0 6px; font-size: 23px; line-height: 1.2; letter-spacing: -.2px; }
+.cat-card .muted { margin: 0 0 4px; font-size: 13px; }
+.cat-pin-form { display: flex; flex-direction: column; gap: 10px; margin-top: 18px; }
+.cat-pin-form input {
+  font: inherit; font-size: 24px; letter-spacing: 10px; text-align: center;
+  padding: 13px 10px; border-radius: 13px;
+  border: 1px solid var(--line); background: var(--surface-2); color: var(--text);
+}
+.cat-pin-form input:focus { border-color: var(--primary-soft); outline: none; }
+.cat-primary {
+  width: 100%; padding: 13px 18px; border-radius: 13px; cursor: pointer;
+  border: 1px solid var(--primary); background: linear-gradient(160deg, var(--primary-soft), var(--primary));
+  color: #fff; font-size: 15px; font-weight: 800; letter-spacing: .2px;
+}
+.cat-primary:active { transform: scale(.985); }
 
-/* ---------- banner pembaruan APK (v2.125.0) ---------- */
+/* ==========================================================================
+   Banner pembaruan APK
+   ========================================================================== */
 .upd-bar {
   position: fixed; inset: 0; z-index: 90;
-  background: rgba(5, 8, 18, .72);
+  background: var(--overlay);
+  -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
   display: flex; align-items: flex-start; justify-content: center;
-  padding: 18px 14px; overflow: auto;
+  padding: 22px 14px; overflow: auto;
 }
 .upd-card {
-  width: min(560px, 100%);
-  background: var(--panel); color: var(--text);
-  border: 1px solid var(--line); border-radius: 16px;
-  padding: 16px 18px 14px;
-  box-shadow: 0 18px 50px rgba(0, 0, 0, .45);
+  width: min(520px, 100%);
+  background: var(--surface); color: var(--text);
+  border: 1px solid var(--line); border-radius: 18px;
+  padding: 18px 18px 14px;
+  box-shadow: var(--shadow);
 }
 .upd-head { display: flex; align-items: center; gap: 9px; margin-bottom: 6px; }
 .upd-head strong { font-size: 16px; }
 .upd-icon {
   display: inline-flex; align-items: center; justify-content: center;
-  width: 26px; height: 26px; border-radius: 50%;
-  background: var(--primary-strong); color: #fff; font-size: 14px;
+  width: 28px; height: 28px; border-radius: 50%;
+  background: linear-gradient(160deg, var(--primary-soft), var(--primary));
+  color: #fff; font-size: 14px;
 }
 .upd-text { margin: 0 0 6px; font-size: 13px; line-height: 1.5; white-space: pre-line; }
 .upd-notes {
-  margin: 0 0 10px; padding: 9px 11px; border-radius: 9px;
-  background: #0002; border: 1px solid var(--line);
+  margin: 0 0 10px; padding: 9px 11px; border-radius: 10px;
+  background: var(--surface-2); border: 1px solid var(--line);
   font-size: 12px; line-height: 1.5; white-space: pre-line; color: var(--muted);
 }
-.upd-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 10px; }
+.upd-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; }
 .upd-btn {
-  font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
-  padding: 8px 16px; border-radius: 999px;
+  font: inherit; font-size: 13px; font-weight: 700; cursor: pointer;
+  padding: 9px 16px; border-radius: 999px;
   border: 1px solid var(--line); background: transparent; color: var(--text);
 }
-.upd-btn.upd-primary { background: var(--primary-strong); border-color: var(--primary-strong); color: #fff; }
+.upd-btn.upd-primary {
+  background: linear-gradient(160deg, var(--primary-soft), var(--primary));
+  border-color: var(--primary); color: #fff;
+}
 .upd-btn:disabled { opacity: .6; cursor: default; }
+
+/* ==========================================================================
+   Responsif
+   ========================================================================== */
+
+/* ponsel sempit: rapatkan header, sembunyikan teks sekunder */
+@media (max-width: 430px) {
+  .app { gap: 8px; }
+  .tagline { display: none; }
+  .company { font-size: 15px; }
+  .live-text { display: none; }
+  .live-badge { padding: 7px; }
+  .live-dot { width: 8px; height: 8px; }
+  .cat-chip .cat-full { display: none; }
+  .cat-chip .cat-short { display: inline; }
+  .cat-chip { padding: 5px 8px; letter-spacing: .4px; }
+  .today-text { display: none; }
+  .today-btn { width: 38px; padding: 0; justify-content: center; }
+  .head-actions { gap: 5px; }
+  .logo-chip img { height: 26px; }
+}
+
+/* sangat sempit (<= 350dp): sembunyikan nama aplikasi, sisakan logo */
+@media (max-width: 350px) {
+  .head-text { display: none; }
+}
+
+/* portrait pendek (<= 700px): beri ruang lebih untuk daftar agenda */
+@media (orientation: portrait) and (max-height: 700px) {
+  .cal-viewport { height: clamp(228px, 41vh, 280px); }
+  .agenda-item { padding: 9px 11px; }
+}
+
+/* layar pendek: layar PIN dipadatkan agar tombol & petunjuk tetap terlihat */
+@media (max-height: 520px) {
+  .cat-screen { align-items: flex-start; padding: 12px; }
+  .cat-card { padding: 16px 18px 14px; border-radius: 16px; }
+  .cat-card .cat-logo { max-height: 54px; padding: 6px; margin-bottom: 8px; }
+  .cat-card h1 { font-size: 19px; }
+  .cat-card .muted { font-size: 12px; }
+  .cat-pin-form { margin-top: 12px; gap: 8px; }
+  .cat-pin-form input { font-size: 20px; padding: 10px; letter-spacing: 8px; }
+  .cat-primary { padding: 11px 16px; }
+  .hint { margin-top: 8px; }
+}
+
+/* layar sangat pendek (landscape ponsel): kalender lebih rapat */
+@media (max-height: 430px) {
+  .app { gap: 7px; padding-top: calc(5px + env(safe-area-inset-top)); }
+  .company { font-size: 15px; }
+  .logo-chip img { height: 26px; }
+  .cal-viewport { height: auto; flex: 1; min-height: 0; }
+  .calendar { grid-auto-rows: minmax(28px, 1fr); gap: 4px; }
+  .cal-day { font-size: 14px; border-radius: 9px; }
+  .month-nav { padding-bottom: 5px; }
+  .month-nav h2 { font-size: 15px; }
+  .agenda-pane { padding: 10px 12px 4px; }
+  .agenda-head { padding-bottom: 7px; }
+  .agenda-head h2 { font-size: 15.5px; }
+  .agenda-top { gap: 6px; }
+}
+
+/* tablet & landscape: kalender dan agenda berdampingan */
+@media (min-width: 760px) {
+  .app { padding: calc(10px + env(safe-area-inset-top)) calc(12px + env(safe-area-inset-right))
+                 calc(10px + env(safe-area-inset-bottom)) calc(12px + env(safe-area-inset-left)); }
+  .workspace {
+    grid-template-columns: minmax(0, 1.45fr) minmax(320px, .85fr);
+    grid-template-rows: minmax(0, 1fr);
+  }
+  .cal-viewport { flex: 1; height: auto; min-height: 0; }
+  .cal-day { font-size: clamp(17px, 2.8vh, 26px); }
+  .agenda-head h2 { font-size: 19px; white-space: normal; }
+  .agenda-item strong { font-size: 15.5px; }
+}
+
+/* tablet portrait lebar: beri jarak baca lebih lega */
+@media (min-width: 900px) and (orientation: portrait) {
+  .workspace { grid-template-columns: minmax(0, 1.25fr) minmax(340px, .75fr); grid-template-rows: minmax(0, 1fr); }
+  .cal-viewport { flex: 1; height: auto; }
+}
+
+/* desktop / layar besar: batasi lebar agar tidak melebar aneh */
+@media (min-width: 1500px) {
+  .app { max-width: 1500px; margin: 0 auto; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .001ms !important; transition-duration: .001ms !important; }
+  .cal-track { transition: none; }
+}
+
+/* landscape pendek (ponsel diputar): tetap berdampingan agar agenda kebaca */
+@media (orientation: landscape) and (max-height: 520px) {
+  .workspace {
+    grid-template-columns: minmax(0, 1.45fr) minmax(238px, .8fr);
+    grid-template-rows: minmax(0, 1fr);
+  }
+  .cal-viewport { height: auto; flex: 1; min-height: 0; }
+  .agenda-pane { padding: 9px 11px 3px; }
+  .agenda-item { padding: 8px 10px; }
+}

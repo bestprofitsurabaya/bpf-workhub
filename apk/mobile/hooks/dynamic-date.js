@@ -450,21 +450,6 @@ public class DateWidgetProvider extends AppWidgetProvider {
         </intent-filter>
     </activity-alias>`;
   }
-  // 5b-2) FileProvider untuk "bagikan media" (plugin bpfBridge). Didaftarkan di
-  // sini karena hook ini menulis ulang manifest setiap prepare.
-  const providerBlock = `
-    <!-- BPF-MEDIA-PROVIDER -->
-    <provider android:name="androidx.core.content.FileProvider"
-        android:authorities="${pkg}.bpfmedia"
-        android:exported="false"
-        android:grantUriPermissions="true">
-        <meta-data android:name="android.support.FILE_PROVIDER_PATHS"
-            android:resource="@xml/bpf_file_paths" />
-    </provider>`;
-  if (!clean.includes('bpfmedia')) {
-    clean = clean.replace(/\s*<\/application>/, `${providerBlock}\n    </application>`);
-  }
-
   const block = `
     <!-- BPF-DATELIVE-ALIASES -->
 ${aliases}

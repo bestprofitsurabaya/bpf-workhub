@@ -103,3 +103,18 @@ def test_manifest_version_code_tidak_valid(client, release_dir):
     (release_dir / 'latest.json').write_text(json.dumps(manifest), encoding='utf-8')
     r = client.get('/api/app/latest')
     assert r.status_code == 404
+
+
+def test_cors_untuk_aplikasi_android(client, release_dir):
+    """WebView Cordova (origin https://localhost) butuh ACAO agar fetch lolos."""
+    r = client.get('/api/app/latest')
+    assert r.headers['Access-Control-Allow-Origin'] == '*'
+    assert 'GET' in r.headers['Access-Control-Allow-Methods']
+
+    pre = client.options('/api/app/latest')
+    assert pre.status_code == 204
+    assert pre.headers['Access-Control-Allow-Origin'] == '*'
+
+    dl = client.get(f'/api/app/download/{APK_NAME}')
+    assert dl.headers['Access-Control-Allow-Origin'] == '*'
+    assert 'X-Checksum-SHA256' in dl.headers['Access-Control-Expose-Headers']

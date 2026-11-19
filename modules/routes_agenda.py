@@ -25,6 +25,7 @@ from flask import (Response, jsonify, request, send_from_directory, session,
 from werkzeug.utils import secure_filename
 
 from modules import agenda as ag
+from modules.bridge_cors import install_bridge_cors
 from modules.admin_scope import (admin_branches, admin_can_operate_branch,
                                  is_ho_admin)
 from modules.config import get_db_connection
@@ -115,6 +116,7 @@ def _audience_arg():
 
 
 def register_agenda_routes(app):
+    install_bridge_cors(app)
 
     # ==================================================================
     # BACA (SPA) — semua role

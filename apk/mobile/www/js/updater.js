@@ -10,6 +10,7 @@
   const CFG = window.BPF_CONFIG || {};
   const SKIP_KEY = 'bpf_update_skip';   // versionCode yang di-"Nanti"
   const CHECK_MS = 6 * 60 * 60 * 1000;  // cek ulang tiap 6 jam
+  const RETRY_MS = 10 * 60 * 1000;      // setelah gagal jaringan, coba lagi 10 menit
   const LAST_KEY = 'bpf_update_checked_at';
 
   let latest = null;     // manifest rilis aktif
@@ -66,18 +67,20 @@
   }
 
   async function check(force) {
-    if (!cordovaReady() || busy) return;
+    if (!cordovaReady() || busy) return 'idle';
     const now = Date.now();
     const last = Number(localStorage.getItem(LAST_KEY) || 0);
-    if (!force && now - last < CHECK_MS) return;
+    if (!force && now - last < CHECK_MS) return 'throttled';
     localStorage.setItem(LAST_KEY, String(now));
 
     try {
       const r = await fetch(`${CFG.API_BASE}/api/app/latest`, { cache: 'no-store' });
-      if (!r.ok) return; // belum ada rilis / server lama: diam saja
+      if (!r.ok) return 'none'; // belum ada rilis / server lama: diam saja
       latest = await r.json();
     } catch (e) {
-      return; // offline: jangan ganggu tampilan agenda
+      // Jaringan gagal: coba lagi lebih cepat (10 menit), jangan tunggu 6 jam.
+      localStorage.setItem(LAST_KEY, String(now - CHECK_MS + RETRY_MS));
+      return 'error';
     }
 
     try {
@@ -85,21 +88,22 @@
     } catch (e) {
       installed = null;
     }
-    if (!installed || !latest || !latest.ok) return;
+    if (!installed || !latest || !latest.ok) return 'none';
 
     const baru = Number(latest.version_code) > Number(installed.versionCode || 0);
-    if (!baru) return;
+    if (!baru) return 'none';
 
     const skipped = Number(localStorage.getItem(SKIP_KEY) || 0);
-    if (!latest.mandatory && skipped === Number(latest.version_code)) return;
+    if (!latest.mandatory && skipped === Number(latest.version_code)) return 'skipped';
 
     offer();
+    return 'update';
   }
 
   function offer() {
     const name = fmtVersion(latest.version_name, latest.version_code);
-    const notes = latest.notes ? `\n${latest.notes}` : '';
-    show(`Versi ${name} sudah tersedia (terpasang ${fmtVersion(installed.versionName, installed.versionCode)}).${notes}`, {
+    // Catatan rilis tampil di kotak `updNotes`; jangan diulang di teks utama.
+    show(`Versi ${name} sudah tersedia (terpasang ${fmtVersion(installed.versionName, installed.versionCode)}).`, {
       title: latest.mandatory ? 'Pembaruan wajib' : 'Pembaruan tersedia',
       notes: latest.notes,
       action: 'Unduh & pasang',
@@ -173,13 +177,8 @@
     const skipBtn = $('updSkip');
     if (act) act.addEventListener('click', onAction);
     if (skipBtn) skipBtn.addEventListener('click', skip);
-    const manual = $('updBtn');
-    if (manual) {
-      manual.addEventListener('click', () => {
-        manual.disabled = true;
-        check(true).finally(() => { manual.disabled = false; });
-      });
-    }
+    // Tombol cek manual ada di menu (app.js) dan memanggil bpfUpdater.check().
+    // `updBtn` dipertahankan untuk kompatibilitas bila masih ada di HTML lama.
     check(false);
     // pembaruan juga dicek saat aplikasi kembali dibuka dari background
     document.addEventListener('resume', () => check(false), false);

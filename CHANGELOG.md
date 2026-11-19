@@ -7,6 +7,55 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.126.0 — 19 November 2026 (BPF Agenda 2.0.5: responsif + CORS bridge)
+
+Aplikasi Android akhirnya bisa menampilkan agenda lagi: penyebab "OFFLINE"
+bukan jaringan, melainkan header CORS yang hilang di bridge. Sekalian
+tampilannya dirombak agar nyaman di portrait maupun landscape.
+
+- 🩺 **CORS bridge** (`modules/bridge_cors.py`): `Access-Control-Allow-Origin`
+  untuk `/api/state`, `/api/month`, `/api/stream`, dan `/api/app/*`, plus
+  preflight `OPTIONS` 204. WebView Cordova berjalan di origin
+  `https://localhost`; tanpa header ini `fetch()`/`EventSource` diblokir
+  walau server membalas 200 — inilah sebab layar **OFFLINE** dan pemeriksaan
+  pembaruan tidak pernah jalan.
+- 🛠️ **Pemasangan update dari dalam aplikasi**: dua lapis perbaikan.
+  (1) Izin URI di-grant eksplisit ke paket installer (`bpfBridge` 1.2.1)
+  karena `FLAG_GRANT_READ_URI_PERMISSION` dilepas sebelum `InstallStaging`
+  membaca berkas. (2) Provider pindah ke FileProvider bawaan Cordova
+  (`bpfBridge` 1.2.2) — dua `FileProvider` dengan class sama bertabrakan di
+  satu record Android, sehingga authority `bpfmedia` ditolak. Sekarang APK
+  dikenali installer (dialog "Do you want to update this app?" muncul).
+  Catatan: di perangkat dengan **Play Protect aktif**, Google masih bisa
+  memblokir APK internal yang belum dikenal (lihat `apk/README.md`).
+- 📐 **UI responsif APK 2.0.5**: shell baru dengan panel agenda permanen.
+  Portrait = kalender di atas + daftar agenda di bawah; landscape/tablet =
+  kalender dan agenda berdampingan. Orientasi **tidak lagi dikunci**.
+- 🧭 **Header ringkas**: status live (titik saat layar sempit), chip kategori
+  (`BO`/`MKT` di ponsel), tombol **Hari ini**, dan menu ⋯ berisi ganti
+  kategori, widget, tema, cek pembaruan, serta versi aplikasi.
+- ♿ **Aksesibilitas & kenyamanan**: target sentuh ≥ 38–44 dp, sel tanggal
+  bisa difokus & diaktifkan dengan Enter/Spasi, `aria-label` tanggal +
+  jumlah agenda, safe-area iOS/Android, `prefers-reduced-motion`, dan tema
+  gelap/terang yang konsisten.
+- 🗓️ **Kalender lebih terbaca**: penanda jumlah agenda per tanggal, garis
+  libur/cuti, swipe antar bulan tetap jalan, dan posisi track dipertahankan
+  saat rotasi.
+- 🔑 **PIN kategori**: kolom PIN dibersihkan setiap kali layar kategori dibuka
+  (sebelumnya PIN lama tertinggal dan ketikan baru diabaikan `maxlength`).
+- 📱 Versi aplikasi naik ke **2.0.5** (versionCode 20005); package id dan
+  signature tetap sama sehingga update di perangkat terpasang aman.
+- 📚 **Dokumen baru** `docs/internal/DISTRIBUSI_AGENDA.md`: peta lengkap
+  siapa melihat agenda apa (role, cabang, PIN APK, PDF/ICS) beserta celah
+  yang perlu diputuskan.
+
+Tes: `tests/test_agenda.py` + `tests/test_app_release.py` (CORS & rilis APK)
+lulus; 7 titik stamp + DB stamp konsisten; build release 2.0.5 diuji di
+perangkat SM-A035F (portrait, landscape, tema terang, ganti kategori) dan
+alur update di dalam aplikasi diuji sampai dialog pemasangan sistem.
+
+---
+
 ## v2.125.0 — 19 November 2026 (Update APK otomatis via WorkHub)
 
 Aplikasi Android kini memeriksa dan memasang pembaruannya sendiri dari

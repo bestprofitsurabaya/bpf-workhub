@@ -11,9 +11,11 @@ belum punya sesi WorkHub; isi yang dilayani hanya APK rilis internal.
 from flask import jsonify, send_file
 
 from modules import app_release
+from modules.bridge_cors import install_bridge_cors
 
 
 def register_app_release_routes(app):
+    install_bridge_cors(app)
 
     @app.route('/api/app/latest')
     def api_app_latest():

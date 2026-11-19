@@ -447,3 +447,14 @@ class TestRoutes:
             os.remove(os.path.join(ra.MEDIA_DIR, name))
         except OSError:
             pass
+
+
+def test_bridge_cors_untuk_webview(client):
+    """Bridge dipanggil dari https://localhost (WebView) — wajib ada ACAO."""
+    pre = client.options('/api/state')
+    assert pre.status_code == 204
+    assert pre.headers['Access-Control-Allow-Origin'] == '*'
+
+    r = client.get('/api/state')
+    assert r.headers['Access-Control-Allow-Origin'] == '*'
+    assert 'Range' in r.headers['Access-Control-Allow-Headers']

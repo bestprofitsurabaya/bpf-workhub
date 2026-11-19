@@ -1,5 +1,5 @@
 <?xml version='1.0' encoding='utf-8'?>
-<widget id="id.co.bpf.calendar" version="1.8.0"
+<widget id="id.co.bpf.calendar" version="2.0.5"
         xmlns="http://www.w3.org/ns/widgets"
         xmlns:cdv="http://cordova.apache.org/ns/1.0">
     <name>BPF Agenda</name>
@@ -15,9 +15,9 @@
     <access origin="https://nasbpfsby.duckdns.org:8444" />
     <allow-navigation href="https://nasbpfsby.duckdns.org:8444/*" />
 
-    <!-- hanya landscape -->
-    <preference name="Orientation" value="landscape" />
-    <preference name="AndroidWindowOrientation" value="sensorLandscape" />
+    <!-- portrait & landscape bebas; tata letak menyesuaikan sendiri -->
+    <preference name="Orientation" value="default" />
+    <preference name="AndroidWindowOrientation" value="unspecified" />
     <preference name="FallbackBgColor" value="#10151b" />
     <preference name="BackgroundColor" value="#10151b" />
 
@@ -70,9 +70,8 @@
         <preference name="deployment-target" value="15.0" />
         <!-- fokus iPhone: aplikasi kios landscape, tidak perlu screenshot iPad -->
         <preference name="target-device" value="handset" />
-        <!-- Landscape kiri/kanan diambil cordova-ios dari <preference Orientation="landscape" />
-             di atas (prepare.js -> INFOPLIST_KEY_UISupportedInterfaceOrientations_*), jadi
-             tidak perlu edit-config UISupportedInterfaceOrientations. -->
+        <!-- Orientasi mengikuti <preference Orientation="default" /> di atas:
+             portrait + landscape didukung (cordova-ios menulis Info.plist). -->
 
         <!-- setara `<preference name="Fullscreen" />` di Android: status bar disembunyikan -->
         <edit-config file="*-Info.plist" mode="merge" target="UIStatusBarHidden">

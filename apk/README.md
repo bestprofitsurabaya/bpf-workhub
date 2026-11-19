@@ -4,6 +4,20 @@ APK agenda BPF. Aplikasi membaca agenda dari **bridge read-only WorkHub**
 (`https://nasbpfsby.duckdns.org:8444`) — sumber datanya modul Agenda di
 WorkHub, bukan server terpisah.
 
+## Kategori pengguna (PIN)
+
+Aplikasi memilih kategori penerima agenda lewat PIN 6 digit di layar awal:
+
+| PIN | Kategori | Filter bridge |
+|---|---|---|
+| `123456` | Back Office | `audience=backoffice` |
+| `444444` | Marketing | `audience=marketing` |
+
+Pilihan disimpan di `localStorage` (`bpf_audience`) dan dikirim ke
+`/api/state`, `/api/month`, `/api/stream`. PIN ini **bukan batas keamanan** —
+bridge memang publik read-only; PIN hanya memisahkan tampilan dua kelompok.
+Agenda `audience=all` tampil di kedua kategori.
+
 ## Struktur
 
 ```
@@ -57,7 +71,7 @@ Endpoint bridge yang dipakai aplikasi: `/api/state`, `/api/month`,
 `/api/stream`, `/api/app/latest`, `/api/app/download/<file>.apk`,
 `/assets/up/*`, `/assets/logo.png`.
 
-## Publikasi update (v2.125.0)
+## Publikasi update (v2.126.0)
 
 Aplikasi memeriksa `/api/app/latest` saat dibuka, mengunduh APK baru,
 memverifikasi SHA-256, lalu membuka installer sistem. Tidak perlu Play Store
@@ -65,7 +79,7 @@ dan tidak perlu share Nextcloud.
 
 ```bash
 # folder rilis host (di-mount ke container sebagai /app/data/apk)
-./scripts/publish-release.sh dist/bpf-agenda-1.8.0-release.apk "Catatan rilis"
+./scripts/publish-release.sh dist/bpf-agenda-2.0.5-release.apk "Catatan rilis"
 
 # rilis wajib (tombol "Nanti" disembunyikan di aplikasi)
 BPF_UPDATE_MANDATORY=1 ./scripts/publish-release.sh dist/... "Perbaikan penting"
@@ -82,3 +96,31 @@ ulang hash saat menyajikan manifest.
 > Update tidak bisa senyap: Android 8+ tetap menampilkan konfirmasi
 > pemasangan dan izin "Pasang aplikasi tak dikenal" per aplikasi. Update
 > senyap hanya mungkin lewat MDM/Device Owner.
+
+### FileProvider (jangan tambah provider kedua)
+
+APK dibagikan ke installer lewat FileProvider **bawaan CordovaLib**
+(`<package>.cdv.core.file.provider`, root `cache/`). Jangan mendeklarasikan
+`FileProvider` kedua di manifest: Android memakai satu record provider per
+*class*, sehingga authority kedua tidak bisa dipakai dan installer gagal
+dengan pesan "does not match the one of the contentProvider" atau
+"Permission Denial ... not exported".
+
+### Play Protect bisa memblokir update internal
+
+APK ditandatangani sendiri dan tidak dikenal Google, jadi di perangkat dengan
+**Play Protect aktif** dialog pemasangan bisa berubah menjadi
+"App scan recommended" lalu "Harmful app blocked" — pemasangan berhenti.
+Ini kebijakan perangkat, bukan bug aplikasi. Pilihan yang tersedia:
+
+1. Perangkat dinonaktifkan pemindaiannya
+   (Play Store → Profil → Play Protect → ⚙ → "Scan apps with Play Protect",
+   butuh PIN perangkat), atau
+2. sebar lewat MDM/Android Enterprise (Device Owner) yang bisa mengizinkan
+   pemasangan APK internal, atau
+3. terbitkan di jalur privat Google Play (internal testing) agar tidak
+   dipindai sebagai aplikasi tak dikenal.
+
+Tanpa salah satu langkah di atas, pembaruan tetap bisa dipasang manual
+(`adb install -r` untuk teknisi), tetapi tombol **Unduh & pasang** akan
+berhenti di dialog Play Protect.

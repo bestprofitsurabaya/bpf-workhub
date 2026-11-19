@@ -2,7 +2,7 @@
 <plugin xmlns="http://apache.org/cordova/ns/plugins/1.0"
         xmlns:android="http://schemas.android.com/apk/res/android"
         id="bpfBridge"
-        version="1.2.0">
+        version="1.2.2">
   <name>BpfBridge</name>
   <description>Bridge native BPF Agenda: notifikasi agenda baru, widget home screen (tanggal + agenda), unduh/bagikan media, updater APK.</description>
   <author>IT BPF</author>
@@ -15,7 +15,6 @@
 
   <platform name="android">
     <source-file src="src/android/bpf/bridge/BpfBridgePlugin.java" target-dir="src/bpf/bridge" />
-    <resource-file src="src/android/res/xml/bpf_file_paths.xml" target="res/xml/bpf_file_paths.xml" />
     <config-file target="res/xml/config.xml" parent="/*">
       <feature name="bpfBridge">
         <param name="android-package" value="bpf.bridge.BpfBridgePlugin" />

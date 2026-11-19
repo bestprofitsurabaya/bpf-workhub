@@ -46,7 +46,10 @@ public class BpfBridgePlugin extends CordovaPlugin {
 
     private static final String PERM_POST_NOTIFICATIONS = "android.permission.POST_NOTIFICATIONS";
     private static final int REQ_NOTIFY_PERM = 4242;
-    private static final String PROVIDER_SUFFIX = ".bpfmedia";
+    // FileProvider bawaan CordovaLib. Jangan deklarasikan provider kedua dengan
+    // class yang sama: AMS menyatukan provider ber-Class sama dalam satu record
+    // sehingga authority kedua tidak bisa dipakai ("does not match ...").
+    private static final String PROVIDER_SUFFIX = ".cdv.core.file.provider";
 
     private Context appCtx;
     private CallbackContext notifyPermCb;
@@ -377,6 +380,21 @@ public class BpfBridgePlugin extends CordovaPlugin {
                                 it.setDataAndType(uri, "application/vnd.android.package-archive");
                                 it.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
                                 it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                                // ClipData: sebagian installer hanya membaca grant dari
+                                // clipData, bukan dari data URI.
+                                it.setClipData(android.content.ClipData.newRawUri("apk", uri));
+                                // Grant eksplisit ke paket installer. FLAG_GRANT_READ_URI_PERMISSION
+                                // saja tidak cukup: grant menempel pada activity pemanggil
+                                // (InstallStart) dan dilepas sebelum InstallStaging membaca
+                                // berkas -> "Permission Denial ... not exported".
+                                try { c.revokeUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION); }
+                                catch (Exception ignored) { }
+                                for (String pkg : installerPackages(c, it)) {
+                                    try {
+                                        c.grantUriPermission(
+                                            pkg, uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                                    } catch (Exception ignored) { }
+                                }
                                 c.startActivity(it);
                                 cb.success("installer dibuka");
                             } catch (Exception e) {
@@ -409,6 +427,30 @@ public class BpfBridgePlugin extends CordovaPlugin {
         if (s.length() > 80) s = s.substring(s.length() - 80);
         if (!s.contains(".")) s = s + ".bin";
         return s;
+    }
+
+    /**
+     * Paket installer yang mungkin menangani ACTION_VIEW APK. Dipakai untuk
+     * grant URI eksplisit; query Intent bisa kosong karena package visibility
+     * (Android 11+), jadi daftar cadangan tetap disertakan.
+     */
+    private static java.util.List<String> installerPackages(Context c, Intent probe) {
+        java.util.LinkedHashSet<String> pkgs = new java.util.LinkedHashSet<>();
+        try {
+            java.util.List<android.content.pm.ResolveInfo> list =
+                c.getPackageManager().queryIntentActivities(probe, 0);
+            if (list != null) {
+                for (android.content.pm.ResolveInfo ri : list) {
+                    if (ri.activityInfo != null && ri.activityInfo.packageName != null) {
+                        pkgs.add(ri.activityInfo.packageName);
+                    }
+                }
+            }
+        } catch (Exception ignored) { }
+        pkgs.add("com.google.android.packageinstaller");
+        pkgs.add("com.android.packageinstaller");
+        pkgs.add("com.samsung.android.packageinstaller");
+        return new java.util.ArrayList<>(pkgs);
     }
 
     private static String mimeOf(String name) {

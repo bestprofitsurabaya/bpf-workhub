@@ -4,8 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport"
       content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0b1020">
+<meta name="color-scheme" content="dark light">
 <meta http-equiv="Content-Security-Policy"
-      content="default-src 'self'; img-src 'self' https://nasbpfsby.duckdns.org:8444 https://nasbpfsby.duckdns.org https://i.ytimg.com data:; media-src 'self' https://nasbpfsby.duckdns.org:8444 https://nasbpfsby.duckdns.org; frame-src https://www.youtube-nocookie.com https://www.youtube.com; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src https://nasbpfsby.duckdns.org:8444;">
+      content="default-src 'self'; img-src 'self' https://nasbpfsby.duckdns.org:8444 https://nasbpfsby.duckdns.org https://i.ytimg.com data:; media-src 'self' https://nasbpfsby.duckdns.org:8444 https://nasbpfsby.duckdns.org; frame-src https://www.youtube-nocookie.com https://www.youtube.com; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self' https://nasbpfsby.duckdns.org:8444;">
 <title>BPF Agenda</title>
 <link rel="stylesheet" href="css/app.css">
 </head>
@@ -15,24 +17,25 @@
 <div id="catScreen" class="cat-screen hidden">
   <div class="cat-card">
     <img class="cat-logo" src="" alt="BPF" id="catLogo">
-    <h1>Selamat datang di<br>BPF Agenda</h1>
-    <p class="muted">Masukkan PIN untuk masuk ke agenda.</p>
+    <h1>Masuk ke Agenda</h1>
+    <p class="muted">Masukkan PIN untuk melihat agenda sesuai kategori Anda.</p>
     <form id="catPinForm" class="cat-pin-form" autocomplete="off">
-      <input type="password" id="catPin" inputmode="numeric" maxlength="6" placeholder="••••••" autocomplete="off" />
-      <button type="submit" class="cat-btn cat-primary">Masuk</button>
+      <input type="password" id="catPin" inputmode="numeric" maxlength="6"
+             placeholder="••••••" autocomplete="off" aria-label="PIN 6 digit" />
+      <button type="submit" class="cat-primary">Masuk</button>
     </form>
     <p id="catHint" class="error"></p>
-    <p class="hint">Masukkan PIN 6 digit untuk masuk ke agenda.</p>
+    <p class="hint">PIN 6 digit diberikan oleh admin kantor.</p>
   </div>
 </div>
 
-<!-- overlay viewer gambar (tap gambar untuk memperbesar) -->
+<!-- viewer gambar (tap gambar untuk memperbesar) -->
 <div id="viewer" class="viewer hidden">
   <img id="viewerImg" alt="">
-  <button id="viewerClose" class="viewer-close">✕</button>
+  <button id="viewerClose" class="viewer-close" aria-label="Tutup gambar">✕</button>
 </div>
 
-<!-- banner pembaruan APK (v2.125.0) -->
+<!-- banner pembaruan APK -->
 <div id="updBar" class="upd-bar hidden" role="status" aria-live="polite">
   <div class="upd-card">
     <div class="upd-head"><span class="upd-icon">⬆</span><strong id="updTitle">Pembaruan tersedia</strong></div>
@@ -45,62 +48,78 @@
   </div>
 </div>
 
-<main class="app">
+<div class="app">
 
-  <!-- kiri: kalender -->
-  <section class="pane pane-left">
-    <header class="app-head">
-      <span class="logo-chip"><img id="logo" src="" alt=""></span>
+  <header class="app-head">
+    <div class="brand">
+      <span class="logo-chip"><img id="logo" src="" alt="BestProfit"></span>
       <div class="head-text">
-        <span class="company">BestProfit</span>
-        <span class="tagline">Kalender Agenda</span>
-      </div>
-      <div class="head-actions">
-        <span id="liveBadge" class="live-badge">…</span>
-        <span id="catChip" class="cat-chip" title="Kategori aktif">…</span>
-        <button id="catBtn" class="iconbtn" title="Ganti kategori">👥</button>
-        <button id="widgetBtn" class="iconbtn" title="Widget home screen">📲</button>
-        <button id="updBtn" class="iconbtn" title="Cek pembaruan aplikasi">⬆</button>
-        <button id="themeBtn" class="iconbtn" title="Tema gelap/terang">☀</button>
-      </div>
-    </header>
-
-    <div class="month-nav">
-      <button id="prevMonth" class="navbtn">‹</button>
-      <h2 id="monthLabel">—</h2>
-      <button id="nextMonth" class="navbtn">›</button>
-    </div>
-
-    <!-- tiga pane: bulan sebelumnya | bulan aktif | bulan berikutnya.
-         Saat swipe, track bergeser sehingga bulan tetangga ikut terlihat. -->
-    <div id="calViewport" class="cal-viewport">
-      <div id="calTrack" class="cal-track">
-        <div id="calPrev" class="calendar" aria-hidden="true"></div>
-        <div id="calendar" class="calendar"></div>
-        <div id="calNext" class="calendar" aria-hidden="true"></div>
+        <span class="company">BPF Agenda</span>
+        <span class="tagline">BestProfit Futures</span>
       </div>
     </div>
-    <div class="app-foot"><span id="updatedAt"></span></div>
-  </section>
 
-</main>
+    <div class="head-actions">
+      <span id="liveBadge" class="live-badge"><span class="live-dot"></span><span class="live-text">…</span></span>
+      <span id="catChip" class="cat-chip" title="Kategori aktif"><span class="cat-full">…</span><span class="cat-short">…</span></span>
+      <button id="todayBtn" class="today-btn" title="Kembali ke hari ini">
+        <span class="today-ico">◉</span><span class="today-text">Hari ini</span>
+      </button>
+      <div class="menu-wrap">
+        <button id="menuBtn" class="iconbtn" aria-haspopup="menu" aria-expanded="false"
+                aria-label="Menu lainnya">⋯</button>
+        <div id="menuSheet" class="menu-sheet hidden" role="menu">
+          <button id="menuCat" class="menu-item" role="menuitem"><span class="mi-ico">👥</span> Ganti kategori</button>
+          <button id="menuWidget" class="menu-item" role="menuitem"><span class="mi-ico">📲</span> Widget beranda</button>
+          <button id="menuTheme" class="menu-item" role="menuitem"><span class="mi-ico">🌓</span> <span id="menuThemeLabel">Mode terang</span></button>
+          <button id="menuUpdate" class="menu-item" role="menuitem"><span class="mi-ico">⬆</span> Cek pembaruan</button>
+          <div class="menu-sep"></div>
+          <div class="menu-meta" id="menuVersion">BPF Agenda</div>
+        </div>
+      </div>
+    </div>
+  </header>
 
-<!-- popup agenda hari (muncul saat tanggal diklik) -->
-<div id="dayModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="detailDate">
-  <div class="modal-card">
-    <div class="modal-head">
-      <div class="modal-title">
+  <main class="workspace">
+
+    <section class="cal-pane">
+      <div class="month-nav">
+        <button id="prevMonth" class="navbtn" aria-label="Bulan sebelumnya">‹</button>
+        <h2 id="monthLabel">—</h2>
+        <button id="nextMonth" class="navbtn" aria-label="Bulan berikutnya">›</button>
+      </div>
+
+      <!-- tiga pane: bulan sebelumnya | bulan aktif | bulan berikutnya.
+           Saat swipe, track bergeser sehingga bulan tetangga ikut terlihat. -->
+      <div id="calViewport" class="cal-viewport">
+        <div id="calTrack" class="cal-track">
+          <div id="calPrev" class="calendar" aria-hidden="true"></div>
+          <div id="calendar" class="calendar"></div>
+          <div id="calNext" class="calendar" aria-hidden="true"></div>
+        </div>
+      </div>
+    </section>
+
+    <aside id="agendaPane" class="agenda-pane" aria-live="polite">
+      <div class="agenda-head">
+        <div class="agenda-top">
+          <p class="agenda-kicker">Agenda</p>
+          <span id="agendaCount" class="count-pill">—</span>
+        </div>
         <h2 id="detailDate">—</h2>
         <p id="detailMeta" class="detail-meta"></p>
       </div>
-      <button id="dayClose" class="modal-close" aria-label="Tutup">✕</button>
-    </div>
-    <div id="agenda" class="agenda modal-body">
-      <div class="agenda-item">
-        <span class="muted">Memuat…</span>
+      <div id="agenda" class="agenda">
+        <div class="agenda-item empty">
+          <span class="empty-ico">🗓️</span>
+          <strong>Pilih tanggal</strong>
+          <span class="muted">Agenda hari itu akan tampil di sini.</span>
+        </div>
       </div>
-    </div>
-  </div>
+      <div class="pane-foot"><span id="updatedAt"></span></div>
+    </aside>
+
+  </main>
 </div>
 
 <script src="cordova.js"></script>

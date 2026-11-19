@@ -1,7 +1,7 @@
 # Peta Modul Agenda — WorkHub sebagai sumber kebenaran
 
 Status: **diterapkan** di v2.123.0, dipurge & dipindah penuh di v2.124.0,
-update APK mandiri sejak v2.125.0 (19 Nov 2026).
+update APK mandiri sejak v2.125.0; tata letak responsif + CORS bridge di v2.126.0 (19 Nov 2026).
 
 Tujuan: menyatukan agenda harian BPF ke WorkHub — satu login, satu audit,
 multi-cabang — tanpa memutus aplikasi Cordova yang sudah terpasang.
@@ -138,6 +138,6 @@ Manual: APK lama terhadap bridge, media Range, 12 DB nyata.
 ## 9. Rilis
 
 v2.123.0 = fondasi modul Agenda + bridge; v2.124.0 = purge server lama +
-pemindahan proyek APK ke repo WorkHub; v2.125.0 = update APK via WorkHub
+pemindahan proyek APK ke repo WorkHub; v2.125.0 = update APK via WorkHub; v2.126.0 = APK 2.0.0 responsif + CORS bridge
 (mirror Nextcloud dihapus).
 Setiap rilis tetap: PROGRESS + CHANGELOG + 7 titik stamp + commit/push + deploy.

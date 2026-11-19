@@ -1,14 +1,20 @@
 'use strict';
-/* bpf-workhub — aplikasi Cordova
- * - landscape (kunci via config.xml + screen.orientation.lock saat tersedia)
+/* bpf-workhub — aplikasi Cordova (v2.0.0)
+ * - portrait & landscape bebas (tidak dikunci)
  * - kategori user: marketing / back office (dipilih user, admin menentukan target agenda)
  * - tema gelap/terang (warna senada logo BestProfit)
- * - kalender bulan penuh layar dengan penanda tanggal beragenda (sesuai kategori)
- * - tap tanggal -> popup agenda hari itu (realtime via SSE, fallback polling)
+ * - kalender bulan penuh + panel agenda hari terpilih (berdampingan di layar lebar)
+ * - realtime via SSE, fallback polling; widget + notifikasi lokal
  */
 
 const $ = (id) => document.getElementById(id);
 const CFG = window.BPF_CONFIG;
+
+/* Ikon garis (bukan emoji) agar tampil sama di semua perangkat. */
+const ICON_CAL = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" ' +
+  'stroke="currentColor" stroke-width="1.6" stroke-linecap="round" ' +
+  'stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="3"/>' +
+  '<path d="M8 3v4M16 3v4M3 10h18"/><path d="M8 14h2M14 14h2M8 17h2M14 17h2"/></svg>';
 
 const AUD_KEY = 'bpf_audience';   // 'marketing' | 'backoffice'
 const THEME_KEY = 'bpf_theme';    // 'dark' | 'light'
@@ -38,16 +44,21 @@ if (!window.cordova) {
 }
 
 async function onDeviceReady() {
-  lockLandscape();
-  applyTheme(localStorage.getItem(THEME_KEY) || 'dark');
+  unlockOrientation();
+  applyTheme(localStorage.getItem(THEME_KEY) || preferredTheme());
   $('logo').src = `${CFG.API_BASE}/assets/logo.png`;
   $('catLogo').src = `${CFG.API_BASE}/assets/logo.png`;
 
-  $('themeBtn').addEventListener('click', () => {
-    applyTheme(document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+  // menu ⋯ (kategori, widget, tema, pembaruan)
+  $('menuBtn').addEventListener('click', (ev) => { ev.stopPropagation(); toggleMenu(); });
+  $('menuCat').addEventListener('click', () => { closeMenu(); showCatScreen(true); });
+  $('menuWidget').addEventListener('click', () => { closeMenu(); toggleWidget(); });
+  $('menuTheme').addEventListener('click', () => { closeMenu(); toggleTheme(); });
+  $('menuUpdate').addEventListener('click', () => {
+    closeMenu();
+    if (window.bpfUpdater) window.bpfUpdater.check();
   });
-  $('catBtn').addEventListener('click', () => showCatScreen(true));
-  $('widgetBtn').addEventListener('click', () => toggleWidget());
+  $('todayBtn').addEventListener('click', goToday);
   $('catPinForm').addEventListener('submit', submitCatPin);
 
   const saved = localStorage.getItem(AUD_KEY);
@@ -62,38 +73,89 @@ async function onDeviceReady() {
   initSwipe();
   // rotasi layar / perubahan ukuran: track harus tetap di pane tengah
   window.addEventListener('resize', () => centerTrack());
+  window.addEventListener('orientationchange', () => setTimeout(centerTrack, 220));
 
   // viewer gambar (tap untuk memperbesar)
   $('viewerClose').addEventListener('click', closeViewer);
   $('viewer').addEventListener('click', (ev) => { if (ev.target.id === 'viewer') closeViewer(); });
 
-  // popup agenda: tombol tutup, tap latar, tombol back Android, Escape
-  $('dayClose').addEventListener('click', closeDay);
-  $('dayModal').addEventListener('click', (ev) => { if (ev.target.id === 'dayModal') closeDay(); });
+  // back Android / Escape: tutup yang paling atas dulu
   document.addEventListener('backbutton', onBackButton, false);
-  document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') onBackButton(); });
+  document.addEventListener('keydown', (ev) => {
+    if (ev.key !== 'Escape') return;
+    if (!$('menuSheet').classList.contains('hidden')) { closeMenu(); return; }
+    onBackButton();
+  });
+}
+
+/* ---------------- menu ⋯ ---------------- */
+
+function toggleMenu() {
+  const sheet = $('menuSheet');
+  const open = sheet.classList.contains('hidden');
+  sheet.classList.toggle('hidden', !open);
+  $('menuBtn').setAttribute('aria-expanded', String(open));
+}
+
+function closeMenu() {
+  const sheet = $('menuSheet');
+  if (!sheet || sheet.classList.contains('hidden')) return;
+  sheet.classList.add('hidden');
+  $('menuBtn').setAttribute('aria-expanded', 'false');
+}
+
+function toggleTheme() {
+  const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+  applyTheme(next);
+}
+
+function preferredTheme() {
+  try {
+    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) return 'light';
+  } catch (e) { /* abaikan */ }
+  return 'dark';
+}
+
+/* Kembali ke hari ini (tanggal server bila sudah diketahui). */
+function goToday() {
+  const today = lastDate || ymd(new Date());
+  const d = new Date(`${today}T00:00`);
+  view = { year: d.getFullYear(), month: d.getMonth() };
+  selected = today;
+  modalDate = today;
+  buildCalendar();
+  refreshSelected(today);
 }
 
 /* ---------------- popup agenda hari ---------------- */
 
 function openDay(date) {
+  const d = new Date(`${date}T00:00`);
+  if (d.getFullYear() !== view.year || d.getMonth() !== view.month) {
+    view = { year: d.getFullYear(), month: d.getMonth() };
+  }
   modalDate = date;
+  selected = date;
   $('detailDate').textContent = formatDate(date);
   renderMeta(date);
-  $('agenda').innerHTML = '<div class="agenda-item"><span class="muted">Memuat…</span></div>';
-  $('dayModal').classList.remove('hidden');
+  $('agenda').innerHTML = '<div class="agenda-item empty"><span class="muted">Memuat agenda…</span></div>';
+  const pill = $('agendaCount');
+  if (pill) { pill.textContent = '…'; pill.classList.add('zero'); }
+  buildCalendar();
+  const pane = $('agendaPane');
+  if (pane) {
+    pane.classList.remove('pulse');
+    void pane.offsetWidth;
+    pane.classList.add('pulse');
+  }
   refreshSelected(date);
 }
 
-function closeDay() {
-  modalDate = null;
-  $('dayModal').classList.add('hidden');
-}
 
 /* back Android / Escape: tutup yang paling atas dulu */
 function onBackButton() {
+  if (!$('menuSheet').classList.contains('hidden')) { closeMenu(); return; }
   if (!$('viewer').classList.contains('hidden')) { closeViewer(); return; }
-  if (!$('dayModal').classList.contains('hidden')) { closeDay(); return; }
   if (window.navigator && navigator.app && navigator.app.exitApp) navigator.app.exitApp();
 }
 
@@ -102,20 +164,30 @@ function closeViewer() {
   $('viewer').classList.add('hidden');
 }
 
-async function lockLandscape() {
+/* Orientasi bebas: portrait dan landscape sama-sama didukung. */
+function unlockOrientation() {
   try {
-    if (window.screen && screen.orientation && screen.orientation.lock) {
-      const target = /Android/i.test((window.device && window.device.platform) || navigator.userAgent)
-        ? 'sensor-landscape' : 'landscape';
-      await screen.orientation.lock(target);
+    if (window.screen && screen.orientation && screen.orientation.unlock) {
+      screen.orientation.unlock();
     }
-  } catch (e) { /* abaikan - config.xml tetap memaksa landscape */ }
+  } catch (e) { /* config.xml sudah 'default' */ }
 }
 
 /* ---------------- kategori user (via PIN: BO=123456, Marketing=444444) ---------------- */
 
 function showCatScreen(show) {
-  $('catScreen').classList.toggle('hidden', !show);
+  const screen = $('catScreen');
+  screen.classList.toggle('hidden', !show);
+  if (!show) return;
+  // PIN lama jangan tertinggal: input punya maxlength=6 sehingga ketikan
+  // baru diabaikan bila field masih berisi PIN sebelumnya.
+  const pin = $('catPin');
+  if (pin) {
+    pin.value = '';
+    setTimeout(() => { try { pin.focus(); } catch (e) { } }, 30);
+  }
+  const hint = $('catHint');
+  if (hint) hint.textContent = '';
 }
 
 function submitCatPin(ev) {
@@ -132,6 +204,8 @@ function submitCatPin(ev) {
   localStorage.setItem(AUD_KEY, aud);
   audience = aud;
   renderCatChip();
+  const pinField = $('catPin');
+  if (pinField) pinField.value = '';
   showCatScreen(false);
   if (!liveTimer) start().catch(() => {});
   else start(true).catch(() => {});
@@ -152,9 +226,15 @@ async function chooseAudience(aud) { // dipakai jika fallback manual (mis. tidak
 
 function renderCatChip() {
   const chip = $('catChip');
-  if (!audience) { chip.textContent = '–'; return; }
-  chip.textContent = audience === 'marketing' ? 'Marketing' : 'Back Office';
+  if (!chip) return;
+  const full = chip.querySelector('.cat-full');
+  const short = chip.querySelector('.cat-short');
+  const label = !audience ? '–' : (audience === 'marketing' ? 'Marketing' : 'Back Office');
+  const abbr = !audience ? '–' : (audience === 'marketing' ? 'MKT' : 'BO');
+  if (full) full.textContent = label; else chip.textContent = label;
+  if (short) short.textContent = abbr;
   chip.className = 'cat-chip ' + (audience === 'marketing' ? 'mkt' : 'bo');
+  chip.title = `Kategori aktif: ${label}`;
 }
 
 /* ---------------- tema ---------------- */
@@ -162,8 +242,10 @@ function renderCatChip() {
 function applyTheme(t) {
   document.documentElement.setAttribute('data-theme', t);
   try { localStorage.setItem(THEME_KEY, t); } catch {}
-  const btn = $('themeBtn');
-  if (btn) btn.textContent = t === 'dark' ? '☀' : '🌙';
+  const label = $('menuThemeLabel');
+  if (label) label.textContent = t === 'dark' ? 'Mode terang' : 'Mode gelap';
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute('content', t === 'dark' ? '#0b1020' : '#eef1f8');
 }
 
 /* ---------------- state & fetch ---------------- */
@@ -171,6 +253,7 @@ async function start(restart) {
   const now = new Date();
   view = { year: now.getFullYear(), month: now.getMonth() };
   selected = ymd(now);
+  if (!modalDate) modalDate = selected;
 
   if (!restart) {
     $('prevMonth').addEventListener('click', () => shiftMonth(-1));
@@ -192,30 +275,33 @@ async function start(restart) {
 
 function openStream() {
   if (es) { es.close(); es = null; }
-  if (!window.EventSource) { setLive('polling', 'warn'); return; }
+  if (!window.EventSource) { setLive('Menyambung…', 'warn'); return; }
   try {
     es = new EventSource(`${CFG.API_BASE}/api/stream?audience=${audience}`);
-    es.addEventListener('open', () => setLive('REALTIME OK', 'on'));
+    es.addEventListener('open', () => setLive('Live', 'on'));
     es.addEventListener('state', (ev) => {
-      setLive('REALTIME OK', 'on');
+      setLive('Live', 'on');
       if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
       applyState(JSON.parse(ev.data));
     });
     es.addEventListener('error', () => {
       // stream terputus -> tampilkan status jelas + fallback ke polling
-      setLive('REALTIME OFFLINE', 'warn');
+      setLive('Menyambung…', 'warn');
       if (!pollTimer) pollTimer = setInterval(() => refresh(), CFG.POLL_MS);
     });
   } catch (e) {
-    setLive('polling', 'warn');
+    setLive('Menyambung…', 'warn');
     pollTimer = setInterval(() => refresh(), CFG.POLL_MS);
   }
 }
 
 function setLive(text, cls) {
   const el = $('liveBadge');
-  el.textContent = text;
+  if (!el) return;
   el.className = 'live-badge ' + cls;
+  el.title = text;
+  const t = el.querySelector('.live-text');
+  if (t) t.textContent = text; else el.textContent = text;
 }
 
 async function refresh() {
@@ -223,10 +309,10 @@ async function refresh() {
     const r = await fetch(`${CFG.API_BASE}/api/state?audience=${audience}`);
     if (!r.ok) throw new Error('http ' + r.status);
     applyState(await r.json());
-    setLive('ONLINE', 'on');
+    setLive('Live', 'on');
   } catch (e) {
     // tidak terhubung ke server -> tampilkan status offline yang jelas
-    setLive('OFFLINE', 'warn');
+    setLive('Offline', 'warn');
   }
 }
 
@@ -243,7 +329,7 @@ function applyState(state) {
     selected = serverDate;
     view = { year: +serverDate.slice(0, 4), month: +serverDate.slice(5, 7) - 1 };
     months = {};
-    closeDay();
+    modalDate = serverDate;   // panel agenda ikut pindah ke hari baru
     buildCalendar();
   }
   lastDate = serverDate;
@@ -264,8 +350,9 @@ function applyState(state) {
   // widget home screen: tanggal + agenda hari ini
   pushWidgetAgenda(serverDate, items);
 
-  // popup terbuka untuk tanggal ini -> isinya ikut realtime
-  if (modalDate && modalDate === serverDate) {
+  // panel agenda: tanggal terpilih ikut realtime bila itu hari ini
+  if (!modalDate) { modalDate = serverDate; selected = serverDate; }
+  if (modalDate === serverDate) {
     renderAgenda(serverDate, state.now, state.server_time, items);
   }
 }
@@ -535,7 +622,9 @@ function monthHtml(year, month, selectedDate) {
     const lib = liburFor(s);
     const liburCls = lib ? (lib.type === 'cuti' ? ' libur cuti' : ' libur') : '';
     const title = lib ? ` title="${esc(lib.name)}"` : '';
-    html += `<div class="cal-day${other}${isToday}${isSel}${has}${liburCls}" data-date="${s}"${title}>${d.getDate()}${badge}</div>`;
+    const aria = `${formatDate(s)}${count ? `, ${count} agenda` : ''}${lib ? `, ${lib.name}` : ''}`;
+    html += `<div class="cal-day${other}${isToday}${isSel}${has}${liburCls}" data-date="${s}"` +
+      ` role="button" tabindex="0" aria-label="${esc(aria)}"${title}>${d.getDate()}${badge}</div>`;
   }
   return html;
 }
@@ -545,13 +634,18 @@ function renderMonth(el, year, month, interactive) {
   el.innerHTML = monthHtml(year, month, interactive ? selected : null);
   if (!interactive) return;
 
-  el.querySelectorAll('.cal-day').forEach((cell) =>
-    cell.addEventListener('click', () => {
+  el.querySelectorAll('.cal-day').forEach((cell) => {
+    const pick = () => {
       if (Date.now() < suppressClickUntil) return; // sisa gestur swipe, bukan tap
       selected = cell.dataset.date;
       buildCalendar();
-      openDay(selected); // agenda muncul sebagai popup
-    }));
+      openDay(selected); // panel agenda menampilkan hari terpilih
+    };
+    cell.addEventListener('click', pick);
+    cell.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); pick(); }
+    });
+  });
 }
 
 /* Render pane aktif + tetangga, tanpa mengubah posisi track.
@@ -590,7 +684,7 @@ async function refreshSelected(date) {
   } catch {
     if (modalDate !== target) return;
     renderAgenda(target, null, null, []);
-    setLive('OFFLINE', 'warn'); // kegagalan khusus tanggal ini -> tampilkan status
+    setLive('Offline', 'warn'); // kegagalan khusus tanggal ini -> tampilkan status
   }
 }
 
@@ -607,9 +701,17 @@ function renderAgenda(date, nowStr, serverTime, items) {
   const box = $('agenda');
   box.innerHTML = '';
 
+  const pill = $('agendaCount');
+  if (pill) {
+    pill.textContent = items.length ? `${items.length} agenda` : 'Kosong';
+    pill.classList.toggle('zero', !items.length);
+  }
+
   if (!items.length) {
     box.innerHTML =
       `<div class="agenda-item empty">
+         <span class="empty-ico" aria-hidden="true">${ICON_CAL}</span>
+         <strong>Tidak ada agenda</strong>
          <span class="muted">Belum ada informasi untuk tanggal ini.</span>
        </div>`;
   } else {
