@@ -84,7 +84,9 @@ const routes = [
       { path: 'it/assets/:tag', name: 'it-asset-detail', component: () => import('../views/ItAssetDetailView.vue'), meta: { roles: ['it_sby', 'it_hu', 'it_jkt2', 'it_bdg', 'it_smg', 'it_mlg', 'it_mdn', 'it_bjm', 'it_plm', 'it_lpg', 'admin'] } },
       { path: 'it/scan', name: 'it-scan', component: () => import('../views/ItScanView.vue'), meta: { roles: ['it_sby', 'it_hu', 'it_jkt2', 'it_bdg', 'it_smg', 'it_mlg', 'it_mdn', 'it_bjm', 'it_plm', 'it_lpg', 'admin'] } },
       // Transcoder (v2.46.0) — konversi link YouTube ke format audio/video
-      { path: 'transcoder', name: 'transcoder', component: () => import('../views/TranscoderView.vue'), meta: { roles: ['it_sby', 'it_hu', 'it_jkt2', 'it_bdg', 'it_smg', 'it_mlg', 'it_mdn', 'it_bjm', 'it_plm', 'it_lpg', 'admin'] } },
+      // Agenda (v2.123.0) — semua role baca; tulis dibatasi admin/content_creator.
+      { path: 'agenda', name: 'agenda', component: () => import('../views/AgendaView.vue'), meta: { title: 'Agenda', roles: ['admin', 'ga', 'finance', 'marketing', 'chief_driver', 'driver', 'ob', 'receptionist', 'traineer', 'ga_hr', 'security', 'content_creator', 'it_sby', 'it_hu', 'it_jkt2', 'it_bdg', 'it_smg', 'it_mlg', 'it_mdn', 'it_bjm', 'it_plm', 'it_lpg'] } },
+      { path: 'transcoder', name: 'transcoder', component: () => import('../views/TranscoderView.vue'), meta: { roles: ['it_sby', 'it_hu', 'it_jkt2', 'it_bdg', 'it_smg', 'it_mlg', 'it_mdn', 'it_bjm', 'it_plm', 'it_lpg', 'admin', 'content_creator'] } },
       // PDF Kit (v2.47.0) — kompres PDF (role IT cabang + admin)
       { path: 'pdfkit', name: 'pdfkit', component: () => import('../views/PdfKitView.vue'), meta: { roles: ['it_sby', 'it_hu', 'it_jkt2', 'it_bdg', 'it_smg', 'it_mlg', 'it_mdn', 'it_bjm', 'it_plm', 'it_lpg', 'admin'] } },
     ],

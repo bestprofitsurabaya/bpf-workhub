@@ -11,6 +11,7 @@ const BASE_ROLE_LABELS = {
   admin: 'Admin', ga: 'GA', finance: 'Finance', marketing: 'Marketing',
   chief_driver: 'Chief Driver', driver: 'Driver', ob: 'OB', security: 'Security',
   receptionist: 'Receptionist', traineer: 'Traineer', ga_hr: 'GA HR',
+  content: 'Content Creator', content_creator: 'Content Creator',
   it: 'IT',
 }
 
@@ -42,6 +43,7 @@ export const ROLE_META = {
   receptionist: { label: 'Receptionist', home: '/receptionist', color: '#db2777', icon: '🪪' },
   traineer:     { label: 'Traineer',     home: '/first-work',   color: '#b45309', icon: '🎯' },
   ga_hr:        { label: 'GA HR',        home: '/ga-hr',        color: '#7e22ce', icon: '⏰' },
+  content_creator: { label: 'Content Creator', home: '/agenda', color: '#c026d3', icon: '📝' },
   it_sby:       { label: 'IT Surabaya',  home: '/it/inventory',           color: '#0891b2', icon: '📦' },
   it_hu:        { label: 'IT Jakarta HO', home: '/it/inventory',          color: '#0891b2', icon: '📦' },
   it_jkt2:      { label: 'IT Jakarta 2', home: '/it/inventory',           color: '#0891b2', icon: '📦' },

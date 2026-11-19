@@ -56,6 +56,21 @@ input,select,textarea{width:100%;padding:11px 12px;border:1px solid #d7dce5;bord
 .queue-bar .btn{width:auto;margin:0;padding:6px 10px}
 .badge{display:inline-block;background:#eef1f6;border-radius:999px;padding:2px 8px;font-size:11px;color:var(--muted)}
 a.txt{color:var(--navy)}
+/* Agenda mobile (v2.123.0) */
+.ag-head{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.ag-head b{flex:1;text-align:center;text-transform:capitalize}
+.ag-head .btn{width:auto;margin:0;padding:7px 12px}
+.ag-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin:6px 0 10px}
+.ag-dow{text-align:center;font-size:10px;color:var(--muted);font-weight:700;padding:2px 0}
+.ag-cell{position:relative;border:1px solid #e3e7ee;background:#fff;border-radius:7px;min-height:40px;font-size:12px;color:var(--txt);cursor:pointer}
+.ag-cell.out{opacity:.4}
+.ag-cell.today{border-color:var(--gold)}
+.ag-cell.sel{background:var(--navy);color:#fff}
+.ag-cell i{position:absolute;right:3px;bottom:2px;font-style:normal;font-size:9px;background:var(--gold);color:#20293f;border-radius:999px;padding:0 4px}
+.ag-item{border-left:4px solid var(--navy);background:#fff;border-radius:8px;padding:9px 10px;margin-bottom:8px;box-shadow:0 1px 2px rgba(16,24,40,.06)}
+.ag-item b{font-size:13px}
+.ag-item .m{font-size:10px;color:var(--muted);margin:2px 0 4px}
+.ag-item p{font-size:12px;white-space:pre-wrap;color:#334}
 </style>
 </head>
 <body id="root"></body>
@@ -73,6 +88,7 @@ const S = {
   online: navigator.onLine,
   metaKet: [], appts: null, kas: null, lpj: null,
   feedback: null, mine: [],
+  agMonth: new Date().toISOString().slice(0, 7), agItems: [], agSel: new Date().toISOString().slice(0, 10), agLoaded: false, agLoading: false,
   queue: JSON.parse(localStorage.getItem('m_queue') || '[]'),
   photos: {}, otMulai: null, otSelesai: null,
 };
@@ -261,7 +277,10 @@ async function doLogin() {
   } catch (e) { toast(e.message, 'err'); }
 }
 async function afterLogin() {
-  S.tab = 'bbm'; S.photos = {}; S.otMulai = null; S.otSelesai = null; S.mine = [];
+  const role = S.user?.role;
+  S.tab = role === 'driver' ? 'bbm' : (role === 'ob' || role === 'security') ? 'ot' : 'agenda';
+  if (/\/m\/agenda\/?$/.test(location.pathname)) S.tab = 'agenda';
+  S.photos = {}; S.otMulai = null; S.otSelesai = null; S.mine = []; S.agLoaded = false;
   if (S.user.role === 'driver') {
     try { S.profile = await api('/api/driver/me'); } catch { S.profile = {}; }
   }
@@ -477,16 +496,94 @@ async function loadRapor() {
   } catch { S.feedback = 'Belum ada feedback.'; if (S.user?.role === 'driver' && S.tab === 'rapor') paint(); }
 }
 
+/* ======================= Agenda (semua role) ===================== */
+function agIso(d) {
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function agLabel(m) {
+  const p = String(m || S.agMonth).split('-').map(Number);
+  return new Date(p[0], p[1] - 1, 1).toLocaleDateString('id-ID', {month: 'long', year: 'numeric'});
+}
+function agShift(delta) {
+  const p = String(S.agMonth).split('-').map(Number);
+  const d = new Date(p[0], p[1] - 1 + delta, 1);
+  S.agMonth = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+  loadAgenda();
+}
+const AG_DOW = ['S', 'S', 'R', 'K', 'J', 'S', 'M'];
+function agCalendar() {
+  const p = String(S.agMonth).split('-').map(Number);
+  const first = new Date(p[0], p[1] - 1, 1);
+  const off = (first.getDay() + 6) % 7;
+  const today = agIso(new Date());
+  const counts = {};
+  S.agItems.forEach((it) => { counts[it.date] = (counts[it.date] || 0) + 1; });
+  let html = '<div class="ag-grid">' + AG_DOW.map((d) => '<div class="ag-dow">' + d + '</div>').join('');
+  for (let i = 0; i < 42; i++) {
+    const d = new Date(p[0], p[1] - 1, 1 - off + i);
+    const k = agIso(d);
+    const inM = k.slice(0, 7) === S.agMonth;
+    html += '<button class="ag-cell' + (inM ? '' : ' out') + (k === today ? ' today' : '') + (k === S.agSel ? ' sel' : '') +
+      '" data-agday="' + k + '">' + d.getDate() + (counts[k] ? '<i>' + counts[k] + '</i>' : '') + '</button>';
+  }
+  return html + '</div>';
+}
+function viewAgenda() {
+  const items = S.agItems.filter((it) => it.date === S.agSel);
+  return '<div class="card"><div class="ag-head">' +
+    '<button class="btn ghost" data-agprev>‹</button><b>' + esc(agLabel()) + '</b><button class="btn ghost" data-agnext>›</button></div>' +
+    agCalendar() +
+    '<div class="center" style="padding:4px">' + esc(S.agSel) + ' · ' + items.length + ' agenda</div>' +
+    (S.agLoading ? '<div class="center">Memuat…</div>' :
+      (!items.length ? '<div class="center">Tidak ada agenda.</div>' :
+        items.map((it) => '<div class="ag-item"><b>' + esc(it.title) + '</b>' +
+          '<div class="m">' + esc(it.category || 'umum') +
+          (it.publish_mode === 'scheduled' && it.publish_at ? ' · 🕒 ' + esc(it.publish_at) : '') +
+          (it.repeat_rule && it.repeat_rule !== 'none' ? ' · 🔁 ' + esc(it.repeat_rule) : '') + '</div>' +
+          (it.body ? '<p>' + esc(it.body) + '</p>' : '') +
+          (it.media_url ? '<a class="txt" href="' + esc(it.media_url) + '" target="_blank" rel="noopener">🔗 Buka media</a>' : '') +
+          '</div>').join(''))) +
+    '</div>';
+}
+async function loadAgenda() {
+  S.agLoading = true;
+  if (S.tab === 'agenda') paint();
+  try {
+    const j = await api('/api/agenda/month?month=' + encodeURIComponent(S.agMonth));
+    S.agItems = j?.items || [];
+    S.agLoaded = true;
+  } catch (e) {
+    S.agItems = [];
+    toast(e.message, 'err');
+  } finally {
+    S.agLoading = false;
+    if (S.tab === 'agenda' || !['driver', 'ob', 'security'].includes(S.user?.role)) paint();
+  }
+}
+function bindAgenda() {
+  $root.querySelectorAll('[data-agprev]').forEach((b) => b.onclick = () => agShift(-1));
+  $root.querySelectorAll('[data-agnext]').forEach((b) => b.onclick = () => agShift(1));
+  $root.querySelectorAll('[data-agday]').forEach((b) => b.onclick = () => { S.agSel = b.dataset.agday; paint(); });
+}
+
 /* ======================= Driver: shell =========================== */
-const DRIVER_TABS = [['bbm', '⛽', 'BBM'], ['trip', '🚗', 'Trip'], ['ot', '⏱', 'Overtime'], ['kas', '💵', 'Kasbon'], ['rapor', '📝', 'Rapor']];
+const DRIVER_TABS = [['bbm', '⛽', 'BBM'], ['trip', '🚗', 'Trip'], ['ot', '⏱', 'Overtime'], ['kas', '💵', 'Kasbon'], ['rapor', '📝', 'Rapor'], ['agenda', '📅', 'Agenda']];
+const OB_TABS = [['ot', '⏱', 'Overtime'], ['agenda', '📅', 'Agenda']];
 function paintDriver() {
-  const view = {bbm: viewBBM, trip: viewTrip, ot: viewOT, kas: viewKas, rapor: viewRapor}[S.tab] || viewBBM;
+  const view = {bbm: viewBBM, trip: viewTrip, ot: viewOT, kas: viewKas, rapor: viewRapor, agenda: viewAgenda}[S.tab] || viewBBM;
   $root.innerHTML = headerInit() + queueBar() + '<main id="main">' + view() + '</main>' +
     '<nav class="tabs">' + DRIVER_TABS.map(([k, i, l]) => '<button class="' + (S.tab === k ? 'on' : '') + '" data-tab="' + k + '"><span class="ic">' + i + '</span>' + l + '</button>').join('') + '</nav>';
   bindDriver();
+  if (S.tab === 'agenda' && !S.agLoaded && !S.agLoading) loadAgenda();
 }
 function bindDriver() {
-  $root.querySelectorAll('.tabs button').forEach((b) => b.onclick = () => { S.tab = b.dataset.tab; paint(); if (S.tab === 'kas') loadKas(); if (S.tab === 'rapor') loadRapor(); });
+  $root.querySelectorAll('.tabs button').forEach((b) => b.onclick = () => {
+    S.tab = b.dataset.tab; paint();
+    if (S.tab === 'kas') loadKas();
+    if (S.tab === 'rapor') loadRapor();
+    if (S.tab === 'agenda' && !S.agLoaded) loadAgenda();
+  });
+  bindAgenda();
   $root.querySelectorAll('[data-photo]').forEach((inp) => {
     inp.onchange = async () => {
       const k = inp.dataset.photo, f = inp.files[0]; if (!f) return;
@@ -556,10 +653,18 @@ function readTripRows() {
 
 /* ======================= OB / Security shell ===================== */
 function paintOt() {
+  if (S.tab === 'agenda') {
+    $root.innerHTML = headerInit() + '<main id="main">' + viewAgenda() + '</main>' +
+      '<nav class="tabs">' + OB_TABS.map(([k, i, l]) => '<button class="' + (S.tab === k ? 'on' : '') + '" data-tab="' + k + '"><span class="ic">' + i + '</span>' + l + '</button>').join('') + '</nav>';
+    bindDriver();
+    if (!S.agLoaded && !S.agLoading) loadAgenda();
+    return;
+  }
   $root.innerHTML = headerInit() + queueBar() + '<main id="main">' + viewOT() +
     '<div class="card"><div class="center">Riwayat overtime Anda (' + S.mine.length + ')</div>' +
     S.mine.slice(0, 30).map((x) => '<div class="list-item">' + esc(x.display_id || '') + ' · ' + esc(x.tanggal || '') + ' · ' + esc(x.waktu_mulai || '') + '–' + esc(x.waktu_selesai || '') + ' ' +
-      (x.gps_address ? '<span class="badge">📍 GPS</span>' : '<span class="badge">⚠ tanpa GPS</span>') + '</div>').join('') + '</div></main>';
+      (x.gps_address ? '<span class="badge">📍 GPS</span>' : '<span class="badge">⚠ tanpa GPS</span>') + '</div>').join('') + '</div></main>' +
+    '<nav class="tabs">' + OB_TABS.map(([k, i, l]) => '<button class="' + (S.tab === k ? 'on' : '') + '" data-tab="' + k + '"><span class="ic">' + i + '</span>' + l + '</button>').join('') + '</nav>';
   bindDriver();
 }
 
@@ -570,7 +675,9 @@ function paint() {
   if (!S.user) { paintLogin(); return; }
   if (S.user.role === 'driver') { painting = true; paintDriver(); painting = false; return; }
   if (S.user.role === 'ob' || S.user.role === 'security') { painting = true; paintOt(); painting = false; return; }
-  $root.innerHTML = headerInit() + '<main><div class="card"><div class="center">Role <b>' + esc(S.user.role) + '</b> belum punya layar mobile.<br><a href="/app/" class="txt">Buka portal web →</a></div></div></main>';
+  $root.innerHTML = headerInit() + '<main id="main">' + viewAgenda() + '</main>';
+  bindAgenda();
+  if (!S.agLoaded && !S.agLoading) loadAgenda();
 }
 
 /* ========================= Boot ================================== */

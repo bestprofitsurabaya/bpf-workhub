@@ -180,6 +180,24 @@ try:
 except Exception as _be:
     print(f'[branches] startup sync error: {_be}')
 
+# Agenda v2.123.0: tabel agenda_items (master/utama).
+from modules.agenda import ensure_agenda_schema
+from modules.config import get_master_connection as _agenda_master
+for _attempt in range(5):
+    _aconn = _agenda_master()
+    if _aconn:
+        try:
+            if ensure_agenda_schema(conn=_aconn):
+                break
+        except Exception as _age:
+            print(f'[agenda] master ensure error: {_age}')
+        finally:
+            try:
+                _aconn.close()
+            except Exception:
+                pass
+    _time.sleep(3)
+
 # Integritas dokumen v2.35.0 (Tahap 6/6): registri hash di DB master.
 from modules.doc_integrity import ensure_document_registry
 ensure_document_registry()
@@ -547,6 +565,7 @@ from modules.deploy_guard import install_deploy_guard  # v2.98.0
 from modules.routes_voucher import register_voucher_routes              # v2.107.0
 from modules.routes_mfa import register_mfa_routes                      # v2.112.0
 from modules.routes_cv_online import register_cv_online_routes          # v2.113.0
+from modules.routes_agenda import register_agenda_routes                 # v2.123.0
 
 # v2.98.0: tolak request bila image lebih lama dari CHANGELOG repo (mount).
 install_deploy_guard(app)
@@ -591,6 +610,7 @@ register_transcoder_routes(app)
 register_pdfkit_routes(app)
 register_subsidy_routes(app)  # v2.50.0 — integrasi Subsidi Tepat
 register_voucher_routes(app)  # v2.107.0 — voucher rekanan
+register_agenda_routes(app)   # v2.123.0 — Agenda + bridge calendar Cordova
 
 # ================================================================
 # AUTO-CLEANUP: Hapus foto overtime > 6 bulan (180 hari)

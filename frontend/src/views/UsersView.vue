@@ -50,6 +50,7 @@ const ROLES = [
   ['marketing', '📣 Marketing'], ['chief_driver', '🚛 Chief Driver'], ['ob', '🚰 OB'],
   ['security', '🛡️ Security'],
   ['receptionist', '🪪 Receptionist'], ['traineer', '🎯 Traineer'], ['ga_hr', '⏰ GA HR'],
+  ['content_creator', '📝 Content Creator'],
   ['driver', '🚗 Driver'],
   ['it_sby', '📰 IT Surabaya'],
   ['it_hu', '📰 IT Jakarta HO'],

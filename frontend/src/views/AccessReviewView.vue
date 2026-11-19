@@ -36,6 +36,7 @@ const ROLES = [
   ['marketing', '📣 Marketing'], ['chief_driver', '🚛 Chief Driver'], ['ob', '🚰 OB'],
   ['security', '🛡️ Security'],
   ['receptionist', '🪪 Receptionist'], ['traineer', '🎯 Traineer'], ['ga_hr', '⏰ GA HR'],
+  ['content_creator', '📝 Content Creator'],
   ['driver', '🚗 Driver'],
 ]
 const roleLabel = (r) => (ROLES.find((x) => x[0] === r) || [r, r])[1]

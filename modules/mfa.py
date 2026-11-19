@@ -76,7 +76,7 @@ EXCLUDED_ROLES = ('marketing', 'ob', 'driver')
 
 KNOWN_ROLES = (
     'admin', 'ga', 'finance', 'marketing', 'chief_driver', 'driver', 'ob',
-    'security', 'receptionist', 'traineer', 'ga_hr',
+    'security', 'receptionist', 'traineer', 'ga_hr', 'content_creator',
     'it_sby', 'it_hu', 'it_jkt2', 'it_bdg', 'it_smg', 'it_mlg', 'it_mdn',
     'it_bjm', 'it_plm', 'it_lpg',
 )

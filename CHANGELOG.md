@@ -7,6 +7,40 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.123.0 — 19 November 2026 (Agenda menggantikan bpf-calendar)
+
+Modul **Agenda** masuk WorkHub: satu login, satu audit, lintas cabang. Aplikasi
+Cordova lama tetap jalan lewat bridge read-only, jadi tidak perlu rebuild APK.
+
+- 🗓️ **Kalender + kelola agenda per cabang.** Tabel `agenda_items` ada di
+  setiap DB cabang. Semua role bisa membaca agenda cabangnya; menulis hanya
+  **admin** dan role baru **`content_creator`**.
+- 📝 **Content Creator = akun per cabang.** Boleh buat/edit/terbit/hapus agenda
+  cabangnya sendiri + memakai Transcoder. **Tidak** boleh menerbitkan lintas
+  cabang (hanya `admin_master`) dan tidak mendapat halaman admin Pusat lain.
+- 🏢 **Terbit lintas cabang** memakai satu `batch_id`; saat dibaca lintas
+  cabang, baris batch dideduplikasi agar tidak tampil 12 kali.
+- 🔁 **Pengulangan** mingguan/bulanan (tanggal 31 dijepit ke akhir bulan),
+  jendela tayang `now`/`scheduled` + `end_at`, kategori, audiens
+  `all|marketing|backoffice|roles`, sematkan (pin), dan lampiran media.
+- 🔔 **Notifikasi hari H opsional** per agenda (`notify_on_day`). Kartu Agenda
+  di beranda/dashboard mengirim satu notifikasi lonceng per item per hari.
+- 📊 **Matriks cakupan** agenda bulanan (admin master): 12 cabang × minggu.
+- 🔒 **Hapus agenda memakai step-up PIN**; semua aksi tulis masuk audit log.
+  Upload dibatasi 15 MB dan ekstensi media yang dikenal; nama file dibuat
+  server-side di `uploads/agenda/`.
+- 🖥️ **Kartu Agenda di dashboard** (dekat indikator realtime) — ringkas, bisa
+  diklik untuk membuka `/agenda`.
+- 📱 **Mobile PWA `/m/`** mendapat tab Agenda (kalender bulan + daftar hari).
+- 🌉 **Bridge Cordova** `/api/state`, `/api/month`, `/api/stream`,
+  `/assets/up/*`, `/assets/logo.png` dipertahankan di port 8444, read-only.
+  Mode TV/kiosk **tidak** dibuat — agenda di WorkHub cukup lewat dashboard.
+- 🧪 Tes: 36 tes backend Agenda (validasi, pengulangan, isolasi cabang,
+  fan-out, dedupe, bridge, ICS, guard route, step-up, upload). Frontend build
+  dan 369 tes lama tetap lulus.
+- 📦 Impor data lama: `scripts/import_bpf_calendar.py --data-dir … --branch KODE`
+  (idempoten via `legacy_id`, media disalin dengan nama aman, ada `--dry-run`).
+
 ## v2.122.0 — 19 November 2026 (MPEG-2 untuk TV lama)
 
 - 📺 **Format output baru: MPEG-2 (`.mpg`).** Transcoder IT kini bisa

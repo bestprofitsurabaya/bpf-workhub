@@ -5,9 +5,9 @@ import { useRealtimeStore } from '../stores/realtime'
 const rt = useRealtimeStore()
 const open = ref(false)
 
-const ICON = { new_claim: '🚛', new_trip_report: '🗺️', appointment_update: '📅', water_purchase_new: '💧', overtime_new: '⏰' }
+const ICON = { new_claim: '🚛', new_trip_report: '🗺️', appointment_update: '📅', water_purchase_new: '💧', overtime_new: '⏰', agenda_reminder: '📅' }
 const TYPE_BADGE = {
-  new_claim: 'badge-amber', new_trip_report: 'badge-blue', appointment_update: 'badge-purple', water_purchase_new: 'badge-cyan', overtime_new: 'badge-purple',
+  new_claim: 'badge-amber', new_trip_report: 'badge-blue', appointment_update: 'badge-purple', water_purchase_new: 'badge-cyan', overtime_new: 'badge-purple', agenda_reminder: 'badge-purple',
 }
 
 function toggle() {

@@ -1,4 +1,4 @@
-# 📖 Panduan Pengguna BPF WorkHub v2.122.0
+# 📖 Panduan Pengguna BPF WorkHub v2.123.0
 
 > **Siapa pun kamu — sopir, OB, admin, atau pimpinan — panduan ini ditulis untuk kamu.**
 > Tidak perlu paham teknis. Cukup ikuti langkah-langkah sesuai bagianmu.
@@ -807,6 +807,31 @@ Tiga format PDF tersedia (didukung untuk Driver DAN OB/Security):
 6. Tekan **🔄 Refresh** — data terbaru (termasuk yang baru diisi di Google Form) langsung masuk ke WorkHub.
 
 **Kenapa bisa?** Script dieksekusi *atas nama akun Anda* (yang sudah diberi akses baca oleh pemilik), jadi bisa membaca sheet private. Hasilnya jadi JSON publik yang dibaca server WorkHub — sheet tidak pernah dibuka aksesnya. Sejak v2.29.6 refresh juga berjalan otomatis saat login/logout GA HR/Admin, jadi data hampir selalu segar tanpa tombol.
+
+---
+
+## 11.7 Untuk Content Creator & Admin — Agenda 📅
+
+Agenda menggantikan aplikasi kalender lama. Semua role bisa **melihat** agenda
+cabangnya lewat menu **Agenda** atau kartu ringkas di beranda.
+
+- **Melihat:** kartu di beranda menampilkan agenda hari ini + agenda
+  berikutnya; klik kartu untuk membuka kalender bulan penuh.
+- **Mengelola:** tombol **＋ Tambah agenda** membuka editor. Isi tanggal,
+  judul, isi, kategori, audiens, dan media (unggah atau tempel URL).
+- **Pengulangan:** pilih mingguan/bulanan dan tanggal berakhir.
+- **Terjadwal:** pilih "Terjadwal" lalu isi waktu mulai (dan waktu berakhir
+  bila perlu).
+- **Notifikasi hari H (opsional):** centang bila ingin lonceng notifikasi
+  berbunyi pada hari agenda tayang.
+- **Hapus:** meminta PIN ulang (step-up) dan tercatat di audit log.
+- **Content Creator** hanya mengelola cabangnya sendiri dan tidak bisa
+  menerbitkan ke cabang lain. **Admin Pusat** bisa menerbitkan ke semua cabang
+  (satu batch) dan melihat tab **Cakupan cabang**.
+- **ICS / PDF:** tombol di kanan atas untuk mengunduh agenda bulan berjalan.
+
+Aplikasi HP lama tetap bisa membaca agenda yang sama (bridge read-only);
+perubahan dari WorkHub langsung terlihat di sana.
 
 ---
 

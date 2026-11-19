@@ -349,6 +349,7 @@ def ensure_branch_database(code, conn=None):
     from modules.overtime_schema import ensure_overtime_schema  # v2.36.2: paritas tabel overtime
     from modules.routes_water import ensure_water_edit_columns  # v2.37.0: jejak edit air minum
     from modules.admin_scope import ensure_branch_admin_columns  # v2.37.0: admin per-cabang
+    from modules.agenda import ensure_agenda_schema  # v2.123.0: Agenda per cabang
 
     def _run_ensure(fn, label):
         try:
@@ -369,6 +370,7 @@ def ensure_branch_database(code, conn=None):
     _run_ensure(lambda c: (ensure_manager_column(c), ensure_approval_tables(c)), 'approval_requests')
     _run_ensure(lambda c: ensure_overtime_schema(conn=c), 'overtime schema')  # v2.36.2
     _run_ensure(lambda c: (ensure_water_edit_columns(c), ensure_branch_admin_columns(c)), 'water edit & admin scope')  # v2.37.0
+    _run_ensure(lambda c: ensure_agenda_schema(conn=c), 'agenda schema')  # v2.123.0
     _run_ensure(lambda c: write_branch_identity(branch, conn=c), 'identity')
 
     return True, f'Database {db_name} untuk cabang {code} siap'

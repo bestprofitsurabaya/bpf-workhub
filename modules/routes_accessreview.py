@@ -44,6 +44,7 @@ ROLE_LABELS = {
     'chief_driver': 'Chief Driver', 'driver': 'Driver', 'ob': 'OB',
     'security': 'Security',
     'receptionist': 'Receptionist', 'traineer': 'Traineer', 'ga_hr': 'GA HR',
+    'content_creator': 'Content Creator',
     'it_sby': 'IT Surabaya', 'it_hu': 'IT Jakarta HO', 'it_jkt2': 'IT Jakarta 2',
     'it_bdg': 'IT Bandung', 'it_smg': 'IT Semarang', 'it_mlg': 'IT Malang',
     'it_mdn': 'IT Medan', 'it_bjm': 'IT Banjarmasin',

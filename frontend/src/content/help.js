@@ -91,6 +91,10 @@ export const GLOSSARY = [
     term: 'Cabang', full: 'Branch', category: 'Data & istilah',
     desc: 'Unit kerja (Surabaya, Bandung, dst.). Admin cabang terkunci ke cabangnya dan tidak melihat data cabang lain.',
   },
+  {
+    term: 'Agenda', full: 'Kalender kegiatan', category: 'Data & istilah',
+    desc: 'Jadwal kegiatan per cabang: kategori, audiens, pengulangan, media, dan pengingat hari H. Content Creator mengelola cabangnya sendiri.',
+  },
 ]
 
 const PAGE_HELP = [
@@ -215,6 +219,20 @@ const PAGE_HELP = [
       'Gunakan arsip audit di Pengaturan untuk data yang sangat lama.',
     ],
     terms: ['Audit Log'],
+  },
+  {
+    paths: ['/agenda'],
+    title: 'Agenda',
+    summary: 'Kalender kegiatan cabang: hari ini, agenda mendatang, pengulangan, dan pengingat.',
+    steps: [
+      'Klik kartu Agenda di beranda untuk membuka kalender bulan penuh.',
+      'Tambah agenda lewat tombol Tambah agenda; pilih kategori, audiens, dan media.',
+      'Pilih pengulangan mingguan/bulanan dan tanggal berakhir bila kegiatan rutin.',
+      'Centang Kirim notifikasi di hari H agar lonceng mengingatkan pada hari itu (opsional).',
+      'Hapus agenda meminta PIN ulang dan tercatat di Audit Log.',
+      'Content Creator hanya mengelola cabangnya; Admin Pusat bisa menerbitkan ke semua cabang.',
+    ],
+    terms: ['Agenda', 'Step-up PIN', 'Audit Log'],
   },
   {
     paths: ['/it', '/transcoder', '/pdfkit'],

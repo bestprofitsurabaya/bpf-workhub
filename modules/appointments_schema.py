@@ -98,13 +98,14 @@ def ensure_appointments_schema(conn=None):
         # v2.6: role 'ob' untuk Office Boy — pengajuan pembelian air minum;
         # v2.16: role 'receptionist' & 'traineer' — sistem pelamar kerja;
         # v2.22: role 'ga_hr' — halaman khusus GA HR untuk data overtime;
-        # v2.39: role 'security' — user Security, form overtime sendiri di SPA) ---
+        # v2.39: role 'security' — user Security, form overtime sendiri di SPA;
+        # v2.123.0: role 'content_creator' — pengelola Agenda per cabang) ---
         # WAJIB superset lengkap (termasuk it_*) — MODIFY enum yang menghilangkan
         # nilai yang sudah ada di baris mana pun gagal "Data truncated 1265"
         # (dulu: gagal senyap tiap startup sejak role it_* masuk produksi).
         _run("""
             ALTER TABLE users
-            MODIFY role ENUM('admin','ga','finance','marketing','chief_driver','driver','ob','receptionist','traineer','ga_hr','security','it_sby','it_hu','it_jkt2','it_bdg','it_smg','it_mlg','it_mdn','it_bjm','it_lpg') NOT NULL DEFAULT 'ga'
+            MODIFY role ENUM('admin','ga','finance','marketing','chief_driver','driver','ob','receptionist','traineer','ga_hr','security','content_creator','it_sby','it_hu','it_jkt2','it_bdg','it_smg','it_mlg','it_mdn','it_bjm','it_plm','it_lpg') NOT NULL DEFAULT 'ga'
         """, cursor, "users.role enum")
 
         # --- users: team_name column ---

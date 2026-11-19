@@ -9,6 +9,7 @@ import NotificationBell from '../components/NotificationBell.vue'
 import ToastStack from '../components/ToastStack.vue'
 import HelpCenter from '../components/HelpCenter.vue'
 import OnboardingTour from '../components/OnboardingTour.vue'
+import AgendaTodayBar from '../components/AgendaTodayBar.vue'
 import { onboardingSteps } from '../content/help.js'
 import { enableUsabilityModeFromUrl, markFirstAction, markSessionStart } from '../utils/usability.js'
 import { useBranchContext } from '../stores/branchContext'
@@ -20,6 +21,10 @@ const router = useRouter()
 // Ref di-destructure agar template otomatis meng-unwrap (`branchActive`),
 // bukan objek pembungkus yang tidak reaktif di template.
 const { active: branchActive, enter: enterBranchCtx, leave: leaveBranchCtx } = useBranchContext()
+
+// v2.123.0 — kartu Agenda hanya di beranda/dashboard role, bukan di semua halaman.
+const DASHBOARD_ROUTES = new Set(['home', 'dashboard', 'finance', 'ga', 'marketing', 'chief-driver'])
+const isDashboard = computed(() => DASHBOARD_ROUTES.has(String(route.name || '')))
 
 // v2.114.0 — switcher cabang di topbar khusus Admin Pusat. Admin cabang tetap
 // terkunci (server menolak /api/branches/switch).
@@ -72,6 +77,11 @@ const brandIcon = '/static/icon-192.png'
 const IT_ROLES = ['it_sby', 'it_hu', 'it_jkt2', 'it_bdg', 'it_smg', 'it_mlg',
   'it_mdn', 'it_bjm', 'it_plm', 'it_lpg', 'admin']
 
+// v2.123.0 — Agenda dibaca semua role; tulis dibatasi admin/content_creator.
+const AGENDA_ROLES = ['admin', 'ga', 'finance', 'marketing', 'chief_driver',
+  'driver', 'ob', 'receptionist', 'traineer', 'ga_hr', 'security',
+  'content_creator', ...IT_ROLES.filter((r) => r !== 'admin')]
+
 // P1 UI/UX: menu dikelompokkan agar admin cabang (21 menu) tidak melihat
 // satu daftar panjang tanpa konteks.
 const MENU_GROUPS = [
@@ -99,6 +109,7 @@ const MENU_GROUPS = [
   {
     label: 'Operasional',
     items: [
+      { label: 'Agenda', path: '/agenda', icon: '📅', roles: AGENDA_ROLES, keywords: 'agenda kalender kegiatan rapat libur event pengumuman' },
       { label: 'Log Perjalanan', path: '/trips', icon: '🗺️', roles: ['ga', 'admin'] },
       { label: 'BBM, Kasbon & SPBU', path: '/cash', icon: '⛽', roles: ['ga', 'finance', 'admin'], badge: 'cash_pending', keywords: 'kasbon klaim bbm spbu otp subsiditepat' },
       { label: 'Air Minum', path: '/water', icon: '🚰', roles: ['ob', 'finance', 'admin'], badge: 'water_pending' },
@@ -143,7 +154,7 @@ const MENU_GROUPS = [
       { label: 'Inventaris IT', path: '/it/inventory', icon: '📦', roles: IT_ROLES },
       { label: 'Scan Aset', path: '/it/scan', icon: '📷', roles: IT_ROLES },
       { label: 'News Scraper', path: '/it', icon: '📰', roles: IT_ROLES },
-      { label: 'Transcoder', path: '/transcoder', icon: '🎬', roles: IT_ROLES },
+      { label: 'Transcoder', path: '/transcoder', icon: '🎬', roles: [...IT_ROLES, 'content_creator'] },
       { label: 'PDF Kit', path: '/pdfkit', icon: '📄', roles: IT_ROLES },
     ],
   },
@@ -417,6 +428,7 @@ onBeforeUnmount(() => {
             <span :class="{ 'crumb-cur': i === breadcrumb.length - 1 }" :aria-current="i === breadcrumb.length - 1 ? 'page' : undefined">{{ c }}</span>
           </template>
         </nav>
+        <AgendaTodayBar v-if="isDashboard" />
         <router-view />
       </main>
     </div>

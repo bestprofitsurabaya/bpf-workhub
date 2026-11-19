@@ -1,6 +1,6 @@
 /* BPF Mobile service worker — scope /m/.
    Strategi: app shell cache-first (v1); /api & Nominatim SELALU network. */
-const CACHE = 'bpf-mobile-1';
+const CACHE = 'bpf-mobile-2';  // v2.123.0 — shell baru (tab Agenda)
 const SHELL = ['.'];
 
 self.addEventListener('install', (e) => {

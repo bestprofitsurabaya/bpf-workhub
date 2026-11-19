@@ -1,7 +1,7 @@
 {
   "name": "BPF Mobile — Driver / OB / Security",
   "short_name": "BPF Mobile",
-  "description": "Aplikasi lapangan bpf-workhub: BBM, trip, overtime, kasbon, rapor (Driver) dan overtime foto+GPS (OB & Security).",
+  "description": "Aplikasi lapangan bpf-workhub: agenda, BBM, trip, overtime, kasbon, rapor (Driver) dan overtime foto+GPS (OB & Security).",
   "lang": "id",
   "start_url": "/m/",
   "scope": "/m/",

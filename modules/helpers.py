@@ -951,6 +951,7 @@ ROLE_HOME = {
     'receptionist': '/app/receptionist',  # v2.16: sistem pelamar kerja (verifikasi & kehadiran)
     'traineer': '/app/first-work',        # v2.80: verifikasi Absensi FirstWork
     'ga_hr': '/app/ga-hr',                # v2.22: data overtime (Driver + OB/Security)
+    'content_creator': '/app/agenda',     # v2.123.0: pengelola Agenda cabang
     'it_sby': '/app/it/inventory', 'it_hu': '/app/it/inventory', 'it_jkt2': '/app/it/inventory',
     'it_bdg': '/app/it/inventory', 'it_smg': '/app/it/inventory', 'it_mlg': '/app/it/inventory',
     'it_mdn': '/app/it/inventory', 'it_bjm': '/app/it/inventory', 'it_plm': '/app/it/inventory',

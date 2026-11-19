@@ -78,7 +78,7 @@ CREATE TABLE IF NOT EXISTS users (
     -- self-sufficient (migrasi ALTER di startup TIDAK jalan saat seed ini
     -- dieksekusi oleh entrypoint MariaDB, sehingga INSERT users di bawah
     -- gagal 'Unknown column branch_code' di fresh deploy tanpa ini).
-    role ENUM('admin','ga','finance','marketing','chief_driver','driver','ob','receptionist','traineer','ga_hr','security','it_sby','it_hu','it_jkt2','it_bdg','it_smg','it_mlg','it_mdn','it_bjm','it_plm','it_lpg') NOT NULL DEFAULT 'ga',
+    role ENUM('admin','ga','finance','marketing','chief_driver','driver','ob','receptionist','traineer','ga_hr','security','content_creator','it_sby','it_hu','it_jkt2','it_bdg','it_smg','it_mlg','it_mdn','it_bjm','it_plm','it_lpg') NOT NULL DEFAULT 'ga',
     pin VARCHAR(255) NOT NULL,
     team_name VARCHAR(100) DEFAULT '',
     branch_code VARCHAR(20) DEFAULT NULL,

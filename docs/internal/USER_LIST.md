@@ -1,4 +1,4 @@
-# 📋 Daftar User & Role — BPF WorkHub v2.122.0
+# 📋 Daftar User & Role — BPF WorkHub v2.123.0
 
 Dokumen ini menjelaskan semua role yang didukung sistem, siapa yang memakainya, dan apa yang bisa dilakukan masing-masing.
 
@@ -76,9 +76,9 @@ Setiap divisi back-office punya user unik per cabang dengan format `{divisi}_{ko
 
 ---
 
-## 2. 11 Role yang Didukung
+## 2. 12 Role yang Didukung
 
-Sistem mendukung **11 peran inti** (peran `it` dipecah per cabang pada daftar di bawah):
+Sistem mendukung **12 peran inti** (peran `it` dipecah per cabang pada daftar di bawah):
 
 | # | Role | Label | Halaman Utama | Keterangan |
 |---|------|-------|---------------|------------|
@@ -93,15 +93,17 @@ Sistem mendukung **11 peran inti** (peran `it` dipecah per cabang pada daftar di
 | 9 | `receptionist` | 🪪 Receptionist | `/app/receptionist` | Rekrutmen: verifikasi pelamar kerja & kehadiran |
 | 10 | `traineer` | 🎯 Traineer | `/app/first-work` | Verifikasi Absensi FirstWork & Registrasi CV Online; Rekrutmen cabang (read-only) |
 | 11 | `ga_hr` | ⏰ GA HR | `/app/ga-hr` | Data overtime Driver & OB/Security — termasuk ACC berjenjang (langkah 1) & atur batas waktu submit (v2.40.0); lihat & ekspor Registrasi CV Online (v2.113.0) |
-| 11 | `it_sby` | 📰 IT Surabaya | `/app/it` | News Scraper (SBY) |
-| 12 | `it_hu` | 📰 IT Jakarta HO | `/app/it` | News Scraper (JKT) — lihat semua site |
-| 13 | `it_jkt2` | 📰 IT Jakarta 2 | `/app/it` | News Scraper (JKT2) |
-| 14 | `it_bdg` | 📰 IT Bandung | `/app/it` | News Scraper (BDG) |
-| 15 | `it_smg` | 📰 IT Semarang | `/app/it` | News Scraper (SMG) |
-| 16 | `it_mlg` | 📰 IT Malang | `/app/it` | News Scraper (MLG) |
-| 17 | `it_mdn` | 📰 IT Medan | `/app/it` | News Scraper (MDN) |
-| 18 | `it_bjm` | 📰 IT Banjarmasin | `/app/it` | News Scraper (BJM) |
-| 20 | `it_lpg` | 📰 IT Lampung | `/app/it` | News Scraper (LPG) |
+| 12 | `content_creator` | 📝 Content Creator | `/app/agenda` | **Per cabang**: kelola Agenda cabangnya + Transcoder. Tidak boleh terbit lintas cabang (v2.123.0) |
+| 13 | `it_sby` | 📰 IT Surabaya | `/app/it` | News Scraper (SBY) |
+| 14 | `it_hu` | 📰 IT Jakarta HO | `/app/it` | News Scraper (JKT) — lihat semua site |
+| 15 | `it_jkt2` | 📰 IT Jakarta 2 | `/app/it` | News Scraper (JKT2) |
+| 16 | `it_bdg` | 📰 IT Bandung | `/app/it` | News Scraper (BDG) |
+| 17 | `it_smg` | 📰 IT Semarang | `/app/it` | News Scraper (SMG) |
+| 18 | `it_mlg` | 📰 IT Malang | `/app/it` | News Scraper (MLG) |
+| 19 | `it_mdn` | 📰 IT Medan | `/app/it` | News Scraper (MDN) |
+| 20 | `it_bjm` | 📰 IT Banjarmasin | `/app/it` | News Scraper (BJM) |
+| 21 | `it_plm` | 📰 IT Palembang | `/app/it` | News Scraper (PLM) |
+| 22 | `it_lpg` | 📰 IT Lampung | `/app/it` | News Scraper (LPG) |
 
 ---
 
@@ -387,6 +389,29 @@ sebagai PIN baru).
 - Foto OT auto-cleanup > 6 bulan (cron + manual API)
 
 **Halaman:** GA HR Dashboard (`/app/ga-hr`)
+
+---
+
+### 📝 Content Creator (`content_creator`) — v2.123.0
+
+**Akun per cabang** (mis. `content_sby`). Role ini **bukan** admin Pusat.
+
+**Halaman:** Agenda (`/app/agenda`) + Transcoder (`/app/transcoder`).
+
+**Bisa:**
+- Membuat, mengubah, menerbitkan, dan menghapus agenda **cabangnya sendiri**
+  (hapus memakai PIN step-up).
+- Menandai agenda untuk mengirim **notifikasi hari-H** (opsional).
+- Memakai Transcoder untuk mengonversi media agenda.
+
+**Tidak bisa:**
+- Menerbitkan agenda ke cabang lain / semua cabang — itu hanya `admin_master`.
+- Membuka halaman admin Pusat lain (user, setelan, log, break-glass, matriks
+  cakupan).
+
+**Batas di backend:** `role_required(['admin','content_creator'])` + cabang
+dikunci ke `session['branch_code']`; UI hanya menyembunyikan tombol, bukan
+satu-satunya penjaga.
 
 ---
 

@@ -16,9 +16,9 @@ from modules.helpers import role_required
 # Semua role yang memakai AppLayout (driver punya tampilan mobile sendiri).
 _APP_ROLES = [
     'admin', 'ga', 'finance', 'marketing', 'chief_driver', 'ob', 'security',
-    'receptionist', 'traineer', 'ga_hr',
+    'receptionist', 'traineer', 'ga_hr', 'content_creator',
     'it_sby', 'it_hu', 'it_jkt2', 'it_bdg', 'it_smg', 'it_mlg', 'it_mdn',
-    'it_bjm', 'it_lpg',
+    'it_bjm', 'it_plm', 'it_lpg',
 ]
 
 

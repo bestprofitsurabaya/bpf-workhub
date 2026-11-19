@@ -46,6 +46,12 @@ def register_spa_routes(app):
     def mobile_app(path=''):
         if not os.path.isdir(MOBILE_DIR):
             return 'Mobile app belum terpasang (folder mobile/ kosong).', 503
+        # v2.123.0 — tautan pendek /m/agenda membuka shell yang sama; tab
+        # Agenda dipilih oleh skrip berdasarkan path.
+        if path.rstrip('/') == 'agenda':
+            resp = send_from_directory(MOBILE_DIR, 'index.html')
+            resp.headers['Cache-Control'] = 'no-store'
+            return resp
         if path:
             full = os.path.join(MOBILE_DIR, path)
             if not os.path.isfile(full):
