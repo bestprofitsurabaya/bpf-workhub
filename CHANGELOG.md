@@ -7,6 +7,20 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.127.1 — 19 November 2026 (Tombol Kirim Log Perjalanan berfungsi lagi)
+
+Ditemukan saat uji perangkat Sync v2: tombol **📤 Kirim Log Perjalanan** di
+tab Trip tidak punya handler klik sama sekali (bukan `<form>` seperti tab
+BBM/Kasbon/OT), sehingga menekannya tidak melakukan apa pun — log trip
+tidak pernah terkirim maupun masuk antrean.
+
+- 🐞 **`TripTab.vue`**: tombol diberi `type="button"` + `@click="submit"`.
+  Sekarang alur normal, fallback koneksi putus, dan antrean offline berjalan.
+- 🧪 **Tes regresi** `TripTab.test.js`: tombol harus mengantrekan
+  `trip_queue` saat offline. Suite frontend **380 lulus**.
+
+---
+
 ## v2.127.0 — 19 November 2026 (Sync driver v2: antrean tahan sinyal buruk)
 
 Input driver tidak lagi hilang atau menggantung saat sinyal buruk — di

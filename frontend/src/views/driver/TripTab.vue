@@ -330,7 +330,7 @@ onUnmounted(() => { if (saveTimer) clearTimeout(saveTimer) })
     </div>
     <button class="btn" style="width:100%;margin-top:8px;" @click="addRow()">➕ Tambah Rute</button>
 
-    <button class="btn btn-primary" style="width:100%;justify-content:center;padding:12px;margin-top:10px;" :disabled="saving">
+    <button type="button" class="btn btn-primary" style="width:100%;justify-content:center;padding:12px;margin-top:10px;" :disabled="saving" @click="submit">
       {{ saving ? '⏳ Mengirim…' : '📤 Kirim Log Perjalanan' }}
     </button>
 
