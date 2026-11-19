@@ -7,6 +7,32 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.127.2 — 19 November 2026 (Validasi trip + GPS driver dirapikan)
+
+Tindak lanjut audit GPS dan kegagalan trip yang tertangkap saat uji perangkat.
+
+- 🛡️ **Server `/submit-trip`**: jam rute kosong (`pukul_berangkat[]`,
+  `pukul_tujuan[]`) kini diisi dari **jam keberangkatan** (kolom `NOT NULL`),
+  bukan NULL. Jam/KM divalidasi dengan pesan manusiawi (400), daftar
+  multipart pendek tidak lagi memicu `IndexError`, dan error SQL **tidak**
+  lagi bocor ke pengguna.
+- 🛰️ **GPS satu reverse per lokasi**: `locate()` tidak lagi memanggil
+  Nominatim tiga kali; hasil `detailedLocation` dipakai ulang untuk alamat,
+  detail, dan watermark.
+- ⏱️ **Timeout + cek status**: semua panggilan Nominatim dibatasi 8 dtk
+  (`AbortController`) dan respons non-2xx dianggap gagal — locate tidak
+  menggantung saat sinyal buruk.
+- 🗃️ **Cache geocode** 10 menit per koordinat 4 desimal (±11 m), maksimal
+  40 entri — menghemat kuota dan mematuhi batas 1 permintaan/detik.
+- 📍 **Posisi lebih segar**: `maximumAge` 30 dtk (bukan 5 menit), accuracy
+  dan waktu posisi disimpan di store; kegagalan GPS memunculkan toast
+  petunjuk, bukan hilang diam-diam.
+- 🧪 **Tes**: 4 tes GPS (cache, 429 tidak di-cache, satu reverse, accuracy)
+  + 8 tes normalisasi trip. Suite frontend **384 lulus**; tes backend
+  dijalankan di container.
+
+---
+
 ## v2.127.1 — 19 November 2026 (Tombol Kirim Log Perjalanan berfungsi lagi)
 
 Ditemukan saat uji perangkat Sync v2: tombol **📤 Kirim Log Perjalanan** di

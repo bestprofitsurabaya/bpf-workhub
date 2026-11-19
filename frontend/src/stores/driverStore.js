@@ -4,7 +4,7 @@ import {
   addToQueue, getAllFromQueue, deleteFromQueue, countAllQueues,
   updateQueueItem, getAllQueueItems,
 } from '../utils/idb'
-import { locateWithAddress, detailedLocation } from '../utils/gps'
+import { locateWithAddress } from '../utils/gps'
 
 /** UUID sekali pakai per percobaan submit — kunci idempotensi server. */
 export function newSubmitId() {
@@ -148,7 +148,7 @@ export const useDriverStore = defineStore('driver', {
     profile: null,
     profileErr: '',
     online: typeof navigator !== 'undefined' ? navigator.onLine : true,
-    gps: { lat: null, lon: null, addr: '', spbu: '', locating: false, detail: null },
+    gps: { lat: null, lon: null, addr: '', spbu: '', locating: false, detail: null, accuracy: null, at: null },
     queue: { fuel: 0, trip: 0, lpj: 0, overtime: 0, cash: 0 },
     queueItems: [],
     queueBytes: 0,
@@ -343,13 +343,10 @@ export const useDriverStore = defineStore('driver', {
       if (this.gps.locating) return
       this.gps.locating = true
       try {
+        // v2.127.2 — locateWithAddress sudah mengembalikan detail lokasi;
+        // tidak perlu reverse geocode kedua ke Nominatim.
         const res = await locateWithAddress()
-        // Fetch detailed location (parallel)
-        let detail = null
-        try {
-          detail = await detailedLocation(res.lat, res.lon)
-        } catch { /* fallback */ }
-        this.gps = { ...this.gps, ...res, detail, locating: false }
+        this.gps = { ...this.gps, ...res, locating: false }
       } catch (e) {
         this.gps.locating = false
         throw e

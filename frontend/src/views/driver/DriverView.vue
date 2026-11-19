@@ -213,7 +213,9 @@ async function init() {
     store.loadDailyCode()
     store.loadNotifications()
     connectSocket()
-    store.locate().catch(() => { /* GPS opsional */ })
+    store.locate().catch(() => {
+      toast('📍 GPS tidak aktif — izinkan akses lokasi, lalu tekan "Isi Lokasi & Jam"', 'warning')
+    })
     loadPendingTask() // v2.73.0 — cek serah terima yang belum dikonfirmasi
     // v2.127.0 — sync juga saat halaman dibuka (bukan hanya saat event
     // online / timer 30 detik): antrean dari sesi sebelumnya langsung dicoba.

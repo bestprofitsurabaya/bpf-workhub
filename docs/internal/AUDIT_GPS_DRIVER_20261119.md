@@ -5,8 +5,8 @@ Lingkup: `frontend/src/utils/gps.js`, `frontend/src/stores/driverStore.js`
 (`locate()`), pemakaian di `DriverView.vue`, `TripTab.vue`, `BBMTab.vue`,
 `OvertimeDriverTab.vue`.
 Metode: telaah kode + uji perangkat SM-A035F (Chrome Android) saat uji Sync v2.
-Status: **audit — belum ada perubahan kode GPS** (temuan P0 lain sudah
-diperbaiki di v2.127.1).
+Status: **ditindaklanjuti di v2.127.2** — G1, G2, G3, G4, G6, G8 sudah
+diperbaiki; G5, G7 dicatat sebagai pekerjaan lanjutan.
 
 ---
 
@@ -81,7 +81,22 @@ sebagai data uji.
 
 ---
 
-## 4. Catatan uji sync terkait GPS
+## 4. Status implementasi v2.127.2
+
+| # | Status | Wujud perbaikan |
+|---|---|---|
+| G1 | ✅ | `locate()` satu reverse; `detailedLocation` di-cache 10 menit/±11 m (maks 40) |
+| G2 | ✅ | `fetchJson` timeout 8 dtk + `AbortController` + cek `r.ok` |
+| G3 | ✅ | `getPosition` default `maximumAge` 30 dtk; `accuracy` + `at` disimpan di `store.gps` |
+| G4 | ✅ | `DriverView` menampilkan toast saat GPS gagal |
+| G5 | ⏳ | `gps_at`/`gps_accuracy` belum masuk DB — perlu migrasi kolom di 12 cabang |
+| G6 | ✅ | `nearbySpbu` timeout 6 dtk dan hanya dipanggil sekali per locate |
+| G7 | ⏳ | Cache posisi terakhir & panduan izin iOS — masuk backlog |
+| G8 | ✅ | `pukul_*` default jam berangkat, validasi 400, error SQL tidak bocor |
+
+---
+
+## 5. Catatan uji sync terkait GPS
 
 - Perangkat: SM-A035F, Chrome 157, PWA `/app/driver`, akun `ahmad`.
 - Offline (emulasi jaringan): trip masuk antrean, panel menampilkan

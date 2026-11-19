@@ -17,6 +17,32 @@ import json
 import threading
 
 
+def _trip_at(items, idx):
+    """Ambil item list multipart dengan aman — jumlah list bisa tidak sama."""
+    return items[idx] if idx < len(items) else ''
+
+
+def _trip_pukul(value, fallback, label):
+    """Normalisasi jam rute (HH:MM). Kosong → fallback agar kolom NOT NULL aman."""
+    v = (value or '').strip()
+    if not v:
+        return fallback
+    try:
+        datetime.strptime(v, '%H:%M')
+    except (TypeError, ValueError):
+        raise ValueError(f'{label} harus berformat HH:MM')
+    return v
+
+
+def _trip_km(value, label):
+    """Normalisasi KM rute menjadi bilangan bulat ≥ 0."""
+    try:
+        n = int(float(value or 0))
+    except (TypeError, ValueError):
+        raise ValueError(f'{label} harus angka')
+    return max(0, n)
+
+
 def register_driver_routes(app, socketio):
     # v2.49.3: pastikan kolom anti-kecurangan & registry bukti sudah ada
     # (master + tiap DB cabang) sebelum endpoint klaim dipakai. Idempoten.
@@ -565,6 +591,12 @@ def register_driver_routes(app, socketio):
             if not all([driver_name, nopol, jam_berangkat, km_awal > 0]):
                 return jsonify({'status': 'error', 'msg': 'Driver, Nopol, Jam Berangkat, dan KM Awal wajib diisi!'}), 400
             try:
+                datetime.strptime(str(jam_berangkat), '%H:%M')
+                if jam_tiba:
+                    datetime.strptime(str(jam_tiba), '%H:%M')
+            except (TypeError, ValueError):
+                return jsonify({'status': 'error', 'msg': 'Jam berangkat/tiba harus berformat HH:MM.'}), 400
+            try:
                 datetime.strptime(str(trip_date), '%Y-%m-%d')
             except (TypeError, ValueError):
                 return jsonify({'status': 'error', 'msg': 'Tanggal trip tidak valid (format YYYY-MM-DD).'}), 400
@@ -616,19 +648,29 @@ def register_driver_routes(app, socketio):
 
             detail_count = 0
             completed_appt_ids = []
-            for i in range(len(lokasi_berangkat_list)):
-                if lokasi_berangkat_list[i].strip() and lokasi_tujuan_list[i].strip():
-                    appt_id = None
-                    if i < len(appointment_id_list) and appointment_id_list[i].strip().isdigit():
-                        appt_id = int(appointment_id_list[i])
+
+            try:
+                for i in range(len(lokasi_berangkat_list)):
+                    berangkat = _trip_at(lokasi_berangkat_list, i).strip()
+                    tujuan = _trip_at(lokasi_tujuan_list, i).strip()
+                    if not (berangkat and tujuan):
+                        continue
+                    # pukul_berangkat & pukul_tujuan NOT NULL: isi default dari
+                    # jam keberangkatan bila driver tidak mengisi jam rute.
+                    pukul_b = _trip_pukul(_trip_at(pukul_berangkat_list, i), jam_berangkat,
+                                          f'Pukul berangkat rute {i+1}')
+                    pukul_t = _trip_pukul(_trip_at(pukul_tujuan_list, i), pukul_b,
+                                          f'Pukul tujuan rute {i+1}')
+                    km_b = _trip_km(_trip_at(km_berangkat_list, i), f'KM berangkat rute {i+1}')
+                    km_t = _trip_km(_trip_at(km_tujuan_list, i), f'KM tujuan rute {i+1}')
+                    appt_raw = _trip_at(appointment_id_list, i).strip()
+                    appt_id = int(appt_raw) if appt_raw.isdigit() else None
                     cursor.execute("""
                         INSERT INTO trip_details (trip_master_id, no_urut, lokasi_berangkat,
                                                  pukul_berangkat, km_berangkat, lokasi_tujuan,
                                                  pukul_tujuan, km_tujuan, appointment_id)
                         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    """, (trip_id, i+1, lokasi_berangkat_list[i], pukul_berangkat_list[i] or None,
-                          int(km_berangkat_list[i] or 0), lokasi_tujuan_list[i],
-                          pukul_tujuan_list[i] or None, int(km_tujuan_list[i] or 0), appt_id))
+                    """, (trip_id, i+1, berangkat, pukul_b, km_b, tujuan, pukul_t, km_t, appt_id))
                     detail_count += 1
                     # Auto-complete: driver mengonfirmasi kunjungan dengan submit log perjalanan
                     # yang memuat appointment tsb (hanya miliknya & masih assigned).
@@ -639,6 +681,10 @@ def register_driver_routes(app, socketio):
                             (appt_id, driver_name))
                         if cursor.rowcount:
                             completed_appt_ids.append(appt_id)
+            except ValueError as ve:
+                conn.rollback()
+                cursor.close(); conn.close(); conn = None
+                return jsonify({'status': 'error', 'msg': str(ve)}), 400
 
             if detail_count == 0:
                 conn.rollback()
@@ -697,7 +743,27 @@ def register_driver_routes(app, socketio):
         except Exception as e:
             print(f"Trip submit error: {e}")
             import traceback; traceback.print_exc()
-            return jsonify({'status': 'error', 'msg': str(e)}), 500
+            try:
+                if conn:
+                    conn.rollback()
+                    conn.close()
+            except Exception:
+                pass
+            # Jangan bocorkan pesan SQL/DB ke pengguna. Error integritas data
+            # (mis. kolom NOT NULL, format jam) diperlakukan sebagai input salah.
+            try:
+                import mysql.connector
+                if isinstance(e, mysql.connector.Error):
+                    return jsonify({
+                        'status': 'error',
+                        'msg': 'Data trip tidak dapat disimpan — periksa jam dan KM setiap rute.',
+                    }), 400
+            except Exception:
+                pass
+            return jsonify({
+                'status': 'error',
+                'msg': 'Gagal menyimpan log perjalanan. Coba lagi sebentar lagi.',
+            }), 500
         finally:
             if conn:
                 try:
