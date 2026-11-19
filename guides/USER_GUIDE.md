@@ -311,7 +311,12 @@ Alur lengkapnya ada di [Bagian 10](#10-kasbon-alur-lengkap-dari-a-sampai-z).
 
 > 💡 **Auto-Save**: setiap perubahan di tab Trip tersimpan otomatis ke HP (IndexedDB). Jika app tertutup atau HP mati, data akan pulih saat dibuka lagi. Draft otomatis terhapus setelah submit berhasil.
 
-> 📍 **Detail GPS**: lokasi otomatis terdeteksi dengan detail lengkap — jalan, kelurahan, kecamatan, kota, provinsi, kode pos, dan SPBU terdekat.
+> 📍 **Detail GPS**: lokasi otomatis terdeteksi dengan detail lengkap — jalan, kelurahan, kecamatan, kota, provinsi, kode pos, dan SPBU terdekat. Waktu dan ketelitian posisi (meter) ikut tersimpan sebagai bukti.
+
+> 🛰️ **GPS tidak terdeteksi?** Aplikasi akan menampilkan pesan. Izinkan lokasi:
+> - **Android (Chrome):** ketuk ikon 🔒 di bilah alamat → **Izin** → **Lokasi** → **Izinkan**, lalu muat ulang.
+> - **iPhone (Safari):** **Pengaturan** → **Safari** → **Lokasi** → **Tanya/ Izinkan**, atau **Pengaturan** → **Privasi & Keamanan** → **Layanan Lokasi** → **Safari** → **Saat Menggunakan App**.
+> - Di dalam gedung GPS bisa lemah — keluar sebentar atau tunggu 10–30 detik, lalu tekan **Isi Lokasi & Jam** lagi.
 
 Laporan ini dipakai GA untuk meninjau dan menghitung efisiensi kendaraan.
 

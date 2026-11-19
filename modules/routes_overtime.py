@@ -24,6 +24,7 @@ from datetime import datetime, date, timedelta
 
 from flask import request, jsonify, make_response, session
 from modules.config import get_db_connection
+from modules.gps_schema import ensure_gps_schema  # v2.127.3
 from modules.helpers import (role_required, log_activity_async,
                              generate_display_id, production_pool_executor,
                              client_ip)
@@ -704,6 +705,7 @@ def register_overtime_routes(app):
             conn = get_db_connection()  # DB cabang sesi (branch-aware)
             if not conn:
                 return jsonify({'status': 'error', 'msg': 'DB error'}), 500
+            ensure_gps_schema(conn)  # v2.127.3 — kolom bukti GPS
             cursor = conn.cursor(dictionary=True)
             display_id = generate_display_id(get_display_prefix('ob'), conn)
             source_uid = 'form-' + make_source_uid(display_id, nama, posisi)
@@ -808,6 +810,7 @@ def register_overtime_routes(app):
             conn = get_db_connection()
             if not conn:
                 return jsonify({'status': 'error', 'msg': 'DB error'}), 500
+            ensure_gps_schema(conn)  # v2.127.3 — kolom bukti GPS
             cursor = conn.cursor(dictionary=True)
             display_id = generate_display_id(get_display_prefix('ob'), conn)
             source_uid = 'form-' + make_source_uid(display_id, nama, posisi)
@@ -881,6 +884,7 @@ def register_overtime_routes(app):
             conn = get_db_connection()
             if not conn:
                 return jsonify({'status': 'error', 'msg': 'DB error'}), 500
+            ensure_gps_schema(conn)  # v2.127.3 — kolom bukti GPS
             cursor = conn.cursor(dictionary=True)
 
             # v2.120.0: idempotensi — antrean offline/retry tidak membuat

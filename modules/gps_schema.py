@@ -20,12 +20,25 @@ GPS_COLUMN_DEFS = (
 # Batas akurasi wajar (meter). Di atas ini bukan posisi GPS sungguhan.
 _MAX_ACCURACY_M = 100000
 
+# DB yang kolomnya sudah dipastikan lengkap (per proses). ALTER hanya
+# dijalankan sekali per DB — endpoint submit tidak membayar biaya DDL.
+_READY = set()
 
-def ensure_gps_schema(conn=None):
+
+def _db_key(conn):
+    try:
+        return str(conn.database or '')
+    except Exception:
+        return ''
+
+
+def ensure_gps_schema(conn=None, force=False):
     """Idempoten: tambah kolom gps_at/gps_accuracy ke tabel bukti (satu DB).
 
     Kolom yang sudah ada dilewati (ADD COLUMN IF NOT EXISTS, MariaDB 10.11).
     Tabel yang belum dibuat juga dilewati — jangan gagalkan startup.
+    Hasil sukses diingat per DB untuk proses ini agar submit berikutnya
+    tidak mengulang DDL.
     """
     own = conn is None
     if conn is None:
@@ -33,6 +46,14 @@ def ensure_gps_schema(conn=None):
         conn = get_master_connection()
     if not conn:
         return False
+    key = _db_key(conn)
+    if not force and key and key in _READY:
+        if own:
+            try:
+                conn.close()
+            except Exception:
+                pass
+        return True
     cur = conn.cursor()
     try:
         for table in GPS_TABLES:
@@ -43,6 +64,8 @@ def ensure_gps_schema(conn=None):
                     # Tabel belum ada / kolom sudah ada — bukan alasan gagal.
                     print(f"[gps-schema] {table}.{col}: {col_err}")
         conn.commit()
+        if key:
+            _READY.add(key)
         return True
     finally:
         try:

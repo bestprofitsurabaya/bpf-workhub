@@ -89,9 +89,9 @@ sebagai data uji.
 | G2 | ✅ | `fetchJson` timeout 8 dtk + `AbortController` + cek `r.ok` |
 | G3 | ✅ | `getPosition` default `maximumAge` 30 dtk; `accuracy` + `at` disimpan di `store.gps` |
 | G4 | ✅ | `DriverView` menampilkan toast saat GPS gagal |
-| G5 | ✅ | `gps_at`/`gps_accuracy` dikirim semua form & disimpan di 4 tabel (v2.127.3) |
+| G5 | ✅ | `gps_at`/`gps_accuracy` dikirim semua form & disimpan di 4 tabel; skema dipastikan saat startup (retry) + sekali per DB saat submit pertama (v2.127.3) |
 | G6 | ✅ | `nearbySpbu` timeout 6 dtk dan hanya dipanggil sekali per locate |
-| G7 | ⏳ | Cache posisi terakhir & panduan izin iOS — masuk backlog |
+| G7 | 🟡 | Panduan izin lokasi Android/iOS ditambahkan ke USER_GUIDE §4.4; cache posisi terakhir masih backlog |
 | G8 | ✅ | `pukul_*` default jam berangkat, validasi 400, error SQL tidak bocor |
 
 ---

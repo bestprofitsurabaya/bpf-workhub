@@ -11,7 +11,7 @@ from modules.approvals import hook_create_approval  # v2.36.0
 from modules.voucher_schema import ensure_voucher_schema  # v2.107.0
 from modules.bbm_guard import register_proof_hashes as _register_proof_hashes
 from modules import idempotency
-from modules.gps_schema import parse_gps_at, parse_gps_accuracy
+from modules.gps_schema import parse_gps_at, parse_gps_accuracy, ensure_gps_schema
 from datetime import datetime
 import os
 import json
@@ -50,7 +50,17 @@ def register_driver_routes(app, socketio):
     # v2.50.1: + tabel vehicle_fuel_prices (harga server-side, bug 584ba88).
     def _ensure_all_dbs():
         try:
-            if ensure_anti_fraud_schema() and ensure_fuel_prices_schema():
+            # Pool DB bisa belum siap saat import (app.py mendaftarkan route
+            # sebelum koneksi pertama). Tunggu sampai master siap, baru
+            # lanjut ke seluruh cabang — jangan menyerah pada percobaan awal.
+            import time as _time
+            ok = False
+            for _ in range(20):
+                if ensure_anti_fraud_schema():
+                    ok = True
+                    break
+                _time.sleep(3)
+            if ok and ensure_fuel_prices_schema():
                 ensure_voucher_schema()
                 from modules.branch_manager import list_branches
                 from modules.config import get_db_connection as _gc
@@ -138,6 +148,7 @@ def register_driver_routes(app, socketio):
                 conn = get_db_connection()
                 if not conn:
                     return jsonify({'status': 'error', 'msg': 'Database error'}), 500
+                ensure_gps_schema(conn)  # v2.127.3 — kolom bukti GPS
                 cursor = conn.cursor(dictionary=True)
 
                 # v2.120.0: kunci idempotensi — retry/antrean tidak membuat
@@ -613,6 +624,7 @@ def register_driver_routes(app, socketio):
             conn = get_db_connection()
             if not conn:
                 return jsonify({'status': 'error', 'msg': 'DB error — koneksi database gagal'}), 500
+            ensure_gps_schema(conn)  # v2.127.3 — kolom bukti GPS
             cursor = conn.cursor()
 
             # v2.120.0: idempotensi — log trip yang dikirim ulang (antrean/

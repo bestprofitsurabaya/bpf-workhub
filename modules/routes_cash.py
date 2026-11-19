@@ -11,7 +11,7 @@ from modules.notifications import push_driver_notification
 from modules.stepup import stepup_required
 from modules.approvals import hook_create_approval, gate_approval  # v2.36.0
 from modules import bbm_guard, idempotency  # v2.120.0
-from modules.gps_schema import parse_gps_at, parse_gps_accuracy  # v2.127.3
+from modules.gps_schema import parse_gps_at, parse_gps_accuracy, ensure_gps_schema  # v2.127.3
 
 def register_cash_routes(app):
 
@@ -621,6 +621,7 @@ def register_cash_routes(app):
             if not session_driver_name():
                 return jsonify({'status': 'error', 'msg': 'Login driver wajib'}), 401
             conn = get_db_connection()
+            ensure_gps_schema(conn)  # v2.127.3 — kolom bukti GPS
             cursor = conn.cursor(dictionary=True)
             cursor.execute("SELECT * FROM fuel_cash_requests WHERE id = %s AND status = 'FUNDS_WITH_DRIVER'", (cash_id,))
             cash_req = cursor.fetchone()
