@@ -1,6 +1,7 @@
 # Peta Modul Agenda — WorkHub sebagai sumber kebenaran
 
-Status: **diterapkan** di v2.123.0, dipurge & dipindah penuh di v2.124.0 (19 Nov 2026).
+Status: **diterapkan** di v2.123.0, dipurge & dipindah penuh di v2.124.0,
+update APK mandiri sejak v2.125.0 (19 Nov 2026).
 
 Tujuan: menyatukan agenda harian BPF ke WorkHub — satu login, satu audit,
 multi-cabang — tanpa memutus aplikasi Cordova yang sudah terpasang.
@@ -117,12 +118,19 @@ Bridge Cordova (publik, read-only, bentuk respons sama dengan server lama):
   ke server agenda terpisah — WorkHub satu-satunya sumber data.
 - APK dibangun dari `apk/` (`scripts/build-android.sh`); package id tetap
   `id.co.bpf.calendar`, tampilan berlabel **BPF Agenda**.
+- **Update APK** (v2.125.0): `GET /api/app/latest` (manifest versi + SHA-256)
+  dan `GET /api/app/download/<file>.apk`, keduanya publik lewat bridge 8444.
+  Folder rilis host `/srv/bpf-workhub/apk` → container `/app/data/apk`.
+  `apk/scripts/publish-release.sh <apk> "catatan"` menulis `latest.json`.
+  Aplikasi cek versi saat dibuka, unduh, verifikasi hash, lalu membuka
+  installer sistem (konfirmasi pengguna tetap wajib).
 
 ## 8. Tes
 
 Backend: matriks akses, isolasi cabang, jendela tayang, ekspansi pengulangan,
 fan-out batch, dedupe lintas cabang, step-up hapus, guard upload, bentuk
-respons bridge, ICS, migrasi idempoten, validasi payload.
+respons bridge, ICS, migrasi idempoten, validasi payload, rilis APK
+(manifest, unduhan, traversal, rilis lama).
 Frontend: render grid, filter, gate admin/content creator, editor, step-up,
 matriks cakupan, kartu dashboard, notifikasi hari H.
 Manual: APK lama terhadap bridge, media Range, 12 DB nyata.
@@ -130,5 +138,6 @@ Manual: APK lama terhadap bridge, media Range, 12 DB nyata.
 ## 9. Rilis
 
 v2.123.0 = fondasi modul Agenda + bridge; v2.124.0 = purge server lama +
-pemindahan proyek APK ke repo WorkHub.
+pemindahan proyek APK ke repo WorkHub; v2.125.0 = update APK via WorkHub
+(mirror Nextcloud dihapus).
 Setiap rilis tetap: PROGRESS + CHANGELOG + 7 titik stamp + commit/push + deploy.

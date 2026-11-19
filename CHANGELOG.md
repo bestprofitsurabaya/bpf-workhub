@@ -7,6 +7,33 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.125.0 — 19 November 2026 (Update APK otomatis via WorkHub)
+
+Aplikasi Android kini memeriksa dan memasang pembaruannya sendiri dari
+WorkHub; share Nextcloud lama dihapus karena tidak lagi dipakai.
+
+- ⬆️ **Endpoint rilis** `GET /api/app/latest` (manifest versi + SHA-256) dan
+  `GET /api/app/download/<file>.apk` di WorkHub, dibuka juga lewat bridge
+  8444. Publik & read-only; hanya file rilis aktif yang bisa diunduh.
+- 📦 **Folder rilis** `/srv/bpf-workhub/apk` di-mount ke container
+  (`/app/data/apk`). `apk/scripts/publish-release.sh` menulis APK +
+  `latest.json` (versi, catatan, wajib/tidak).
+- 🔄 **Updater di aplikasi**: cek versi saat dibuka (maks. tiap 6 jam),
+  banner "Pembaruan tersedia", unduh, verifikasi SHA-256, lalu buka
+  installer sistem. Tombol "Nanti" mengingat versi yang ditolak; rilis
+  bertanda wajib tidak bisa ditunda.
+- 🔐 **Plugin `bpfBridge` 1.2.0**: aksi `appInfo`, `canInstall`,
+  `openInstallSettings`, `installApk`, plus izin
+  `REQUEST_INSTALL_PACKAGES`. Android tetap meminta konfirmasi pengguna.
+- 🧹 **Share Nextcloud `qGCgbFAeDs6i735` dihapus** beserta foldernya; mirror
+  Nextcloud dibatalkan karena WorkHub lebih stabil dan tercatat.
+- 📱 Versi aplikasi naik ke **1.8.0** (versionCode 10800), signature sama.
+
+Tes: `tests/test_app_release.py` (manifest, unduhan, traversal, rilis lama)
+lulus; 7 titik stamp + DB stamp konsisten; build release 1.8.0 diuji.
+
+---
+
 ## v2.124.0 — 19 November 2026 (Purge bpf-calendar; proyek APK pindah ke WorkHub)
 
 Server agenda lama sudah tidak dipakai. Semua yang tersisa dari bpf-calendar

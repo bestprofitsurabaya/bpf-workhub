@@ -566,6 +566,7 @@ from modules.routes_voucher import register_voucher_routes              # v2.107
 from modules.routes_mfa import register_mfa_routes                      # v2.112.0
 from modules.routes_cv_online import register_cv_online_routes          # v2.113.0
 from modules.routes_agenda import register_agenda_routes                 # v2.123.0
+from modules.routes_app_release import register_app_release_routes      # v2.125.0
 
 # v2.98.0: tolak request bila image lebih lama dari CHANGELOG repo (mount).
 install_deploy_guard(app)
@@ -611,6 +612,7 @@ register_pdfkit_routes(app)
 register_subsidy_routes(app)  # v2.50.0 — integrasi Subsidi Tepat
 register_voucher_routes(app)  # v2.107.0 — voucher rekanan
 register_agenda_routes(app)   # v2.123.0 — Agenda + bridge calendar Cordova
+register_app_release_routes(app)  # v2.125.0 — manifest & unduhan APK Agenda
 
 # ================================================================
 # AUTO-CLEANUP: Hapus foto overtime > 6 bulan (180 hari)

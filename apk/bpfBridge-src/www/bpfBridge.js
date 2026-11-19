@@ -29,6 +29,21 @@ var BpfBridge = {
   share: function (url, name, mime, success, failure) {
     exec(success, failure, 'bpfBridge', 'share',
       [String(url), String(name || ''), String(mime || '')]);
+  },
+  // --- updater APK (v2.125.0) ---
+  appInfo: function (success, failure) {
+    exec(success, failure, 'bpfBridge', 'appInfo', []);
+  },
+  canInstall: function (success, failure) {
+    exec(success, failure, 'bpfBridge', 'canInstall', []);
+  },
+  openInstallSettings: function (success, failure) {
+    exec(success, failure, 'bpfBridge', 'openInstallSettings', []);
+  },
+  // unduh APK, verifikasi SHA-256, buka installer; progress via callback
+  installApk: function (url, sha256, name, success, failure) {
+    exec(success, failure, 'bpfBridge', 'installApk',
+      [String(url), String(sha256 || ''), String(name || 'bpf-agenda.apk')]);
   }
 };
 

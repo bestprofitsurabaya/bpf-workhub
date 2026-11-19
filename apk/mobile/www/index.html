@@ -32,6 +32,19 @@
   <button id="viewerClose" class="viewer-close">✕</button>
 </div>
 
+<!-- banner pembaruan APK (v2.125.0) -->
+<div id="updBar" class="upd-bar hidden" role="status" aria-live="polite">
+  <div class="upd-card">
+    <div class="upd-head"><span class="upd-icon">⬆</span><strong id="updTitle">Pembaruan tersedia</strong></div>
+    <p id="updText" class="upd-text"></p>
+    <p id="updNotes" class="upd-notes hidden"></p>
+    <div class="upd-actions">
+      <button id="updInstall" class="upd-btn upd-primary">Unduh &amp; pasang</button>
+      <button id="updSkip" class="upd-btn">Nanti</button>
+    </div>
+  </div>
+</div>
+
 <main class="app">
 
   <!-- kiri: kalender -->
@@ -47,6 +60,7 @@
         <span id="catChip" class="cat-chip" title="Kategori aktif">…</span>
         <button id="catBtn" class="iconbtn" title="Ganti kategori">👥</button>
         <button id="widgetBtn" class="iconbtn" title="Widget home screen">📲</button>
+        <button id="updBtn" class="iconbtn" title="Cek pembaruan aplikasi">⬆</button>
         <button id="themeBtn" class="iconbtn" title="Tema gelap/terang">☀</button>
       </div>
     </header>
@@ -93,6 +107,7 @@
 <script src="js/hari-libur.js"></script>
 <script src="js/kalender-jawa.js"></script>
 <script src="js/config.js"></script>
+<script src="js/updater.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

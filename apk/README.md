@@ -26,7 +26,7 @@ apk/
 
 ```properties
 KEYSTORE=/home/<user>/.config/bpf-workhub/bpf-workhub-release.jks
-ALIAS=bpf
+ALIAS=bpf-calendar
 STORE_PASSWORD=...
 KEY_PASSWORD=...
 ```
@@ -54,4 +54,31 @@ curl -s https://nasbpfsby.duckdns.org:8444/api/month | head -c 200
 ```
 
 Endpoint bridge yang dipakai aplikasi: `/api/state`, `/api/month`,
-`/api/stream`, `/assets/up/*`, `/assets/logo.png`.
+`/api/stream`, `/api/app/latest`, `/api/app/download/<file>.apk`,
+`/assets/up/*`, `/assets/logo.png`.
+
+## Publikasi update (v2.125.0)
+
+Aplikasi memeriksa `/api/app/latest` saat dibuka, mengunduh APK baru,
+memverifikasi SHA-256, lalu membuka installer sistem. Tidak perlu Play Store
+dan tidak perlu share Nextcloud.
+
+```bash
+# folder rilis host (di-mount ke container sebagai /app/data/apk)
+./scripts/publish-release.sh dist/bpf-agenda-1.8.0-release.apk "Catatan rilis"
+
+# rilis wajib (tombol "Nanti" disembunyikan di aplikasi)
+BPF_UPDATE_MANDATORY=1 ./scripts/publish-release.sh dist/... "Perbaikan penting"
+
+# folder lain (mis. saat uji lokal)
+BPF_APK_DIR=/tmp/apk ./scripts/publish-release.sh dist/...
+```
+
+`publish-release.sh` membaca versi dari `mobile/config.xml`, menyalin APK ke
+folder rilis, dan menulis `latest.json` (versi, versionCode, nama file,
+SHA-256, catatan, wajib/tidak). Server menambahkan `apk_url` dan menghitung
+ulang hash saat menyajikan manifest.
+
+> Update tidak bisa senyap: Android 8+ tetap menampilkan konfirmasi
+> pemasangan dan izin "Pasang aplikasi tak dikenal" per aplikasi. Update
+> senyap hanya mungkin lewat MDM/Device Owner.

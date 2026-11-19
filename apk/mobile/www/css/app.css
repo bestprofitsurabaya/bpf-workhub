@@ -280,3 +280,39 @@ html[data-theme="light"] .agenda-item .ag-link { color: #fff; }
   .calendar { grid-auto-rows: minmax(44px, 1fr); }
   .cal-day { font-size: 16px; }
 }
+
+/* ---------- banner pembaruan APK (v2.125.0) ---------- */
+.upd-bar {
+  position: fixed; inset: 0; z-index: 90;
+  background: rgba(5, 8, 18, .72);
+  display: flex; align-items: flex-start; justify-content: center;
+  padding: 18px 14px; overflow: auto;
+}
+.upd-card {
+  width: min(560px, 100%);
+  background: var(--panel); color: var(--text);
+  border: 1px solid var(--line); border-radius: 16px;
+  padding: 16px 18px 14px;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, .45);
+}
+.upd-head { display: flex; align-items: center; gap: 9px; margin-bottom: 6px; }
+.upd-head strong { font-size: 16px; }
+.upd-icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; border-radius: 50%;
+  background: var(--primary-strong); color: #fff; font-size: 14px;
+}
+.upd-text { margin: 0 0 6px; font-size: 13px; line-height: 1.5; white-space: pre-line; }
+.upd-notes {
+  margin: 0 0 10px; padding: 9px 11px; border-radius: 9px;
+  background: #0002; border: 1px solid var(--line);
+  font-size: 12px; line-height: 1.5; white-space: pre-line; color: var(--muted);
+}
+.upd-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 10px; }
+.upd-btn {
+  font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+  padding: 8px 16px; border-radius: 999px;
+  border: 1px solid var(--line); background: transparent; color: var(--text);
+}
+.upd-btn.upd-primary { background: var(--primary-strong); border-color: var(--primary-strong); color: #fff; }
+.upd-btn:disabled { opacity: .6; cursor: default; }

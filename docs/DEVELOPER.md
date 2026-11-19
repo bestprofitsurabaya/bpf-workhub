@@ -97,7 +97,7 @@ docker exec bpf-workhub-db mariadb -uroot -p"$PW" bpf_branch_mlg -e "SHOW TABLES
 | `frontend/` | Vue 3 + Vite: `views/`, `components/`, `stores/` (Pinia: auth, identity), `router/index.js` dengan guard per role. Uji: vitest |
 | `mobile/` | PWA shell statik driver/OB/security (service worker + manifest) — bind mount, tanpa rebuild |
 | `apk/` | Proyek APK Android BPF Agenda (Cordova): `mobile/`, plugin native `bpfBridge-src/`, `scripts/build-android.sh` (debug/release). Tidak ikut image Docker |
-| `nginx/` | Konfigurasi bridge 8444 read-only untuk APK Agenda (`agenda-bridge.conf`) |
+| `nginx/` | Konfigurasi bridge 8444 read-only untuk APK Agenda (`agenda-bridge.conf`), termasuk `/api/app/*` untuk update APK |
 | `agent/subsiditepat/` | Playwright/Chrome di host: `login.mjs`, `pull.mjs`, `push.mjs`, `verify.mjs`, `scripts/otp_supervisor.mjs`, `artifacts/` (screenshot & log) |
 | `scripts/` | CLI ops & migrasi: `backup-db.sh`, `restore-test.sh`, `run-tests.sh`, `release.sh`, `check_version_stamps.py`, `check_branch_db_map.py`, `auto_scrape.py`, `gas_bridge_*.gs` (Apps Script untuk overtime & receptionist) |
 | `init.sql` | Seed lengkap: schema, branch 12, akun demo, config awal |

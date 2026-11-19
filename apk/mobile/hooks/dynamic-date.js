@@ -435,6 +435,7 @@ public class DateWidgetProvider extends AppWidgetProvider {
 </manifest>`));
   clean = ensurePerm(clean, 'android.permission.RECEIVE_BOOT_COMPLETED');
   clean = ensurePerm(clean, 'android.permission.POST_NOTIFICATIONS'); // bpfBridge
+  clean = ensurePerm(clean, 'android.permission.REQUEST_INSTALL_PACKAGES'); // updater APK
 
   // 5b) pasangan tunggal: alias harian + receiver
   let aliases = '';
