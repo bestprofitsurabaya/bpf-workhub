@@ -19,7 +19,6 @@ import os
 import re
 import shutil
 import sys
-import uuid
 from datetime import datetime
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -105,7 +104,6 @@ def main():
     try:
         ensure_agenda_schema(conn=conn)
         cur = conn.cursor(dictionary=True)
-        batch_id = uuid.uuid4().hex
         for it in legacy:
             legacy_id = str(it.get('id') or '').strip()
             if not legacy_id:
@@ -141,7 +139,10 @@ def main():
                 continue
             row = dict(item)
             row.update({
-                'batch_id': batch_id if len(legacy) > 1 else None,
+                # Item lama adalah agenda tunggal, BUKAN terbit lintas
+                # cabang. batch_id bersama akan membuat dedupe lintas cabang
+                # menganggap semuanya satu item dan hanya satu yang tampil.
+                'batch_id': None,
                 'branch_code': branch,
                 'legacy_id': legacy_id,
                 'created_by': args.actor,

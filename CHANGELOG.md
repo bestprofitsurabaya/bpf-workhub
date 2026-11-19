@@ -40,6 +40,8 @@ Cordova lama tetap jalan lewat bridge read-only, jadi tidak perlu rebuild APK.
   dan 369 tes lama tetap lulus.
 - 📦 Impor data lama: `scripts/import_bpf_calendar.py --data-dir … --branch KODE`
   (idempoten via `legacy_id`, media disalin dengan nama aman, ada `--dry-run`).
+  Item lama diimpor sebagai agenda tunggal — tanpa `batch_id` — supaya semua
+  item tetap tampil dan tidak saling menimpa saat digabung lintas cabang.
 
 ## v2.122.0 — 19 November 2026 (MPEG-2 untuk TV lama)
 
