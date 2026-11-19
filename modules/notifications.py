@@ -60,6 +60,7 @@ def push_driver_notification(driver_name, ntype, action, message, ref_id=None):
     conn = None
     cursor = None
     push_subs = []
+    push_db = None
     try:
         conn = get_db_connection()
         if conn:
@@ -81,9 +82,15 @@ def push_driver_notification(driver_name, ntype, action, message, ref_id=None):
                     (driver,),
                 )
                 push_subs = pc.fetchall() or []
+                # v2.128.2: catat DB asal agar thread push dapat menghapus
+                # langganan mati di DB cabang yang benar.
+                pc.execute("SELECT DATABASE() AS db")
+                row = pc.fetchone()
+                push_db = (row or {}).get('db')
                 pc.close()
             except Exception:
                 push_subs = []
+                push_db = None
     except Exception as e:
         print(f"[notifications] push error: {e}")
     finally:
@@ -110,7 +117,7 @@ def push_driver_notification(driver_name, ntype, action, message, ref_id=None):
             from modules import webpush
             webpush.send_to_driver_async(driver, 'BPF WorkHub',
                                          str(message)[:255], '/app/driver',
-                                         subs=push_subs)
+                                         subs=push_subs, db_name=push_db)
         except Exception as e:
             print(f"[notifications] webpush hook: {e}")
     return notif_id

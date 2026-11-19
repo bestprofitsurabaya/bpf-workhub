@@ -4,7 +4,7 @@ Dokumen internal — audit, desain, dan rencana bertahap untuk membuat input
 driver (BBM, LPJ, trip, overtime, kasbon) **tidak pernah hilang** saat sinyal
 buruk, di Android maupun iPhone.
 
-Versi kode: **v2.128.1** (19 November 2026)
+Versi kode: **v2.128.2** (19 November 2026)
 
 ---
 

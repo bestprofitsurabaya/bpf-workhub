@@ -70,3 +70,51 @@ def test_kunci_vapid_p256_konsisten():
         serialization.PublicFormat.UncompressedPoint,
     )
     assert base64.urlsafe_b64encode(derived).rstrip(b'=').decode() == pub_b64
+
+
+def test_pembersihan_langganan_mati_memakai_db_asal(monkeypatch):
+    """v2.128.2 — thread push tanpa sesi harus menghapus di DB cabang asal."""
+    from modules import config
+
+    deleted = []
+    named = []
+
+    class FakeCursor:
+        def __init__(self):
+            self.queries = []
+
+        def execute(self, sql, params=None):
+            self.queries.append((sql, params))
+            if sql.strip().upper().startswith('DELETE'):
+                deleted.append(params[0])
+
+        def close(self):
+            pass
+
+    class FakeConn:
+        def cursor(self, dictionary=False):
+            return FakeCursor()
+
+        def commit(self):
+            pass
+
+        def close(self):
+            pass
+
+    def fake_by_name(db_name):
+        named.append(db_name)
+        return FakeConn()
+
+    monkeypatch.setattr(webpush, 'push_available', lambda: True)
+    monkeypatch.setattr(webpush, '_send_one', lambda sub, payload, key: 'gone')
+    monkeypatch.setattr(webpush, 'get_vapid_keys', lambda: ('pub', '-----BEGIN EC PRIVATE KEY-----'))
+    monkeypatch.setattr(config, 'get_db_connection_by_name', fake_by_name)
+    monkeypatch.setattr(config, 'get_db_connection', lambda *a, **k: (_ for _ in ()).throw(
+        AssertionError('get_db_connection() generik tidak boleh dipakai saat db_name ada')))
+
+    subs = [{'endpoint': 'https://push/contoh', 'p256dh': 'k', 'auth': 'a'}]
+    out = webpush.send_to_driver('Ahmad', 'Judul', 'Isi', subs=subs, db_name='bpf_branch_sby')
+
+    assert out == {'ok': 0, 'gone': 1, 'error': 0}
+    assert named == ['bpf_branch_sby']
+    assert deleted == ['https://push/contoh']

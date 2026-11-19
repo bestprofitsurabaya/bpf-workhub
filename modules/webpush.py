@@ -328,8 +328,13 @@ def _send_one(sub, payload, vapid_private_key):
         return 'error'
 
 
-def send_to_driver(driver_name, title, body, url='/app/driver', subs=None, conn=None):
-    """Kirim push ke semua perangkat driver. Return ringkasan {ok,gone,error}."""
+def send_to_driver(driver_name, title, body, url='/app/driver', subs=None, conn=None, db_name=None):
+    """Kirim push ke semua perangkat driver. Return ringkasan {ok,gone,error}.
+
+    `db_name` wajib diberikan bila dipanggil dari thread latar: tanpa sesi,
+    koneksi generik selalu menunjuk master dan baris mati di DB cabang tidak
+    akan terhapus (v2.128.2).
+    """
     summary = {'ok': 0, 'gone': 0, 'error': 0}
     if not driver_name or not push_available():
         return summary
@@ -368,10 +373,10 @@ def send_to_driver(driver_name, title, body, url='/app/driver', subs=None, conn=
         summary[result] += 1
         if result == 'gone':
             gone.append(row['endpoint'])
-    # Bersihkan langganan mati — pakai koneksi baru (thread aman).
+    # Bersihkan langganan mati — koneksi baru ke DB yang sama (thread aman).
     if gone:
-        from modules.config import get_db_connection
-        cleanup = get_db_connection()
+        from modules.config import get_db_connection, get_db_connection_by_name
+        cleanup = get_db_connection_by_name(db_name) if db_name else get_db_connection()
         if cleanup:
             try:
                 cur = cleanup.cursor()
@@ -387,7 +392,7 @@ def send_to_driver(driver_name, title, body, url='/app/driver', subs=None, conn=
     return summary
 
 
-def send_to_driver_async(driver_name, title, body, url='/app/driver', subs=None):
+def send_to_driver_async(driver_name, title, body, url='/app/driver', subs=None, db_name=None):
     """Kirim di latar belakang agar request bisnis tidak menunggu jaringan."""
     if not push_available():
         return None
@@ -396,7 +401,7 @@ def send_to_driver_async(driver_name, title, body, url='/app/driver', subs=None)
 
     def _run():
         try:
-            send_to_driver(driver_name, title, body, url, subs=subs)
+            send_to_driver(driver_name, title, body, url, subs=subs, db_name=db_name)
         except Exception as e:
             print(f"[webpush] async error: {e}")
 

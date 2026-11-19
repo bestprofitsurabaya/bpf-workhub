@@ -7,6 +7,21 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.128.2 — 19 November 2026 (Bersihkan langganan push mati di DB cabang)
+
+Temuan saat meninjau jalur kirim Web Push pasca v2.128.1.
+
+- 🧹 **Langganan mati (404/410) kini benar-benar dihapus** — thread push
+  berjalan tanpa sesi, sehingga koneksi generik selalu menunjuk DB master
+  dan baris di DB cabang tidak pernah terhapus. DB asal dicatat
+  (`SELECT DATABASE()`) dan dipakai untuk pembersihan.
+- 🔌 `get_db_connection_by_name()` di `modules/config.py` untuk worker latar
+  yang tidak punya konteks request/sesi.
+- 🧪 Tes baru: pembersihan memakai DB asal (`db_name`) dan tidak menyentuh
+  koneksi generik. **7 tes** webpush lulus.
+
+---
+
 ## v2.128.1 — 19 November 2026 (Perbaikan urutan kunci VAPID)
 
 Ditemukan saat verifikasi pasca-deploy v2.128.0.

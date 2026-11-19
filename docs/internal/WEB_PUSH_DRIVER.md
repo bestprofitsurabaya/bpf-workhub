@@ -1,6 +1,6 @@
 # 🔔 Web Push Driver (VAPID) — Desain & Operasional
 
-Tanggal: 19 November 2026 · Versi: **v2.128.1**
+Tanggal: 19 November 2026 · Versi: **v2.128.2**
 Status: kode & tes unit selesai; **uji perangkat (Android + iPhone) menyusul**.
 
 ---
@@ -100,6 +100,11 @@ VAPID_SUBJECT=mailto:it@bestprofit.co.id
 Tabel `push_subscriptions` dibuat lazily per DB cabang (dan master saat
 startup): `endpoint` unik (prefix 255), `driver_name`, `p256dh`, `auth`,
 `user_agent`, waktu dibuat/diperbarui.
+
+**v2.128.2** — pengiriman berjalan di thread tanpa sesi, jadi DB asal
+dicatat (`SELECT DATABASE()`) dan pembersihan langganan mati memakai
+`get_db_connection_by_name()`; tanpa ini baris 404/410 di DB cabang tidak
+pernah terhapus.
 
 ---
 

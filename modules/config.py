@@ -240,6 +240,35 @@ def get_master_connection():
     return get_db_connection(master=True)
 
 
+def get_db_connection_by_name(db_name):
+    """Koneksi ke database bernama — untuk worker latar tanpa sesi/request.
+
+    v2.128.2: thread Web Push tidak punya konteks sesi cabang, sehingga
+    `get_db_connection()` selalu jatuh ke master. Akibatnya penghapusan
+    langganan mati (404/410) tidak pernah mengenai baris di DB cabang.
+    """
+    if not db_name:
+        return None
+    if db_name == DB_CONFIG['database']:
+        return get_db_connection(master=True)
+    pool = _pool_for(db_name)
+    if pool:
+        try:
+            conn = pool.get_connection()
+            _track_connection(conn)  # tanpa request context → no-op
+            return conn
+        except Error:
+            pass
+    for attempt in range(3):
+        try:
+            return MySQLConnection(**_base_config(db_name))
+        except Error:
+            if attempt == 2:
+                return None
+            time.sleep(0.3 * (attempt + 1))
+    return None
+
+
 def get_db_pool_info():
     """Info ringkas pool DB (untuk /api/health). Aman bila pool belum init."""
     info = {'master_pool': 'not_initialized'}
