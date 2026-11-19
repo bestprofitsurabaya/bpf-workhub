@@ -7,6 +7,24 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.122.0 — 19 November 2026 (MPEG-2 untuk TV lama)
+
+- 📺 **Format output baru: MPEG-2 (`.mpg`).** Transcoder IT kini bisa
+  menghasilkan MPEG-2 Program Stream — video **720×576 25 fps** (PAL,
+  DAR **16:9** seperti DVD widescreen), audio **MP2 48 kHz stereo**, bitrate 5 Mbps — profil paling aman untuk
+  pemutar USB TV digital lama yang hanya mengenal MPEG, mis. **LG
+  42LK450-TG**. Sumber diunduh maksimal 720p lalu diskalakan/dipad ke
+  720×576 agar rasio gambar tetap.
+- 🎛️ **Chip “MPEG-2 (TV lama)”** di tab Transcoder. Bisa dipilih bersama
+  format lain dalam satu job, seperti format video yang sudah ada.
+- 🔒 **Unduhan `.mpg` diizinkan.** Guard ekstensi kini memakai daftar
+  ekstensi hasil (`FORMAT_EXTS`), bukan nama format — karena key `mpeg`
+  berbeda dari ekstensi `mpg`. Tanpa ini hasil MPEG tidak bisa diunduh.
+- 🧪 Profil ffmpeg divalidasi dengan ffprobe: `mpeg2video` 720×576 25 fps,
+  `mp2` 48 kHz stereo, container `mpeg`.
+- ✅ Tes: 4 tes backend baru (metadata, argumen ffmpeg, submit, unduhan
+  `.mpg`) + 1 tes UI; suite terkait ditambah ke suite penuh.
+
 ## v2.121.0 — 18 November 2026 (Gerbang ACC tidak bisa dilewati)
 
 Enam temuan dari peta alur GA/Verifikasi (18 Nov 2026) ditutup.

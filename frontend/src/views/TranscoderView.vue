@@ -37,6 +37,8 @@ const KINDS = [
     { key: 'mp4hd', label: 'MP4 1080p', hint: 'HD, berat' },
     { key: 'webm', label: 'WebM', hint: 'ringan' },
     { key: 'mkv', label: 'MKV', hint: 'salin ulang, cepat' },
+    // v2.122.0 — untuk TV digital lama yang hanya mengenal MPEG dari USB.
+    { key: 'mpeg', label: 'MPEG-2 (TV lama)', hint: '.mpg / USB TV' },
   ]},
 ]
 

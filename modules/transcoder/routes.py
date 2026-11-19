@@ -18,7 +18,7 @@ from modules.helpers import role_required
 
 from . import transcoder_bp, TRANSCODER_ROLES
 from . import engine
-from .engine import FORMATS  # noqa: F401
+from .engine import FORMATS, FORMAT_EXTS  # noqa: F401
 from . import ncshare
 
 
@@ -167,7 +167,7 @@ def download(job_id, filename):
     base = current_app.config.get('TRANSCODE_DIR', '')
     workdir = os.path.join(base, job_id)
     ext = os.path.splitext(filename)[1].lstrip('.').lower()
-    if ext not in FORMATS:
+    if ext not in FORMAT_EXTS:
         return jsonify({'status': 'error', 'msg': 'Ekstensi tidak diizinkan'}), 400
     allowed = {o['file'] for it in job.get('items', []) for o in it.get('outputs', [])}
     if filename not in allowed:

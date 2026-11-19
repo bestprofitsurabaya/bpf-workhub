@@ -223,9 +223,10 @@ const PAGE_HELP = [
     steps: [
       'Periksa status job sebelum menutup halaman.',
       'Batalkan job yang salah daripada menunggu selesai.',
+      'Untuk TV digital lama (mis. LG 42LK450-TG), pilih MPEG-2 (TV lama) — hasilnya berkas .mpg dari USB.',
       'Hapus hasil hanya bila sudah tidak diperlukan.',
     ],
-    terms: ['Audit Log'],
+    terms: ['Audit Log', 'Transcoder'],
   },
   {
     paths: ['/receptionist'],

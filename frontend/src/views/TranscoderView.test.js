@@ -90,6 +90,28 @@ describe('TranscoderView — form submit', () => {
     expect(post).toBeTruthy()
   })
 
+  it('menawarkan MPEG-2 untuk TV lama dan mengirim key mpeg (v2.122.0)', async () => {
+    apiMock.mockImplementation(apiRouter({
+      '/api/transcoder/jobs': (path, opts) => {
+        if (opts?.method === 'POST') return { status: 'ok', job: { id: 'tc000010' } }
+        return { jobs: [] }
+      },
+    }))
+    const w = mount(TranscoderView)
+    await flushPromises()
+
+    await fillForm(w, 'https://youtu.be/a1')
+    const chip = w.findAll('.chip').find(c => c.text().includes('MPEG-2'))
+    expect(chip).toBeTruthy()
+    await chip.trigger('click')
+
+    await w.find('button.btn-primary').trigger('click')
+    await flushPromises()
+
+    const post = apiMock.mock.calls.find(([, o]) => o?.method === 'POST')
+    expect(post[1].body.formats).toEqual(['mpeg'])
+  })
+
   it('counter link menampilkan jumlah', async () => {
     const w = mount(TranscoderView)
     await flushPromises()

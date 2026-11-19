@@ -2,7 +2,12 @@
 modules/transcoder/engine.py (v2.46.0)
 
 Job manager konversi media dari link YouTube ke berbagai format output
-audio (mp3/m4a/wav) & video (mp4/webm/mkv).
+audio (mp3/m4a/wav) & video (mp4/webm/mkv/mpeg).
+
+MPEG-2 (`.mpg`) ditambahkan v2.122.0 untuk TV digital lama yang hanya
+mengenali MPEG dari USB — mis. LG 42LK450-TG. Outputnya MPEG-2 Program
+Stream, video 720×576 25 fps DAR 16:9 (PAL/DVD widescreen), audio MP2
+48 kHz stereo: profil paling aman untuk pemutar USB generasi awal.
 
 Desain:
 - In-memory job registry (thread-safe via Lock) — pola sama dengan
@@ -38,9 +43,15 @@ FORMATS = {
     'mp4hd': ('video', 'MP4 1080p',          'mp4',  []),
     'webm':  ('video', 'WebM (VP9)',         'webm', []),
     'mkv':   ('video', 'MKV (salin ulang)',  'mkv',  []),
+    # v2.122.0 — MPEG-2 Program Stream untuk TV lama (USB). Ekstensi `mpg`
+    # berbeda dari key `mpeg`, jadi unduhan memakai FORMAT_EXTS, bukan key.
+    'mpeg':  ('video', 'MPEG-2 (TV lama)',   'mpg',  []),
 }
 
-VIDEO_HEIGHT = {'mp4': 720, 'mp4hd': 1080}   # webm/mkv tanpa skala ulang
+# Ekstensi hasil yang boleh diunduh (key != ekstensi untuk `mpeg`).
+FORMAT_EXTS = {spec[2] for spec in FORMATS.values()}
+
+VIDEO_HEIGHT = {'mp4': 720, 'mp4hd': 1080, 'mpeg': 720}  # webm/mkv tanpa skala ulang
 
 MAX_CONCURRENT = 1          # server 3.8GB — transcode berat, antrekan
 MAX_JOBS = 200              # batas entri registry (paling lama dibuang)
@@ -401,6 +412,26 @@ def _transcode_video(src, out, fmt, workdir, on_progress):
         args = ['-i', src, '-codec:v', 'libvpx-vp9', '-cpu-used', '8',
                 '-crf', '34', '-b:v', '0', '-row-mt', '1',
                 '-codec:a', 'libopus', '-b:a', '128k', name]
+    elif fmt == 'mpeg':
+        # v2.122.0 — profil paling kompatibel untuk pemutar USB TV lama:
+        # MPEG-2 MP@ML 720×576 25 fps (PAL), audio MP2 48 kHz stereo,
+        # container MPEG Program Stream. `-f mpeg` + mpeg2video menghasilkan
+        # MPEG-2 PS (bukan MPEG-1), sudah diuji dengan ffprobe.
+        #
+        # Bingkai disusun di kanvas 16:9 (1024×576 piksel persegi) lebih dulu,
+        # lalu dipadatkan ke 720×576 dengan SAR 64:45 (DAR 16:9 — standar DVD
+        # PAL widescreen). TV 16:9 memutar gambar penuh tanpa distorsi; sumber
+        # 4:3 otomatis dipillarbox, sumber 16:9 mengisi layar.
+        args = ['-i', src,
+                '-vf', 'scale=1024:576:force_original_aspect_ratio=decrease,'
+                       'pad=1024:576:(ow-iw)/2:(oh-ih)/2,setsar=1,'
+                       'scale=720:576,setsar=64/45',
+                '-r', '25',
+                '-codec:v', 'mpeg2video', '-profile:v', 'main',
+                '-b:v', '5000k', '-maxrate', '8000k', '-bufsize', '1835008',
+                '-g', '15',
+                '-codec:a', 'mp2', '-b:a', '192k', '-ar', '48000', '-ac', '2',
+                '-f', 'mpeg', name]
     else:  # mp4 / mp4hd — skala & re-encode x264
         h = VIDEO_HEIGHT[fmt]
         args = ['-i', src, '-vf', f'scale=-2:min({h},ih)',

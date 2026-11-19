@@ -248,6 +248,95 @@ class TestJobLifecycle:
 
 
 # ---------------------------------------------------------------------------
+# MPEG-2 untuk TV lama (v2.122.0)
+# ---------------------------------------------------------------------------
+
+class TestMpegFormat:
+    def test_metadata_format(self):
+        kind, label, ext, aflags = engine.FORMATS['mpeg']
+        assert kind == 'video'
+        assert ext == 'mpg'
+        assert 'MPEG-2' in label
+        assert 'mpg' in engine.FORMAT_EXTS
+        # key `mpeg` != ekstensi `mpg` — unduhan harus memakai FORMAT_EXTS
+        assert 'mpeg' in engine.FORMATS and engine.FORMAT_EXTS >= {'mpg'}
+
+    def test_ffmpeg_memakai_profil_tv_lama(self, tmp_path, monkeypatch):
+        base = str(tmp_path / 'tc')
+        os.makedirs(base, exist_ok=True)
+
+        import modules.transcoder.ytdlp as ytdlp
+        import modules.transcoder.engine as eng
+        captured = {}
+
+        monkeypatch.setattr(ytdlp, 'probe_title', lambda url: 'Uji MPEG')
+
+        def fake_download(url, kind, max_height, workdir, on_progress):
+            assert kind == 'video'
+            assert max_height == 720
+            path = os.path.join(workdir, 'src_uji.mp4')
+            with open(path, 'wb') as f:
+                f.write(b'\x00' * 256)
+            on_progress(100)
+            return path
+        monkeypatch.setattr(ytdlp, 'download_media', fake_download)
+
+        def fake_run(input_args, duration, on_progress, workdir):
+            captured['args'] = list(input_args)
+            out = input_args[-1]
+            with open(os.path.join(workdir, out), 'wb') as f:
+                f.write(b'\x00' * 512)
+            on_progress(100)
+        monkeypatch.setattr(eng, '_run_ffmpeg', fake_run)
+
+        job = eng.create_job(['https://youtu.be/aaa111'], ['mpeg'], 'it_sby', base)
+        deadline = time.time() + 30
+        while time.time() < deadline:
+            if eng.get_job(job['id'])['status'] in ('done', 'error'):
+                break
+            time.sleep(0.05)
+
+        j = eng.get_job(job['id'])
+        assert j['status'] == 'done', j.get('error')
+        out = j['items'][0]['outputs'][0]
+        assert out['format'] == 'mpeg' and out['file'].endswith('.mpg')
+
+        args = captured['args']
+        assert 'mpeg2video' in args
+        assert 'mp2' in args
+        assert args[args.index('-f') + 1] == 'mpeg'
+        assert args[args.index('-r') + 1] == '25'
+        vf = args[args.index('-vf') + 1]
+        assert '720:576' in vf
+        assert 'setsar=64/45' in vf          # DAR 16:9, bukan 5:4
+        assert args[args.index('-ac') + 1] == '2'
+        assert args[args.index('-ar') + 1] == '48000'
+        assert args[-1].endswith('.mpg')
+
+    def test_submit_menerima_mpeg(self, client, monkeypatch):
+        _login(client)
+        monkeypatch.setattr(engine, 'create_job',
+                            lambda urls, formats, user, base: {
+                                'id': 'tc000009', 'urls': urls, 'formats': formats,
+                                'user': user, 'status': 'queued', 'stage': '',
+                                'progress': 0, 'created_at': 0, 'finished_at': None,
+                                'error': '', 'items': []})
+        r = _post(client, '/api/transcoder/jobs',
+                  {'urls': ['https://youtu.be/aaa'], 'formats': ['mpeg']})
+        assert r.status_code == 201
+        assert r.get_json()['job']['formats'] == ['mpeg']
+
+    def test_download_menerima_ekstensi_mpg(self, client, monkeypatch):
+        _login(client, 'it_sby')
+        monkeypatch.setattr(engine, 'get_job', lambda jid: {
+            'id': jid, 'user': 'it_sby', 'items': [
+                {'outputs': [{'file': 'film.mpg', 'format': 'mpeg'}]}]})
+        # .mpg lolos guard ekstensi; berkas memang tidak ada → 404 (bukan 400)
+        r = client.get('/api/transcoder/download/tc000001/film.mpg')
+        assert r.status_code == 404
+
+
+# ---------------------------------------------------------------------------
 # API
 # ---------------------------------------------------------------------------
 

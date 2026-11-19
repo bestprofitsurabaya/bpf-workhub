@@ -1,4 +1,4 @@
-# 📖 Panduan Pengguna BPF WorkHub v2.121.0
+# 📖 Panduan Pengguna BPF WorkHub v2.122.0
 
 > **Siapa pun kamu — sopir, OB, admin, atau pimpinan — panduan ini ditulis untuk kamu.**
 > Tidak perlu paham teknis. Cukup ikuti langkah-langkah sesuai bagianmu.
@@ -1447,18 +1447,22 @@ Jika upload ke WordPress gagal, pesan error sekarang menampilkan **response body
 ### 14.11 Transcoder Media (IT) 🎬
 
 Menu **Transcoder** (IT, role `it_*`/admin) v2.46.0: unduh video dari tautan
-(YouTube dsb. via yt-dlp) lalu **transcode ffmpeg di server** — pilih format
-MP4 720p / MP4 1080p (webm/mkv dilewatkan tanpa skala ulang, codec libx264).
-Job berjalan di background dengan fase `queued → downloading → transcoding →
-done/error/cancelled`, antrean dibatasi jumlah serentak, hasil diunduh lewat
-tautan yang ter-auth. Berguna untuk membuat materi sosialisasi/DBD content
-tanpa membekukan PC user.
+YouTube (via yt-dlp) lalu **transcode ffmpeg di server** — pilih format
+MP4 720p / MP4 1080p / WebM / MKV (webm/mkv dilewatkan tanpa skala ulang,
+codec libx264). Sejak **v2.122.0** tersedia **MPEG-2 (TV lama)** dengan
+ekstensi `.mpg`: video MPEG-2 720×576 25 fps (DAR 16:9, standar DVD
+widescreen) + audio MP2 48 kHz stereo, profil paling aman untuk TV digital
+lama yang memutar file dari USB — mis. **LG 42LK450-TG**. Job berjalan di
+background dengan fase `queued → downloading → transcoding →
+done/error/cancelled`, antrean dibatasi jumlah serentak, hasil diunduh
+lewat tautan yang ter-auth. Berguna untuk membuat materi sosialisasi/DBD
+content tanpa membekukan PC user.
 
 ---
 
 ## 15. Mengatasi Masalah (Troubleshooting)
 
-> **Membaca `/api/health` (v2.121.0):** selain `database`, `redis`, dan
+> **Membaca `/api/health` (v2.122.0):** selain `database`, `redis`, dan
 > `deploy`, ada `checks.integrity`. Bila angkanya bukan nol, ada operasi yang
 > gagal tetapi sengaja tidak menghentikan pengguna — mis. query laporan
 > gagal di satu cabang. `recent_critical > 0` (30 menit terakhir) membuat
