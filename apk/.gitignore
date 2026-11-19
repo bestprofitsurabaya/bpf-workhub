@@ -1,0 +1,16 @@
+# Cordova build artifacts (dibuat ulang oleh scripts/build-android.sh)
+mobile/node_modules/
+mobile/platforms/
+mobile/plugins/*
+!mobile/plugins/README.md
+!mobile/plugins/android.json
+!mobile/plugins/fetch.json
+mobile/www/lib/
+dist/
+*.log
+
+# Kunci & sertifikat signing (JANGAN di-commit)
+*.jks
+*.keystore
+keystore.properties
+ios-signing/

@@ -1,0 +1,21 @@
+// Disalin Cordova ke platforms/android/ saat prepare, lalu di-apply oleh
+// app/build.gradle (lihat "apply from: '../build-extras.gradle'").
+//
+// Alasan: lintVitalRelease membuat build rilis menggantung lama di workstation
+// ini (gradle daemon 67% CPU, log tidak bertambah) dan lint bukan gerbang mutu
+// proyek ini — pengecekan dilakukan lewat uji JS + uji manual di perangkat.
+android {
+    lint {
+        checkReleaseBuilds false
+        abortOnError false
+    }
+}
+
+// Jaring-jaring: matikan task lint apa pun yang tetap dibuat, termasuk pada
+// versi AGP yang memakai DSL lama (lintOptions) atau task per-varian.
+tasks.configureEach { t ->
+    def n = t.name.toLowerCase()
+    if (n.startsWith('lintvital') || n == 'lint' || n.startsWith('lintrelease')) {
+        t.enabled = false
+    }
+}

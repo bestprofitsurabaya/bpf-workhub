@@ -1,0 +1,19 @@
+{
+  "devDependencies": {
+    "bpfBridge": "file:../bpfBridge-src",
+    "cordova-android": "^15.1.0"
+  },
+  "cordova": {
+    "platforms": [
+      "android"
+    ],
+    "plugins": {
+      "cordova-plugin-screen-orientation": {},
+      "bpfBridge": {}
+    }
+  },
+  "dependencies": {
+    "cordova-plugin-screen-orientation": "3.0.4",
+    "es6-promise-plugin": "4.2.2"
+  }
+}

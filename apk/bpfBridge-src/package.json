@@ -1,0 +1,12 @@
+{
+  "name": "bpfBridge",
+  "version": "1.0.0",
+  "description": "Bridge native BPF Agenda: notifikasi agenda baru, pin widget home screen, refresh widget.",
+  "author": "IT BPF",
+  "license": "MIT",
+  "main": "www/bpfBridge.js",
+  "keywords": ["bpf", "calendar", "ecosystem:cordova", "cordova-android"],
+  "cordova": {
+    "platforms": ["android"]
+  }
+}

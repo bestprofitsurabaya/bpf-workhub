@@ -19,6 +19,9 @@ uploads/
 .env
 venv/
 
+# Proyek APK Cordova — dibangun di workstation, bukan bagian image
+apk/
+
 # Frontend SPA — build dilakukan di stage node (bundle dibuat di sana)
 frontend/node_modules/
 frontend/dist/

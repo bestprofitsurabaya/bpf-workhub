@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<plugin xmlns="http://apache.org/cordova/ns/plugins/1.0"
+        xmlns:android="http://schemas.android.com/apk/res/android"
+        id="bpfBridge"
+        version="1.1.0">
+  <name>BpfBridge</name>
+  <description>Bridge native BPF Agenda: notifikasi agenda baru, widget home screen (tanggal + agenda), unduh/bagikan media.</description>
+  <author>IT BPF</author>
+  <license>MIT</license>
+  <keywords>bpf,calendar,cordova</keywords>
+
+  <js-module src="www/bpfBridge.js" name="BpfBridge">
+    <clobbers target="bpfBridge" />
+  </js-module>
+
+  <platform name="android">
+    <source-file src="src/android/bpf/bridge/BpfBridgePlugin.java" target-dir="src/bpf/bridge" />
+    <resource-file src="src/android/res/xml/bpf_file_paths.xml" target="res/xml/bpf_file_paths.xml" />
+    <config-file target="res/xml/config.xml" parent="/*">
+      <feature name="bpfBridge">
+        <param name="android-package" value="bpf.bridge.BpfBridgePlugin" />
+      </feature>
+    </config-file>
+    <config-file target="AndroidManifest.xml" parent="/manifest">
+      <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    </config-file>
+    <!-- Provider FileProvider (bagikan media) didaftarkan oleh hook
+         hooks/dynamic-date.js karena hook itu menulis ulang AndroidManifest.xml
+         setiap prepare; kalau didaftarkan di sini akan hilang lagi. -->
+  </platform>
+</plugin>

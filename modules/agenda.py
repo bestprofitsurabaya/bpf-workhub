@@ -1,4 +1,4 @@
-"""Modul Agenda (v2.123.0) — pengganti bpf-calendar di dalam WorkHub.
+"""Modul Agenda (v2.123.0) — kalender kegiatan WorkHub.
 
 Satu sumber kebenaran agenda per cabang, dengan:
 - tabel `agenda_items` di setiap DB cabang (isolasi data);
@@ -174,7 +174,7 @@ def normalize_audience(a):
 
 
 def media_kind(url):
-    """Sama dengan server bpf-calendar lama — dipakai bridge."""
+    """Bentuk data untuk bridge aplikasi Android BPF Agenda."""
     u = str(url or '')
     if not u:
         return None

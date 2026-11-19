@@ -7,6 +7,28 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.124.0 — 19 November 2026 (Purge bpf-calendar; proyek APK pindah ke WorkHub)
+
+Server agenda lama sudah tidak dipakai. Semua yang tersisa dari bpf-calendar
+dibersihkan, dan aplikasi Android kini dibangun dari repo WorkHub.
+
+- 🧹 **Purge total**: container & image `bpf-calendar`, folder kerja/repo lama di
+  NAS, serta konfigurasi nginx lamanya dihapus. Port 8444 kini murni bridge
+  read-only WorkHub.
+- 📱 **Proyek APK di `apk/`**: sumber Cordova (`mobile/`), plugin native
+  `bpfBridge-src/`, dan `scripts/build-android.sh` (debug/release) ikut repo
+  WorkHub. Naikkan versi di `apk/mobile/config.xml` sebelum build rilis.
+- 🔁 **Rebrand tampilan** menjadi **BPF Agenda**; package id tetap
+  `id.co.bpf.calendar` agar APK yang sudah terpasang bisa di-update.
+- 🔐 **Keystore release** dipindah ke `~/.config/bpf-workhub/` (di luar repo)
+  dan wajib di-backup agar signature update tetap sama.
+- 🌉 Konfigurasi nginx diganti nama menjadi `nginx/agenda-bridge.conf`.
+- 🗑️ Skrip impor sekali pakai (`import_bpf_calendar.py`) dihapus setelah data
+  lama masuk ke Agenda.
+- ✅ Tes backend Agenda/versi/nav tetap lulus; health live dicek setelah deploy.
+
+---
+
 ## v2.123.0 — 19 November 2026 (Agenda menggantikan bpf-calendar)
 
 Modul **Agenda** masuk WorkHub: satu login, satu audit, lintas cabang. Aplikasi
@@ -38,10 +60,10 @@ Cordova lama tetap jalan lewat bridge read-only, jadi tidak perlu rebuild APK.
 - 🧪 Tes: 36 tes backend Agenda (validasi, pengulangan, isolasi cabang,
   fan-out, dedupe, bridge, ICS, guard route, step-up, upload). Frontend build
   dan 369 tes lama tetap lulus.
-- 📦 Impor data lama: `scripts/import_bpf_calendar.py --data-dir … --branch KODE`
-  (idempoten via `legacy_id`, media disalin dengan nama aman, ada `--dry-run`).
-  Item lama diimpor sebagai agenda tunggal — tanpa `batch_id` — supaya semua
-  item tetap tampil dan tidak saling menimpa saat digabung lintas cabang.
+- 📦 Data lama diimpor sekali lewat skrip sementara (idempoten via `legacy_id`,
+  media disalin dengan nama aman, ada `--dry-run`). Item lama masuk sebagai
+  agenda tunggal — tanpa `batch_id` — supaya semua item tetap tampil dan tidak
+  saling menimpa saat digabung lintas cabang.
 
 ## v2.122.0 — 19 November 2026 (MPEG-2 untuk TV lama)
 

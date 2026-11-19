@@ -1,6 +1,6 @@
-# Peta Modul Agenda — integrasi bpf-calendar ke WorkHub
+# Peta Modul Agenda — WorkHub sebagai sumber kebenaran
 
-Status: **diterapkan** di v2.123.0 (19 Nov 2026). Dokumen ini disepakati 19 Nov 2026.
+Status: **diterapkan** di v2.123.0, dipurge & dipindah penuh di v2.124.0 (19 Nov 2026).
 
 Tujuan: menyatukan agenda harian BPF ke WorkHub — satu login, satu audit,
 multi-cabang — tanpa memutus aplikasi Cordova yang sudah terpasang.
@@ -8,10 +8,11 @@ multi-cabang — tanpa memutus aplikasi Cordova yang sudah terpasang.
 ## 1. Keputusan
 
 - **Sumber kebenaran:** modul Agenda di WorkHub (Flask + MySQL + Vue).
-- **Aplikasi Cordova lama:** dipertahankan lewat **bridge** di nginx port 8444;
-  tetap memakai jalur `/api/state`, `/api/month`, `/api/stream`, `/assets/*`.
-- **Data lama:** `items.json` diimpor ke satu cabang tujuan sebagai batch
-  `legacy` (idempoten via `legacy_id`); media disalin ke volume WorkHub.
+- **Aplikasi Android:** sumbernya pindah ke `apk/` di repo WorkHub dan dibangun
+  dari sana. Aplikasi memakai **bridge** read-only di nginx port 8444
+  (`/api/state`, `/api/month`, `/api/stream`, `/assets/*`).
+- **Data lama:** sudah diimpor sekali ke satu cabang tujuan (idempoten via
+  `legacy_id`); media disalin ke volume WorkHub. Skrip impornya sudah dihapus.
 - **Tanpa mode TV.** Agenda tampil sebagai **kartu ringkas di beranda/dashboard**
   (dekat indikator realtime/offline) yang bisa diklik untuk membuka kalender.
 - **Notifikasi hari H opsional** per agenda (`notify_on_day`), sekali per item
@@ -110,12 +111,12 @@ Bridge Cordova (publik, read-only, bentuk respons sama dengan server lama):
 
 ## 7. Bridge & migrasi
 
-- nginx 8444 diarahkan ke WorkHub (`bpf-workhub-web:5000`).
-- Skrip `scripts/import_bpf_calendar.py --data-dir … --branch KODE`: baca
-  `items.json`, salin media ke `uploads/agenda/` (nama aman), idempoten
-  (`legacy_id`), mendukung `--dry-run`.
-- Node calendar dipertahankan read-only satu rilis; setelah bridge stabil,
-  container dimatikan (config nginx lama tetap sebagai rollback).
+- nginx 8444 diarahkan ke WorkHub (`bpf-workhub-web:5000`); konfigurasi repo
+  ada di `nginx/agenda-bridge.conf`.
+- Server/container/repo lama sudah **dihapus** (v2.124.0). Tidak ada rollback
+  ke server agenda terpisah — WorkHub satu-satunya sumber data.
+- APK dibangun dari `apk/` (`scripts/build-android.sh`); package id tetap
+  `id.co.bpf.calendar`, tampilan berlabel **BPF Agenda**.
 
 ## 8. Tes
 
@@ -128,5 +129,6 @@ Manual: APK lama terhadap bridge, media Range, 12 DB nyata.
 
 ## 9. Rilis
 
-Satu rilis **v2.123.0** (fondasi → web → mobile/bridge), dengan commit bertahap.
+v2.123.0 = fondasi modul Agenda + bridge; v2.124.0 = purge server lama +
+pemindahan proyek APK ke repo WorkHub.
 Setiap rilis tetap: PROGRESS + CHANGELOG + 7 titik stamp + commit/push + deploy.

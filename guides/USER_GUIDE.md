@@ -1,4 +1,4 @@
-# 📖 Panduan Pengguna BPF WorkHub v2.123.0
+# 📖 Panduan Pengguna BPF WorkHub v2.124.0
 
 > **Siapa pun kamu — sopir, OB, admin, atau pimpinan — panduan ini ditulis untuk kamu.**
 > Tidak perlu paham teknis. Cukup ikuti langkah-langkah sesuai bagianmu.
@@ -830,8 +830,9 @@ cabangnya lewat menu **Agenda** atau kartu ringkas di beranda.
   (satu batch) dan melihat tab **Cakupan cabang**.
 - **ICS / PDF:** tombol di kanan atas untuk mengunduh agenda bulan berjalan.
 
-Aplikasi HP lama tetap bisa membaca agenda yang sama (bridge read-only);
-perubahan dari WorkHub langsung terlihat di sana.
+Aplikasi Android **BPF Agenda** membaca data yang sama lewat bridge read-only;
+perubahan dari WorkHub langsung terlihat di sana. Sumber APK ada di folder
+`apk/` repo WorkHub (lihat `apk/README.md` untuk cara build).
 
 ---
 
