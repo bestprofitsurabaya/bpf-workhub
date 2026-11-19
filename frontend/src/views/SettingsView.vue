@@ -45,7 +45,7 @@ const showVehicleForm = ref(false)
 const vehicleForm = ref({ nopol: '', vehicle_type: 'AVANZA', brand: 'Toyota', bbm_default: 'PERTALITE', initial_odo_km: 0 })
 
 // Identitas perusahaan / cabang (v2.19.2) — multi-cabang
-const identityForm = ref({ company_name: '', company_subtitle: '', system_name: '', system_version: '', company_address: '', company_phone: '' })
+const identityForm = ref({ company_name: '', company_subtitle: '', system_name: '', system_version: '', company_address: '', company_phone: '', company_motto: '' })
 const identityMsg = ref('')
 const identityBusy = ref(false)
 
@@ -60,6 +60,7 @@ async function loadIdentityForm() {
         system_version: d.system_version || '',
         company_address: d.company_address || '',
         company_phone: d.company_phone || '',
+        company_motto: d.company_motto || '',
       }
     }
   } catch { /* noop */ }
@@ -1208,6 +1209,11 @@ onMounted(() => {
           <div class="field"><label>Nama Perusahaan</label><input class="input" v-model="identityForm.company_name" placeholder="PT BESTPROFIT FUTURES" /></div>
           <div class="field"><label>Nama Sistem / Aplikasi</label><input class="input" v-model="identityForm.system_name" placeholder="BPF WorkHub" /></div>
           <div class="field"><label>Subjudul (kantor | kota)</label><input class="input" v-model="identityForm.company_subtitle" placeholder="Kantor Pusat | Jakarta" /></div>
+          <div class="field">
+            <label>Motto Halaman Login</label>
+            <input class="input" v-model="identityForm.company_motto" placeholder="Satu Platform, Semua Operasional" maxlength="80" />
+            <span class="muted" style="font-size:10px;">Tampil di bawah nama perusahaan pada halaman login (maks. 80 karakter).</span>
+          </div>
           <div class="field"><label>Versi</label><input class="input" v-model="identityForm.system_version" placeholder="v2.20.1" /></div>
           <div class="field"><label>Alamat Kantor</label><input class="input" v-model="identityForm.company_address" placeholder="Jl. Darmo 45, Surabaya" /></div>
           <div class="field"><label>Telepon</label><input class="input" v-model="identityForm.company_phone" placeholder="031-1234567" /></div>

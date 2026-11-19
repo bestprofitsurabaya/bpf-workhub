@@ -5,6 +5,7 @@ import { useAuthStore } from '../stores/auth'
 import { applyWatermark, fileToDataUrl } from '../utils/watermark'
 import { getPosition, detailedLocation, loadLastPosition } from '../utils/gps'
 import PageHeader from '../components/PageHeader.vue'
+import Pager from '../components/Pager.vue'
 
 /**
  * Form Overtime — user OB & Security (v2.39), dari dalam aplikasi (login).
@@ -25,6 +26,12 @@ const done = ref(null) // { display_id, msg }
 // Riwayat pribadi
 const history = ref([])
 const histLoading = ref(false)
+// v2.129.0 — riwayat bisa ribuan baris (1 pengajuan/hari); tampilkan 10 per
+// halaman agar halaman Security/OB tidak menjadi satu tabel sangat panjang.
+const PER_PAGE = 10
+const page = ref(1)
+const histPageCount = computed(() => Math.max(1, Math.ceil(history.value.length / PER_PAGE)))
+const pagedHistory = computed(() => history.value.slice((page.value - 1) * PER_PAGE, page.value * PER_PAGE))
 
 // v2.40.0 — batas waktu submit & penanda terlambat
 const deadlineHours = ref(24)
@@ -202,6 +209,7 @@ async function loadHistory() {
   try {
     const d = await api('/api/overtime/mine')
     history.value = d.data || []
+    page.value = 1
   } catch { history.value = [] } finally { histLoading.value = false }
 }
 
@@ -328,7 +336,9 @@ async function loadDeadline() {
 
       <!-- RIWAYAT -->
       <div class="card card-pad">
-        <h3 style="margin:0 0 10px;font-size:15px;">🕘 Riwayat Overtime Saya</h3>
+        <h3 style="margin:0 0 10px;font-size:15px;">🕘 Riwayat Overtime Saya
+          <span v-if="history.length" class="muted" style="font-size:11px;font-weight:500;">({{ history.length }} pengajuan)</span>
+        </h3>
         <div v-if="histLoading" class="muted" style="font-size:12px;">⏳ Memuat…</div>
         <div v-else-if="!history.length" class="muted" style="font-size:12px;">Belum ada data overtime.</div>
         <table v-else class="table">
@@ -341,7 +351,7 @@ async function loadDeadline() {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="r in history" :key="r.id" :style="lateRowStyle(r)">
+            <tr v-for="r in pagedHistory" :key="r.id" :style="lateRowStyle(r)">
               <td style="font-size:11px;">{{ r.display_id }}
                 <span v-if="r.foto_issue" title="Foto mulai & selesai tercatat sama — laporkan ke admin untuk perbaikan"
                       style="background:#f59e0b;color:#fff;font-size:10px;padding:1px 6px;border-radius:8px;margin-left:4px;">⚠️ Foto</span>
@@ -355,6 +365,7 @@ async function loadDeadline() {
             </tr>
           </tbody>
         </table>
+        <Pager v-model:page="page" :page-count="histPageCount" :total="history.length" unit="pengajuan" />
         <div v-if="lateHistCount" style="font-size:11px;color:#ef4444;margin-top:6px;">
           ⏳ {{ lateHistCount }} pengajuan lewat batas submit ({{ deadlineHours }} jam setelah jam selesai OT)
         </div>

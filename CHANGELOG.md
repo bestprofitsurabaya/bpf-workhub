@@ -7,6 +7,36 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.129.0 — 19 November 2026 (Motto bisa diubah Admin + daftar panjang berpaginasi)
+
+Tindak lanjut v2.128.4: motto login tidak lagi tertanam di kode, dan halaman
+yang menampilkan daftar panjang tidak lagi menumpahkan semua baris sekaligus.
+
+- ✨ **Motto halaman login kini bagian dari identitas**: key baru
+  `company_motto` di `system_config`, dapat diubah Admin di
+  **Pengaturan → 🎨 Identitas** (maks. 80 karakter). Halaman login membaca
+  nilai server dari `GET /api/system-config/identity`; konstanta
+  "Satu Platform, Semua Operasional" hanya cadangan bila API/DB belum siap.
+- 📄 `company_subtitle` **tidak berubah** — masih dipakai kop dokumen resmi
+  (PDF BBM, laporan air).
+- 🔢 **Riwayat Overtime Security/OB berpaginasi**: 10 pengajuan per halaman.
+  Tabel ini sebelumnya merender seluruh riwayat (818 baris di DB master; satu
+  user bisa ratusan), sehingga halaman sangat panjang. Kini ada info
+  "Halaman x / y · n pengajuan" + jumlah total di judul kartu.
+- 🔢 **Daftar User & Review Akses berpaginasi**: 20 baris per halaman. Filter,
+  pencarian, pilih-semua, dan ekspor CSV tetap memakai seluruh hasil filter,
+  bukan hanya halaman yang terlihat.
+- 🔢 **Antrean ACC (Approval Berjenjang) berpaginasi**: 15 pengajuan per
+  halaman (`approval_requests` sudah 192 baris di DB master).
+- 🔢 Halaman lain yang sudah berpaginasi (Logs, FirstWork, Rekap, Inventaris
+  IT, Receptionist, GA/Finance dashboard) tidak diubah.
+- 🧩 Komponen bersama `components/Pager.vue` dipakai ketiga halaman di atas.
+- 🧪 Tes baru: `tests/test_identity_motto.py` (3 tes backend), `Pager.test.js`
+  (4 tes), LoginView (motto dinamis + fallback), OvertimeMeView (2 tes
+  paginasi).
+
+---
+
 ## v2.128.4 — 19 November 2026 (Motto brand di halaman login)
 
 Halaman login menampilkan kota kantor pusat ("Jakarta") di bawah nama

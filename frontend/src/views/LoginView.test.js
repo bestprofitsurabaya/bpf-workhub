@@ -2,34 +2,39 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import LoginView from './LoginView.vue'
 
-const { authMock, pushMock } = vi.hoisted(() => ({
+const { authMock, pushMock, identityMock } = vi.hoisted(() => ({
   authMock: { login: vi.fn(), user: null, isAuthenticated: false },
   pushMock: vi.fn(),
+  identityMock: {
+    system_name: 'BPF WorkHub',
+    company_name: 'PT BESTPROFIT FUTURES',
+    // Nilai asli identitas: masih dipakai kop dokumen resmi (PDF).
+    company_subtitle: 'Kantor Pusat | Jakarta',
+    company_motto: 'Satu Platform, Semua Operasional',
+  },
 }))
 
 vi.mock('../stores/auth', () => ({
   useAuthStore: () => authMock,
   ROLE_META: { admin: { home: '/dashboard' }, driver: { home: '/driver' } },
 }))
-vi.mock('../stores/identity', () => ({
-  identity: {
-    system_name: 'BPF WorkHub',
-    company_name: 'PT BESTPROFIT FUTURES',
-    // Nilai asli identitas: masih dipakai kop dokumen resmi (PDF).
-    company_subtitle: 'Kantor Pusat | Jakarta',
-  },
-}))
+vi.mock('../stores/identity', () => ({ identity: identityMock }))
 vi.mock('vue-router', () => ({
   useRouter: () => ({ push: pushMock }),
   useRoute: () => ({ query: {} }),
 }))
 
-describe('LoginView — motto brand (v2.128.4)', () => {
-  beforeEach(() => vi.clearAllMocks())
+const MOTTO = 'Satu Platform, Semua Operasional'
+
+describe('LoginView — motto brand (v2.128.4/v2.129.0)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    identityMock.company_motto = MOTTO
+  })
 
   it('menampilkan motto, bukan nama kota kantor pusat', () => {
     const w = mount(LoginView)
-    expect(w.find('.brand-motto').text()).toBe('Satu Platform, Semua Operasional')
+    expect(w.find('.brand-motto').text()).toBe(MOTTO)
     // Teks lama tidak boleh muncul lagi di halaman login.
     expect(w.text()).not.toContain('Jakarta')
     expect(w.text()).not.toContain('Kantor Pusat')
@@ -41,7 +46,19 @@ describe('LoginView — motto brand (v2.128.4)', () => {
     const text = w.text()
     expect(text).toContain('BPF WorkHub')
     expect(text).toContain('PT BESTPROFIT FUTURES')
-    expect(text).toContain('Satu Platform, Semua Operasional')
+    expect(text).toContain(MOTTO)
+  })
+
+  it('motto mengikuti nilai identitas dari server (dapat diubah Admin)', () => {
+    identityMock.company_motto = 'Aman, Terpadu, Terpercaya'
+    const w = mount(LoginView)
+    expect(w.find('.brand-motto').text()).toBe('Aman, Terpadu, Terpercaya')
+  })
+
+  it('motto kosong → memakai cadangan bawaan, bukan kosong', () => {
+    identityMock.company_motto = '   '
+    const w = mount(LoginView)
+    expect(w.find('.brand-motto').text()).toBe(MOTTO)
   })
 
   it('login tetap mengirim username + PIN dan redirect ke home role', async () => {

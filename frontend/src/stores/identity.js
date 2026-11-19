@@ -8,15 +8,16 @@
 import { reactive } from 'vue'
 import { api } from '../api'
 
-export const IDENTITY_KEYS = ['company_name', 'company_subtitle', 'system_name', 'system_version', 'company_address', 'company_phone']
+export const IDENTITY_KEYS = ['company_name', 'company_subtitle', 'system_name', 'system_version', 'company_address', 'company_phone', 'company_motto']
 
 export const identity = reactive({
   company_name: 'PT BESTPROFIT FUTURES',
   company_subtitle: 'Kantor Pusat | Jakarta',
   system_name: 'BPF WorkHub',
-  system_version: 'v2.128.4',
+  system_version: 'v2.129.0',
   company_address: 'Equity Tower, SCBD Lot 9, Jl. Jend. Sudirman Kav. 52-53, Jakarta Selatan 12190',
   company_phone: '031-5349888',
+  company_motto: 'Satu Platform, Semua Operasional',
   loaded: false,
 })
 

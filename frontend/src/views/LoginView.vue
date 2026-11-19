@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore, ROLE_META } from '../stores/auth'
 import { identity } from '../stores/identity'
@@ -9,11 +9,11 @@ const router = useRouter()
 const route = useRoute()
 
 const brandIcon = '/static/icon-192.png'
-// v2.128.4 — motto brand menggantikan nama kota kantor pusat ("Jakarta").
-// Dipilih karena WorkHub kini menaungi seluruh peran & cabang dalam satu
-// platform (operasional BBM, kas, aset, rekrutmen, absensi, IT) dengan
-// keamanan berlapis (MFA, audit ISO 27001) — lihat footer kartu login.
+// v2.129.0 — motto bisa diubah Admin di /app/settings (Pengaturan → Identitas).
+// Nilai dari server (system_config) dipakai lebih dulu; konstanta ini hanya
+// cadangan bila API identitas belum termuat / DB tidak tersedia.
 const BRAND_MOTTO = 'Satu Platform, Semua Operasional'
+const brandMotto = computed(() => (identity.company_motto || '').trim() || BRAND_MOTTO)
 const username = ref('')
 const pin = ref('')
 const showPin = ref(false)
@@ -62,7 +62,7 @@ async function submit() {
         </div>
         <h1>{{ identity.system_name }}</h1>
         <p class="brand-sub">{{ identity.company_name }}</p>
-        <p class="brand-motto">{{ BRAND_MOTTO }}</p>
+        <p class="brand-motto">{{ brandMotto }}</p>
       </div>
 
       <!-- Error -->

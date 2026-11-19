@@ -812,7 +812,7 @@ def register_master_api(app):
             saved = save_company_identity(data)
             if not saved:
                 return jsonify({'status': 'error',
-                                'msg': 'Tidak ada key identitas valid (company_name/company_subtitle/system_name/system_version)'}), 400
+                                'msg': 'Tidak ada key identitas valid'}), 400
             actor = session.get('full_name') or session.get('user_name') or 'Admin'
             log_activity_async(0, 'identity_update', 'admin', actor,
                                new_data=saved, ip=request.remote_addr)

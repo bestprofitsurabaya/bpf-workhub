@@ -9,15 +9,17 @@ aplikasi bisa dipakai ulang oleh cabang perusahaan lain tanpa ubah kode.
 """
 from modules.integrity import note
 IDENTITY_KEYS = ('company_name', 'company_subtitle', 'system_name', 'system_version',
-                  'company_address', 'company_phone')
+                  'company_address', 'company_phone', 'company_motto')
 
 IDENTITY_DEFAULTS = {
     'company_name': 'PT BESTPROFIT FUTURES',
     'company_subtitle': 'Kantor Pusat | Jakarta',
     'system_name': 'BPF WorkHub',
-    'system_version': 'v2.128.4',
+    'system_version': 'v2.129.0',
     'company_address': 'Equity Tower, SCBD Lot 9, Jl. Jend. Sudirman Kav. 52-53, Jakarta Selatan 12190',
     'company_phone': '031-5349888',
+    # v2.129.0 — motto halaman login (dapat diubah Admin di /app/settings).
+    'company_motto': 'Satu Platform, Semua Operasional',
 }
 
 

@@ -100,3 +100,40 @@ describe('OvertimeMeView — penanda terlambat-submit (v2.40.0)', () => {
     expect(w.text()).not.toContain('melewati batas 24 jam')
   })
 })
+
+describe('OvertimeMeView — riwayat berpaginasi (v2.129.0)', () => {
+  afterEach(() => vi.clearAllMocks())
+
+  const MANY = Array.from({ length: 25 }, (_, i) => ({
+    id: i + 1,
+    display_id: `OTL-${String(i + 1).padStart(3, '0')}`,
+    tanggal: '2026-09-12',
+    waktu_mulai: '22:00',
+    waktu_selesai: '23:00',
+    keterangan: `baris ${i + 1}`,
+    submit_late: false,
+    submit_deadline: '2026-09-13 23:00',
+  }))
+
+  it('hanya 10 baris per halaman + info halaman & total', async () => {
+    const w = await mountView({
+      '/api/overtime/mine': { data: MANY, total: MANY.length, submit_deadline_hours: 24 },
+    })
+    const rows = w.findAll('tbody tr')
+    expect(rows.length).toBe(10)
+    expect(rows[0].text()).toContain('OTL-001')
+    expect(w.text()).toContain('Halaman 1 / 3 · 25 pengajuan')
+    expect(w.text()).toContain('(25 pengajuan)')
+  })
+
+  it('tombol Berikutnya menampilkan halaman 2', async () => {
+    const w = await mountView({
+      '/api/overtime/mine': { data: MANY, total: MANY.length, submit_deadline_hours: 24 },
+    })
+    const next = w.findAll('button').find((b) => b.text().includes('Berikutnya'))
+    await next.trigger('click')
+    const rows = w.findAll('tbody tr')
+    expect(rows[0].text()).toContain('OTL-011')
+    expect(w.text()).toContain('Halaman 2 / 3')
+  })
+})

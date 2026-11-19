@@ -1,11 +1,12 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { api } from '../api'
 import Modal from '../components/Modal.vue'
 import StatCard from '../components/StatCard.vue'
 import LoadingState from '../components/LoadingState.vue'
 import ErrorState from '../components/ErrorState.vue'
 import PageHeader from '../components/PageHeader.vue'
+import Pager from '../components/Pager.vue'
 
 const loading = ref(true)
 const err = ref('')
@@ -67,6 +68,14 @@ const filteredUsers = computed(() => {
     return true
   })
 })
+
+// v2.129.0 — tabel review akses bisa memuat seluruh akun (74 saat ini);
+// tampilkan 20 per halaman agar tidak menjadi daftar sangat panjang.
+const PER_PAGE = 20
+const page = ref(1)
+const pageCount = computed(() => Math.max(1, Math.ceil(filteredUsers.value.length / PER_PAGE)))
+const pagedUsers = computed(() => filteredUsers.value.slice((page.value - 1) * PER_PAGE, page.value * PER_PAGE))
+watch([search, filterStatus, filterRole, filterBranch], () => { page.value = 1 })
 
 async function load() {
   loading.value = true; err.value = ''
@@ -184,7 +193,7 @@ onMounted(load)
             </tr>
           </thead>
           <tbody>
-            <tr v-for="u in filteredUsers" :key="u.id" :class="{ 'row-inactive': !u.is_active }">
+            <tr v-for="u in pagedUsers" :key="u.id" :class="{ 'row-inactive': !u.is_active }">
               <td><b>{{ u.full_name }}</b><div class="muted" style="font-size:11px;">{{ u.username }}</div></td>
               <td>{{ u.role_label }}</td>
               <td><span class="badge badge-blue" v-if="u.branch_code">{{ branchName(u.branch_code) }}</span><span v-else class="muted">—</span></td>
@@ -205,6 +214,7 @@ onMounted(load)
           </tbody>
         </table>
       </div>
+      <Pager v-model:page="page" :page-count="pageCount" :total="filteredUsers.length" unit="akun" />
       <div class="muted" style="font-size:11px;padding:10px 14px;">
         💡 Akun <b>Basi</b> &amp; <b>Belum Login</b> adalah kandidat pencabutan akses (A.8.3) —
         verifikasi ke pemilik divisi sebelum menonaktifkan.

@@ -4,6 +4,7 @@ import { api } from '../api'
 import Modal from '../components/Modal.vue'
 import StatCard from '../components/StatCard.vue'
 import PageHeader from '../components/PageHeader.vue'
+import Pager from '../components/Pager.vue'
 import { formatDateTime } from '../utils/format.js'
 import { useStepupStore } from '../stores/stepup'
 
@@ -47,12 +48,20 @@ const summary = computed(() => ({
   overtime: items.value.filter((r) => String(r.doc_type).startsWith('overtime')).length,
 }))
 
+// v2.129.0 — antrean ACC bisa puluhan baris (approval_requests 192 di DB);
+// tampilkan 15 per halaman agar tidak menjadi daftar sangat panjang.
+const PER_PAGE = 15
+const page = ref(1)
+const pageCount = computed(() => Math.max(1, Math.ceil(items.value.length / PER_PAGE)))
+const pagedItems = computed(() => items.value.slice((page.value - 1) * PER_PAGE, page.value * PER_PAGE))
+
 async function load() {
   loading.value = true
   err.value = ''
   try {
     const d = await api('/api/approvals')
     items.value = (d && d.data) || []
+    page.value = 1
   } catch (e) {
     err.value = e.message || 'Gagal memuat antrean ACC'
   } finally {
@@ -146,7 +155,7 @@ onMounted(load)
             </tr>
           </thead>
           <tbody>
-            <tr v-for="r in items" :key="r.doc_type + '-' + r.doc_ref">
+            <tr v-for="r in pagedItems" :key="r.doc_type + '-' + r.doc_ref">
               <td>
                 <strong>{{ DOC_ICON[r.doc_type] || '📄' }} {{ r.display_id || (r.doc_type + ' #' + r.doc_ref) }}</strong>
                 <div class="muted" style="font-size:12px;">{{ DOC_LABEL[r.doc_type] || r.doc_type }} · langkah {{ stepIndex(r) }}</div>
@@ -163,6 +172,7 @@ onMounted(load)
           </tbody>
         </table>
       </div>
+      <Pager v-model:page="page" :page-count="pageCount" :total="items.length" unit="pengajuan" />
     </div>
 
     <Modal v-if="decideFor" :title="`Keputusan ACC — ${decideFor?.display_id || ''}`" @close="decideFor = null">

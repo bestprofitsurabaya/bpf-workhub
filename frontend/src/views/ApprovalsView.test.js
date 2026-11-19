@@ -133,3 +133,27 @@ describe('ApprovalsView', () => {
     expect(w.text()).toContain('DB error')
   })
 })
+
+describe('ApprovalsView — paginasi (v2.129.0)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    setActivePinia(createPinia())
+    vi.stubGlobal('confirm', vi.fn(() => true))
+  })
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('15 baris per halaman + tombol Berikutnya', async () => {
+    const many = Array.from({ length: 20 }, (_, i) => ({
+      ...ITEMS[0], doc_ref: i + 1, display_id: `CASH-${i + 1}`,
+    }))
+    apiMock.mockResolvedValue({ status: 'success', data: many })
+    const w = await mountView()
+    expect(w.findAll('tbody tr').length).toBe(15)
+    expect(w.text()).toContain('Halaman 1 / 2 · 20 pengajuan')
+
+    const next = w.findAll('button').find((b) => b.text().includes('Berikutnya'))
+    await next.trigger('click')
+    expect(w.findAll('tbody tr').length).toBe(5)
+    expect(w.text()).toContain('Halaman 2 / 2')
+  })
+})

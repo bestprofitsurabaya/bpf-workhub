@@ -8,6 +8,7 @@ import StatCard from '../components/StatCard.vue'
 import LoadingState from '../components/LoadingState.vue'
 import ErrorState from '../components/ErrorState.vue'
 import PageHeader from '../components/PageHeader.vue'
+import Pager from '../components/Pager.vue'
 
 const auth = useAuthStore()
 const users = ref([])
@@ -118,6 +119,15 @@ const filteredUsers = computed(() => {
     return matchSearch && matchRole && matchStatus && matchBranch
   })
 })
+
+// v2.129.0 — daftar user bisa ratusan (74 saat ini); tampilkan 20 per halaman
+// agar tabel tidak menjadi sangat panjang. Pencarian/CSV tetap memakai seluruh
+// hasil filter (filteredUsers), bukan hanya halaman yang terlihat.
+const PER_PAGE = 20
+const page = ref(1)
+const pageCount = computed(() => Math.max(1, Math.ceil(filteredUsers.value.length / PER_PAGE)))
+const pagedUsers = computed(() => filteredUsers.value.slice((page.value - 1) * PER_PAGE, page.value * PER_PAGE))
+watch([search, filterRole, filterStatus, filterBranch], () => { page.value = 1 })
 
 const stats = computed(() => {
   const total = users.value.length
@@ -388,7 +398,7 @@ onMounted(load)
             </tr>
           </thead>
           <tbody>
-            <tr v-for="u in filteredUsers" :key="u.id" :class="{ 'row-inactive': !u.is_active }">
+            <tr v-for="u in pagedUsers" :key="u.id" :class="{ 'row-inactive': !u.is_active }">
               <td><input type="checkbox" :checked="selected.includes(u.id)" @change="toggleSelect(u.id)" /></td>
               <td><b>{{ u.full_name }}</b><div class="muted" style="font-size:11px;">{{ u.username }}</div></td>
               <td><span class="badge badge-purple">{{ roleLabel(u.role) }}</span></td>
@@ -418,6 +428,7 @@ onMounted(load)
           </tbody>
         </table>
       </div>
+      <Pager v-model:page="page" :page-count="pageCount" :total="filteredUsers.length" unit="user" />
     </div>
 
     <!-- Modal: Add/Edit User -->
