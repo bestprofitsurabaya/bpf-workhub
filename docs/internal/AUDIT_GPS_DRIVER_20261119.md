@@ -107,3 +107,8 @@ sebagai data uji.
   kembali 0, status `idle`, `lastSync` terisi.
 - Data uji dihapus: `trip_masters`, `trip_details`, dan
   `submit_idempotency` untuk `TRIP-SBY-20261119-0001` = 0 baris tersisa.
+- **Verifikasi live v2.127.2**: `POST /submit-trip` **tanpa** field
+  `pukul_berangkat[]`/`pukul_tujuan[]` → `200 success` (`routes: 1`);
+  DB menyimpan `pukul_berangkat = pukul_tujuan = 08:00:00` (default jam
+  keberangkatan), bukan error 500. Data uji `TRIP-SBY-20261119-0002`
+  beserta idempotensinya dihapus → 0 baris.
