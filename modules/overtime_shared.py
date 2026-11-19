@@ -299,6 +299,10 @@ def validate_overtime_data(data, modul='ob'):
     cleaned['gps_kota'] = str(data.get('gps_kota') or '')[:100]
     cleaned['gps_provinsi'] = str(data.get('gps_provinsi') or '')[:100]
     cleaned['gps_kode_pos'] = str(data.get('gps_kode_pos') or '')[:10]
+    # v2.127.3: waktu & akurasi posisi bukti (audit GPS G5).
+    from modules.gps_schema import parse_gps_at, parse_gps_accuracy
+    cleaned['gps_at'] = parse_gps_at(data.get('gps_at'))
+    cleaned['gps_accuracy'] = parse_gps_accuracy(data.get('gps_accuracy'))
 
     # --- Foto ---
     # Max 5MB base64 per photo (~3.75MB binary) to prevent memory blowup.
@@ -342,13 +346,13 @@ def build_insert_sql(modul):
             (display_id, nama, posisi, tanggal, waktu_mulai, waktu_selesai,
              keterangan, foto_mulai, foto_selesai, email, submitted_at, source, source_uid,
              gps_lat, gps_lon, gps_address, gps_kelurahan, gps_kecamatan,
-             gps_kota, gps_provinsi, gps_kode_pos)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"""
+             gps_kota, gps_provinsi, gps_kode_pos, gps_at, gps_accuracy)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"""
         cols = ['display_id', 'nama', 'posisi', 'tanggal', 'waktu_mulai', 'waktu_selesai',
                 'keterangan', 'foto_mulai', 'foto_selesai', 'email', 'submitted_at',
                 'source', 'source_uid',
                 'gps_lat', 'gps_lon', 'gps_address', 'gps_kelurahan', 'gps_kecamatan',
-                'gps_kota', 'gps_provinsi', 'gps_kode_pos']
+                'gps_kota', 'gps_provinsi', 'gps_kode_pos', 'gps_at', 'gps_accuracy']
     elif modul == 'driver':
         # v2.36.2: source_uid ikut disimpan (kunci stabil baris — paritas OB).
         # sheet_row tetap literal 0 utk submit form (NOT NULL, tidak lagi UNIQUE).
@@ -359,15 +363,15 @@ def build_insert_sql(modul):
              keterangan, no_kendaraan, broker, manager, submitted_at,
              foto_mulai, foto_selesai, source,
              gps_lat, gps_lon, gps_address, gps_kelurahan, gps_kecamatan,
-             gps_kota, gps_provinsi, gps_kode_pos)
-            VALUES (%s,0,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"""
+             gps_kota, gps_provinsi, gps_kode_pos, gps_at, gps_accuracy)
+            VALUES (%s,0,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"""
         # Note: sheet_row is hardcoded as literal 0 in the SQL VALUES,
         # so it is NOT included in cols (cols maps 1:1 with params tuple).
         cols = ['display_id', 'source_uid', 'nama', 'tanggal', 'waktu_mulai', 'waktu_selesai',
                 'keterangan', 'no_kendaraan', 'broker', 'manager', 'submitted_at',
                 'foto_mulai', 'foto_selesai', 'source',
                 'gps_lat', 'gps_lon', 'gps_address', 'gps_kelurahan', 'gps_kecamatan',
-                'gps_kota', 'gps_provinsi', 'gps_kode_pos']
+                'gps_kota', 'gps_provinsi', 'gps_kode_pos', 'gps_at', 'gps_accuracy']
     else:
         raise ValueError(f'Modul tidak dikenal: {modul}')
     return sql, cols
@@ -390,6 +394,7 @@ def build_insert_params(display_id, cleaned, source='form', modul='ob', source_u
             cleaned['gps_lat'], cleaned['gps_lon'], cleaned['gps_address'],
             cleaned['gps_kelurahan'], cleaned['gps_kecamatan'],
             cleaned['gps_kota'], cleaned['gps_provinsi'], cleaned['gps_kode_pos'],
+            cleaned.get('gps_at'), cleaned.get('gps_accuracy'),
         )
     elif modul == 'driver':
         return (
@@ -404,6 +409,7 @@ def build_insert_params(display_id, cleaned, source='form', modul='ob', source_u
             cleaned['gps_lat'], cleaned['gps_lon'], cleaned['gps_address'],
             cleaned['gps_kelurahan'], cleaned['gps_kecamatan'],
             cleaned['gps_kota'], cleaned['gps_provinsi'], cleaned['gps_kode_pos'],
+            cleaned.get('gps_at'), cleaned.get('gps_accuracy'),
         )
     else:
         raise ValueError(f'Modul tidak dikenal: {modul}')

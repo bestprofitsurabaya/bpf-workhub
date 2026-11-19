@@ -11,6 +11,7 @@ from modules.approvals import hook_create_approval  # v2.36.0
 from modules.voucher_schema import ensure_voucher_schema  # v2.107.0
 from modules.bbm_guard import register_proof_hashes as _register_proof_hashes
 from modules import idempotency
+from modules.gps_schema import parse_gps_at, parse_gps_accuracy
 from datetime import datetime
 import os
 import json
@@ -130,6 +131,9 @@ def register_driver_routes(app, socketio):
                 gps_kota = request.form.get('gps_kota', '')
                 gps_provinsi = request.form.get('gps_provinsi', '')
                 gps_kode_pos = request.form.get('gps_kode_pos', '')
+                # v2.127.3: waktu & akurasi posisi bukti (audit GPS G5).
+                gps_at = parse_gps_at(request.form.get('gps_at'))
+                gps_accuracy = parse_gps_accuracy(request.form.get('gps_accuracy'))
 
                 conn = get_db_connection()
                 if not conn:
@@ -465,13 +469,15 @@ def register_driver_routes(app, socketio):
                     INSERT INTO transactions (display_id, transaction_type, driver_name, nopol, vehicle_type, bbm_type, nominal, liter, price_per_liter,
                     odo_km, spbu_type, foto_odo_sebelum, foto_nota_odo_sesudah, foto_struk, foto_struk_dispenser,
                     status, ml_anomaly_flag, km_per_liter, gps_latitude, gps_longitude, gps_address,
-                    gps_kelurahan, gps_kecamatan, gps_kota, gps_provinsi, gps_kode_pos, jumlah_appointment, proof_meta,
+                    gps_kelurahan, gps_kecamatan, gps_kota, gps_provinsi, gps_kode_pos, gps_at, gps_accuracy,
+                    jumlah_appointment, proof_meta,
                     voucher_value, daily_code, voucher_partner, nota_no)
-                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'pending',%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'pending',%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                 """, (display_id, 'CLAIM', driver_name, nopol, vehicle_type, bbm_type, nominal, liter, price_per_liter,
                       odo_km, spbu_type, foto_odo_sebelum, foto_nota_odo_sesudah, foto_struk, foto_struk_dispenser,
                       analysis['is_anomaly'], km_per_liter, gps_lat, gps_lon, gps_address,
-                      gps_kelurahan, gps_kecamatan, gps_kota, gps_provinsi, gps_kode_pos, jumlah_appointment,
+                      gps_kelurahan, gps_kecamatan, gps_kota, gps_provinsi, gps_kode_pos, gps_at, gps_accuracy,
+                      jumlah_appointment,
                       (json.dumps(photo_meta, default=str) if photo_meta else None),
                       voucher_value, daily_code, (voucher_partner or None), (nota_no or None)))
 
@@ -627,14 +633,19 @@ def register_driver_routes(app, socketio):
             gps_kota = request.form.get('gps_kota', '')
             gps_provinsi = request.form.get('gps_provinsi', '')
             gps_kode_pos = request.form.get('gps_kode_pos', '')
+            # v2.127.3: waktu & akurasi posisi bukti (audit GPS G5).
+            gps_at = parse_gps_at(request.form.get('gps_at'))
+            gps_accuracy = parse_gps_accuracy(request.form.get('gps_accuracy'))
             cursor.execute("""
                 INSERT INTO trip_masters (display_id, driver_name, nopol, trip_date, jam_keberangkatan,
                                          jam_tiba, km_awal, km_akhir, status,
-                                         gps_lat, gps_lon, gps_address, gps_kelurahan, gps_kecamatan, gps_kota, gps_provinsi, gps_kode_pos)
+                                         gps_lat, gps_lon, gps_address, gps_kelurahan, gps_kecamatan, gps_kota, gps_provinsi, gps_kode_pos,
+                                         gps_at, gps_accuracy)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'pending',
-                        %s, %s, %s, %s, %s, %s, %s, %s)
+                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """, (trip_display_id, driver_name, nopol, trip_date, jam_berangkat, jam_tiba or None, km_awal, km_akhir or 0,
-                    gps_lat, gps_lon, gps_address, gps_kelurahan, gps_kecamatan, gps_kota, gps_provinsi, gps_kode_pos))
+                    gps_lat, gps_lon, gps_address, gps_kelurahan, gps_kecamatan, gps_kota, gps_provinsi, gps_kode_pos,
+                    gps_at, gps_accuracy))
             trip_id = cursor.lastrowid
 
             lokasi_berangkat_list = request.form.getlist('lokasi_berangkat[]')

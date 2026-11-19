@@ -11,6 +11,7 @@ from modules.notifications import push_driver_notification
 from modules.stepup import stepup_required
 from modules.approvals import hook_create_approval, gate_approval  # v2.36.0
 from modules import bbm_guard, idempotency  # v2.120.0
+from modules.gps_schema import parse_gps_at, parse_gps_accuracy  # v2.127.3
 
 def register_cash_routes(app):
 
@@ -721,12 +722,14 @@ def register_cash_routes(app):
             gps_kota = request.form.get('gps_kota', '')
             gps_provinsi = request.form.get('gps_provinsi', '')
             gps_kode_pos = request.form.get('gps_kode_pos', '')
+            gps_at = parse_gps_at(request.form.get('gps_at'))
+            gps_accuracy = parse_gps_accuracy(request.form.get('gps_accuracy'))
             jumlah_appointment = int(request.form.get('jumlah_appointment', 0) or 0)
 
             display_id = generate_display_id('BPF', conn)
             cursor.execute(
-                "INSERT INTO transactions (display_id, transaction_type, cash_request_id, driver_name, nopol, vehicle_type, bbm_type, nominal, liter, price_per_liter, odo_km, spbu_type, foto_odo_sebelum, foto_nota_odo_sesudah, foto_struk, foto_struk_dispenser, status, km_per_liter, gps_latitude, gps_longitude, gps_address, gps_kelurahan, gps_kecamatan, gps_kota, gps_provinsi, gps_kode_pos, jumlah_appointment, ml_anomaly_flag, proof_meta) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
-                (display_id, 'CASH_LPJ', cash_id, driver_name, nopol, vehicle_type, bbm_type, nominal, liter, price_per_liter, odo_km, spbu_type, foto_odo, foto_nota, foto_struk, foto_dispenser, 'pending', 0, gps_lat, gps_lon, gps_address, gps_kelurahan, gps_kecamatan, gps_kota, gps_provinsi, gps_kode_pos, jumlah_appointment,
+                "INSERT INTO transactions (display_id, transaction_type, cash_request_id, driver_name, nopol, vehicle_type, bbm_type, nominal, liter, price_per_liter, odo_km, spbu_type, foto_odo_sebelum, foto_nota_odo_sesudah, foto_struk, foto_struk_dispenser, status, km_per_liter, gps_latitude, gps_longitude, gps_address, gps_kelurahan, gps_kecamatan, gps_kota, gps_provinsi, gps_kode_pos, gps_at, gps_accuracy, jumlah_appointment, ml_anomaly_flag, proof_meta) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+                (display_id, 'CASH_LPJ', cash_id, driver_name, nopol, vehicle_type, bbm_type, nominal, liter, price_per_liter, odo_km, spbu_type, foto_odo, foto_nota, foto_struk, foto_dispenser, 'pending', 0, gps_lat, gps_lon, gps_address, gps_kelurahan, gps_kecamatan, gps_kota, gps_provinsi, gps_kode_pos, gps_at, gps_accuracy, jumlah_appointment,
                  1 if anomalies else 0,
                  (json.dumps(photo_meta, default=str) if photo_meta else None))
             )

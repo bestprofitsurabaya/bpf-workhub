@@ -175,6 +175,8 @@ function buildPayload() {
     gps_kota: store.gps.detail?.kota || '',
     gps_provinsi: store.gps.detail?.provinsi || '',
     gps_kode_pos: store.gps.detail?.kode_pos || '',
+    gps_at: store.gps.at || '',
+    gps_accuracy: store.gps.accuracy ?? '',
   }
 }
 

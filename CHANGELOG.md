@@ -7,6 +7,28 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.127.3 — 19 November 2026 (Bukti GPS: waktu & akurasi posisi)
+
+Menutup temuan **G5** audit GPS: server selama ini hanya menerima koordinat
+dan alamat, sehingga GA tidak bisa menilai kesegaran dan ketelitian posisi
+bukti foto.
+
+- 🗄️ **Kolom baru** `gps_at` (DATETIME) dan `gps_accuracy` (INT) di
+  `transactions`, `trip_masters`, `overtime_driver`, dan
+  `overtime_ob_security` — idempoten via `modules/gps_schema.py`, otomatis
+  ditambahkan untuk master + tiap DB cabang saat startup/klaim.
+- 🔌 **Semua jalur submit** mengisi kolom itu: klaim BBM/voucher, LPJ kasbon,
+  log trip, lembur driver & OB (form publik dan `/app/driver`).
+- 🧹 **Normalisasi server**: waktu ISO-8601 (`Z`/offset), MySQL, dan
+  `DD/MM/YYYY HH:MM:SS` diterima lalu disimpan sebagai waktu lokal; nilai
+  rusak disimpan NULL. Akurasi dibulatkan dan dibatasi 1–100.000 m.
+- 📱 **Payload driver** (`TripTab`, `BBMTab`, `OvertimeDriverTab`) mengirim
+  `gps_at` + `gps_accuracy` dari store GPS.
+- 🧪 **Tes**: 5 tes `gps_schema` + regresi payload trip. Suite frontend
+  **384 lulus**; tes backend dijalankan di container.
+
+---
+
 ## v2.127.2 — 19 November 2026 (Validasi trip + GPS driver dirapikan)
 
 Tindak lanjut audit GPS dan kegagalan trip yang tertangkap saat uji perangkat.

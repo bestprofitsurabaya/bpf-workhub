@@ -455,6 +455,13 @@ def ensure_anti_fraud_schema(conn=None):
             _ensure_idem(conn)
         except Exception as idem_err:
             print(f"[anti-fraud] idempotency table: {idem_err}")
+        # v2.127.3: kolom bukti GPS (waktu + akurasi) di tabel transaksi,
+        # trip, dan lembur — dipanggil untuk master + tiap DB cabang.
+        try:
+            from modules.gps_schema import ensure_gps_schema as _ensure_gps
+            _ensure_gps(conn)
+        except Exception as gps_err:
+            print(f"[anti-fraud] gps schema: {gps_err}")
         return True
     finally:
         try:

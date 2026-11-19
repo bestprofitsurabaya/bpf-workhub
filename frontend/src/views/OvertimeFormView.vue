@@ -15,7 +15,7 @@ const names = ref([])
 const keterangan = ref([])
 
 // --- GPS detail (paritas dengan OT Driver) ---
-const gps = ref({ lat: '', lon: '', address: '', kelurahan: '', kecamatan: '', kota: '', provinsi: '', kode_pos: '' })
+const gps = ref({ lat: '', lon: '', address: '', kelurahan: '', kecamatan: '', kota: '', provinsi: '', kode_pos: '', at: '', accuracy: null })
 const gpsStatus = ref('')
 const gpsLoading = ref(false)
 
@@ -29,6 +29,8 @@ async function locate() {
       address: d.full_address || '', kelurahan: d.kelurahan || '',
       kecamatan: d.kecamatan || '', kota: d.kota || '',
       provinsi: d.provinsi || '', kode_pos: d.kode_pos || '',
+      at: new Date(pos.timestamp || Date.now()).toISOString(),
+      accuracy: Number.isFinite(pos.coords.accuracy) ? Math.round(pos.coords.accuracy) : null,
     }
     gpsStatus.value = '✅ ' + (d.full_address || `${d.lat}, ${d.lon}`)
   } catch {
@@ -164,6 +166,7 @@ async function submit() {
       gps_lat: gps.value.lat, gps_lon: gps.value.lon, gps_address: gps.value.address,
       gps_kelurahan: gps.value.kelurahan, gps_kecamatan: gps.value.kecamatan,
       gps_kota: gps.value.kota, gps_provinsi: gps.value.provinsi, gps_kode_pos: gps.value.kode_pos,
+      gps_at: gps.value.at, gps_accuracy: gps.value.accuracy,
     }
     if (fotoMulaiFile.value) {
       payload.foto_mulai = await blobToBase64(fotoMulaiFile.value)

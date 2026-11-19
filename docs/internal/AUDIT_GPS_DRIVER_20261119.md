@@ -5,8 +5,8 @@ Lingkup: `frontend/src/utils/gps.js`, `frontend/src/stores/driverStore.js`
 (`locate()`), pemakaian di `DriverView.vue`, `TripTab.vue`, `BBMTab.vue`,
 `OvertimeDriverTab.vue`.
 Metode: telaah kode + uji perangkat SM-A035F (Chrome Android) saat uji Sync v2.
-Status: **ditindaklanjuti di v2.127.2** — G1, G2, G3, G4, G6, G8 sudah
-diperbaiki; G5, G7 dicatat sebagai pekerjaan lanjutan.
+Status: **ditindaklanjuti di v2.127.2 & v2.127.3** — G1–G6, G8 sudah
+diperbaiki; G7 dicatat sebagai pekerjaan lanjutan.
 
 ---
 
@@ -89,7 +89,7 @@ sebagai data uji.
 | G2 | ✅ | `fetchJson` timeout 8 dtk + `AbortController` + cek `r.ok` |
 | G3 | ✅ | `getPosition` default `maximumAge` 30 dtk; `accuracy` + `at` disimpan di `store.gps` |
 | G4 | ✅ | `DriverView` menampilkan toast saat GPS gagal |
-| G5 | ⏳ | `gps_at`/`gps_accuracy` belum masuk DB — perlu migrasi kolom di 12 cabang |
+| G5 | ✅ | `gps_at`/`gps_accuracy` dikirim semua form & disimpan di 4 tabel (v2.127.3) |
 | G6 | ✅ | `nearbySpbu` timeout 6 dtk dan hanya dipanggil sekali per locate |
 | G7 | ⏳ | Cache posisi terakhir & panduan izin iOS — masuk backlog |
 | G8 | ✅ | `pukul_*` default jam berangkat, validasi 400, error SQL tidak bocor |

@@ -32,6 +32,11 @@ describe('TripTab', () => {
     const store = useDriverStore()
     store.profile = { name: 'AHMAD', nopol: 'B 2628 SRP', last_odo_km: 81650 }
     store.online = false
+    store.gps = {
+      lat: -7.25, lon: 112.75, addr: 'Jl. Raya, Surabaya',
+      detail: { kelurahan: 'Ketintang', kecamatan: 'Gayungan', kota: 'Surabaya', provinsi: 'Jawa Timur', kode_pos: '60231' },
+      accuracy: 18, at: '2026-11-19T08:00:00.000Z',
+    }
 
     const w = mount(TripTab, { global: { plugins: [pinia] } })
     await flushPromises()
@@ -53,6 +58,8 @@ describe('TripTab', () => {
     expect(queueName).toBe('trip_queue')
     expect(item.data.driver_name).toBe('AHMAD')
     expect(item.data['lokasi_tujuan[]']).toEqual(['Pelanggan'])
+    expect(item.data.gps_at).toBeTruthy()
+    expect(item.data.gps_accuracy).toBe(18)
     expect(item.state).toBe('pending')
     expect(w.emitted('toast')?.[0]?.[0]).toContain('Offline')
   })
