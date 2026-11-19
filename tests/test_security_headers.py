@@ -13,6 +13,12 @@ from flask import Flask
 def app():
     """Aplikasi minimal yang memakai middleware keamanan app.py."""
     import app as main_app
+    # v2.128.4 — health menurunkan status bila ada kegagalan kritis yang
+    # ditelan (modules.integrity) dalam 30 menit terakhir. Tes lain dalam satu
+    # proses pytest bisa meninggalkan catatan tersebut, membuat tes health
+    # gagal saat suite penuh (lulus saat dijalankan sendiri). Bersihkan dulu.
+    from modules.integrity import reset as reset_integrity
+    reset_integrity()
     yield main_app.app
 
 

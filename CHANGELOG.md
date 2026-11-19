@@ -7,6 +7,33 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.128.4 — 19 November 2026 (Motto brand di halaman login)
+
+Halaman login menampilkan kota kantor pusat ("Jakarta") di bawah nama
+perusahaan. Teks itu tidak lagi mewakili sistem yang kini menaungi seluruh
+cabang dan peran.
+
+- ✨ Baris kota diganti **motto brand**: "Satu Platform, Semua Operasional" —
+  satu platform untuk seluruh operasional (BBM, kas, aset, rekrutmen, absensi,
+  IT) di semua cabang, dengan keamanan berlapis (MFA + audit ISO 27001).
+- 🎨 Kelas `.brand-city` → `.brand-motto` (letter-spacing halus, tetap redup
+  agar hierarki visual kartu login tidak berubah).
+- 🧪 Tes baru `LoginView.test.js` (3 tes): motto tampil, "Jakarta"/"Kantor
+  Pusat" tidak lagi muncul, dan login username+PIN tetap berjalan.
+- 🧪 **Vitest kembali hijau tanpa unhandled rejection**: mock `../utils/gps` di
+  `OvertimeMeView.test.js` belum menyediakan `loadLastPosition` (ditambah di
+  v2.127.4), sehingga 5 tes mencatat unhandled rejection dan `vitest run`
+  keluar dengan kode 1. Mock dilengkapi `loadLastPosition`/`saveLastPosition`.
+- 🧪 **Tes health hermetis**: `test_health_endpoint_ok` gagal saat suite penuh
+  (lulus sendiri) karena kegagalan kritis yang ditelan tes lain masih
+  tercatat di `modules.integrity` (jendela 30 menit) sehingga status
+  `degraded`. Fixture `app` kini memanggil `integrity.reset()` lebih dulu.
+- Catatan: `company_subtitle` di identitas **tidak diubah** — nilai itu masih
+  dipakai kop dokumen resmi (PDF BBM, laporan air), jadi tetap
+  "Kantor Pusat | Jakarta".
+
+---
+
 ## v2.128.3 — 19 November 2026 (Pengiriman push benar-benar berfungsi)
 
 Ditemukan saat uji kirim nyata ke langganan FCM (Chromium).

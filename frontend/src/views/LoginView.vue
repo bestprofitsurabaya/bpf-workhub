@@ -2,13 +2,18 @@
 import { ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore, ROLE_META } from '../stores/auth'
-import { identity, companyCity } from '../stores/identity'
+import { identity } from '../stores/identity'
 
 const auth = useAuthStore()
 const router = useRouter()
 const route = useRoute()
 
 const brandIcon = '/static/icon-192.png'
+// v2.128.4 — motto brand menggantikan nama kota kantor pusat ("Jakarta").
+// Dipilih karena WorkHub kini menaungi seluruh peran & cabang dalam satu
+// platform (operasional BBM, kas, aset, rekrutmen, absensi, IT) dengan
+// keamanan berlapis (MFA, audit ISO 27001) — lihat footer kartu login.
+const BRAND_MOTTO = 'Satu Platform, Semua Operasional'
 const username = ref('')
 const pin = ref('')
 const showPin = ref(false)
@@ -57,7 +62,7 @@ async function submit() {
         </div>
         <h1>{{ identity.system_name }}</h1>
         <p class="brand-sub">{{ identity.company_name }}</p>
-        <p class="brand-city">{{ companyCity() }}</p>
+        <p class="brand-motto">{{ BRAND_MOTTO }}</p>
       </div>
 
       <!-- Error -->
@@ -132,7 +137,10 @@ async function submit() {
 .brand-icon-wrap img { width: 44px; height: 44px; border-radius: 10px; }
 .login-brand h1 { font-size: 20px; font-weight: 800; margin-top: 14px; letter-spacing: -0.3px; }
 .brand-sub { font-size: 12px; color: var(--text-2); margin-top: 4px; font-weight: 500; }
-.brand-city { font-size: 11px; color: var(--text-3); margin-top: 2px; }
+.brand-motto {
+  font-size: 11px; color: var(--text-3); margin-top: 4px;
+  letter-spacing: .04em; font-weight: 500;
+}
 
 /* Form */
 .login-form { display: flex; flex-direction: column; gap: 16px; }

@@ -13,6 +13,10 @@ vi.mock('../utils/watermark', () => ({
 vi.mock('../utils/gps', () => ({
   getPosition: vi.fn(() => Promise.reject(new Error('no gps'))),
   detailedLocation: vi.fn(() => Promise.reject(new Error('no gps'))),
+  // v2.128.4 — modul gps kini mengekspor loadLastPosition (v2.127.4); tanpa
+  // ini vitest mencatat unhandled rejection dan keluar dengan kode 1.
+  loadLastPosition: vi.fn(() => null),
+  saveLastPosition: vi.fn(),
 }))
 
 const HISTORY = [
