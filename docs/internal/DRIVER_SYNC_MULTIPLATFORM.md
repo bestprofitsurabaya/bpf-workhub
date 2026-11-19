@@ -4,7 +4,7 @@ Dokumen internal — audit, desain, dan rencana bertahap untuk membuat input
 driver (BBM, LPJ, trip, overtime, kasbon) **tidak pernah hilang** saat sinyal
 buruk, di Android maupun iPhone.
 
-Versi kode: **v2.127.0** (19 November 2026)
+Versi kode: **v2.128.0** (19 November 2026)
 
 ---
 
@@ -150,8 +150,8 @@ bukan pengangkut data.
 
 | Tahap | Isi | Status |
 |---|---|---|
-| 1 | **Sync v2** (dokumen ini): status item, backoff, 401, panel antrean, resize foto, trigger iOS | ✅ v2.127.0 |
-| 2 | Panduan Add to Home Screen + Web Push (VAPID) untuk pengingat tugas | ⏳ berikutnya |
+| 1 | **Sync v2** (dokumen ini): status item, backoff, 401, panel antrean, resize foto, trigger iOS | ✅ v2.127.0–v2.127.5 |
+| 2 | Panduan Add to Home Screen + Web Push (VAPID) untuk pengingat tugas | ✅ panduan v2.127.x · push v2.128.0 (uji perangkat menyusul) |
 | 3 | Android TWA (Bubblewrap) + `/.well-known/assetlinks.json`, distribusi Play internal | opsional |
 | 4 | Native iOS (Capacitor + APNs) hanya bila sync latar wajib | belum perlu |
 

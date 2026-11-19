@@ -1,4 +1,4 @@
-# 📖 Panduan Pengguna BPF WorkHub v2.127.5
+# 📖 Panduan Pengguna BPF WorkHub v2.128.0
 
 > **Siapa pun kamu — sopir, OB, admin, atau pimpinan — panduan ini ditulis untuk kamu.**
 > Tidak perlu paham teknis. Cukup ikuti langkah-langkah sesuai bagianmu.
@@ -341,6 +341,19 @@ Pernah di jalan tanpa sinyal? Tenang:
 ### 4.7 Jadwal Appointment Saya
 
 Jika Marketing menjadwalkan kunjungan untukmu, jadwalnya muncul di aplikasi Driver. Setelah kunjungan selesai, isi **hasil kunjungan** — data ini menjadi bahan laporan Marketing.
+
+### 4.8 Notifikasi di HP (opsional) 🔔
+
+Supaya tidak ketinggalan penugasan atau kabar klaim walau aplikasi ditutup:
+
+1. Ketuk ikon **🔔** di kanan atas → tekan **Aktifkan**.
+2. Izinkan notifikasi saat browser bertanya.
+3. Status berubah menjadi **✅ Notifikasi HP aktif**.
+
+- **Android (Chrome):** langsung berfungsi.
+- **iPhone/iPad:** wajib **iOS 16.4+** dan aplikasi sudah ditambahkan ke **Layar Utama**. Bila belum, panel menampilkan petunjuknya.
+- **Matikan** kapan saja lewat panel 🔔 yang sama (mis. HP dipakai bergantian).
+- Notifikasi hanya pemberitahuan; data yang kamu isi tetap dikirim oleh antrean offline saat aplikasi dibuka.
 
 ---
 

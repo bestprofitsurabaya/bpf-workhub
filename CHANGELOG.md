@@ -7,6 +7,28 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.128.0 — 19 November 2026 (Notifikasi HP saat aplikasi tertutup)
+
+Tahap 2 rencana multiplatform: **Web Push (VAPID)** untuk driver.
+
+- 🔔 **Notifikasi tetap masuk walau app ditutup** — penugasan kendaraan,
+  appointment baru, klaim disetujui/ditolak, dan kasbon. Android Chrome
+  penuh; iPhone/iPad Safari **≥ 16.4** setelah PWA ditambahkan ke Layar
+  Utama.
+- 🔘 **Sakelar di panel 🔔** — "Aktifkan notifikasi HP" / "Matikan", dengan
+  petunjuk khusus iPhone bila belum dipasang sebagai PWA.
+- 🗄️ **Langganan per perangkat** disimpan di `push_subscriptions` (per DB
+  cabang); endpoint unik, bisa banyak perangkat per driver.
+- 🔐 **Kunci VAPID**: environment `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY`,
+  atau dibuat otomatis sekali di `system_config` master.
+- 🧵 **Tidak memblokir alur bisnis**: push dikirim di latar belakang dengan
+  timeout 8 dtk; langganan mati (404/410) dihapus otomatis.
+- 🧪 **Tes**: 6 tes backend (validasi langganan, payload, pasangan kunci
+  P-256) + 3 tes frontend. Suite frontend **393 lulus**. Uji perangkat
+  Android/iPhone menyusul — lihat `docs/internal/WEB_PUSH_DRIVER.md`.
+
+---
+
 ## v2.127.5 — 19 November 2026 (Sync tidak macet saat `navigator.onLine` salah)
 
 Ditemukan saat uji perangkat 19 Nov: setelah mode pesawat dimatikan,

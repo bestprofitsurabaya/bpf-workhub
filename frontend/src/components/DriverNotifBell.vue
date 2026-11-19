@@ -1,9 +1,37 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useDriverStore } from '../stores/driverStore'
+import { getPushState, enablePush, disablePush } from '../utils/push'
 
 const store = useDriverStore()
 const open = ref(false)
+// v2.128.0 — status notifikasi HP (Web Push)
+const push = ref({ supported: false, subscribed: false, permission: 'default', ios: false, standalone: false })
+const pushBusy = ref(false)
+const pushMsg = ref('')
+
+async function loadPush() {
+  try { push.value = await getPushState() } catch { /* abaikan */ }
+}
+
+async function togglePush() {
+  pushBusy.value = true
+  pushMsg.value = ''
+  try {
+    if (push.value.subscribed) {
+      await disablePush()
+      pushMsg.value = '🔕 Notifikasi HP dimatikan di perangkat ini.'
+    } else {
+      await enablePush()
+      pushMsg.value = '✅ Notifikasi HP aktif — tetap masuk walau app ditutup.'
+    }
+    await loadPush()
+  } catch (e) {
+    pushMsg.value = '⚠️ ' + (e?.message || 'Gagal mengatur notifikasi HP')
+  } finally {
+    pushBusy.value = false
+  }
+}
 
 const ICONS = {
   claim: { approved: '✅', paid: '💸', archived: '📦', rejected: '⛔' },
@@ -30,6 +58,7 @@ function toggle() {
   if (open.value) {
     store.markNotifRead()
     store.loadNotifications()
+    loadPush()
   }
 }
 
@@ -63,6 +92,24 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onDocKey))
         </div>
         <p v-if="!store.notifications.length" class="notif-empty">Belum ada notifikasi</p>
       </div>
+      <div class="notif-push">
+        <div v-if="!push.supported" class="notif-push-note">Browser ini belum mendukung notifikasi HP.</div>
+        <template v-else>
+          <div class="notif-push-row">
+            <span>{{ push.subscribed ? '✅ Notifikasi HP aktif' : '🔕 Notifikasi HP belum aktif' }}</span>
+            <button class="btn btn-sm btn-primary" :disabled="pushBusy" @click="togglePush">
+              {{ pushBusy ? '⏳' : (push.subscribed ? 'Matikan' : 'Aktifkan') }}
+            </button>
+          </div>
+          <p v-if="push.ios && !push.standalone" class="notif-push-note">
+            Di iPhone: tambah dulu ke <b>Layar Utama</b> (Safari → Bagikan → Tambah ke Layar Utama), lalu buka dari ikon itu.
+          </p>
+          <p v-else-if="push.permission === 'denied'" class="notif-push-note">
+            Izin notifikasi diblokir. Buka pengaturan situs di browser → Notifikasi → Izinkan.
+          </p>
+          <p v-if="pushMsg" class="notif-push-note">{{ pushMsg }}</p>
+        </template>
+      </div>
     </div>
   </div>
 </template>
@@ -90,4 +137,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onDocKey))
 .notif-msg { font-size: 12px; line-height: 1.4; }
 .notif-time { font-size: 10px; opacity: .6; margin-top: 2px; }
 .notif-empty { text-align: center; opacity: .6; font-size: 12px; padding: 30px 10px; }
+.notif-push { border-top: 1px solid var(--border); padding: 10px 14px 14px; background: var(--bg-2, #f8fafc); }
+.notif-push-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; }
+.notif-push-note { font-size: 10px; line-height: 1.45; opacity: .75; margin: 6px 0 0; }
 </style>

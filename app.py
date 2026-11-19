@@ -106,6 +106,13 @@ init_pool()
 # Ensure notifications table exists (safe on every startup)
 from modules.notifications import ensure_notifications_table
 ensure_notifications_table()
+# v2.128.0: tabel langganan Web Push (master). DB cabang dibuat lazily
+# saat driver pertama kali mengaktifkan notifikasi di cabangnya.
+try:
+    from modules.webpush import ensure_push_table
+    ensure_push_table()
+except Exception as _push_err:
+    print(f"[webpush] startup ensure: {_push_err}")
 
 # Ensure appointment system tables/columns (safe on every startup).
 # Retry bila koneksi pertama gagal (DB masih warming up / pool belum siap).
@@ -533,6 +540,7 @@ from modules.routes_reports import register_report_routes
 from modules.routes_cash import register_cash_routes
 from modules.routes_settings import register_settings_routes
 from modules.routes_notifications import register_notification_routes
+from modules.routes_push import register_push_routes  # v2.128.0 — Web Push
 from modules.routes_auth import register_auth_routes
 from modules.routes_appointments import register_appointment_routes
 from modules.routes_water import register_water_routes
@@ -586,6 +594,7 @@ register_admin_routes(app)
 register_report_routes(app)
 register_settings_routes(app)
 register_notification_routes(app)
+register_push_routes(app)  # v2.128.0 — notifikasi HP (VAPID)
 register_appointment_routes(app)
 register_water_routes(app)
 register_applicant_routes(app)

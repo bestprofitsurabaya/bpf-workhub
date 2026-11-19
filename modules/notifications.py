@@ -59,6 +59,7 @@ def push_driver_notification(driver_name, ntype, action, message, ref_id=None):
     created = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     conn = None
     cursor = None
+    push_subs = []
     try:
         conn = get_db_connection()
         if conn:
@@ -70,6 +71,19 @@ def push_driver_notification(driver_name, ntype, action, message, ref_id=None):
             )
             conn.commit()
             notif_id = cursor.lastrowid
+            # v2.128.0: ambil langganan Web Push driver (best-effort; tabel
+            # belum ada di DB lama → lewati). Dikirim di latar belakang agar
+            # request bisnis tidak menunggu jaringan push.
+            try:
+                pc = conn.cursor(dictionary=True)
+                pc.execute(
+                    "SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE driver_name=%s",
+                    (driver,),
+                )
+                push_subs = pc.fetchall() or []
+                pc.close()
+            except Exception:
+                push_subs = []
     except Exception as e:
         print(f"[notifications] push error: {e}")
     finally:
@@ -89,6 +103,16 @@ def push_driver_notification(driver_name, ntype, action, message, ref_id=None):
         'ref_id': ref_id,
         'created_at': created,
     })
+    # v2.128.0: jangkau perangkat saat aplikasi tertutup (Android Chrome,
+    # iOS >= 16.4 PWA). Kegagalan push tidak memengaruhi notifikasi in-app.
+    if push_subs:
+        try:
+            from modules import webpush
+            webpush.send_to_driver_async(driver, 'BPF WorkHub',
+                                         str(message)[:255], '/app/driver',
+                                         subs=push_subs)
+        except Exception as e:
+            print(f"[notifications] webpush hook: {e}")
     return notif_id
 
 

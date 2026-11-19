@@ -4,7 +4,7 @@
  * menampilkan data lama setelah verifikasi/kehadiran sampai refresh manual.
  * v2.38.0: cache bump saja — stamp SPA v2.38.0 (migrasi worker gevent di backend).
  */
-const CACHE = 'bpf-spa-20261119-v2.127.5';
+const CACHE = 'bpf-spa-20261119-v2.128.0';
 const SHELL = ['/app/index.html'];
 
 self.addEventListener('install', (event) => {
@@ -92,3 +92,46 @@ self.addEventListener('fetch', (event) => {
 function cachePut(request, response) {
   if (response.ok) caches.open(CACHE).then((c) => c.put(request, response)).catch(() => {});
 }
+
+/* ============================================================
+ * v2.128.0 — Web Push (notifikasi driver saat app tertutup)
+ * Payload dari server: {title, body, url, tag, at}
+ * ============================================================ */
+self.addEventListener('push', (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch {
+    data = { body: event.data ? event.data.text() : '' };
+  }
+  const title = data.title || 'BPF WorkHub';
+  const url = data.url || '/app/driver';
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body: data.body || '',
+      icon: '/static/icon-192.png',
+      badge: '/static/icon-192.png',
+      tag: data.tag || 'bpf-driver',
+      renotify: true,
+      data: { url },
+    }).catch((err) => console.warn('[SPA SW] showNotification:', err))
+  );
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const target = (event.notification.data && event.notification.data.url) || '/app/driver';
+  event.waitUntil((async () => {
+    const list = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const c of list) {
+      if (c.url.includes('/app/')) {
+        try { await c.focus(); } catch { /* lanjut */ }
+        if (c.navigate && !c.url.includes(target)) {
+          try { await c.navigate(target); } catch { /* lanjut */ }
+        }
+        return;
+      }
+    }
+    if (self.clients.openWindow) await self.clients.openWindow(target);
+  })());
+});
