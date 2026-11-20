@@ -2469,3 +2469,28 @@ tes & verifikasi; perubahan produksi butuh konfirmasi eksplisit.
   dari config agar tidak mengganggu startup. OCR memakai Tesseract (ind+eng)
   di container NAS; pembacaan ODO final masih perlu verifikasi visual karena
   beberapa foto membantu teks ODO kecil.
+
+### Verifikasi deploy v2.130.0 (20 Nov 2026, 13:30 WIB)
+- Commit `25f503d` sudah di-push ke `origin/main`.
+- Image `bpf-workhub-web` di-build ulang dan container healthy; stamp DB
+  (`system_config` + 12 `branches`) tersinkron ke v2.130.0.
+- Migrasi data: 34 baris CLAIM rekanan mendapat `voucher_value = nominal`
+  (total Rp 4.800.700). Backfill `km_per_liter`: 15 dari 72 baris punya nilai
+  (>0); sisanya ODO pertama/top-up tanpa patokan jarak.
+- Uji API finance (login `finance_sby`): `/api/expenses/recap?year=2026&branch=SBY`
+  → `categories = [kasbon, lpj, voucher, klaim]`, total Nov = **Rp 9.922.200**,
+  rincian LPJ Rp 5.121.500 + voucher Rp 4.800.700 + klaim Rp 0.
+  `/api/voucher/summary` → open 34 baris / Rp 4.800.700, settled 0.
+  Artinya tagihan SPBU rekanan November masih **open** (belum ada
+  `settlement_id`) — sesuai semantik baru; keputusan final tetap di Finance.
+- Test: backend `1480 passed, 6 skipped`; frontend `54 file / 408 test passed`;
+  `npm run build` sukses; 7 titik stamp + DB konsisten.
+- Backup pra-migrasi: `/srv/bpf-workhub/backups/pre-v2130-20261120.sql.gz`.
+
+### Catatan MCP OCR
+- `paddleocr-mcp[local-cpu]` v0.8.5 terpasang dan dicoba, tetapi tidak bisa
+  jalan di sandbox ini: CPU Intel i3-2100 hanya AVX (tanpa AVX2) sehingga
+  PaddlePaddle keluar dengan `Illegal instruction`. Server MCP dilepas lagi
+  dari config agar tidak mengganggu startup. OCR memakai Tesseract (ind+eng)
+  di container NAS; pembacaan ODO final masih perlu verifikasi visual karena
+  beberapa foto membantu teks ODO kecil.
