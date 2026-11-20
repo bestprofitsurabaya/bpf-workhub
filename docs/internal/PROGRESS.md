@@ -2475,3 +2475,22 @@ tes & verifikasi; perubahan produksi butuh konfirmasi eksplisit.
 ---
 
 *BPF WorkHub v2.37.5 · Progres Tracker · Last updated: 2026-09-07*
+
+### Rekonsiliasi data selesai (20 Nov 2026, 15:50 WIB)
+- Pencarian di WhatsApp Web/HP untuk 13 baris yang hilang: tidak ditemukan
+  pesan/foto yang cocok (foto terbaru di grup hanya untuk 20 Nov). Sesuai
+  konfirmasi user, **Subsidi Tepat dipakai sebagai sumber kebenaran**.
+- Net **9 transaksi baru** diimpor dari Subsidi Tepat (13 kandidat dikurangi
+  4 yang ternyata duplikat dari baris lama yang salah nopol).
+- 4 nopol lama dikoreksi sesuai Subsidi Tepat:
+  `BPF-20261113-002`, `BPF-20261112-006`, `BPF-20261119-001` → **L 1906 TF**;
+  `BPF-20261110-003` → **L 1415 CBI**. ODO `BPF-20261113-002` = 217700 km
+  (dari foto nota yang nama filenya keliru).
+- `km_per_liter` dihitung ulang untuk 81 baris (15 bernilai >0).
+- Verifikasi akhir: **81 transaksi · 1.140,71 L · Rp 11.407.100**,
+  cocok persis dengan Subsidi Tepat (MISSING 0, EXTRA 0).
+  Finance API: LPJ Rp 5.121.500 + voucher Rp 6.285.600 + klaim Rp 0
+  = grand total **Rp 11.407.100**.
+- Tagihan rekanan tetap **open/belum dibayar** (Rp 6.285.600, 43 baris voucher
+  dengan `settlement_id IS NULL`). Backup:
+  `/srv/bpf-workhub/backups/pre-subsidy-recon-20261120.sql.gz`.
