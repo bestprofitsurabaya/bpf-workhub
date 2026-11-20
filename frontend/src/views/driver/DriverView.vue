@@ -276,7 +276,7 @@ onBeforeUnmount(() => {
     <header class="d-header">
       <img :src="brandIcon" alt="BPF" class="d-logo" />
       <div class="grow" style="min-width:0;">
-        <div class="d-name">{{ store.profile?.name || (auth.user?.full_name || 'Driver') }}</div>
+        <div class="d-name">{{ store.driverDisplayName || (auth.user?.full_name || 'Driver') }}</div>
         <div class="muted" style="font-size:10px;">{{ store.profile?.nopol || '' }} · {{ store.profile?.vehicle_type || '' }}</div>
       </div>
       <button class="btn-icon" title="Bantuan & glosarium" aria-label="Bantuan" @click="helpOpen = true">❓</button>

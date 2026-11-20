@@ -4,10 +4,30 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 **Terakhir diperbarui:** 2026-11-20<br>
 **Branch:** `main`<br>
-**Versi terbaru:** v2.129.1 (20 Nov — Web Push driver akhirnya sampai: `ttl=86400` + `Urgency: high`; TTL 0 membuat FCM membuang pesan saat HP tidak terhubung) · v2.128.4 (19 Nov — motto brand di halaman login: "Satu Platform, Semua Operasional" menggantikan nama kota "Jakarta") · v2.128.3 (19 Nov — Web Push benar-benar terkirim: objek Vapid, bukan string PEM) · v2.128.2 (19 Nov — bersihkan langganan push mati di DB cabang yang benar) · v2.112.0 (17 Nov — MFA TOTP: login dua langkah, kebijakan admin off/optional/required_roles, kode pemulihan, panduan Microsoft Authenticator) · v2.111.0 (17 Nov — OCR NIK dari crop label + validasi tanggal lahir) · v2.108.2 (13 Nov — hapus data uji FirstWork oleh admin/traineer, demo per cabang bisa dibersihkan, seed demo idempoten) · v2.108.1 (13 Nov — validasi server trip & bukti foto) · v2.104.0 (12 Nov — Fase 3 selesai: KPI bisa diklik ke daftar baris terfilter, antrean bawa baris nyata + aksi GA, antrean keempat SPBU mismatch) · v2.103.0 (12 Nov — meja kerja BBM: isolasi cabang, definisi metrik tunggal, context bar, antrean Perlu Tindakan) · v2.84.0 (12 Nov — semua cabang wajib tautan ber-token + QR statis lokal) · v2.83.0 (12 Nov — ID Fingerprint & ID BPF: backfill 1.831 baris, panel traineer, koreksi per baris) · v2.82.0 (11 Nov — audit isolasi cabang FirstWork: token per cabang, KTP tertutup, NIK disamarkan) · v2.81.0 (11 Nov — Profil Saya) · v2.80.0 (11 Nov — Absensi FirstWork + migrasi 1.831 baris sheet) · v2.77.0 (3 Nov — OTP SubsidiTepat: anti request ganda, supervisor verifikasi status, cooldown resend; siklus OTP end-to-end OK — kode diverifikasi → token → 192 transaksi SPBU terimpor)
+**Versi terbaru:** v2.129.2 (20 Nov — halaman driver memakai nama dari Pengaturan (`drivers.display_name`), bukan username) · v2.129.1 (20 Nov — Web Push driver akhirnya sampai: `ttl=86400` + `Urgency: high`; TTL 0 membuat FCM membuang pesan saat HP tidak terhubung) · v2.128.4 (19 Nov — motto brand di halaman login: "Satu Platform, Semua Operasional" menggantikan nama kota "Jakarta") · v2.128.3 (19 Nov — Web Push benar-benar terkirim: objek Vapid, bukan string PEM) · v2.128.2 (19 Nov — bersihkan langganan push mati di DB cabang yang benar) · v2.112.0 (17 Nov — MFA TOTP: login dua langkah, kebijakan admin off/optional/required_roles, kode pemulihan, panduan Microsoft Authenticator) · v2.111.0 (17 Nov — OCR NIK dari crop label + validasi tanggal lahir) · v2.108.2 (13 Nov — hapus data uji FirstWork oleh admin/traineer, demo per cabang bisa dibersihkan, seed demo idempoten) · v2.108.1 (13 Nov — validasi server trip & bukti foto) · v2.104.0 (12 Nov — Fase 3 selesai: KPI bisa diklik ke daftar baris terfilter, antrean bawa baris nyata + aksi GA, antrean keempat SPBU mismatch) · v2.103.0 (12 Nov — meja kerja BBM: isolasi cabang, definisi metrik tunggal, context bar, antrean Perlu Tindakan) · v2.84.0 (12 Nov — semua cabang wajib tautan ber-token + QR statis lokal) · v2.83.0 (12 Nov — ID Fingerprint & ID BPF: backfill 1.831 baris, panel traineer, koreksi per baris) · v2.82.0 (11 Nov — audit isolasi cabang FirstWork: token per cabang, KTP tertutup, NIK disamarkan) · v2.81.0 (11 Nov — Profil Saya) · v2.80.0 (11 Nov — Absensi FirstWork + migrasi 1.831 baris sheet) · v2.77.0 (3 Nov — OTP SubsidiTepat: anti request ganda, supervisor verifikasi status, cooldown resend; siklus OTP end-to-end OK — kode diverifikasi → token → 192 transaksi SPBU terimpor)
+
 
 ---
 
+## 👤 20 Nov 2026 — Nama driver di PWA (v2.129.2)
+
+**Gejala:** header PWA driver + form BBM/Kasbon menampilkan
+`DRIVERSBY_AHMAD`, padahal di Pengaturan → Manajemen User namanya **Ahmad**.
+
+**Sebab:** `/api/driver/me` hanya mengirim `drivers.name` = `UPPER(username)`
+(kunci operasional). Nama manusia sudah ada di `drivers.display_name` sejak
+v2.78.0 (`= users.full_name`) tetapi endpoint tidak mengirimnya.
+
+**Perbaikan:**
+- `modules/routes_driver.py` — `SELECT ... COALESCE(NULLIF(TRIM(d.display_name),''), d.name) AS display_name`.
+- `frontend/src/stores/driverStore.js` — getter `driverDisplayName`
+  (`display_name` → fallback username). `driverName` tetap username karena
+  dipakai di `transactions.driver_name`, penugasan, notifikasi.
+- Dipakai di `DriverView.vue` (header), `BBMTab.vue`, `KasbonTab.vue`,
+  `OvertimeDriverTab.vue` (payload `nama`; server tetap override dari sesi).
+- Tes: store (2) + DriverView (1) diperbarui.
+
+---
 ## 🔔 20 Nov 2026 — Notifikasi HP driver: TTL Web Push (v2.129.1)
 
 **Gejala:** server menerima `201` dari FCM untuk semua endpoint, service worker

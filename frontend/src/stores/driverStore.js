@@ -176,6 +176,10 @@ export const useDriverStore = defineStore('driver', {
   }),
   getters: {
     driverName: (s) => (s.profile?.name || '').toUpperCase(),
+    // v2.129.2 — nama manusia dari Pengaturan (users.full_name → drivers.display_name).
+    // `driverName` tetap UPPER(username) karena dipakai sebagai kunci operasional.
+    driverDisplayName: (s) => ((s.profile?.display_name || '').trim()
+      || (s.profile?.name || '').toUpperCase()),
     queueTotal: (s) => Object.values(s.queue).reduce((a, b) => a + (Number(b) || 0), 0),
   },
   actions: {

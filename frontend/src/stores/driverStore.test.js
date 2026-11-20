@@ -32,7 +32,7 @@ describe('driver store', () => {
     idb.updateQueueItem.mockResolvedValue(null)
     notifyMock.mockResolvedValue(false)
     apiMock.mockImplementation((path) => {
-      if (path === '/api/driver/me') return Promise.resolve({ name: 'RIVAN', nopol: 'L 1 AB', vehicle_type: 'AVANZA', bbm_type: 'PERTALITE', is_active: true })
+      if (path === '/api/driver/me') return Promise.resolve({ name: 'RIVAN', display_name: 'Rivan', nopol: 'L 1 AB', vehicle_type: 'AVANZA', bbm_type: 'PERTALITE', is_active: true })
       if (path === '/api/cash/daily-code') return Promise.resolve({ code: 300, manual_mode: false })
       if (path === '/api/notifications') return Promise.resolve({ notifications: [], unread: 0 })
       return Promise.resolve({})
@@ -44,6 +44,23 @@ describe('driver store', () => {
     await s.loadProfile()
     expect(s.profile.name).toBe('RIVAN')
     expect(s.driverName).toBe('RIVAN')
+  })
+
+  it('driverDisplayName memakai nama dari Pengaturan, driverName tetap username (v2.129.2)', async () => {
+    const s = useDriverStore()
+    await s.loadProfile()
+    expect(s.driverDisplayName).toBe('Rivan')
+    expect(s.driverName).toBe('RIVAN')
+  })
+
+  it('driverDisplayName jatuh ke username bila display_name kosong', async () => {
+    apiMock.mockImplementation((path) => {
+      if (path === '/api/driver/me') return Promise.resolve({ name: 'WICAK', display_name: '', nopol: '', vehicle_type: 'AVANZA', bbm_type: 'PERTALITE', is_active: true })
+      return Promise.resolve({})
+    })
+    const s = useDriverStore()
+    await s.loadProfile()
+    expect(s.driverDisplayName).toBe('WICAK')
   })
 
   it('enqueue menambah antrean dan memperbarui badge', async () => {

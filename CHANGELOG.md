@@ -7,6 +7,25 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.129.2 — 20 November 2026 (Nama driver memakai nama dari Pengaturan)
+
+Halaman driver menampilkan `DRIVERSBY_AHMAD`, bukan **Ahmad** yang tersimpan di
+Manajemen User.
+
+- 🐞 `GET /api/driver/me` hanya mengirim `drivers.name` — kunci operasional
+  `UPPER(username)` — sehingga UI memakai username sebagai nama tampilan.
+  Padahal sejak v2.78.0 nama manusia sudah tersedia di
+  `drivers.display_name` (= `users.full_name`).
+- ✅ Endpoint kini mengirim `display_name` (fallback ke `name` bila kosong).
+- ✅ Store driver menambah getter `driverDisplayName`; `driverName` **tetap**
+  `UPPER(username)` karena dipakai sebagai kunci transaksi, penugasan, dan
+  notifikasi. Header PWA, form BBM, form Kasbon, serta payload overtime
+  memakai `driverDisplayName`.
+- 🧪 Tes store (prioritas `display_name`, fallback username) dan DriverView
+  (header menampilkan “Rivan”, bukan “RIVAN”).
+
+---
+
 ## v2.129.1 — 20 November 2026 (Notifikasi HP akhirnya sampai: TTL push > 0)
 
 Notifikasi driver lewat Web Push diterima server (FCM menjawab `201`) tetapi

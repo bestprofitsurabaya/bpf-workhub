@@ -104,7 +104,7 @@ async function submit() {
   const payload = {
     ...form.value,
     client_uuid: otUuid,
-    nama: store.profile?.name || '',
+    nama: store.driverDisplayName || '',
     gps_lat: store.gps.lat ?? '',
     gps_lon: store.gps.lon ?? '',
     gps_address: store.gps.addr || '',

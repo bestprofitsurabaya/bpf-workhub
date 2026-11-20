@@ -314,7 +314,7 @@ onMounted(() => {
 
     <form class="driver-form" @submit.prevent="submit">
       <div class="field"><label>Nama Driver</label>
-        <input class="input" :value="store.driverName" disabled />
+        <input class="input" :value="store.driverDisplayName" disabled />
       </div>
       <div class="field"><label>Nopol</label>
         <input class="input" v-model="form.nopol" placeholder="cth: L 1413 CBI" />

@@ -27,7 +27,7 @@ let pendingLpjRows = [] // kasbon berstatus FUNDS_WITH_DRIVER
 
 function mockApi() {
   apiMock.mockImplementation((path, opts = {}) => {
-    if (path === '/api/driver/me') return Promise.resolve({ name: 'RIVAN', nopol: 'L 1 AB', vehicle_type: 'AVANZA', bbm_type: 'PERTALITE', is_active: true, initial_odo_km: 81441, last_odo_km: 81441 })
+    if (path === '/api/driver/me') return Promise.resolve({ name: 'RIVAN', display_name: 'Rivan', nopol: 'L 1 AB', vehicle_type: 'AVANZA', bbm_type: 'PERTALITE', is_active: true, initial_odo_km: 81441, last_odo_km: 81441 })
     if (path === '/api/cash/daily-code') return Promise.resolve({ code: 300, manual_mode: false })
     if (path === '/api/voucher/config') return Promise.resolve({ value: 130000, partner: 'SPBU 54.601.01', daily_code: 700, nominal: 130700 })
     if (path === '/api/notifications') return Promise.resolve({ notifications: [], unread: 0 })
@@ -92,7 +92,9 @@ describe('DriverView', () => {
   it('memuat profil driver dari /api/driver/me dan menampilkan nama + nopol', async () => {
     const w = await mountView()
     expect(apiMock).toHaveBeenCalledWith('/api/driver/me')
-    expect(w.text()).toContain('RIVAN')
+    // v2.129.2 — tampil nama dari Pengaturan, bukan username operasional
+    expect(w.text()).toContain('Rivan')
+    expect(w.text()).not.toContain('RIVAN')
     expect(w.text()).toContain('L 1 AB')
     w.unmount()
   })

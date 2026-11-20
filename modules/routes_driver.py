@@ -541,7 +541,9 @@ def register_driver_routes(app, socketio):
                 return jsonify({'error': 'DB error'}), 500
             cursor = conn.cursor(dictionary=True)
             cursor.execute(
-                """SELECT d.name, d.nopol, d.vehicle_type, d.bbm_type, d.is_active,
+                """SELECT d.name,
+                          COALESCE(NULLIF(TRIM(d.display_name), ''), d.name) AS display_name,
+                          d.nopol, d.vehicle_type, d.bbm_type, d.is_active,
                           COALESCE(NULLIF(v.initial_odo_km, 0),
                                    (SELECT MAX(va.last_odometer) FROM vehicle_assets va
                                      WHERE va.nopol = d.nopol), 0) AS initial_odo_km,

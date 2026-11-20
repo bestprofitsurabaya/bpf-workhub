@@ -146,7 +146,7 @@ onMounted(loadData)
     </div>
 
     <form class="driver-form" @submit.prevent="submit">
-      <div class="field"><label>Driver</label><input class="input" :value="store.driverName" disabled /></div>
+      <div class="field"><label>Driver</label><input class="input" :value="store.driverDisplayName" disabled /></div>
       <div class="field"><label>Nopol</label><input class="input" :value="store.profile?.nopol || ''" disabled /></div>
       <div class="field"><label>Nominal Dasar (Rp)</label>
         <input class="input" type="number" v-model.number="baseAmount" min="0" placeholder="0" />
