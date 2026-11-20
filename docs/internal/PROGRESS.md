@@ -2,10 +2,42 @@
 
 File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks saat sesi baru dimulai.
 
-**Terakhir diperbarui:** 2026-11-19<br>
+**Terakhir diperbarui:** 2026-11-20<br>
 **Branch:** `main`<br>
-**Versi terbaru:** v2.129.0 (19 Nov — motto login dapat diubah Admin di Pengaturan → Identitas (company_motto); riwayat Overtime Security/OB, Daftar User & Review Akses berpaginasi via komponen Pager) · v2.128.4 (19 Nov — motto brand di halaman login: "Satu Platform, Semua Operasional" menggantikan nama kota "Jakarta") · v2.128.3 (19 Nov — Web Push benar-benar terkirim: objek Vapid, bukan string PEM) · v2.128.2 (19 Nov — bersihkan langganan push mati di DB cabang yang benar) · v2.112.0 (17 Nov — MFA TOTP: login dua langkah, kebijakan admin off/optional/required_roles, kode pemulihan, panduan Microsoft Authenticator) · v2.111.0 (17 Nov — OCR NIK dari crop label + validasi tanggal lahir) · v2.108.2 (13 Nov — hapus data uji FirstWork oleh admin/traineer, demo per cabang bisa dibersihkan, seed demo idempoten) · v2.108.1 (13 Nov — validasi server trip & bukti foto) · v2.104.0 (12 Nov — Fase 3 selesai: KPI bisa diklik ke daftar baris terfilter, antrean bawa baris nyata + aksi GA, antrean keempat SPBU mismatch) · v2.103.0 (12 Nov — meja kerja BBM: isolasi cabang, definisi metrik tunggal, context bar, antrean Perlu Tindakan) · v2.84.0 (12 Nov — semua cabang wajib tautan ber-token + QR statis lokal) · v2.83.0 (12 Nov — ID Fingerprint & ID BPF: backfill 1.831 baris, panel traineer, koreksi per baris) · v2.82.0 (11 Nov — audit isolasi cabang FirstWork: token per cabang, KTP tertutup, NIK disamarkan) · v2.81.0 (11 Nov — Profil Saya) · v2.80.0 (11 Nov — Absensi FirstWork + migrasi 1.831 baris sheet) · v2.77.0 (3 Nov — OTP SubsidiTepat: anti request ganda, supervisor verifikasi status, cooldown resend; siklus OTP end-to-end OK — kode diverifikasi → token → 192 transaksi SPBU terimpor)
+**Versi terbaru:** v2.129.1 (20 Nov — Web Push driver akhirnya sampai: `ttl=86400` + `Urgency: high`; TTL 0 membuat FCM membuang pesan saat HP tidak terhubung) · v2.128.4 (19 Nov — motto brand di halaman login: "Satu Platform, Semua Operasional" menggantikan nama kota "Jakarta") · v2.128.3 (19 Nov — Web Push benar-benar terkirim: objek Vapid, bukan string PEM) · v2.128.2 (19 Nov — bersihkan langganan push mati di DB cabang yang benar) · v2.112.0 (17 Nov — MFA TOTP: login dua langkah, kebijakan admin off/optional/required_roles, kode pemulihan, panduan Microsoft Authenticator) · v2.111.0 (17 Nov — OCR NIK dari crop label + validasi tanggal lahir) · v2.108.2 (13 Nov — hapus data uji FirstWork oleh admin/traineer, demo per cabang bisa dibersihkan, seed demo idempoten) · v2.108.1 (13 Nov — validasi server trip & bukti foto) · v2.104.0 (12 Nov — Fase 3 selesai: KPI bisa diklik ke daftar baris terfilter, antrean bawa baris nyata + aksi GA, antrean keempat SPBU mismatch) · v2.103.0 (12 Nov — meja kerja BBM: isolasi cabang, definisi metrik tunggal, context bar, antrean Perlu Tindakan) · v2.84.0 (12 Nov — semua cabang wajib tautan ber-token + QR statis lokal) · v2.83.0 (12 Nov — ID Fingerprint & ID BPF: backfill 1.831 baris, panel traineer, koreksi per baris) · v2.82.0 (11 Nov — audit isolasi cabang FirstWork: token per cabang, KTP tertutup, NIK disamarkan) · v2.81.0 (11 Nov — Profil Saya) · v2.80.0 (11 Nov — Absensi FirstWork + migrasi 1.831 baris sheet) · v2.77.0 (3 Nov — OTP SubsidiTepat: anti request ganda, supervisor verifikasi status, cooldown resend; siklus OTP end-to-end OK — kode diverifikasi → token → 192 transaksi SPBU terimpor)
 
+---
+
+## 🔔 20 Nov 2026 — Notifikasi HP driver: TTL Web Push (v2.129.1)
+
+**Gejala:** server menerima `201` dari FCM untuk semua endpoint, service worker
+punya handler `push` dan `showNotification` (notifikasi lokal buatan SW
+tampil), izin `granted`, tetapi push dari server **tidak pernah muncul** —
+baik app terbuka maupun di latar.
+
+**Diagnosis (perangkat SM-A035F, Chrome 157):**
+FCM `201` hanya berarti pesan **diterima**, bukan diantarkan. `pywebpush`
+memakai `ttl=0` bila parameter tidak diisi; TTL 0 berarti pesan dibuang
+begitu perangkat tidak sedang terhubung. Uji terkontrol:
+
+| Variasi | FCM | Tampil di HP |
+|---|---|---|
+| `ttl` tidak diisi (0) | 201 | tidak |
+| `ttl=86400` + `Urgency: high` | 201 | **ya** |
+| implementasi Node `web-push`, `TTL: 86400` | 201 | **ya** |
+
+Kesimpulan: TTL, bukan kunci VAPID/izin/kanal.
+
+**Perbaikan:**
+- `modules/webpush.py` — `MESSAGE_TTL` (default 86400, env `WEBPUSH_TTL`),
+  `URGENCY` (default `high`, env `WEBPUSH_URGENCY`), diteruskan di `_send_one`.
+- `tests/test_webpush.py` — tes `test_send_one_memakai_ttl_dan_urgency`.
+- Langganan mati (410) tetap dihapus di DB cabang asal (v2.128.2).
+
+**Catatan uji:** jangan `am force-stop` Chrome — itu mematikan FCM sampai app
+dibuka lagi. Pakai Home/recents untuk menguji "app ditutup".
+
+---
 ---
 
 ## 🔁 Handoff 17 Nov 2026 — MFA TOTP lengkap (v2.112.0)

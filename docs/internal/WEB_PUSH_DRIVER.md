@@ -126,22 +126,26 @@ Sudah:
   FCM menerima **HTTP 201** dan alur notifikasi penuh
   (`push_driver_notification` → push latar) berjalan tanpa error. Langganan
   yang sudah mati dilaporkan `gone` dan terhapus.
-- **Batas uji ini**: Chromium (bukan Chrome) gagal registrasi GCM
-  (`DEPRECATED_ENDPOINT`/`wrong_secret`) dan `Notification.permission` di
-  service worker = `denied`, sehingga **tampilan** notifikasi belum
-  terverifikasi. Penerimaan nyata tetap harus diuji di Chrome Android dan
-  Safari iOS ≥ 16.4 (PWA terpasang).
-- **9 tes unit backend**: validasi langganan, batas panjang payload,
-  konsistensi pasangan kunci P-256, pembersihan di DB asal, objek Vapid.
+- **Uji perangkat nyata** (20 Nov 2026, SM-A035F / Chrome 157): subscribe
+  dari halaman driver menghasilkan endpoint FCM; `Notification.permission`
+  = `granted`; notifikasi lokal via `showNotification` **tampil**.
+- **Uji TTL terkontrol** (20 Nov 2026): push server dengan `ttl` default (0)
+  → FCM 201 tetapi **tidak tampil**; dengan `ttl=86400` + `Urgency: high`
+  → **tampil** di panel notifikasi. Implementasi Node (`web-push`, TTL
+  86400) juga tampil, memastikan bukan bug pustaka Python.
+- **10 tes unit backend**: validasi langganan, batas panjang payload,
+  konsistensi pasangan kunci P-256, pembersihan di DB asal, objek Vapid,
+  penerusan `ttl`/`Urgency`.
 - 3 tes frontend: decode kunci VAPID base64url, deteksi iOS, fallback saat
   `PushManager` tidak ada.
 - SQL/endpoint dicek statis; `node --check` service worker.
 
-Belum (butuh perangkat):
-- subscribe nyata di Chrome Android & Safari iOS ≥ 16.4 (PWA terpasang);
-- notifikasi muncul saat aplikasi tertutup;
-- klik notifikasi membuka `/app/driver`;
-- langganan mati (hapus app/uninstall) terhapus otomatis setelah 404/410.
+Belum:
+- klik notifikasi membuka `/app/driver` di perangkat (handler sudah ada,
+  belum diuji end-to-end di layar);
+- Safari iOS ≥ 16.4 (PWA terpasang) — belum ada perangkat iOS;
+- langganan mati (hapus app/uninstall) terhapus otomatis setelah 404/410 —
+  terlihat pada 1 dari 2 endpoint uji (`410 Gone` → dihapus).
 
 ---
 
@@ -164,3 +168,27 @@ oper **objek Vapid** (`Vapid.from_pem(pem.encode())`) — dilakukan otomatis
 oleh `_vapid_object()` di `modules/webpush.py` (v2.128.3). Gejala bila salah:
 semua push dicatat `error` dengan pesan "Could not deserialize key data".
 - `tests/test_webpush.py`, `frontend/src/utils/push.test.js`.
+
+---
+
+## 9. Mengapa TTL wajib > 0 (v2.129.1)
+
+`pywebpush` memakai `ttl=0` bila parameter tidak diisi. TTL 0 bukan "tanpa
+kedaluwarsa", melainkan **"antar sekarang atau buang"**: FCM menerima pesan
+(HTTP 201) lalu membuangnya bila perangkat belum terhubung pada saat itu.
+HP driver hampir selalu dalam kondisi tersebut (layar mati, app di latar,
+sinyal buruk).
+
+Karena itu `_send_one()` mengirim:
+
+```python
+ttl=MESSAGE_TTL,                    # default 86400 detik (24 jam)
+headers={'Urgency': URGENCY},       # default 'high'
+```
+
+Dapat diubah lewat env `WEBPUSH_TTL` dan `WEBPUSH_URGENCY`. TTL besar tidak
+membuat notifikasi tertunda: bila perangkat online, pesan langsung diantar;
+TTL hanya menentukan berapa lama FCM boleh menyimpannya.
+
+**Jangan** menurunkan `WEBPUSH_TTL` ke 0 — gejalanya persis "FCM 201 tetapi
+notifikasi tidak pernah muncul".

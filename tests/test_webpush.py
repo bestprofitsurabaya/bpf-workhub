@@ -151,3 +151,25 @@ def test_send_one_mengoper_objek_vapid(monkeypatch):
     assert out == 'ok'
     assert captured['vapid_private_key'] is obj
     assert not isinstance(captured['vapid_private_key'], str)
+
+
+def test_send_one_memakai_ttl_dan_urgency(monkeypatch):
+    """v2.129.1 — TTL 0 membuat FCM membuang pesan; wajib ttl > 0 + Urgency."""
+    import pywebpush as pywebpush_mod
+
+    captured = {}
+
+    def fake_webpush(**kwargs):
+        captured.update(kwargs)
+        return True
+
+    monkeypatch.setattr(pywebpush_mod, 'webpush', fake_webpush)
+    pem, _pub = webpush.generate_vapid_keys()
+    out = webpush._send_one(
+        {'endpoint': 'https://push/contoh', 'p256dh': 'k', 'auth': 'a'},
+        '{}', pem,
+    )
+    assert out == 'ok'
+    assert captured['ttl'] == webpush.MESSAGE_TTL
+    assert captured['ttl'] > 0
+    assert captured['headers']['Urgency'] in ('high', 'normal', 'low', 'very-low')

@@ -7,6 +7,28 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.129.1 — 20 November 2026 (Notifikasi HP akhirnya sampai: TTL push > 0)
+
+Notifikasi driver lewat Web Push diterima server (FCM menjawab `201`) tetapi
+tidak pernah muncul di HP. Penyebabnya bukan kunci VAPID, izin, atau service
+worker — melainkan **TTL**.
+
+- 🐞 **Akar masalah:** `pywebpush` memakai `TTL=0` bila tidak disebutkan.
+  Arti TTL 0: "kirim sekarang, **buang** bila perangkat sedang tidak
+  terhubung". HP driver hampir selalu dalam kondisi itu (layar mati, app di
+  latar, sinyal buruk), sehingga FCM menerima pesan lalu membuangnya.
+- ✅ `modules/webpush.py` kini mengirim dengan `ttl=86400` (24 jam) dan
+  header `Urgency: high`, dapat diatur lewat `WEBPUSH_TTL` /
+  `WEBPUSH_URGENCY`. Pesan diulang FCM saat perangkat kembali online.
+- 🧪 Tes baru: `test_send_one_memakai_ttl_dan_urgency` memastikan `_send_one`
+  tidak kembali ke TTL 0.
+- 📄 Didokumentasikan di `docs/internal/WEB_PUSH_DRIVER.md` (bagian
+  "Mengapa TTL wajib > 0").
+- Dibuktikan di perangkat SM-A035F: TTL 0 → FCM `201` tetapi tidak tampil;
+  TTL 86400 → notifikasi tampil di panel notifikasi.
+
+---
+
 ## v2.129.0 — 19 November 2026 (Motto bisa diubah Admin + daftar panjang berpaginasi)
 
 Tindak lanjut v2.128.4: motto login tidak lagi tertanam di kode, dan halaman

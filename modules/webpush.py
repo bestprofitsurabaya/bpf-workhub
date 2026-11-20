@@ -12,6 +12,11 @@ Kunci VAPID:
 
 Pengiriman bersifat best-effort: kegagalan tidak pernah menggagalkan alur
 bisnis. Langganan yang sudah mati (404/410) dihapus otomatis.
+
+Sejak v2.129.1 push dikirim dengan `ttl > 0` (default 24 jam) dan
+`Urgency: high`. TTL 0 (default pywebpush) membuat FCM membuang pesan ketika
+perangkat sedang tidak terhubung — notifikasi tidak pernah sampai meski
+server menerima HTTP 201.
 """
 import base64
 import json
@@ -22,6 +27,13 @@ from datetime import datetime
 SUPPORTED = None  # diisi saat pertama dipakai
 
 SUBJECT = os.environ.get('VAPID_SUBJECT', 'mailto:admin@bpf.local').strip() or 'mailto:admin@bpf.local'
+
+# v2.129.1 — TTL default pywebpush adalah 0. Pesan TTL 0 **dibuang** oleh FCM
+# bila perangkat sedang tidak terhubung (sinyal buruk, app di latar, layar
+# mati). Akibatnya server menerima 201 tetapi notifikasi tidak pernah muncul.
+# Simpan 24 jam agar pengiriman diulang saat perangkat kembali online.
+MESSAGE_TTL = int(os.environ.get('WEBPUSH_TTL', '86400') or 0)
+URGENCY = (os.environ.get('WEBPUSH_URGENCY', 'high').strip() or 'high').lower()
 
 TABLE_DDL = """
 CREATE TABLE IF NOT EXISTS push_subscriptions (
@@ -339,6 +351,11 @@ def _send_one(sub, payload, vapid_private_key):
             data=payload,
             vapid_private_key=_vapid_object(vapid_private_key),
             vapid_claims={'sub': SUBJECT},
+            # ttl > 0 wajib: tanpa itu FCM membuang pesan saat perangkat
+            # sedang offline/latar (v2.129.1). Urgency high mencegah push
+            # ditunda oleh mode hemat daya perangkat.
+            ttl=MESSAGE_TTL,
+            headers={'Urgency': URGENCY},
             timeout=8,
         )
         return 'ok'
