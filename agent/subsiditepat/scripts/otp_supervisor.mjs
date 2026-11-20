@@ -63,10 +63,12 @@ function sessionWs() {
 function logTail(n = 900) {
   try {
     const p = path.join(ROOT, 'artifacts/otp_login.log');
-    const t = fs.readFileSync(p, 'utf8');
-    const i = t.lastIndexOf('Browser TETAP hidup');
-    const seg = i >= 0 ? t.slice(i) : t;
-    return seg.slice(-n);
+    // v2.130.1: login.mjs menulis `STATUS: OTP_SENT` SEBELUM penanda
+    // `Browser TETAP hidup`. Memotong log di penanda itu membuat status
+    // never terdeteksi → state nyangkut di `starting`/timeout walaupun OTP
+    // sudah terkirim. Ambil ekor log apa adanya; session.txt sudah menjadi
+    // gerbang "run ini sudah sampai tahap OTP".
+    return fs.readFileSync(p, 'utf8').slice(-n);
   } catch { return ''; }
 }
 

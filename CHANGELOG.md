@@ -7,6 +7,18 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.130.1 — 20 November 2026 (Deteksi OTP agen Subsidi Tepat)
+
+- `agent/subsiditepat/scripts/otp_supervisor.mjs` — `logTail` tidak lagi
+  memotong log di penanda `Browser TETAP hidup`. `login.mjs` menulis
+  `STATUS: OTP_SENT` **sebelum** penanda itu, sehingga supervisor sebelumnya
+  tidak pernah mendeteksi OTP terkirim dan state nyangkut di `starting` lalu
+  `error` (padahal email sudah dikirim). Kini ekor log dibaca apa adanya;
+  `session.txt` tetap menjadi gerbang bahwa sesi login aktif.
+- Tidak ada perubahan skema/data aplikasi.
+
+---
+
 ## v2.130.0 — 20 November 2026 (Laporan BBM tiga kanal, top-up km/L, 4 tab driver)
 
 Laporan finance, pembacaan ODO, dan struktur PWA driver diperbaiki agar cocok

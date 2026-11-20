@@ -9,6 +9,37 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 ---
 
+## 🔑 20 Nov 2026 — Subsidi Tepat & rekonsiliasi (v2.130.1)
+
+**Tagihan rekanan:** Finance mengonfirmasi **belum dibayar**. Status open
+(34 baris / Rp 4.800.700, tanpa `settlement_id`) sudah tepat — tidak ada
+perubahan data.
+
+**Subsidi Tepat:** token lama expired (3 Nov). Supervisor OTP sempat gagal
+karena bug deteksi log: `STATUS: OTP_SENT` ditulis sebelum penanda
+`Browser TETAP hidup`, sehingga state tidak pernah berpindah ke `waiting_otp`.
+Diperbaiki di `otp_supervisor.mjs` (v2.130.1). Setelah OTP diverifikasi:
+- token baru aktif (exp ±27 Nov), pull 162 transaksi baru → total **276**.
+- data terbaru: 20 Nov 2026 03:04 UTC (10:04 WIB).
+
+**Rekonsiliasi 4–19 Nov (nopol + tanggal + nominal):**
+- Subsidi Tepat: **81 transaksi · 1.140,71 L · Rp 11.407.100**.
+- WorkHub: **72 transaksi · 992,22 L · Rp 9.922.200**.
+- Selisih bersih **9 transaksi / 148,49 L / Rp 1.484.900** (13 baris hanya
+  ada di Subsidi Tepat, 4 baris hanya ada di WorkHub).
+- 4 baris WorkHub yang "lebih" kemungkinan besar salah nopol saat impor:
+  BPF-20261113-002 (B2731SRQ 13,04 L → Subsidi Tepat L1906TF),
+  BPF-20261112-006 & BPF-20261119-001 (L1413CBI → L1906TF),
+  BPF-20261110-003 (L1904TF → L1415CBI). Perlu konfirmasi Finance sebelum
+  dikoreksi.
+- Auto-match engine mencatat 0 match karena perbedaan nopol/tanggal ini;
+  tidak ada penjodohan otomatis yang dilakukan.
+
+**WhatsApp:** sesi phone-number linking sudah dimulai untuk +62 853-3439-8681;
+kode pairing disampaikan langsung ke user (tidak disimpan di repo).
+
+---
+
 ## 👤 20 Nov 2026 — Laporan tiga kanal, top-up km/L, 4 tab driver (v2.130.0)
 
 **Konteks:** data asli grup WhatsApp (72 transaksi, 4–19 Nov 2026) sudah
@@ -2444,53 +2475,3 @@ tes & verifikasi; perubahan produksi butuh konfirmasi eksplisit.
 ---
 
 *BPF WorkHub v2.37.5 · Progres Tracker · Last updated: 2026-09-07*
-
-### Verifikasi deploy v2.130.0 (20 Nov 2026, 13:30 WIB)
-- Commit `25f503d` sudah di-push ke `origin/main`.
-- Image `bpf-workhub-web` di-build ulang dan container healthy; stamp DB
-  (`system_config` + 12 `branches`) tersinkron ke v2.130.0.
-- Migrasi data: 34 baris CLAIM rekanan mendapat `voucher_value = nominal`
-  (total Rp 4.800.700). Backfill `km_per_liter`: 15 dari 72 baris punya nilai
-  (>0); sisanya ODO pertama/top-up tanpa patokan jarak.
-- Uji API finance (login `finance_sby`): `/api/expenses/recap?year=2026&branch=SBY`
-  → `categories = [kasbon, lpj, voucher, klaim]`, total Nov = **Rp 9.922.200**,
-  rincian LPJ Rp 5.121.500 + voucher Rp 4.800.700 + klaim Rp 0.
-  `/api/voucher/summary` → open 34 baris / Rp 4.800.700, settled 0.
-  Artinya tagihan SPBU rekanan November masih **open** (belum ada
-  `settlement_id`) — sesuai semantik baru; keputusan final tetap di Finance.
-- Test: backend `1480 passed, 6 skipped`; frontend `54 file / 408 test passed`;
-  `npm run build` sukses; 7 titik stamp + DB konsisten.
-- Backup pra-migrasi: `/srv/bpf-workhub/backups/pre-v2130-20261120.sql.gz`.
-
-### Catatan MCP OCR
-- `paddleocr-mcp[local-cpu]` v0.8.5 terpasang dan dicoba, tetapi tidak bisa
-  jalan di sandbox ini: CPU Intel i3-2100 hanya AVX (tanpa AVX2) sehingga
-  PaddlePaddle keluar dengan `Illegal instruction`. Server MCP dilepas lagi
-  dari config agar tidak mengganggu startup. OCR memakai Tesseract (ind+eng)
-  di container NAS; pembacaan ODO final masih perlu verifikasi visual karena
-  beberapa foto membantu teks ODO kecil.
-
-### Verifikasi deploy v2.130.0 (20 Nov 2026, 13:30 WIB)
-- Commit `25f503d` sudah di-push ke `origin/main`.
-- Image `bpf-workhub-web` di-build ulang dan container healthy; stamp DB
-  (`system_config` + 12 `branches`) tersinkron ke v2.130.0.
-- Migrasi data: 34 baris CLAIM rekanan mendapat `voucher_value = nominal`
-  (total Rp 4.800.700). Backfill `km_per_liter`: 15 dari 72 baris punya nilai
-  (>0); sisanya ODO pertama/top-up tanpa patokan jarak.
-- Uji API finance (login `finance_sby`): `/api/expenses/recap?year=2026&branch=SBY`
-  → `categories = [kasbon, lpj, voucher, klaim]`, total Nov = **Rp 9.922.200**,
-  rincian LPJ Rp 5.121.500 + voucher Rp 4.800.700 + klaim Rp 0.
-  `/api/voucher/summary` → open 34 baris / Rp 4.800.700, settled 0.
-  Artinya tagihan SPBU rekanan November masih **open** (belum ada
-  `settlement_id`) — sesuai semantik baru; keputusan final tetap di Finance.
-- Test: backend `1480 passed, 6 skipped`; frontend `54 file / 408 test passed`;
-  `npm run build` sukses; 7 titik stamp + DB konsisten.
-- Backup pra-migrasi: `/srv/bpf-workhub/backups/pre-v2130-20261120.sql.gz`.
-
-### Catatan MCP OCR
-- `paddleocr-mcp[local-cpu]` v0.8.5 terpasang dan dicoba, tetapi tidak bisa
-  jalan di sandbox ini: CPU Intel i3-2100 hanya AVX (tanpa AVX2) sehingga
-  PaddlePaddle keluar dengan `Illegal instruction`. Server MCP dilepas lagi
-  dari config agar tidak mengganggu startup. OCR memakai Tesseract (ind+eng)
-  di container NAS; pembacaan ODO final masih perlu verifikasi visual karena
-  beberapa foto membantu teks ODO kecil.
