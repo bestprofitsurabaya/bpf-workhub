@@ -2494,3 +2494,15 @@ tes & verifikasi; perubahan produksi butuh konfirmasi eksplisit.
 - Tagihan rekanan tetap **open/belum dibayar** (Rp 6.285.600, 43 baris voucher
   dengan `settlement_id IS NULL`). Backup:
   `/srv/bpf-workhub/backups/pre-subsidy-recon-20261120.sql.gz`.
+
+### Import data 20 Nov 2026 (20 Nov, 16:00 WIB)
+- Sesuai permintaan, 2 transaksi Subsidi Tepat tanggal 20 Nov diimpor:
+  `BPF-20261120-001` B 2731 SRQ 13,18 L / Rp 131.800 (10:02),
+  `BPF-20261120-002` B 2737 SRQ 13,18 L / Rp 131.800 (10:04).
+- Total WorkHub sekarang **83 transaksi · 1.167,07 L · Rp 11.670.700**
+  (LPJ Rp 5.121.500 + voucher Rp 6.549.400, klaim Rp 0).
+- Tagihan voucher rekanan open: **45 baris / Rp 6.549.400**, settled 0.
+- Foto WhatsApp 5 lembar dari Akhad (15:25) berisi nota 20 Nov untuk
+  L 1413 CBI 13,18 L dengan ODO 24.730 km (15:14), tetapi transaksi itu
+  **tidak ada di Subsidi Tepat** — sengaja tidak diimpor agar rekonsiliasi
+  tetap 1:1. Perlu dicek apakah nanti muncul di pull berikutnya.
