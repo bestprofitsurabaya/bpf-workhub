@@ -2506,3 +2506,15 @@ tes & verifikasi; perubahan produksi butuh konfirmasi eksplisit.
   L 1413 CBI 13,18 L dengan ODO 24.730 km (15:14), tetapi transaksi itu
   **tidak ada di Subsidi Tepat** — sengaja tidak diimpor agar rekonsiliasi
   tetap 1:1. Perlu dicek apakah nanti muncul di pull berikutnya.
+
+### Transaksi WhatsApp 20 Nov ditambahkan (20 Nov, 16:20 WIB)
+- Sesuai konfirmasi user, foto nota/dashboard dari grup WhatsApp (Akhad,
+  15:25) dijadikan satu transaksi baru:
+  `BPF-20261120-003` — L 1413 CBI (Akhad), 13,18 L, Rp 131.800,
+  ODO 24.730 km, jam 15:14, SPBU Kayoon.
+- Transaksi ini **sengaja tidak ditautkan ke Subsidi Tepat**
+  (`subsidy_match='wa_only'`) karena belum muncul di pull portal; sengaja
+  tetap dihitung sebagai voucher rekanan agar tidak hilang dari laporan.
+- Total WorkHub sekarang **84 transaksi · 1.180,25 L · Rp 11.802.500**
+  (LPJ Rp 5.121.500 + voucher Rp 6.681.000, klaim Rp 0).
+- Tagihan voucher rekanan open: **46 baris / Rp 6.681.000**, settled 0.
