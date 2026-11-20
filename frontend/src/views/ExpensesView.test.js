@@ -13,18 +13,18 @@ const VEC = (v) => Array(12).fill(0).map((_, i) => (i === 1 ? v : 0))
 const RECAP = {
   year: 2026,
   selected: 'ALL',
-  categories: ['kasbon', 'lpj', 'voucher'],
+  categories: ['kasbon', 'lpj', 'voucher', 'klaim'],
   branches: [
     { code: 'SBY', name: 'Cabang Surabaya' },
     { code: 'BDG', name: 'Cabang Bandung' },
   ],
-  display: { name: 'Semua Cabang', kasbon: VEC(200000), lpj: VEC(150000), voucher: VEC(50000), total: VEC(200000) },
+  display: { name: 'Semua Cabang', kasbon: VEC(200000), lpj: VEC(150000), voucher: VEC(50000), klaim: VEC(30000), total: VEC(230000) },
   per_branch: {
-    SBY: { name: 'Cabang Surabaya', kasbon: VEC(100000), lpj: VEC(75000), voucher: VEC(25000), total: VEC(100000) },
-    BDG: { name: 'Cabang Bandung', kasbon: VEC(100000), lpj: VEC(75000), voucher: VEC(25000), total: VEC(100000) },
+    SBY: { name: 'Cabang Surabaya', kasbon: VEC(100000), lpj: VEC(75000), voucher: VEC(25000), klaim: VEC(15000), total: VEC(115000) },
+    BDG: { name: 'Cabang Bandung', kasbon: VEC(100000), lpj: VEC(75000), voucher: VEC(25000), klaim: VEC(15000), total: VEC(115000) },
   },
-  totals: { kasbon: 200000, lpj: 150000, voucher: 50000 },
-  grand_total: 200000,
+  totals: { kasbon: 200000, lpj: 150000, voucher: 50000, klaim: 30000 },
+  grand_total: 230000,
   sisa_total: 50000,
   errors: {},
 }
@@ -56,6 +56,7 @@ describe('ExpensesView', () => {
     expect(txt).toContain('Rp 200.000')  // kasbon cair
     expect(txt).toContain('Rp 150.000')  // realisasi LPJ
     expect(txt).toContain('Rp 50.000')   // voucher rekanan
+    expect(txt).toContain('Rp 30.000')   // klaim tunai
   })
 
   it('tabel bulanan mengikuti rentang bulan + baris total', async () => {
@@ -113,6 +114,8 @@ describe('ExpensesView', () => {
     const ev = w.emitted('open-tab')
     expect(ev[0][0]).toMatchObject({ tab: 'kasbon', filters: { kasbon: 'cair' } })
     expect(ev[1][0]).toMatchObject({ tab: 'bbm', filters: { bbmTab: 'history', bbmType: 'CASH_LPJ' } })
+    await w.find('[data-testid="open-klaim"]').trigger('click')
+    expect(w.emitted('open-tab')[2][0]).toMatchObject({ tab: 'bbm', filters: { bbmTab: 'history', bbmType: 'CLAIM' } })
   })
 
   it('menampilkan penjelasan cara membaca & pengecualian', async () => {

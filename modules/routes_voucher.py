@@ -181,10 +181,14 @@ def register_voucher_routes(app):
                 SELECT
                   SUM(CASE WHEN status IN ('pending','modified') THEN 1 ELSE 0 END) AS pending_count,
                   SUM(CASE WHEN status IN ('pending','modified') THEN nominal ELSE 0 END) AS pending_amount,
-                  SUM(CASE WHEN status='verified_ga' AND settlement_id IS NULL THEN 1 ELSE 0 END) AS open_count,
-                  SUM(CASE WHEN status='verified_ga' AND settlement_id IS NULL THEN nominal ELSE 0 END) AS open_amount,
-                  SUM(CASE WHEN settlement_id IS NOT NULL OR status='archived' THEN 1 ELSE 0 END) AS settled_count,
-                  SUM(CASE WHEN settlement_id IS NOT NULL OR status='archived' THEN nominal ELSE 0 END) AS settled_amount
+                  -- v2.130.0: `archived` = transaksi final, BUKAN tagihan lunas.
+                  -- Yang menentukan lunas hanya settlement_id.
+                  SUM(CASE WHEN status IN ('verified_ga','archived')
+                             AND settlement_id IS NULL THEN 1 ELSE 0 END) AS open_count,
+                  SUM(CASE WHEN status IN ('verified_ga','archived')
+                             AND settlement_id IS NULL THEN nominal ELSE 0 END) AS open_amount,
+                  SUM(CASE WHEN settlement_id IS NOT NULL THEN 1 ELSE 0 END) AS settled_count,
+                  SUM(CASE WHEN settlement_id IS NOT NULL THEN nominal ELSE 0 END) AS settled_amount
                 FROM transactions
                 WHERE transaction_type='CLAIM'
                   AND COALESCE(voucher_value, 0) > 0

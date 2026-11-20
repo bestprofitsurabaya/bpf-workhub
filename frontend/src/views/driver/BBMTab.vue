@@ -3,9 +3,46 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useDriverStore, newSubmitId } from '../../stores/driverStore'
 import { api } from '../../api'
 import { applyWatermark, fileToDataUrl } from '../../utils/watermark'
+import KasbonTab from './KasbonTab.vue'
 
 const store = useDriverStore()
 const emit = defineEmits(['toast', 'locate', 'switch-tab'])
+const props = defineProps({ startView: { type: String, default: 'laporan' } })
+
+// v2.130.0 — Kasbon menjadi sub-tab BBM (bukan tab tersendiri): kasbon hanya
+// untuk BBM, dan setelah dana cair muncul kewajiban LPJ di alur yang sama.
+const view = ref(props.startView === 'kasbon' ? 'kasbon' : 'laporan')
+const pendingLpj = ref([])
+
+async function loadPendingLpj() {
+  try {
+    const rows = await api('/api/cash/pending-lpj', { params: { driver: store.driverName } })
+    pendingLpj.value = Array.isArray(rows) ? rows : []
+  } catch { pendingLpj.value = [] }
+}
+
+function openLpj(c) {
+  store.setActiveLpj({
+    cashId: c.id,
+    display_id: c.display_id,
+    total_amount: Number(c.total_amount) || 0,
+    nopol: c.nopol || '',
+    bbm_type: c.bbm_type || 'PERTALITE',
+  })
+  view.value = 'laporan'
+  emit('toast', `📋 ${c.display_id}: isi bukti LPJ di form BBM`, 'success')
+}
+
+function onKasbonSwitch(key) {
+  if (key === 'bbm') view.value = 'laporan'
+}
+
+watch(view, (v) => {
+  if (v !== 'kasbon') return
+  loadPendingLpj()
+  store.loadDailyCode() // kode unik kasbon bisa berubah per hari
+})
+watch(() => store.activeLpj, (lpj) => { if (lpj) view.value = 'laporan' })
 
 const form = ref({
   nopol: '', vehicle_type: 'AVANZA', bbm_type: '', price_per_liter: 10000,
@@ -270,6 +307,7 @@ onMounted(() => {
   if (store.profile) applyProfile()
   // Pratinjau nilai voucher cabang (dipakai saat mode Voucher dipilih).
   loadVoucherConfig()
+  loadPendingLpj()
   // Auto GPS saat pertama buka
   if (!store.gps.lat && !store.gps.locating) store.locate().catch(() => {})
 })
@@ -277,6 +315,35 @@ onMounted(() => {
 
 <template>
   <div class="tab-page">
+    <!-- v2.130.0 — BBM & Kasbon satu tab, dua sub-tampilan. -->
+    <div class="bbm-subnav" role="tablist" aria-label="BBM dan Kasbon">
+      <button type="button" role="tab" :aria-selected="view === 'laporan'"
+              :class="{ active: view === 'laporan' }" @click="view = 'laporan'">
+        ⛽ Laporan BBM
+      </button>
+      <button type="button" role="tab" :aria-selected="view === 'kasbon'"
+              :class="{ active: view === 'kasbon' }" @click="view = 'kasbon'">
+        💰 Kasbon &amp; LPJ
+        <span v-if="pendingLpj.length" class="subnav-badge">{{ pendingLpj.length }}</span>
+      </button>
+    </div>
+
+    <KasbonTab v-if="view === 'kasbon'" @toast="(m, t) => emit('toast', m, t)" @switch-tab="onKasbonSwitch" />
+
+    <template v-else>
+    <!-- Kewajiban LPJ: kasbon sudah cair tetapi belum dipertanggungjawabkan. -->
+    <div v-if="pendingLpj.length && !store.activeLpj" class="lpj-due">
+      <div>
+        <b>📋 {{ pendingLpj.length }} kasbon cair belum di-LPJ</b>
+        <div class="muted" style="font-size:11px;">
+          Dana sudah di tangan Anda. Isi bukti pemakaian agar kasbon selesai.
+        </div>
+      </div>
+      <button type="button" class="btn btn-sm btn-primary" @click="openLpj(pendingLpj[0])">
+        📝 Isi LPJ sekarang
+      </button>
+    </div>
+
     <!-- Mode LPJ -->
     <div v-if="store.activeLpj" class="alert alert-info" style="margin-bottom:10px;">
       📋 Mengisi <b>LPJ {{ store.activeLpj.display_id }}</b> — bukti pemakaian kasbon. Nominal terkunci dari kasbon (termasuk kode unik) &amp; tidak bisa diubah.
@@ -309,7 +376,7 @@ onMounted(() => {
 
     <p v-if="!store.activeLpj" class="mode-hint">
       <b>BBM</b> = laporan pemakaian. <b>Bukan kasbon</b> — kasbon adalah uang muka perjalanan.
-      <button type="button" class="link-btn" @click="emit('switch-tab', 'kasbon')">Butuh uang muka? Buka tab Kasbon →</button>
+      <button type="button" class="link-btn" @click="view = 'kasbon'">Butuh uang muka? Buka Kasbon →</button>
     </p>
 
     <form class="driver-form" @submit.prevent="submit">
@@ -413,10 +480,35 @@ onMounted(() => {
         Foto otomatis diberi watermark (perusahaan + tanggal + lokasi GPS).
       </p>
     </form>
+    </template>
   </div>
 </template>
 
 <style scoped>
+/* v2.130.0 — sub-navigasi BBM: Laporan BBM | Kasbon & LPJ */
+.bbm-subnav {
+  display: flex; gap: 6px; margin-bottom: 12px; padding: 4px;
+  background: var(--surface-2, #f1f5f9); border-radius: 12px;
+}
+.bbm-subnav button {
+  flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 9px 10px; border: none; border-radius: 9px; background: none; color: inherit;
+  font-weight: 700; font-size: 12px; cursor: pointer; min-height: 40px;
+  -webkit-tap-highlight-color: transparent;
+}
+.bbm-subnav button.active { background: var(--surface, #fff); color: var(--primary, #2563eb); box-shadow: 0 1px 4px rgba(15, 23, 42, .12); }
+.subnav-badge {
+  background: var(--danger, #dc2626); color: #fff; font-size: 10px; font-weight: 800;
+  min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+/* Kewajiban LPJ setelah kasbon cair */
+.lpj-due {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 10px 12px; margin-bottom: 12px; border-radius: 12px;
+  background: #fffbeb; border: 1px solid #fde68a; color: #92400e;
+}
+html.dark .lpj-due { background: rgba(245, 158, 11, .15); border-color: rgba(245, 158, 11, .4); color: #fcd34d; }
 .mode-switch { display: flex; gap: 8px; margin-bottom: 12px; }
 .mode-switch button {
   flex: 1; display: flex; flex-direction: column; align-items: flex-start; gap: 2px;

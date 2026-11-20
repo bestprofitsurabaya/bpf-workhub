@@ -319,10 +319,10 @@ const PAGE_HELP = [
   {
     paths: ['/driver'],
     title: 'Aplikasi Driver',
-    summary: 'Lima tab bawah dengan tugas berbeda: BBM (klaim/voucher/LPJ), Kasbon (uang muka), Trip, OT, dan Rapor.',
+    summary: 'Empat tab bawah: BBM (klaim, voucher, kasbon & LPJ), Trip, OT, dan Rapor. Kasbon ada di dalam BBM.',
     steps: [
       'BBM: pilih Klaim BBM bila Anda membayar dulu, atau Voucher Rekanan bila SPBU mitra yang menagih kantor. LPJ kasbon juga diisi di form ini.',
-      'Kasbon: ajukan uang muka sebelum perjalanan. Setelah dana diterima, isi LPJ lewat form BBM — bukan di tab Kasbon.',
+      'Kasbon & LPJ: sub-tab di dalam BBM untuk mengajukan uang muka. Setelah dana diterima, kewajiban LPJ muncul di atas form BBM.',
       'Trip: catat perjalanan dan hasil kunjungan; data aman tersimpan saat offline.',
       'OT: ajukan lembur; Rapor: lihat ringkasan performa BBM kendaraan Anda.',
     ],
@@ -357,7 +357,7 @@ const ROLE_FOCUS = {
   ob: 'Pengajuan air minum dan overtime bisa Anda pantau dari menu operasional.',
   security: 'Pengajuan overtime bisa Anda pantau dari menu Overtime Saya.',
   traineer: 'Verifikasi pendaftar first work ada di menu Absensi FirstWork; data pelamar cabang Anda bisa dilihat (hanya lihat) di menu Rekrutmen.',
-  driver: 'Gunakan tab bawah untuk BBM, Kasbon, Trip, Overtime, dan Rapor. Data tetap tersimpan saat sinyal lemah.',
+  driver: 'Gunakan tab bawah untuk BBM (termasuk Kasbon & LPJ), Trip, Overtime, dan Rapor. Data tetap tersimpan saat sinyal lemah.',
 }
 
 export function onboardingSteps(role, user, isHoAdmin = false) {
@@ -367,9 +367,9 @@ export function onboardingSteps(role, user, isHoAdmin = false) {
       {
         icon: '👋',
         title: `Selamat datang, ${name}`,
-        body: 'Aplikasi driver punya lima tab di bawah: BBM, Kasbon, Trip, OT, dan Rapor.',
+        body: 'Aplikasi driver punya empat tab di bawah: BBM, Trip, OT, dan Rapor.',
         points: [
-          'BBM = klaim/voucher/LPJ. Kasbon = uang muka, bukan penggantian BBM.',
+          'BBM = klaim/voucher/LPJ, dengan sub-tab Kasbon untuk uang muka.',
           'Buka panduan “Bingung bedanya?” di atas form BBM bila lupa.',
           'Tombol ❓ di kanan atas membuka bantuan dan arti istilah.',
         ],

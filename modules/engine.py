@@ -3,6 +3,7 @@ import numpy as np
 from sklearn.ensemble import IsolationForest
 from sklearn.preprocessing import StandardScaler
 from modules.config import get_db_connection
+from modules.km_metrics import compute_km_metrics
 
 def generate_human_insight(performa, avg_kpl, limit_good, appt, total_tx):
     """Generate human-readable coaching insight"""
@@ -150,29 +151,7 @@ def get_rekap_data(start_date=None, end_date=None, nopol=None, driver=None, tx_t
 
         result = []
         for nopol_key, tx_list in groups.items():
-            last_odo = None
-            accumulated = 0.0
-            for i, tx in enumerate(tx_list):
-                curr = tx['odo_km']
-                if last_odo is None:
-                    tx['km_awal'] = tx['km_akhir'] = curr
-                    tx['total_km'] = 0; tx['rata_rata'] = 0.0
-                    last_odo = curr
-                else:
-                    dist = curr - last_odo if curr >= last_odo else 0
-                    if dist < threshold:
-                        tx['is_multifill'] = True
-                        tx['rata_rata'] = 0.0
-                        tx['km_awal'] = last_odo; tx['km_akhir'] = curr; tx['total_km'] = dist
-                        accumulated += float(tx['liter'] or 0)
-                    else:
-                        tx['is_multifill'] = False
-                        total_fuel = float(tx['liter'] or 0) + accumulated
-                        tx['km_awal'] = last_odo; tx['km_akhir'] = curr; tx['total_km'] = dist
-                        tx['rata_rata'] = (dist / total_fuel) if total_fuel > 0 else 0
-                        last_odo = curr; accumulated = 0.0
-                result.append(tx)
-
+            result.extend(compute_km_metrics(tx_list, threshold))
         result.sort(key=lambda x: x['created_at'], reverse=True)
         return result
     except Exception as e:

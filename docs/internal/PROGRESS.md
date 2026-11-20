@@ -4,8 +4,41 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 **Terakhir diperbarui:** 2026-11-20<br>
 **Branch:** `main`<br>
-**Versi terbaru:** v2.129.2 (20 Nov — halaman driver memakai nama dari Pengaturan (`drivers.display_name`), bukan username) · v2.129.1 (20 Nov — Web Push driver akhirnya sampai: `ttl=86400` + `Urgency: high`; TTL 0 membuat FCM membuang pesan saat HP tidak terhubung) · v2.128.4 (19 Nov — motto brand di halaman login: "Satu Platform, Semua Operasional" menggantikan nama kota "Jakarta") · v2.128.3 (19 Nov — Web Push benar-benar terkirim: objek Vapid, bukan string PEM) · v2.128.2 (19 Nov — bersihkan langganan push mati di DB cabang yang benar) · v2.112.0 (17 Nov — MFA TOTP: login dua langkah, kebijakan admin off/optional/required_roles, kode pemulihan, panduan Microsoft Authenticator) · v2.111.0 (17 Nov — OCR NIK dari crop label + validasi tanggal lahir) · v2.108.2 (13 Nov — hapus data uji FirstWork oleh admin/traineer, demo per cabang bisa dibersihkan, seed demo idempoten) · v2.108.1 (13 Nov — validasi server trip & bukti foto) · v2.104.0 (12 Nov — Fase 3 selesai: KPI bisa diklik ke daftar baris terfilter, antrean bawa baris nyata + aksi GA, antrean keempat SPBU mismatch) · v2.103.0 (12 Nov — meja kerja BBM: isolasi cabang, definisi metrik tunggal, context bar, antrean Perlu Tindakan) · v2.84.0 (12 Nov — semua cabang wajib tautan ber-token + QR statis lokal) · v2.83.0 (12 Nov — ID Fingerprint & ID BPF: backfill 1.831 baris, panel traineer, koreksi per baris) · v2.82.0 (11 Nov — audit isolasi cabang FirstWork: token per cabang, KTP tertutup, NIK disamarkan) · v2.81.0 (11 Nov — Profil Saya) · v2.80.0 (11 Nov — Absensi FirstWork + migrasi 1.831 baris sheet) · v2.77.0 (3 Nov — OTP SubsidiTepat: anti request ganda, supervisor verifikasi status, cooldown resend; siklus OTP end-to-end OK — kode diverifikasi → token → 192 transaksi SPBU terimpor)
+**Versi terbaru:** v2.130.0 (20 Nov — halaman driver memakai nama dari Pengaturan (`drivers.display_name`), bukan username) · v2.129.1 (20 Nov — Web Push driver akhirnya sampai: `ttl=86400` + `Urgency: high`; TTL 0 membuat FCM membuang pesan saat HP tidak terhubung) · v2.128.4 (19 Nov — motto brand di halaman login: "Satu Platform, Semua Operasional" menggantikan nama kota "Jakarta") · v2.128.3 (19 Nov — Web Push benar-benar terkirim: objek Vapid, bukan string PEM) · v2.128.2 (19 Nov — bersihkan langganan push mati di DB cabang yang benar) · v2.112.0 (17 Nov — MFA TOTP: login dua langkah, kebijakan admin off/optional/required_roles, kode pemulihan, panduan Microsoft Authenticator) · v2.111.0 (17 Nov — OCR NIK dari crop label + validasi tanggal lahir) · v2.108.2 (13 Nov — hapus data uji FirstWork oleh admin/traineer, demo per cabang bisa dibersihkan, seed demo idempoten) · v2.108.1 (13 Nov — validasi server trip & bukti foto) · v2.104.0 (12 Nov — Fase 3 selesai: KPI bisa diklik ke daftar baris terfilter, antrean bawa baris nyata + aksi GA, antrean keempat SPBU mismatch) · v2.103.0 (12 Nov — meja kerja BBM: isolasi cabang, definisi metrik tunggal, context bar, antrean Perlu Tindakan) · v2.84.0 (12 Nov — semua cabang wajib tautan ber-token + QR statis lokal) · v2.83.0 (12 Nov — ID Fingerprint & ID BPF: backfill 1.831 baris, panel traineer, koreksi per baris) · v2.82.0 (11 Nov — audit isolasi cabang FirstWork: token per cabang, KTP tertutup, NIK disamarkan) · v2.81.0 (11 Nov — Profil Saya) · v2.80.0 (11 Nov — Absensi FirstWork + migrasi 1.831 baris sheet) · v2.77.0 (3 Nov — OTP SubsidiTepat: anti request ganda, supervisor verifikasi status, cooldown resend; siklus OTP end-to-end OK — kode diverifikasi → token → 192 transaksi SPBU terimpor)
 
+
+---
+
+## 👤 20 Nov 2026 — Laporan tiga kanal, top-up km/L, 4 tab driver (v2.130.0)
+
+**Konteks:** data asli grup WhatsApp (72 transaksi, 4–19 Nov 2026) sudah
+diimpor. Audit menemukan tiga masalah definisi: klaim tunai tidak punya kanal
+sendiri di laporan finance, `archived` salah dipakai sebagai penanda tagihan
+voucher lunas, dan baris tanpa ODO merusak interval km/L.
+
+**Perubahan:**
+- `modules/bbm_scope.py` — `monthly_claim_rows()`; `BASIS` + `total`;
+  `BASIS_VERSION = 'bbm-scope-3'`.
+- `modules/routes_expense.py` — kategori `klaim`, total = LPJ + voucher +
+  klaim, drill-down klaim; kontrak `categories`/`totals` ikut.
+- `modules/routes_voucher.py` — open = `verified_ga|archived` &
+  `settlement_id IS NULL`; settled hanya `settlement_id IS NOT NULL`.
+- `modules/km_metrics.py` (baru) — `compute_km_metrics`: top up beruntun dan
+  baris tanpa ODO diakumulasi ke pengisian penuh berikutnya; `engine.py`
+  memakainya per kendaraan.
+- Frontend — `ExpensesView` kartu/tabel/CSV klaim; `DriverView` 4 tab;
+  `BBMTab` sub-tab Kasbon & LPJ + banner kewajiban LPJ; `KasbonTab` tombol
+  "Isi LPJ sekarang"; bantuan/onboarding/FlowGuide diperbarui.
+- Tes: `tests/test_engine_km.py` (6), `test_expenses.py` kontrak baru,
+  `DriverView.test.js` (4 tab, sub-tab, banner LPJ), `ExpensesView.test.js`.
+
+**Verifikasi:** `pytest tests/test_bbm_scope.py tests/test_expenses.py
+tests/test_engine_km.py` (33 lulus) dan vitest seluruh suite.
+
+**Belum selesai / keputusan terbuka:**
+- Status tagihan rekanan November: open atau sudah dibayar? (Finance)
+- Backfill ODO dari 30 foto nota rekanan (PaddleOCR lokal).
+- Rekonsiliasi total Rp 9.922.200 dengan Subsidi Tepat (butuh OTP).
 
 ---
 

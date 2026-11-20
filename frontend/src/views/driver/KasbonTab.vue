@@ -111,7 +111,7 @@ function openLpj(c) {
     bbm_type: c.bbm_type || 'PERTALITE',
   })
   emit('switchTab', 'bbm')
-  emit('toast', `📋 ${c.display_id}: isi bukti LPJ di form BBM (tab BBM)`, 'success')
+  emit('toast', `📋 ${c.display_id}: isi bukti LPJ di form BBM`, 'success')
 }
 
 function progress(c) {
@@ -163,7 +163,7 @@ onMounted(loadData)
     <div v-for="c in pendingLpj" :key="c.id" class="lpj-card">
       <strong>{{ c.display_id }}</strong> · Rp {{ Number(c.total_amount).toLocaleString('id-ID') }}
       <div class="muted" style="font-size:11px;">Kode: {{ c.daily_code }}</div>
-      <button class="btn btn-sm btn-primary" style="margin-top:6px;" @click="openLpj(c)">📝 Isi LPJ di tab BBM</button>
+      <button class="btn btn-sm btn-primary" style="margin-top:6px;" @click="openLpj(c)">📝 Isi LPJ sekarang</button>
     </div>
 
     <h4 style="margin:14px 0 6px;">🕐 Riwayat Pengajuan</h4>

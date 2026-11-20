@@ -153,6 +153,6 @@ def test_summary_memakai_definisi_yang_sama():
     assert data['claims']['voucher_sah']['amount'] == 100.0
     assert data['realisasi']['voucher_sah'] == 100.0
     assert data['realisasi']['total'] == 400.0
-    assert data['meta']['basis_version'] == 'bbm-scope-2'
+    assert data['meta']['basis_version'] == 'bbm-scope-3'
     assert 'outstanding' in data['meta']['basis']
     assert 'voucher' in data['meta']['basis']

@@ -61,13 +61,16 @@ describe('DriverView', () => {
   })
   afterEach(() => { vi.unstubAllGlobals() })
 
-  it('menampilkan shell PWA driver dengan 5 tab navigasi', async () => {
+  it('menampilkan shell PWA driver dengan 4 tab navigasi', async () => {
     const w = await mountView()
-    expect(w.text()).toContain('BBM')
-    expect(w.text()).toContain('Kasbon')
-    expect(w.text()).toContain('Trip')
-    expect(w.text()).toContain('OT')
-    expect(w.text()).toContain('Rapor')
+    const labels = w.findAll('.d-nav-item').map((b) => b.text()).join(' ')
+    expect(labels).toContain('BBM')
+    expect(labels).toContain('Trip')
+    expect(labels).toContain('OT')
+    expect(labels).toContain('Rapor')
+    // v2.130.0 — Kasbon bukan tab navigasi lagi; ia sub-tab di dalam BBM.
+    expect(labels).not.toContain('Kasbon')
+    expect(w.findAll('.d-nav-item')).toHaveLength(4)
     expect(w.text()).toContain('🟢 Online')
     w.unmount()
   })
@@ -111,9 +114,9 @@ describe('DriverView', () => {
     w.unmount()
   })
 
-  it('switch tab ke Kasbon menampilkan form pengajuan & tombol sinkron tetap ada', async () => {
+  it('sub-tab Kasbon di dalam BBM menampilkan form pengajuan & tombol sinkron tetap ada', async () => {
     const w = await mountView()
-    const kasbonBtn = w.findAll('.d-nav-item').find((b) => b.text().includes('Kasbon'))
+    const kasbonBtn = w.findAll('.bbm-subnav button').find((b) => b.text().includes('Kasbon'))
     await kasbonBtn.trigger('click')
     await flushPromises()
     expect(w.text()).toContain('Ajukan Kasbon')
@@ -130,27 +133,36 @@ describe('Visibilitas tab & alur LPJ', () => {
   })
   afterEach(() => { vi.unstubAllGlobals() })
 
-  it('tab Kasbon tidak ikut tampil saat tab BBM aktif (root tunggal)', async () => {
+  it('sub-tab Laporan BBM tidak merender panel Kasbon sekaligus', async () => {
     const w = await mountView()
-    const kasbonPage = w.findAll('.tab-page').find((p) => p.text().includes('Ajukan Kasbon'))
-    expect(kasbonPage).toBeTruthy()
-    expect(kasbonPage.attributes('style') || '').toContain('display: none')
+    expect(w.find('.bbm-subnav').exists()).toBe(true)
+    expect(w.text()).toContain('Jenis BBM')
+    expect(w.text()).not.toContain('Ajukan Kasbon')
     w.unmount()
   })
 
-  it('tombol Isi LPJ berpindah ke tab BBM', async () => {
+  it('banner kewajiban LPJ tampil di BBM dan membuka form LPJ', async () => {
     pendingLpjRows = [{ id: 4, display_id: 'C-9', total_amount: 150000, daily_code: 300, nopol: 'L 1 AB' }]
     const w = await mountView()
-    const kasbonBtn = w.findAll('.d-nav-item').find((b) => b.text().includes('Kasbon'))
-    await kasbonBtn.trigger('click')
+    expect(w.text()).toContain('kasbon cair belum di-LPJ')
+    await w.findAll('button').find((b) => b.text().includes('Isi LPJ sekarang')).trigger('click')
+    await flushPromises()
+    expect(w.text()).toContain('LPJ C-9')
+    expect(w.text()).toContain('Jenis BBM')
+    w.unmount()
+  })
+
+  it('tombol Isi LPJ di sub-tab Kasbon kembali ke form BBM', async () => {
+    pendingLpjRows = [{ id: 4, display_id: 'C-9', total_amount: 150000, daily_code: 300, nopol: 'L 1 AB' }]
+    const w = await mountView()
+    await w.findAll('.bbm-subnav button').find((b) => b.text().includes('Kasbon')).trigger('click')
     await flushPromises()
     const lpjBtn = w.findAll('button').find((b) => b.text().includes('Isi LPJ'))
     expect(lpjBtn).toBeTruthy()
     await lpjBtn.trigger('click')
     await flushPromises()
-    const bbmPage = w.findAll('.tab-page').find((p) => p.text().includes('Jenis BBM'))
-    expect(bbmPage.attributes('style') || '').not.toContain('display: none')
-    expect(w.findAll('.tab-page').find((p) => p.text().includes('Ajukan Kasbon')).attributes('style')).toContain('display: none')
+    expect(w.text()).toContain('LPJ C-9')
+    expect(w.text()).not.toContain('Ajukan Kasbon')
     w.unmount()
   })
 })

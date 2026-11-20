@@ -63,7 +63,7 @@ const DRIVER_ITEMS = [
     icon: '🧾', title: 'Kasbon & LPJ', badge: 'Uang muka',
     what: 'Kasbon adalah uang muka perjalanan — bukan penggantian biaya BBM.',
     when: 'Butuh dana sebelum jalan. Setelah dana diterima, isi LPJ dengan bukti pemakaian.',
-    where: 'Ajukan di tab Kasbon; isi LPJ lewat form BBM (tab BBM).',
+    where: 'Ajukan di sub-tab Kasbon (dalam BBM); kewajiban LPJ muncul di atas form BBM.',
   },
   {
     icon: '📊', title: 'Rapor', badge: 'Hanya melihat',

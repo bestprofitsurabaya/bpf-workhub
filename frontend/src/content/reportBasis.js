@@ -8,7 +8,7 @@
  *
  * Penting: JANGAN menulis ulang kalimat ini di masing-masing view.
  */
-export const BASIS_VERSION = 'bbm-scope-2'
+export const BASIS_VERSION = 'bbm-scope-3'
 
 export const REPORT_BASIS = {
   rekap:
@@ -16,7 +16,9 @@ export const REPORT_BASIS = {
     + '+ voucher rekanan verified_ga/archived; data demo dikecualikan',
   realisasi:
     'Kasbon cair: handover_at terisi · LPJ sah: CASH_LPJ verified_ga/archived · '
-    + 'Voucher: CLAIM berlabel rekanan, verified_ga/archived (sekali saat pemakaian)',
+    + 'Voucher: CLAIM berlabel rekanan, verified_ga/archived (sekali saat pemakaian) · '
+    + 'Klaim tunai: CLAIM os_finance/archived dengan voucher_value=0 · '
+    + 'Total = LPJ + voucher + klaim (tiga kanal, tanpa hitung ganda)',
   analisis:
     'Klaim dibayar os_finance/archived + LPJ sah verified_ga/archived; '
     + 'kasbon cair = handover_at terisi; armada mengikuti periode',

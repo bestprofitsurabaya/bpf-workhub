@@ -76,14 +76,15 @@ def rekap_scope_sql(alias=''):
 REKAP_SCOPE_SQL = rekap_scope_sql()
 
 BASIS = {
-    'claim': 'transactions CLAIM; basis created_at; demo dikecualikan',
+    'claim': 'transactions CLAIM tunai (voucher_value=0) status os_finance/archived; basis created_at; demo dikecualikan',
     'lpj': 'CASH_LPJ berstatus verified_ga/archived; basis created_at',
     'voucher': 'baris CLAIM berlabel SPBU rekanan (voucher_value terisi), status verified_ga/archived; dihitung sekali saat pemakaian',
     'kasbon': 'fuel_cash_requests dengan handover_at terisi (dana diserahkan)',
     'outstanding': 'kasbon FUNDS_WITH_DRIVER/LPJ_SUBMITTED — dana masih di driver',
     'rekap': 'klaim cash CLAIM os_finance/archived + LPJ CASH_LPJ verified_ga/archived + voucher rekanan verified_ga/archived',
+    'total': 'realisasi = LPJ sah + klaim dibayar + voucher sah; tiga kanal, satu beban, tidak dihitung dua kali',
 }
-BASIS_VERSION = 'bbm-scope-2'
+BASIS_VERSION = 'bbm-scope-3'
 
 
 def default_period(days=30, today=None):
@@ -246,6 +247,31 @@ def monthly_lpj_rows(conn, year):
             "AND YEAR(created_at) = %s "
             "GROUP BY MONTH(created_at)",
             tuple(LPJ_VALID_STATUSES) + (year,))
+        return cur.fetchall() or []
+    finally:
+        cur.close()
+
+
+def monthly_claim_rows(conn, year):
+    """Vektor 12 bulan klaim tunai yang sudah dibayar (CLAIM non-voucher).
+
+    v2.130.0: kanal "klaim" (driver menalangi lalu minta ganti) dipisahkan
+    dari "voucher" (SPBU rekanan menagih kantor) dan dari "LPJ" (uang muka
+    kasbon). Ketiganya beban BBM yang sama; pemisahan hanya untuk rincian.
+    """
+    cur = conn.cursor(dictionary=True)
+    try:
+        cur.execute(
+            "SELECT MONTH(created_at) AS m, "
+            "COALESCE(SUM(nominal), 0) AS amount "
+            "FROM transactions "
+            "WHERE COALESCE(transaction_type, 'CLAIM') = 'CLAIM' "
+            "AND COALESCE(voucher_value, 0) = 0 "
+            f"AND status IN ({_placeholders(CLAIM_PAID_STATUSES)}) "
+            "AND (is_dummy = 0 OR is_dummy IS NULL) "
+            "AND YEAR(created_at) = %s "
+            "GROUP BY MONTH(created_at)",
+            tuple(CLAIM_PAID_STATUSES) + (year,))
         return cur.fetchall() or []
     finally:
         cur.close()

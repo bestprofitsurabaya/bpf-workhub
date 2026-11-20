@@ -7,7 +7,6 @@ import { useDriverStore, QUEUE_LABELS } from '../../stores/driverStore'
 import DriverNotifBell from '../../components/DriverNotifBell.vue'
 import BBMTab from './BBMTab.vue'
 import TripTab from './TripTab.vue'
-import KasbonTab from './KasbonTab.vue'
 import RaporTab from './RaporTab.vue'
 import OvertimeDriverTab from './OvertimeDriverTab.vue'
 import HelpCenter from '../../components/HelpCenter.vue'
@@ -40,17 +39,20 @@ function finishTour() {
   tourOpen.value = false
 }
 
+// v2.130.0 — 4 tab. Kasbon bukan lagi tab sendiri: ia hanya relevan untuk BBM
+// (uang muka pembelian BBM), jadi hidup sebagai sub-tab di dalam BBM bersama
+// kewajiban LPJ-nya. Navigasi bawah jadi lebih lega di layar HP.
 const TABS = [
-  { key: 'bbm', label: 'BBM', icon: '⛽', hint: 'Klaim BBM, voucher rekanan, dan LPJ kasbon' },
-  { key: 'kasbon', label: 'Kasbon', icon: '💰', hint: 'Uang muka perjalanan & status LPJ' },
+  { key: 'bbm', label: 'BBM', icon: '⛽', hint: 'Klaim BBM, voucher rekanan, kasbon & LPJ' },
   { key: 'trip', label: 'Trip', icon: '🗺️', hint: 'Log perjalanan & hasil kunjungan' },
   { key: 'overtime', label: 'OT', icon: '⏰', hint: 'Pengajuan lembur' },
   { key: 'rapor', label: 'Rapor', icon: '📊', hint: 'Performa BBM kendaraan (km/L)' },
 ]
 // Valuasi tab tersimpan: kunci lama/tak dikenal tidak boleh membuat layar kosong.
+// `kasbon` (versi lama) dipetakan ke BBM dengan sub-tab Kasbon terbuka.
 const storedTab = localStorage.getItem('driverTab')
 const tab = ref(TABS.some((t) => t.key === storedTab) ? storedTab : 'bbm')
-const kasbonRefresh = ref(0)
+const bbmStartView = ref(storedTab === 'kasbon' ? 'kasbon' : 'laporan')
 const syncOpen = ref(false)
 
 // v2.73.0 — konfirmasi serah terima kendaraan (confirmed_by_driver).
@@ -171,10 +173,6 @@ function toast(text, type = '') {
 function switchTab(key) {
   tab.value = key
   localStorage.setItem('driverTab', key)
-  if (key === 'kasbon') {
-    kasbonRefresh.value++
-    store.loadDailyCode()
-  }
 }
 
 function toggleDark() {
@@ -326,8 +324,7 @@ onBeforeUnmount(() => {
       <!-- Konten tab -->
       <main class="d-content">
         <FlowGuide audience="driver" />
-        <BBMTab v-show="tab === 'bbm'" @toast="toast" />
-        <KasbonTab v-show="tab === 'kasbon'" :refresh="kasbonRefresh" @toast="toast" @switch-tab="switchTab" />
+        <BBMTab v-show="tab === 'bbm'" :start-view="bbmStartView" @toast="toast" @switch-tab="switchTab" />
         <TripTab v-show="tab === 'trip'" @toast="toast" />
         <OvertimeDriverTab v-show="tab === 'overtime'" @toast="toast" />
         <RaporTab v-show="tab === 'rapor'" @toast="toast" />

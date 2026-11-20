@@ -7,6 +7,46 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.130.0 — 20 November 2026 (Laporan BBM tiga kanal, top-up km/L, 4 tab driver)
+
+Laporan finance, pembacaan ODO, dan struktur PWA driver diperbaiki agar cocok
+dengan data asli grup WhatsApp (72 transaksi, 4–19 Nov 2026).
+
+**Laporan pengeluaran — tiga kanal, satu beban**
+- Kanal baru **Klaim Tunai** (driver menalangi, kantor mengganti) dipisahkan
+  dari **Voucher Rekanan** (SPBU mitra menagih kantor) dan **LPJ** (uang muka
+  kasbon). `transaction_type='CLAIM'` + `voucher_value=0` = klaim tunai;
+  `voucher_value>0` = voucher.
+- **Total realisasi = LPJ sah + voucher sah + klaim dibayar**. Tidak ada yang
+  dihitung dua kali; rincian per kanal tetap tampil di kartu, tabel bulanan,
+  CSV, dan drill-down.
+- `BASIS_VERSION` naik ke `bbm-scope-3` (backend + teks laporan frontend).
+
+**Voucher rekanan — status tagihan yang benar**
+- `archived` kembali berarti "transaksi final", bukan "tagihan sudah dibayar".
+  Satu-satunya penanda lunas adalah `settlement_id`.
+- Ringkasan open/settled dan daftar `unsettled` memakai aturan yang sama,
+  sehingga voucher `archived` yang belum ditagihkan tidak lagi hilang dari
+  daftar terbuka.
+
+**ODO & km/L — top up tidak lagi merusak interval**
+- Baris tanpa ODO (`odo_km=0`) tidak lagi dianggap jarak 0 km. Liternya
+  diakumulasi ke pengisian penuh berikutnya, sehingga satu nota tanpa ODO
+  tidak membuat km/L berikutnya ekstrem.
+- Algoritma dipindah ke `modules/km_metrics.py` (`compute_km_metrics`) agar
+  bisa diuji tanpa DB; 6 unit test mencakup pengisian penuh, top up, ODO
+  kosong di tengah/awal, dan ODO mundur.
+
+**PWA driver — 4 tab**
+- Tab **Kasbon** dilebur ke dalam **BBM** sebagai sub-tab "Kasbon & LPJ".
+  Navigasi bawah kini: BBM · Trip · OT · Rapor.
+- Setelah kasbon cair, banner **kewajiban LPJ** muncul di atas form BBM dengan
+  tombol "Isi LPJ sekarang". Deep link/tab tersimpan `kasbon` lama otomatis
+  membuka sub-tab tersebut.
+- Bantuan, onboarding, dan FlowGuide diperbarui (4 tab, kasbon di dalam BBM).
+
+---
+
 ## v2.129.2 — 20 November 2026 (Nama driver memakai nama dari Pengaturan)
 
 Halaman driver menampilkan `DRIVERSBY_AHMAD`, bukan **Ahmad** yang tersimpan di

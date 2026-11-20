@@ -23,7 +23,7 @@ const SUMMARY = {
     outstanding: { count: 1, amount: 300000 },
   },
   realisasi: { lpj_sah: 500000, klaim_dibayar: 1200000, voucher_sah: 260000, total: 1960000 },
-  meta: { basis_version: 'bbm-scope-2' },
+  meta: { basis_version: 'bbm-scope-3' },
 }
 
 describe('BbmWorkspaceKpi — KPI yang bisa diklik ke daftar baris', () => {

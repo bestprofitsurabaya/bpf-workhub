@@ -6,7 +6,8 @@
  * dan berapa sisa kasbon yang belum dipertanggungjawabkan?
  *
  * Jembatan: Kasbon cair − Realisasi LPJ = Sisa dana di driver.
- * Total realisasi = Realisasi LPJ + voucher rekanan.
+ * Total realisasi = Realisasi LPJ + voucher rekanan + klaim tunai.
+ * Ketiganya beban BBM yang sama; dipisah hanya agar transaksi bisa ditelusuri.
  * Kasbon BUKAN pengeluaran final (hanya dana muka) — lihat routes_expense.py.
  */
 import { computed, onMounted, ref, watch } from 'vue'
@@ -70,6 +71,7 @@ const rowsBulan = computed(() => {
   const kasbon = vec(display.value, 'kasbon')
   const lpj = vec(display.value, 'lpj')
   const voucher = vec(display.value, 'voucher')
+  const klaim = vec(display.value, 'klaim')
   return Array.from({ length: monthTo.value - monthFrom.value + 1 }, (_, k) => {
     const i = monthFrom.value - 1 + k
     return {
@@ -78,8 +80,9 @@ const rowsBulan = computed(() => {
       kasbon: kasbon[i] || 0,
       lpj: lpj[i] || 0,
       voucher: voucher[i] || 0,
+      klaim: klaim[i] || 0,
       sisa: (kasbon[i] || 0) - (lpj[i] || 0),
-      total: (lpj[i] || 0) + (voucher[i] || 0),
+      total: (lpj[i] || 0) + (voucher[i] || 0) + (klaim[i] || 0),
     }
   })
 })
@@ -88,7 +91,8 @@ const totals = computed(() => {
   const kasbon = sumSlice(vec(display.value, 'kasbon'))
   const lpj = sumSlice(vec(display.value, 'lpj'))
   const voucher = sumSlice(vec(display.value, 'voucher'))
-  return { kasbon, lpj, voucher, sisa: kasbon - lpj, total: lpj + voucher }
+  const klaim = sumSlice(vec(display.value, 'klaim'))
+  return { kasbon, lpj, voucher, klaim, sisa: kasbon - lpj, total: lpj + voucher + klaim }
 })
 
 const perBranch = computed(() => {
@@ -97,8 +101,9 @@ const perBranch = computed(() => {
     const kasbon = sumSlice(vec(v, 'kasbon'))
     const lpj = sumSlice(vec(v, 'lpj'))
     const voucher = sumSlice(vec(v, 'voucher'))
-    const total = lpj + voucher
-    return { code, name: v.name, kasbon, lpj, voucher, total, share: pct(total, whole) }
+    const klaim = sumSlice(vec(v, 'klaim'))
+    const total = lpj + voucher + klaim
+    return { code, name: v.name, kasbon, lpj, voucher, klaim, total, share: pct(total, whole) }
   }).sort((a, b) => b.total - a.total)
 })
 
@@ -123,7 +128,7 @@ async function load() {
   try {
     const d = await api(`/api/expenses/recap?year=${year.value}&branch=${branch.value}`)
     recap.value = d
-    display.value = d.display || { name: '—', kasbon: [], lpj: [], voucher: [], total: [] }
+    display.value = d.display || { name: '—', kasbon: [], lpj: [], voucher: [], klaim: [], total: [] }
     branches.value = d.branches || []
     perBranchRaw.value = branch.value === 'ALL' ? (d.per_branch || {}) : {}
     errors.value = d.errors || {}
@@ -151,7 +156,7 @@ watch(() => props.scope, (s) => {
 
 // === Drill-down ===
 const detail = ref({ open: false, month: null, loading: false, error: '', sections: [] })
-const DETAIL_CATS = [['kasbon', '💵 Kasbon Cair'], ['lpj', '📋 Realisasi LPJ'], ['voucher', '🎟️ Voucher Rekanan']]
+const DETAIL_CATS = [['kasbon', '💵 Kasbon Cair'], ['lpj', '📋 Realisasi LPJ'], ['voucher', '🎟️ Voucher Rekanan'], ['klaim', '💸 Klaim Tunai']]
 
 async function openDetail(month) {
   detail.value = { open: true, month, loading: true, error: '', sections: [] }
@@ -179,7 +184,7 @@ function closeDetail() { detail.value.open = false }
 function exportCsv() {
   notice.value = ''
   if (!rowsBulan.value.length) { notice.value = 'Tidak ada data untuk diekspor.'; return }
-  const header = ['Bulan', 'Kasbon Cair', 'Realisasi LPJ', 'Voucher Rekanan', 'Sisa Kasbon', 'Total Realisasi']
+  const header = ['Bulan', 'Kasbon Cair', 'Realisasi LPJ', 'Voucher Rekanan', 'Klaim Tunai', 'Sisa Kasbon', 'Total Realisasi']
   // v2.113.2: kop CSV sama dengan PDF & kartu meta (periode, cakupan, dasar
   // hitung, waktu dibuat) — file ekspor bisa diaudit tanpa membuka layar.
   const lines = [
@@ -189,8 +194,8 @@ function exportCsv() {
     csvMeta(`Dasar hitung (${BASIS_VERSION}): ${REPORT_BASIS.realisasi}`, header.length),
     csvMeta(`Dibuat: ${generatedAt.value}`, header.length),
     csvLine(header),
-    ...rowsBulan.value.map((r) => csvLine([r.label, r.kasbon, r.lpj, r.voucher, r.sisa, r.total])),
-    csvLine(['TOTAL', totals.value.kasbon, totals.value.lpj, totals.value.voucher, totals.value.sisa, totals.value.total]),
+    ...rowsBulan.value.map((r) => csvLine([r.label, r.kasbon, r.lpj, r.voucher, r.klaim, r.sisa, r.total])),
+    csvLine(['TOTAL', totals.value.kasbon, totals.value.lpj, totals.value.voucher, totals.value.klaim, totals.value.sisa, totals.value.total]),
   ]
   downloadCsv(`realisasi_pengeluaran_${branch.value}_${year.value}_${monthFrom.value}-${monthTo.value}.csv`, lines)
 }
@@ -201,7 +206,7 @@ onMounted(load)
 <template>
   <div>
     <PageHeader icon="📊" title="Realisasi Pengeluaran"
-                subtitle="Uang yang benar-benar terpakai: LPJ BBM + voucher rekanan, dengan jembatan kasbon">
+                subtitle="Uang yang benar-benar terpakai: LPJ BBM + voucher rekanan + klaim tunai, dengan jembatan kasbon">
       <div v-if="allBranches" class="field" style="width:190px;">
         <select class="select" v-model="branch" @change="load">
           <option value="ALL">🏭 Semua Cabang</option>
@@ -224,9 +229,9 @@ onMounted(load)
         question="Berapa uang yang benar-benar terpakai pada periode ini, terdiri dari apa, dan berapa kasbon yang belum dipertanggungjawabkan?"
         :period="periodLabel + (isYtd ? ' (YTD)' : '')"
         :scope="scopeLabel"
-        source="fuel_cash_requests, transactions (CASH_LPJ, CLAIM voucher)"
+        source="fuel_cash_requests, transactions (CASH_LPJ, CLAIM voucher, CLAIM tunai)"
         :basis="`${BASIS_VERSION} — ${REPORT_BASIS.realisasi}`"
-        exclusions="Air minum & overtime belum menyimpan nominal; kasbon bukan pengeluaran final"
+        exclusions="Air minum & overtime belum menyimpan nominal; kasbon bukan pengeluaran final; kanal cash/klaim/voucher tidak dihitung dua kali"
         :generated-at="generatedAt"
         :rows="rowsBulan.length + ' bulan'"
       />
@@ -272,6 +277,13 @@ onMounted(load)
           <div class="muted" style="font-size:10px;">Pemakaian voucher sah · klik untuk buka tagihan</div>
         </button>
         <button type="button" class="card card-pad grow aq-link" style="min-width:190px;text-align:left;"
+             data-testid="open-klaim"
+             @click="emit('open-tab', { tab: 'bbm', filters: { bbmTab: 'history', bbmType: 'CLAIM' }, label: 'Klaim tunai' })">
+          <div class="muted" style="font-size:12px;">💸 Klaim Tunai</div>
+          <b style="font-size:21px;">{{ fmtRupiah(totals.klaim) }}</b>
+          <div class="muted" style="font-size:10px;">Driver menalangi, kantor mengganti · klik untuk lihat baris</div>
+        </button>
+        <button type="button" class="card card-pad grow aq-link" style="min-width:190px;text-align:left;"
              :style="totals.sisa < 0 ? 'border-color:var(--danger)' : ''"
              data-testid="open-sisa-kasbon"
              @click="emit('open-tab', { tab: 'kasbon', filters: { kasbon: 'cair' }, label: 'Sisa Kasbon' })">
@@ -293,7 +305,7 @@ onMounted(load)
         <div class="card card-pad grow" style="min-width:200px;background:var(--primary-soft, rgba(25,103,210,.08));">
           <div class="muted" style="font-size:12px;">Σ Total Realisasi {{ year }}</div>
           <b style="font-size:24px;">{{ fmtRupiah(totals.total) }}</b>
-          <div class="muted" style="font-size:10px;">LPJ sah + voucher rekanan (bukan kasbon)</div>
+          <div class="muted" style="font-size:10px;">LPJ sah + voucher rekanan + klaim tunai (bukan kasbon)</div>
         </div>
       </div>
 
@@ -312,6 +324,7 @@ onMounted(load)
                 <th style="text-align:right;">Kasbon Cair</th>
                 <th style="text-align:right;">Realisasi LPJ</th>
                 <th style="text-align:right;">Voucher BBM</th>
+                <th style="text-align:right;">Klaim Tunai</th>
                 <th style="text-align:right;">Sisa</th>
                 <th style="text-align:right;">Total Realisasi</th>
                 <th></th>
@@ -323,6 +336,7 @@ onMounted(load)
                 <td style="text-align:right;">{{ r.kasbon ? fmtRupiah(r.kasbon) : '—' }}</td>
                 <td style="text-align:right;">{{ r.lpj ? fmtRupiah(r.lpj) : '—' }}</td>
                 <td style="text-align:right;">{{ r.voucher ? fmtRupiah(r.voucher) : '—' }}</td>
+                <td style="text-align:right;">{{ r.klaim ? fmtRupiah(r.klaim) : '—' }}</td>
                 <td style="text-align:right;" :style="r.sisa < 0 ? 'color:var(--danger)' : ''">{{ r.sisa ? fmtRupiah(r.sisa) : '—' }}</td>
                 <td style="text-align:right;"><b>{{ r.total ? fmtRupiah(r.total) : '—' }}</b></td>
                 <td style="text-align:right;"><button class="btn btn-sm" @click="openDetail(r.month)">Rincian</button></td>
@@ -332,6 +346,7 @@ onMounted(load)
                 <td style="text-align:right;">{{ fmtRupiah(totals.kasbon) }}</td>
                 <td style="text-align:right;">{{ fmtRupiah(totals.lpj) }}</td>
                 <td style="text-align:right;">{{ fmtRupiah(totals.voucher) }}</td>
+                <td style="text-align:right;">{{ fmtRupiah(totals.klaim) }}</td>
                 <td style="text-align:right;">{{ fmtRupiah(totals.sisa) }}</td>
                 <td style="text-align:right;">{{ fmtRupiah(totals.total) }}</td>
                 <td></td>
@@ -354,6 +369,7 @@ onMounted(load)
                 <th style="text-align:right;">Kasbon Cair</th>
                 <th style="text-align:right;">Realisasi LPJ</th>
                 <th style="text-align:right;">Voucher BBM</th>
+                <th style="text-align:right;">Klaim Tunai</th>
                 <th style="text-align:right;">Total Realisasi</th>
                 <th style="text-align:right;">Porsi</th>
               </tr>
@@ -364,6 +380,7 @@ onMounted(load)
                 <td style="text-align:right;">{{ fmtRupiah(b.kasbon) }}</td>
                 <td style="text-align:right;">{{ fmtRupiah(b.lpj) }}</td>
                 <td style="text-align:right;">{{ fmtRupiah(b.voucher) }}</td>
+                <td style="text-align:right;">{{ fmtRupiah(b.klaim) }}</td>
                 <td style="text-align:right;"><b>{{ fmtRupiah(b.total) }}</b></td>
                 <td style="text-align:right;">{{ b.share }}</td>
               </tr>
@@ -377,7 +394,10 @@ onMounted(load)
         <b style="font-size:13px;">ℹ️ Cara membaca laporan ini</b>
         <ul class="muted" style="font-size:12px;margin:8px 0 0;padding-left:18px;line-height:1.7;">
           <li><b>Kasbon cair</b> = uang muka yang sudah diserahkan ke driver (handover_at terisi). Bukan pengeluaran final.</li>
-          <li><b>Realisasi LPJ</b> = LPJ kasbon yang sah (verified_ga/archived). Total realisasi = LPJ sah + voucher rekanan.</li>
+          <li><b>Realisasi LPJ</b> = LPJ kasbon yang sah (verified_ga/archived).</li>
+          <li><b>Voucher rekanan</b> = pemakaian di SPBU mitra yang ditagihkan ke kantor, dihitung sekali saat pemakaian.</li>
+          <li><b>Klaim tunai</b> = driver menalangi pembelian lalu kantor mengganti. Bukan voucher, bukan LPJ.</li>
+          <li><b>Total realisasi</b> = LPJ sah + voucher rekanan + klaim tunai. Tiga kanal, satu beban — tidak dihitung dua kali.</li>
           <li><b>Sisa kasbon</b> = kasbon cair − LPJ. Nilai negatif berarti LPJ melebihi dana muka dan perlu ditelusuri.</li>
           <li>Air minum dan overtime belum masuk karena sistem belum menyimpan nominalnya — bukan dianggap nol.</li>
         </ul>

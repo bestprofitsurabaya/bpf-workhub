@@ -74,7 +74,7 @@ class TestFillVector:
         assert _fill_vector(None) == [0.0] * MONTHS
 
     def test_kategori_kontrak(self):
-        assert CATEGORIES == ('kasbon', 'lpj', 'voucher')
+        assert CATEGORIES == ('kasbon', 'lpj', 'voucher', 'klaim')
         assert EXPENSE_ROLES == ['finance', 'admin']
 
 
@@ -167,12 +167,13 @@ def test_bentuk_response_vektor_12(client, monkeypatch):
     assert d['display']['kasbon'][6] == 100000.0
     assert d['display']['lpj'] == [0.0] * 12
     assert d['display']['voucher'] == [0.0] * 12
-    # Total realisasi = LPJ + voucher (kasbon bukan pengeluaran final).
+    assert d['display']['klaim'] == [0.0] * 12
+    # Total realisasi = LPJ + voucher + klaim (kasbon bukan pengeluaran final).
     assert d['display']['total'] == [0.0] * 12
-    assert d['totals'] == {'kasbon': 500000.0, 'lpj': 0.0, 'voucher': 0.0}
+    assert d['totals'] == {'kasbon': 500000.0, 'lpj': 0.0, 'voucher': 0.0, 'klaim': 0.0}
     assert d['grand_total'] == 0.0
     assert d['sisa_total'] == 500000.0
-    assert 'kasbon' in d['basis'] and 'voucher' in d['basis'] and 'excluded' in d['basis']
+    assert {'kasbon', 'lpj', 'voucher', 'klaim', 'total'} <= set(d['basis'])
     assert 'po' not in d['categories']
     assert not d['errors']
 
