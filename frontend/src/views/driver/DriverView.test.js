@@ -139,7 +139,7 @@ describe('DriverView', () => {
     const w = await mountView()
     await w.findAll('.d-nav-item').find((b) => b.text().includes('Service')).trigger('click')
     await flushPromises()
-    expect(w.text()).toContain('Catatan Service Mobil')
+    expect(w.text()).toContain('Nomor Polisi')
     expect(w.text()).toContain('Nomor Polisi')
     expect(w.text()).toContain('Kirim ke GA')
     w.unmount()

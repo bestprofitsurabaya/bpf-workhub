@@ -7,6 +7,16 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.131.2 — 23 November 2026 (Seragamkan tab Service)
+
+- `ServiceTab.vue` — tampilan diselaraskan dengan tab BBM/Trip/OT: field
+  tanpa kartu abu, label + input polos, tombol full-width, riwayat tetap
+  memakai kartu. ID `svc-km` ditambahkan untuk kemudahan uji/aksesibilitas.
+- Generator panduan ditambah screenshot modal detail klaim GA dan detail
+  air minum Finance; penomoran gambar dirapikan.
+
+---
+
 ## v2.131.1 — 23 November 2026 (KM manual & keluhan bernomor)
 
 - PWA driver: **KM Kendaraan** tidak lagi dipaksa dari profil. Field tetap

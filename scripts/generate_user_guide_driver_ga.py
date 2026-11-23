@@ -282,7 +282,7 @@ class GuidePDF(BPFBasePDF):
         ])
         self.note('Minimal satu keluhan wajib diisi dan KM harus lebih dari 0. Riwayat di bawah '
                   'form menampilkan status SUBMITTED / REVIEWED / REJECTED beserta catatan GA.')
-        self.screenshot(SHOT_DRIVER, 'Gambar 1. Tampilan tab Service pada PWA Driver')
+        self.screenshot(SHOT_DRIVER, 'Tampilan tab Service pada PWA Driver')
 
     # ---------- GA ----------
     def ga(self):
@@ -332,7 +332,7 @@ class GuidePDF(BPFBasePDF):
         ])
         self.note('Dokumen resmi berisi identitas driver, nopol, jenis mobil, KM kendaraan, '
                   'keluhan bernomor, pernyataan penyerahan, serta kolom tanda tangan Driver dan GA.')
-        self.screenshot(SHOT_GA, 'Gambar 2. Panel GA dan modal detail catatan service')
+        self.screenshot(SHOT_GA, 'Panel GA dan modal detail catatan service')
 
     # ---------- alur, faq, glosarium ----------
     def flow(self):
@@ -538,50 +538,52 @@ class GuidePDF(BPFBasePDF):
         self.h1('D. GA - VERIFIKASI, KASBON, SERVICE, ASET')
         self.ga()
         self.screenshot(shot('ga_service'), 'Gambar 7. Dashboard GA dan panel Catatan Service')
+        self.screenshot(shot('ga_claim_detail'), 'Gambar 8. Modal detail klaim BBM di GA')
 
         self.h1('E. FINANCE - PEMBAYARAN, REKAP, SUBSIDI TEPAT')
         self.h2('E.1 Dashboard Finance')
         self.para('Finance melihat antrean air minum, klaim siap bayar, kasbon, dan kartu '
                   'Subsidi Tepat. Verifikasi air minum sebelum pembayaran.')
-        self.screenshot(shot('finance'), 'Gambar 8. Dashboard Finance')
+        self.screenshot(shot('finance'), 'Gambar 9. Dashboard Finance')
         self.h2('E.2 Rekap Pengeluaran')
         self.para('Buka menu BBM, Kasbon & SPBU untuk melihat realisasi tiga kanal: LPJ, '
                   'voucher rekanan, dan klaim tunai. Total = LPJ + voucher + klaim.')
-        self.screenshot(shot('finance_laporan'), 'Gambar 9. Laporan realisasi pengeluaran')
+        self.screenshot(shot('finance_laporan'), 'Gambar 10. Laporan realisasi pengeluaran')
+        self.screenshot(shot('finance_water_detail'), 'Gambar 11. Detail pengajuan air minum di Finance')
 
         self.h1('F. MARKETING & CHIEF DRIVER')
         self.h2('F.1 Marketing - Appointment')
         self.para('Buat jadwal kunjungan, pilih driver dan tanggal, lalu simpan. Hasil kunjungan '
                   'diisi driver dan menjadi bahan laporan konversi.')
-        self.screenshot(shot('marketing'), 'Gambar 10. Dashboard Marketing / Appointment')
+        self.screenshot(shot('marketing'), 'Gambar 12. Dashboard Marketing / Appointment')
         self.h2('F.2 Chief Driver - Pembagian Tugas')
         self.para('Atur rute otomatis atau manual, tugaskan driver, dan unduh rekap harian. '
                   'Perubahan langsung terlihat driver lewat notifikasi.')
-        self.screenshot(shot('chief'), 'Gambar 11. Dashboard Chief Driver')
+        self.screenshot(shot('chief'), 'Gambar 13. Dashboard Chief Driver')
 
         self.h1('G. RECEPTIONIST, TRAINEER, GA HR, CONTENT')
         self.h2('G.1 Receptionist - Rekrutmen')
         self.para('Input pelamar, perbarui status, dan sinkron data dari Sheet bila dipakai.')
-        self.screenshot(shot('receptionist'), 'Gambar 12. Halaman Rekrutmen')
+        self.screenshot(shot('receptionist'), 'Gambar 14. Halaman Rekrutmen')
         self.h2('G.2 Traineer - Absensi FirstWork')
         self.para('Lihat dan verifikasi data pengisian FirstWork. Filter status, lalu tandai '
                   'terverifikasi atau tolak.')
-        self.screenshot(shot('traineer'), 'Gambar 13. Absensi FirstWork')
+        self.screenshot(shot('traineer'), 'Gambar 15. Absensi FirstWork')
         self.h2('G.3 GA HR - Overtime')
         self.para('Lihat pengajuan overtime driver/OB/security, unduh Excel atau PDF, dan '
                   'refresh data dari Google Sheet bila sumbernya sheet.')
-        self.screenshot(shot('gahr'), 'Gambar 14. Data Overtime GA HR')
+        self.screenshot(shot('gahr'), 'Gambar 16. Data Overtime GA HR')
 
         self.h1('H. ADMIN & IT')
         self.h2('H.1 Admin - User & Pengaturan')
         self.para('Admin mengelola user, role, cabang, kendaraan, dan pengaturan sistem. '
                   'Perubahan role berpengaruh langsung pada menu yang tersedia.')
-        self.screenshot(shot('admin'), 'Gambar 15. Dashboard Admin')
-        self.screenshot(shot('admin_users'), 'Gambar 16. Manajemen User & Driver')
+        self.screenshot(shot('admin'), 'Gambar 17. Dashboard Admin')
+        self.screenshot(shot('admin_users'), 'Gambar 18. Manajemen User & Driver')
         self.h2('H.2 IT - News Scraper & Inventaris')
         self.para('IT cabang menjalankan scrape berita, mengelola inventaris aset, label QR, '
                   'dan transceiver/transcoder sesuai wewenang.')
-        self.screenshot(shot('it'), 'Gambar 17. Modul News Scraper IT')
+        self.screenshot(shot('it'), 'Gambar 19. Modul News Scraper IT')
 
         self.flow()
         self.faq()

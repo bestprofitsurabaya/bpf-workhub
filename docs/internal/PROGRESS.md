@@ -9,6 +9,16 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 ---
 
+## 🎨 23 Nov 2026 — Tab Service diseragamkan (v2.131.2)
+
+- Audit UI PWA driver: tab Service masih pakai kartu abu/row label sementara
+  BBM, Trip, dan OT memakai field polos. Diubah ke gaya yang sama.
+- Generator panduan: tambah screenshot modal detail klaim GA & detail air
+  minum Finance, penomoran gambar dirapikan.
+- Menunggu deploy & regenerasi PDF final.
+
+---
+
 ## 🔧 23 Nov 2026 — KM manual & keluhan bernomor (v2.131.1)
 
 - `ServiceTab.vue` — KM kendaraan jadi input manual (prefill dari profil hanya
@@ -2573,45 +2583,3 @@ tes & verifikasi; perubahan produksi butuh konfirmasi eksplisit.
 - GA (`ga_sby`) melihat laporan tersebut, PDF resmi berhasil diunduh
   (`%PDF`, 57 kB), review `REVIEWED` sukses.
 - Data uji dihapus; tabel `driver_service_reports` kembali kosong.
-
-### Audit tampilan GA & deploy v2.131.1 (23 Nov, 11:10 WIB)
-- Deploy v2.131.1 sukses; stamp DB v2.131.1; backend **1486 passed, 6 skipped**,
-  frontend **54 file / 410+ test passed**.
-- Audit UI dengan login `ga_sby` / 123456 di `https://nasbpfsby.duckdns.org:5000/app/ga`:
-  panel "Catatan Service Mobil (Driver → GA)" tampil dengan kolom No. Form,
-  Driver, Nopol, KM, Status, Tanggal, tombol Detail & Cetak. Modal detail
-  menampilkan KM manual (78179) dan keluhan bernomor (1., 2.) dengan rapi;
-  tombol Cetak PDF, Tolak, Selesaikan tersedia. Layout desktop terbaca baik.
-- Data uji audit (id 4) dihapus; tabel kembali kosong. Sesi browser audit ditutup.
-
-### Audit PWA driver Service (23 Nov, 11:20 WIB)
-- Login `driversby_guruh` / 123456 → /app/driver: 4 tab (BBM, Trip, OT, Service)
-  tampil benar; tab Rapor sudah tidak ada.
-- Tab Service: identitas driver/nopol/jenis mobil otomatis, **KM manual**
-  (diisi 78179), keluhan bernomor bisa ditambah/dikurangi.
-- Submit 2 poin keluhan → toast sukses, riwayat driver menampilkan
-  `SRV-SBY-20261123-0003` dengan keluhan `1. … / 2. …` rapi.
-- Data uji dihapus; tabel kembali kosong. Sesi browser audit ditutup.
-
-### Dokumen panduan resmi PDF (23 Nov, 12:00 WIB)
-- Dibuat 4 dokumen dengan kop perusahaan & versi v2.131.1:
-  1. `Panduan_Resmi_Driver_v2.131.1.pdf` (6 halaman)
-  2. `Panduan_Resmi_GA_v2.131.1.pdf` (6 halaman)
-  3. `Panduan_Service_Driver_v2.131.1.pdf` (5 halaman)
-  4. `Panduan_Service_GA_v2.131.1.pdf` (5 halaman)
-- Generator: `scripts/generate_user_guide_driver_ga.py`; ilustrasi dari
-  `docs/public/screenshots/`. Tampilan diverifikasi dengan render Poppler
-  (cover, daftar isi, tabel, dan screenshot terbaca rapi).
-- File PDF disimpan di `C:\Users\it.ef\Documents\`.
-
-### Panduan resmi semua pengguna & optimasi (23 Nov, 13:45 WIB)
-- `Panduan_Resmi_Semua_Pengguna_v2.131.1.pdf` dibuat: 22 halaman, 18 tangkapan
-  layar dari peran nyata (Driver, OB, Security, GA, Finance, Marketing,
-  Chief Driver, Receptionist, Traineer, GA HR, IT, Admin, Agenda).
-- Screenshot tersimpan di `docs/public/screenshots/all/`; generator diperbarui
-  agar caption tidak terpisah dari gambar saat page break.
-- Akses admin_sby memakai satu kode pemulihan MFA dari Documents host
-  (kode 88FDC-22359 sudah terpakai, jangan dipakai lagi).
-- Optimasi/cek WorkHub: stamp v2.131.1 konsisten, backend 1486 passed,
-  frontend seluruh suite lolos, endpoint & PDF service sudah di-smoke test,
-  container sehat. Tidak ada perubahan kode aplikasi pada tahap ini.
