@@ -2573,3 +2573,13 @@ tes & verifikasi; perubahan produksi butuh konfirmasi eksplisit.
 - GA (`ga_sby`) melihat laporan tersebut, PDF resmi berhasil diunduh
   (`%PDF`, 57 kB), review `REVIEWED` sukses.
 - Data uji dihapus; tabel `driver_service_reports` kembali kosong.
+
+### Audit tampilan GA & deploy v2.131.1 (23 Nov, 11:10 WIB)
+- Deploy v2.131.1 sukses; stamp DB v2.131.1; backend **1486 passed, 6 skipped**,
+  frontend **54 file / 410+ test passed**.
+- Audit UI dengan login `ga_sby` / 123456 di `https://nasbpfsby.duckdns.org:5000/app/ga`:
+  panel "Catatan Service Mobil (Driver → GA)" tampil dengan kolom No. Form,
+  Driver, Nopol, KM, Status, Tanggal, tombol Detail & Cetak. Modal detail
+  menampilkan KM manual (78179) dan keluhan bernomor (1., 2.) dengan rapi;
+  tombol Cetak PDF, Tolak, Selesaikan tersedia. Layout desktop terbaca baik.
+- Data uji audit (id 4) dihapus; tabel kembali kosong. Sesi browser audit ditutup.
