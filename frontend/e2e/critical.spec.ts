@@ -40,12 +40,14 @@ test('driver kirim KM manual + dua keluhan bernomor', async ({ page }) => {
   await page.getByRole('button', { name: /Tambah Keluhan/ }).click()
   await page.getByPlaceholder(/Tambah keluhan lain/).fill('AC kurang dingin')
   await page.getByRole('button', { name: /Kirim ke GA/ }).click()
-  // Backend membalas "Catatan service ... terkirim ke GA." huruf kecil;
-  // flag i menjaga teks persis "/Terkirim ke GA/" tetap terpakai.
-  await expect(page.getByText(/Terkirim ke GA/i)).toBeVisible()
-  // Riwayat menampilkan dua keluhan bernomor pada kartu KM yang baru
-  // dikirim (kartu lama hasil seed memakai keluhan berbeda).
-  const riwayat = page.locator('.svc-card').filter({ hasText: '78179' }).first()
+  const toast = page.getByText(/Terkirim ke GA/i)
+  await expect(toast).toBeVisible()
+  // Backend membalas "Catatan service SRV-… terkirim ke GA." (huruf kecil;
+  // flag i menjaga teks persis "/Terkirim ke GA/" tetap terpakai).
+  const idBaru = (await toast.innerText()).match(/SRV-[A-Z0-9-]+/)?.[0]
+  expect(idBaru, 'toast wajib menyertakan display_id laporan baru').toBeTruthy()
+  // Kartu riwayat ditargetkan lewat display_id kiriman ini — bukan kartu basi.
+  const riwayat = page.locator('.svc-card').filter({ hasText: idBaru! })
   await expect(riwayat).toBeVisible()
   await expect(riwayat).toContainText('1. Rem depan berbunyi')
   await expect(riwayat).toContainText('2. AC kurang dingin')

@@ -106,6 +106,10 @@ cur.execute(
     """INSERT IGNORE INTO bbm_types (name, price_per_liter) VALUES ('PERTALITE', 10000)"""
 )
 
+# Reset semua laporan service dari run sebelumnya. Tanpa ini skenario 1 bisa
+# lolos memakai kartu riwayat basi yang teksnya identik dengan kiriman baru.
+cur.execute("DELETE FROM driver_service_reports")
+
 # Laporan service SUBMITTED untuk skenario GA (reset bila dijalankan ulang).
 cur.execute(
     """INSERT INTO driver_service_reports
@@ -150,7 +154,8 @@ echo "[e2e] Build SPA ..."
 bash "$ROOT/scripts/build-spa.sh" --skip-npm >/dev/null
 
 # --- 3. Start Flask lokal + tunggu health --------------------------------
-LOG=$(mktemp /tmp/opencode/bpf-e2e-server.XXXXXX.log)
+# -t memakai TMPDIR sistem (ubuntu-latest tidak punya /tmp/opencode).
+LOG=$(mktemp -t bpf-e2e-server.XXXXXX.log)
 echo "[e2e] Start Flask (log: $LOG) ..."
 "$PYTHON" "$ROOT/app.py" >"$LOG" 2>&1 &
 SERVER_PID=$!
