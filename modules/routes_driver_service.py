@@ -85,7 +85,10 @@ def register_driver_service_routes(app):
                  km, keluhan, datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
             conn.commit()
             new_id = cur.lastrowid
-            log_activity_async(new_id, 'driver_service_submit', 'driver', name,
+            # activity_logs.transaction_id ber-FK ke transactions(id). ID laporan
+            # service bukan ID transaksi — kirim None agar audit tidak hilang (1452).
+            # display_id laporan sudah tercatat di new_data.
+            log_activity_async(None, 'driver_service_submit', 'driver', name,
                                new_data={'display_id': display_id, 'nopol': nopol},
                                ip=request.remote_addr,
                                branch_code=session.get('branch_code', ''))
@@ -229,7 +232,8 @@ def register_driver_service_routes(app):
                                 'msg': 'Sebagian laporan tidak ditemukan atau sudah diproses'}), 409
             conn.commit()
             for rid in clean_ids:
-                log_activity_async(rid, 'driver_service_bulk', 'ga', actor,
+                # ID laporan service bukan transactions.id — lihat catatan di submit.
+                log_activity_async(None, 'driver_service_bulk', 'ga', actor,
                                    new_data={'id': rid, 'status': status, 'ga_note': note},
                                    ip=request.remote_addr,
                                    branch_code=session.get('branch_code', ''))
@@ -262,7 +266,8 @@ def register_driver_service_routes(app):
                 conn.rollback()
                 return jsonify({'status': 'error', 'msg': 'Laporan tidak ditemukan atau sudah diproses'}), 409
             conn.commit()
-            log_activity_async(report_id, 'driver_service_review', 'ga', _actor(),
+            # ID laporan service bukan transactions.id — lihat catatan di submit.
+            log_activity_async(None, 'driver_service_review', 'ga', _actor(),
                                new_data={'id': report_id, 'status': status},
                                ip=request.remote_addr,
                                branch_code=session.get('branch_code', ''))

@@ -179,6 +179,8 @@ def test_bulk_review_sukses_update_dan_audit_per_id(client):
     assert len(logged) == 1
     assert logged[0][0][1] == 'driver_service_bulk'
     assert logged[0][0][2] == 'ga'
+    # ID laporan service bukan transactions.id (FK activity_logs) → NULL.
+    assert logged[0][0][0] is None
     assert logged[0][1]['new_data']['status'] == 'REVIEWED'
 
 
@@ -199,6 +201,7 @@ def test_bulk_review_reject_dengan_note(client):
     assert rv.status_code == 200
     assert conn.rows[11]['status'] == 'REJECTED'
     assert conn.rows[11]['ga_note'] == 'Foto tidak sesuai'
+    assert logged[0][0][0] is None
     assert logged[0][1]['new_data']['ga_note'] == 'Foto tidak sesuai'
 
 

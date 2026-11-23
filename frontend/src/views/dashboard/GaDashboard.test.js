@@ -3,6 +3,7 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import GaDashboard from './GaDashboard.vue'
 import { useStepupStore } from '../../stores/stepup'
+import { useRealtimeStore } from '../../stores/realtime'
 
 const { apiMock } = vi.hoisted(() => ({ apiMock: vi.fn() }))
 vi.mock('../../api', () => ({ api: apiMock }))
@@ -308,5 +309,27 @@ describe('GaDashboard', () => {
       method: 'POST',
       body: { ids: [11], status: 'REJECTED', ga_note: 'Foto tidak sesuai' },
     })
+  })
+
+  // Toast aksi review tidak boleh dibungkam oleh `typeof emitToast` guard.
+  it('bulk review sukses memunculkan toast hasil di store realtime', async () => {
+    const w = await mountView()
+    await serviceRow(w).find('input[type="checkbox"]').setValue(true)
+    await w.findAll('button').find((b) => b.text().includes('Tandai selesai')).trigger('click')
+    await flushPromises()
+    await confirmBulk(w, 'Ya, tandai selesai')
+    const rt = useRealtimeStore()
+    expect(rt.toasts.some((t) => t.type === 'success' && t.text.includes('1 laporan ditandai selesai'))).toBe(true)
+  })
+
+  it('bulk review gagal memunculkan toast error di store realtime', async () => {
+    const w = await mountView()
+    await serviceRow(w).find('input[type="checkbox"]').setValue(true)
+    await w.findAll('button').find((b) => b.text().includes('Tandai selesai')).trigger('click')
+    await flushPromises()
+    apiMock.mockRejectedValueOnce(new Error('Server error'))
+    await confirmBulk(w, 'Ya, tandai selesai')
+    const rt = useRealtimeStore()
+    expect(rt.toasts.some((t) => t.type === 'error' && t.text.includes('Server error'))).toBe(true)
   })
 })

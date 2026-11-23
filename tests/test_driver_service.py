@@ -62,16 +62,17 @@ class FakeConn:
 @pytest.fixture()
 def client(monkeypatch):
     conn = FakeConn()
+    logged = []
     monkeypatch.setattr('modules.routes_driver_service.get_db_connection', lambda: conn)
     monkeypatch.setattr('modules.routes_driver_service.generate_display_id',
                         lambda prefix, conn=None: 'SRV-SBY-20261123-0001')
     monkeypatch.setattr('modules.routes_driver_service.log_activity_async',
-                        lambda *a, **k: None)
+                        lambda *a, **k: logged.append((a, k)))
     app = Flask(__name__)
     app.secret_key = 'test'
     register_driver_service_routes(app)
     app.config['TESTING'] = True
-    return app.test_client(), conn
+    return app.test_client(), conn, logged
 
 
 def login(c, role):
@@ -82,14 +83,14 @@ def login(c, role):
 
 
 def test_driver_submit_membutuhkan_keluhan(client):
-    c, _ = client
+    c, _, _ = client
     login(c, 'driver')
     rv = c.post('/api/driver/service', json={})
     assert rv.status_code == 400
 
 
 def test_driver_submit_tersimpan(client):
-    c, conn = client
+    c, conn, logged = client
     login(c, 'driver')
     rv = c.post('/api/driver/service', json={
         'keluhan_items': ['Rem depan berbunyi keras', 'AC kurang dingin'],
@@ -102,10 +103,13 @@ def test_driver_submit_tersimpan(client):
     assert conn.inserted[3] == 'B 1126 DFC'
     assert conn.inserted[6].startswith('1. Rem depan')
     assert '2. AC kurang' in conn.inserted[6]
+    # Audit: ID laporan service bukan transactions.id → FK 1452 bila dipakai.
+    assert logged[0][0][0] is None
+    assert logged[0][1]['new_data']['display_id'] == 'SRV-SBY-20261123-0001'
 
 
 def test_km_manual_wajib(client):
-    c, _ = client
+    c, _, _ = client
     login(c, 'driver')
     rv = c.post('/api/driver/service', json={
         'keluhan_items': ['Rem berbunyi'], 'km_kendaraan': 0})
@@ -114,7 +118,7 @@ def test_km_manual_wajib(client):
 
 
 def test_ga_bisa_melihat_dan_memproses(client):
-    c, conn = client
+    c, conn, logged = client
     login(c, 'ga')
     rv = c.get('/api/ga/service-reports')
     assert rv.status_code == 200
@@ -122,10 +126,13 @@ def test_ga_bisa_melihat_dan_memproses(client):
     rv = c.post('/api/ga/service-reports/11/review', json={'status': 'REVIEWED'})
     assert rv.status_code == 200
     assert rv.get_json()['status'] == 'success'
+    # Audit review memakai tx_id NULL — report_id tetap ada di new_data.
+    assert logged[0][0][0] is None
+    assert logged[0][1]['new_data']['id'] == 11
 
 
 def test_driver_tidak_bisa_buka_endpoint_ga(client):
-    c, _ = client
+    c, _, _ = client
     login(c, 'driver')
     assert c.get('/api/ga/service-reports').status_code in (301, 302, 401, 403)
 

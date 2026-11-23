@@ -14,6 +14,14 @@ const stepup = useStepupStore()
 const confirmRef = ref(null)
 const ask = (message, opts) => confirmRef.value?.open(message, opts) ?? Promise.resolve(false)
 
+// Toast hasil aksi service memakai jalur toast global (ToastStack) yang sama
+// dengan notifikasi realtime. Tidak ada emitToast bawaan di komponen ini —
+// guard `typeof` sebelumnya membuat hasil sukses/gagal hilang tanpa jejak.
+const realtime = useRealtimeStore()
+function emitToast(text, type = 'success') {
+  realtime.push(text, type)
+}
+
 const stats = ref(null)
 const queue = ref([])
 const cash = ref([])
@@ -85,12 +93,11 @@ async function doServiceReview(status) {
       method: 'POST',
       body: { status, ga_note: serviceNote.value },
     })
-    if (typeof emitToast === 'function') emitToast(status === 'REVIEWED' ? '✅ Catatan service diselesaikan' : '✕ Catatan service ditolak')
+    emitToast(status === 'REVIEWED' ? '✅ Catatan service diselesaikan' : '✕ Catatan service ditolak')
     serviceFor.value = null
     await load()
   } catch (e) {
-    if (typeof emitToast === 'function') emitToast('❌ ' + (e.message || 'Gagal memperbarui'), 'error')
-    else alert(e.message || 'Gagal memperbarui')
+    emitToast('❌ ' + (e.message || 'Gagal memperbarui'), 'error')
   } finally {
     busy.value = false
   }
@@ -146,16 +153,13 @@ async function bulkServiceReview(status) {
     const body = { ids, status }
     if (status === 'REJECTED') body.ga_note = note
     await api('/api/ga/service-reports/bulk-review', { method: 'POST', body })
-    if (typeof emitToast === 'function') {
-      emitToast(status === 'REVIEWED'
-        ? `✅ ${ids.length} laporan ditandai selesai`
-        : `✕ ${ids.length} laporan ditolak`)
-    }
+    emitToast(status === 'REVIEWED'
+      ? `✅ ${ids.length} laporan ditandai selesai`
+      : `✕ ${ids.length} laporan ditolak`)
     svcSelected.value = []
     await load()
   } catch (e) {
-    if (typeof emitToast === 'function') emitToast('❌ ' + (e.message || 'Gagal memperbarui'), 'error')
-    else alert(e.message || 'Gagal memperbarui')
+    emitToast('❌ ' + (e.message || 'Gagal memperbarui'), 'error')
   } finally {
     busy.value = false
   }
@@ -261,7 +265,6 @@ async function doReject() {
 onMounted(load)
 
 // v2.9: antrean GA langsung refresh saat ada klaim BBM baru (event realtime new_claim)
-const realtime = useRealtimeStore()
 let lastClaimToast = null
 watch(
   () => realtime.items[0],
