@@ -16,6 +16,25 @@ const pendingLpj = ref([])
 
 // v2.131.0 — feedback km/L (dulu tab Rapor) muncul setelah submit BBM berhasil.
 const feedback = ref(null)
+// Riwayat 5 transaksi terakhir tampil ringkas di bawah kartu feedback.
+const feedbackHistory = ref([])
+const showFeedbackHistory = ref(true)
+
+async function loadFeedbackHistory(nopolValue) {
+  const n = String(nopolValue || '').trim()
+  if (!n) { feedbackHistory.value = []; return }
+  try {
+    const d = await api('/api/driver/feedback-history', { params: { nopol: n } })
+    const rows = Array.isArray(d?.data) ? d.data : []
+    feedbackHistory.value = rows.slice(0, 5).map((r) => ({
+      date: String(r.date || ''),
+      km_per_liter: Number(r.km_per_liter) || 0,
+      performa: r.performa || 'CUKUP',
+    }))
+    showFeedbackHistory.value = true
+  } catch { feedbackHistory.value = [] }
+}
+
 async function loadFeedback(nopolValue) {
   const n = String(nopolValue || '').trim()
   if (!n) return
@@ -25,6 +44,7 @@ async function loadFeedback(nopolValue) {
       ? { performa: d.performa, avg: d.avg_km_per_liter, msg: d.msg, nopol: n }
       : null
   } catch { feedback.value = null }
+  await loadFeedbackHistory(n)
 }
 
 async function loadPendingLpj() {
@@ -372,6 +392,29 @@ onMounted(() => {
         <b style="font-size:16px;">{{ feedback.avg }} KM/L</b>
       </div>
       <p class="muted" style="font-size:11px;margin:6px 0 0;">{{ feedback.msg }}</p>
+    </div>
+
+    <!-- Riwayat 5 feedback terakhir — lanjutan kartu feedback after-submit. -->
+    <div v-if="feedbackHistory.length" class="feedback-card" data-testid="feedback-history">
+      <div class="row" style="justify-content:space-between;gap:8px;">
+        <b style="font-size:13px;">🕓 Riwayat Feedback · {{ feedback?.nopol || store.profile?.nopol }}</b>
+        <button type="button" class="btn-icon"
+                :aria-label="showFeedbackHistory ? 'Tutup riwayat feedback' : 'Buka riwayat feedback'"
+                data-testid="feedback-history-toggle"
+                @click="showFeedbackHistory = !showFeedbackHistory">
+          {{ showFeedbackHistory ? '✕' : '▾' }}
+        </button>
+      </div>
+      <template v-if="showFeedbackHistory">
+        <div v-for="(h, i) in feedbackHistory" :key="i"
+             class="row" style="justify-content:space-between;gap:8px;font-size:11px;margin-top:6px;">
+          <span class="muted">{{ h.date }}</span>
+          <span><b>{{ h.km_per_liter }}</b> KM/L</span>
+          <span class="badge" :class="h.performa === 'BOROS' ? 'badge-red' : h.performa === 'CUKUP' ? 'badge-amber' : 'badge-green'">
+            {{ h.performa }}
+          </span>
+        </div>
+      </template>
     </div>
 
     <!-- Mode LPJ -->

@@ -15,6 +15,30 @@ from datetime import datetime, timedelta
 _PERF_STATUSES = tuple(dict.fromkeys(
     bbm_scope.CLAIM_READY_STATUSES + bbm_scope.CLAIM_PAID_STATUSES))
 
+# v2.131.x — ambang performa km/L: satu sumber kebenaran untuk feedback dan
+# riwayat. get-feedback: SANGAT BAIK >=12, BAIK >=10, CUKUP >=8, selebihnya BOROS.
+# Riwayat driver memakai 3 label (HEMAT/CUKUP/BOROS) dengan batas 10 & 8 yang
+# sama — dua tier teratas dari get-feedback digabung menjadi HEMAT.
+_PERF_EXCELLENT_MIN = 12.0
+_PERF_GOOD_MIN = 10.0
+_PERF_OK_MIN = 8.0
+_FEEDBACK_HISTORY_STATUSES = ('verified_ga', 'archived')
+
+
+def _performance_label(avg_kpl):
+    """Label 4-tier yang dipakai get-feedback (perbaikan performa dulu)."""
+    if avg_kpl >= _PERF_EXCELLENT_MIN: return 'SANGAT BAIK'
+    if avg_kpl >= _PERF_GOOD_MIN: return 'BAIK'
+    if avg_kpl >= _PERF_OK_MIN: return 'CUKUP'
+    return 'BOROS'
+
+
+def _history_performa_label(km_per_liter):
+    """Label 3-tier untuk riwayat; ambang 10/8 identik dengan get-feedback."""
+    if km_per_liter >= _PERF_GOOD_MIN: return 'HEMAT'
+    if km_per_liter >= _PERF_OK_MIN: return 'CUKUP'
+    return 'BOROS'
+
 
 def _driver_owns_nopol(cursor, nopol):
     """Driver hanya boleh membaca performa nopol miliknya (anti-IDOR lunak)."""
@@ -533,12 +557,55 @@ def register_transaction_api(app):
             km_values = [d['km_per_liter'] for d in data if d['km_per_liter'] and d['km_per_liter']>0]
             if not km_values: return jsonify({"status": "info", "msg": "Data KM/L belum lengkap."})
             avg_kpl = sum(km_values)/len(km_values)
-            performa = "SANGAT BAIK" if avg_kpl>=12 else ("BAIK" if avg_kpl>=10 else ("CUKUP" if avg_kpl>=8 else "BOROS"))
-            msg = generate_human_insight(performa, avg_kpl, 12.0, 0, len(km_values))
+            performa = _performance_label(avg_kpl)
+            msg = generate_human_insight(performa, avg_kpl, _PERF_EXCELLENT_MIN, 0, len(km_values))
             return jsonify({"status": "success", "avg_km_per_liter": round(avg_kpl,2), "performa": performa, "msg": msg})
         except Exception as e:
             print(f'[ERROR] get_vehicle_feedback: {e}')
             return jsonify({"status": "error", "msg": 'Terjadi kesalahan server'}), 500
+
+    @app.route('/api/driver/feedback-history')
+    @role_required(['driver', 'ga', 'finance', 'admin'])
+    def driver_feedback_history():
+        """Riwayat km/L driver — maksimal 5 transaksi final terbaru per nopol.
+
+        Nopol dinormalkan (spasi & titik dihapus, di-uppercase) agar variasi
+        penulisan di tabel transaksi tetap dikenali. Tanpa nopol — atau saat DB
+        bermasalah — selalu mengembalikan {'data': []}, bukan 500.
+        """
+        nopol = request.args.get('nopol', '').strip()
+        normalized = nopol.replace(' ', '').replace('.', '').upper()
+        if not normalized:
+            return jsonify({'data': []})
+        try:
+            conn = get_db_connection()
+            if not conn:
+                return jsonify({'data': []})
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute(
+                "SELECT DATE_FORMAT(created_at, '%Y-%m-%d') AS date, km_per_liter "
+                "FROM transactions "
+                "WHERE REPLACE(REPLACE(UPPER(nopol), ' ', ''), '.', '') = %s "
+                "AND km_per_liter > 0 "
+                f"AND status IN ({_perf_sql(_FEEDBACK_HISTORY_STATUSES)}) "
+                "AND (is_dummy=0 OR is_dummy IS NULL) "
+                "ORDER BY created_at DESC, id DESC LIMIT 5",
+                (normalized,) + _FEEDBACK_HISTORY_STATUSES)
+            rows = cursor.fetchall()
+            cursor.close(); conn.close()
+            data = []
+            for r in rows:
+                kml = float(r['km_per_liter'] or 0)
+                if kml <= 0: continue
+                data.append({
+                    'date': str(r['date']),
+                    'km_per_liter': round(kml, 2),
+                    'performa': _history_performa_label(kml),
+                })
+            return jsonify({'data': data[:5]})
+        except Exception as e:
+            print(f'[ERROR] driver_feedback_history: {e}')
+            return jsonify({'data': []})
 
     @app.route('/api/analytics/data')
     @role_required(['ga', 'finance', 'admin'])
