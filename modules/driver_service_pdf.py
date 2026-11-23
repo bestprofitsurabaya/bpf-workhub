@@ -2,14 +2,71 @@
 
 Mengikuti format formulir Word yang dipakai GA: identitas driver/kendaraan,
 catatan keluhan, pernyataan penyerahan, dan dua kolom tanda tangan.
+
+Rilis B: halaman pertama menyisipkan QR verifikasi berisi payload deterministik
+yang dipakai GA/Finance untuk pencocokan manual (tanpa halaman verifikasi publik).
 """
+import hashlib
+import io
+import re
+import unicodedata
+
+import qrcode
+
 from modules.pdf_generator import BPFBasePDF, INK, GRAY_LABEL, RULE
+
+QR_SIZE_MM = 18  # ukuran QR di pojok kanan atas halaman pertama
+
+
+def _display_id_ascii(display_id):
+    """Samakan display_id ke ASCII agar payload QR selalu dapat discan."""
+    text = '' if display_id is None else str(display_id)
+    text = unicodedata.normalize('NFKD', text).encode('ascii', 'ignore').decode('ascii')
+    return re.sub(r'\s+', ' ', text).strip()
+
+
+def _tanggal_iso(created_at):
+    """Ambil tanggal YYYY-MM-DD dari datetime maupun string ISO."""
+    if created_at is None:
+        return ''
+    if hasattr(created_at, 'strftime'):
+        return created_at.strftime('%Y-%m-%d')
+    text = str(created_at)
+    found = re.search(r'\d{4}-\d{2}-\d{2}', text)
+    return found.group(0) if found else text[:10]
+
+
+def qr_payload(display_id, created_at):
+    """Payload QR: BPF-SERVICE:<display_id>:<sha256(display_id + tanggal)>."""
+    clean_id = _display_id_ascii(display_id)
+    tanggal = _tanggal_iso(created_at)
+    digest = hashlib.sha256((clean_id + tanggal).encode('utf-8')).hexdigest()
+    return f'BPF-SERVICE:{clean_id}:{digest}'
+
+
+def render_qr(display_id, created_at):
+    """Render PNG QR ke BytesIO in-memory (siap dipakai FPDF.image())."""
+    qr = qrcode.QRCode(
+        error_correction=qrcode.constants.ERROR_CORRECT_M,
+        box_size=6,
+        border=2,
+    )
+    qr.add_data(qr_payload(display_id, created_at))
+    qr.make(fit=True)
+    buf = io.BytesIO()
+    qr.make_image(fill_color='black', back_color='white').save(buf, format='PNG')
+    buf.seek(0)
+    return buf
 
 
 class DriverServicePDF(BPFBasePDF):
     def __init__(self):
         super().__init__(orientation='P', unit='mm', format='A4')
         self.set_auto_page_break(auto=True, margin=15)
+
+    def render_qr(self, display_id, created_at):
+        """Bungkus render_qr modul agar pemanggil PDF bisa memakai self.render_qr()."""
+        return render_qr(display_id, created_at)
 
     def _line(self, label, value, y=None):
         if y is not None:
@@ -24,6 +81,16 @@ class DriverServicePDF(BPFBasePDF):
         self.add_page()
         f = self._font()
         self.set_text_color(*INK)
+
+        # QR verifikasi: pojok kanan atas halaman pertama, tepat di bawah kop.
+        # Gambar dibuat in-memory (BytesIO) sehingga tidak ada file sementara.
+        self.image(
+            self.render_qr(row.get('display_id', '-'), row.get('created_at')),
+            x=self.w - self.r_margin - QR_SIZE_MM,
+            y=self.get_y(),
+            w=QR_SIZE_MM,
+            h=QR_SIZE_MM,
+        )
 
         self.set_font(f, 'B', 14)
         self.cell(0, 8, 'CATATAN TAMBAHAN SERVICE MOBIL', align='C',

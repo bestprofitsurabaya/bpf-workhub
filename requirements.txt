@@ -26,3 +26,5 @@ segno>=1.6.1
 netaddr>=1.3.0
 # v2.128.0: Web Push driver (VAPID) — Android Chrome & iOS >= 16.4 PWA.
 pywebpush>=2.0.0
+# Rilis B: QR verifikasi pada PDF service (payload deterministik, render via PIL).
+qrcode[pil]==8.2
