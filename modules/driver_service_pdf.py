@@ -73,6 +73,9 @@ class DriverServicePDF(BPFBasePDF):
             self.set_y(y)
         self.set_font(self._font(), 'B', 10)
         self.cell(42, 7, self.clean_text(str(label)), new_x='RMARGIN', new_y='TOP')
+        # `new_x='RMARGIN'` menaruh kursor di tepi kanan; kembalikan ke awal
+        # kolom nilai supaya cell(0) tidak dimulai di margin kanan (terkliping).
+        self.set_x(self.l_margin + 42)
         self.set_font(self._font(), '', 10)
         self.cell(0, 7, self.clean_text(str(value or '-')),
                   new_x='LMARGIN', new_y='NEXT')

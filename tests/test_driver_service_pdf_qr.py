@@ -7,6 +7,8 @@ from datetime import datetime
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
+import pytest
+
 import modules.driver_service_pdf as pdf_module  # noqa: E402
 from modules.driver_service_pdf import DriverServicePDF, qr_payload  # noqa: E402
 
@@ -63,6 +65,27 @@ def test_render_qr_deterministik():
     other = pdf.render_qr('SRV-002', '2026-11-23').getvalue()
     assert a == b
     assert other != a
+
+
+def test_line_value_mulai_di_awal_kolom_nilai():
+    """Nilai tidak boleh mulai di RMARGIN (terkliping di tepi halaman)."""
+    pdf = DriverServicePDF()
+    pdf.add_page()
+    x_sebelum_cell = []
+    cell_asli = pdf.cell
+
+    def spy(*args, **kwargs):
+        x_sebelum_cell.append(pdf.get_x())
+        return cell_asli(*args, **kwargs)
+
+    pdf.cell = spy
+    pdf._line('Nama Driver', 'Rivan')
+
+    assert len(x_sebelum_cell) == 2
+    assert x_sebelum_cell[0] == pytest.approx(pdf.l_margin)
+    assert x_sebelum_cell[1] == pytest.approx(pdf.l_margin + 42)
+    # cell(0) membentang dari x sampai margin kanan — harus punya ruang cukup.
+    assert pdf.w - pdf.r_margin - x_sebelum_cell[1] >= 100
 
 
 def test_generate_menyisipkan_image_qr_di_pdf(monkeypatch):
