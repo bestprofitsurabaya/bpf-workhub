@@ -27,6 +27,10 @@ const verifyOk = ref(false)
 // Instrumen verifikasi klaim (Detail) — foto bukti + cross-check + Subsidi Tepat
 const detailFor = ref(null)
 const gaDetail = ref(null) // wave-18A: payload detail (status terbaru) untuk tombol PDF
+// v2.131.0 — catatan service mobil dari driver
+const serviceReports = ref([])
+const serviceFor = ref(null)
+const serviceNote = ref('')
 
 function openDetail(tx) {
   detailFor.value = tx
@@ -62,6 +66,34 @@ function detailVerify(tx) {
   openVerify(tx)
 }
 
+function openServiceReview(r) {
+  serviceFor.value = r
+  serviceNote.value = r.ga_note || ''
+}
+
+async function doServiceReview(status) {
+  if (!serviceFor.value) return
+  busy.value = true
+  try {
+    await api(`/api/ga/service-reports/${serviceFor.value.id}/review`, {
+      method: 'POST',
+      body: { status, ga_note: serviceNote.value },
+    })
+    if (typeof emitToast === 'function') emitToast(status === 'REVIEWED' ? '✅ Catatan service diselesaikan' : '✕ Catatan service ditolak')
+    serviceFor.value = null
+    await load()
+  } catch (e) {
+    if (typeof emitToast === 'function') emitToast('❌ ' + (e.message || 'Gagal memperbarui'), 'error')
+    else alert(e.message || 'Gagal memperbarui')
+  } finally {
+    busy.value = false
+  }
+}
+
+function printServicePdf(r) {
+  window.open(`/api/ga/service-reports/${r.id}/pdf`, '_blank')
+}
+
 const fmt = formatRupiah
 
 const waitingCash = () =>
@@ -71,16 +103,18 @@ const waitingCashCount = () => (cash.value || []).filter((c) => c.status === 'DR
 async function load() {
   loading.value = true
   try {
-    const [s, q, c, t] = await Promise.all([
+    const [s, q, c, t, sr] = await Promise.all([
       api('/api/stats').catch(() => null),
       api('/api/queue', { params: { tab: 'ga' } }).catch(() => []),
       api('/api/cash/history').catch(() => []),
       api('/api/trips', { params: { status: 'pending' } }).catch(() => ({ data: [] })),
+      api('/api/ga/service-reports').catch(() => ({ data: [] })),
     ])
     stats.value = s
     queue.value = q || []
     cash.value = c || []
     trips.value = (t && t.data) || []
+    serviceReports.value = (sr && sr.data) || []
   } finally {
     loading.value = false
   }
@@ -166,6 +200,13 @@ watch(
     }
   }
 )
+
+watch(
+  () => realtime.items[0],
+  (item) => {
+    if (item && item.type === 'new_service_report' && !loading.value) load()
+  }
+)
 </script>
 
 <template>
@@ -236,7 +277,51 @@ watch(
           </div>
         </div>
       </div>
+      <!-- v2.131.0 — Catatan Service Mobil dari driver -->
+      <div class="card card-pad" style="margin-bottom:16px;">
+        <div class="row" style="justify-content:space-between;align-items:center;">
+          <h3 style="margin:0;">🔧 Catatan Service Mobil (Driver → GA)</h3>
+          <span class="muted" style="font-size:11px;">{{ serviceReports.filter(r => r.status === 'SUBMITTED').length }} menunggu diproses</span>
+        </div>
+        <table class="table" style="margin-top:8px;">
+          <thead><tr><th>No. Form</th><th>Driver</th><th>Nopol</th><th>KM</th><th>Status</th><th>Tanggal</th><th></th></tr></thead>
+          <tbody>
+            <tr v-for="r in serviceReports" :key="r.id">
+              <td>{{ r.display_id }}</td>
+              <td>{{ r.driver_display_name || r.driver_name }}</td>
+              <td>{{ r.nopol }}</td>
+              <td>{{ r.km_kendaraan }}</td>
+              <td>
+                <span class="badge" :class="r.status === 'REVIEWED' ? 'badge-green' : r.status === 'REJECTED' ? 'badge-red' : 'badge-amber'">{{ r.status }}</span>
+              </td>
+              <td>{{ String(r.created_at || '').slice(0,10) }}</td>
+              <td>
+                <button class="btn btn-sm" @click="openServiceReview(r)">👁 Detail</button>
+                <button class="btn btn-sm" style="margin-left:6px;" @click="printServicePdf(r)" title="Cetak dokumen resmi">📄 Cetak</button>
+              </td>
+            </tr>
+            <tr v-if="!serviceReports.length"><td colspan="7" class="muted">Belum ada catatan service dari driver.</td></tr>
+          </tbody>
+        </table>
+      </div>
     </template>
+
+    <Modal v-if="serviceFor" :title="'🔧 ' + serviceFor.display_id" @close="serviceFor = null">
+      <div class="svc-detail-row"><span>Driver</span><b>{{ serviceFor.driver_display_name || serviceFor.driver_name }}</b></div>
+      <div class="svc-detail-row"><span>Nopol</span><b>{{ serviceFor.nopol }}</b></div>
+      <div class="svc-detail-row"><span>Jenis Mobil</span><b>{{ serviceFor.vehicle_type || '-' }}</b></div>
+      <div class="svc-detail-row"><span>KM Kendaraan</span><b>{{ serviceFor.km_kendaraan }}</b></div>
+      <label class="muted" style="font-size:12px;display:block;margin-top:10px;">Catatan keluhan driver</label>
+      <div class="card card-pad" style="font-size:13px;white-space:pre-wrap;">{{ serviceFor.keluhan }}</div>
+      <label class="muted" style="font-size:12px;display:block;margin-top:10px;">Catatan GA</label>
+      <textarea v-model="serviceNote" rows="3" class="inp" style="width:100%;" placeholder="Opsional — ikut tercetak di dokumen resmi"></textarea>
+      <div class="row" style="justify-content:flex-end;gap:8px;margin-top:12px;">
+        <button class="btn" @click="printServicePdf(serviceFor)">📄 Cetak PDF</button>
+        <button class="btn" @click="serviceFor = null">Tutup</button>
+        <button class="btn btn-danger" :disabled="busy || serviceFor.status !== 'SUBMITTED'" @click="doServiceReview('REJECTED')">✕ Tolak</button>
+        <button class="btn btn-primary" :disabled="busy || serviceFor.status !== 'SUBMITTED'" @click="doServiceReview('REVIEWED')">✅ Selesaikan</button>
+      </div>
+    </Modal>
 
     <Modal v-if="rejectFor" :title="'✕ Tolak ' + (rejectFor.display_id || '')" @close="rejectFor = null">
       <label class="muted" style="font-size:12px;">Alasan penolakan</label>
@@ -290,4 +375,9 @@ watch(
 .btn-sm { padding: 4px 10px; font-size: 12px; }
 .mini-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px dashed var(--border, #e2e8f0); font-size: 13px; }
 .quick-links { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.badge { font-size:10px; padding:2px 8px; border-radius:8px; font-weight:700; }
+.badge-amber { background:#fef3c7; color:#92400e; }
+.badge-green { background:#d1fae5; color:#065f46; }
+.badge-red { background:#fee2e2; color:#b91c1c; }
+.svc-detail-row { display:flex; justify-content:space-between; gap:10px; padding:5px 0; border-bottom:1px dashed var(--border,#e2e8f0); font-size:12px; }
 </style>

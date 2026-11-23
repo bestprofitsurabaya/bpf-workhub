@@ -7,7 +7,7 @@ import { useDriverStore, QUEUE_LABELS } from '../../stores/driverStore'
 import DriverNotifBell from '../../components/DriverNotifBell.vue'
 import BBMTab from './BBMTab.vue'
 import TripTab from './TripTab.vue'
-import RaporTab from './RaporTab.vue'
+import ServiceTab from './ServiceTab.vue'
 import OvertimeDriverTab from './OvertimeDriverTab.vue'
 import HelpCenter from '../../components/HelpCenter.vue'
 import OnboardingTour from '../../components/OnboardingTour.vue'
@@ -46,10 +46,11 @@ const TABS = [
   { key: 'bbm', label: 'BBM', icon: '⛽', hint: 'Klaim BBM, voucher rekanan, kasbon & LPJ' },
   { key: 'trip', label: 'Trip', icon: '🗺️', hint: 'Log perjalanan & hasil kunjungan' },
   { key: 'overtime', label: 'OT', icon: '⏰', hint: 'Pengajuan lembur' },
-  { key: 'rapor', label: 'Rapor', icon: '📊', hint: 'Performa BBM kendaraan (km/L)' },
+  { key: 'service', label: 'Service', icon: '🔧', hint: 'Catatan kondisi mobil untuk GA' },
 ]
 // Valuasi tab tersimpan: kunci lama/tak dikenal tidak boleh membuat layar kosong.
-// `kasbon` (versi lama) dipetakan ke BBM dengan sub-tab Kasbon terbuka.
+// `kasbon`/`rapor` (versi lama) dipetakan ke BBM: kasbon buka sub-tab,
+// rapor kini menjadi feedback km/L setelah submit BBM.
 const storedTab = localStorage.getItem('driverTab')
 const tab = ref(TABS.some((t) => t.key === storedTab) ? storedTab : 'bbm')
 const bbmStartView = ref(storedTab === 'kasbon' ? 'kasbon' : 'laporan')
@@ -327,7 +328,7 @@ onBeforeUnmount(() => {
         <BBMTab v-show="tab === 'bbm'" :start-view="bbmStartView" @toast="toast" @switch-tab="switchTab" />
         <TripTab v-show="tab === 'trip'" @toast="toast" />
         <OvertimeDriverTab v-show="tab === 'overtime'" @toast="toast" />
-        <RaporTab v-show="tab === 'rapor'" @toast="toast" />
+        <ServiceTab v-show="tab === 'service'" @toast="toast" />
       </main>
 
       <!-- Bottom nav -->

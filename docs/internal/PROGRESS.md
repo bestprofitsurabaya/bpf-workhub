@@ -9,6 +9,29 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 ---
 
+## 🔧 23 Nov 2026 — Tab Service driver & feedback BBM (v2.131.0)
+
+**Kebutuhan:** tab Rapor di PWA driver diganti tab Service; driver mengisi
+form sesuai contoh `FORM CATATAN TAMBAHAN SERVICE MOBIL.docx` (Documents
+PC host), langsung masuk GA, dan GA mencetak dokumen resminya. Feedback
+km/L dari Rapor lama dijadikan kartu setelah submit BBM.
+
+**Implementasi:**
+- `modules/appointments_schema.py` — tabel `driver_service_reports`
+  (display_id, driver, nopol, vehicle_type, km, keluhan, status, ga_note).
+- `modules/routes_driver_service.py` (baru) — submit/list driver,
+  list/review/PDF GA; realtime `new_service_report` ke room `appointments_board`.
+- `modules/driver_service_pdf.py` (baru) — PDF resmi bergaya formulir Word:
+  kop perusahaan, identitas, catatan keluhan, pernyataan, tanda tangan Driver & GA.
+- `frontend/src/views/driver/ServiceTab.vue` (baru) + `DriverView.vue` — 4 tab:
+  BBM, Trip, OT, **Service** (Rapor hilang).
+- `BBMTab.vue` — kartu feedback km/L (`/api/get-feedback`) setelah submit sukses.
+- `GaDashboard.vue` — panel antrean service, detail review, tombol Cetak PDF.
+
+**Status:** menunggu verifikasi test & deploy.
+
+---
+
 ## 🔑 20 Nov 2026 — Subsidi Tepat & rekonsiliasi (v2.130.1)
 
 **Tagihan rekanan:** Finance mengonfirmasi **belum dibayar**. Status open

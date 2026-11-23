@@ -461,6 +461,29 @@ def ensure_appointments_schema(conn=None):
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
         """, cursor, "maintenance_recommendations")
 
+        # --- driver_service_reports (v2.131.0) ---
+        # Catatan tambahan servis mobil dari PWA driver → antrean GA → PDF resmi.
+        _run("""
+            CREATE TABLE IF NOT EXISTS driver_service_reports (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                display_id VARCHAR(40) NOT NULL UNIQUE,
+                driver_name VARCHAR(100) NOT NULL,
+                driver_display_name VARCHAR(100) DEFAULT '',
+                nopol VARCHAR(20) NOT NULL,
+                vehicle_type VARCHAR(50) DEFAULT '',
+                km_kendaraan INT NOT NULL DEFAULT 0,
+                keluhan TEXT NOT NULL,
+                status ENUM('SUBMITTED','REVIEWED','REJECTED') NOT NULL DEFAULT 'SUBMITTED',
+                ga_note VARCHAR(500) DEFAULT '',
+                reviewed_by VARCHAR(100) DEFAULT '',
+                reviewed_at TIMESTAMP NULL DEFAULT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                KEY idx_dsr_driver (driver_name, created_at),
+                KEY idx_dsr_status (status)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        """, cursor, "driver_service_reports")
+
         # --- geocode_cache (v2.15): cache geocoding alamat -> koordinat ---
         try:
             from modules.geocode import ensure_geocode_schema

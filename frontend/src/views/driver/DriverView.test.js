@@ -33,6 +33,7 @@ function mockApi() {
     if (path === '/api/notifications') return Promise.resolve({ notifications: [], unread: 0 })
     if (path === '/api/cash/history') return Promise.resolve([])
     if (path === '/api/cash/pending-lpj') return Promise.resolve(pendingLpjRows)
+    if (path === '/api/driver/service') return Promise.resolve({ data: [] })
     if (path === '/api/assignments/pending') return Promise.resolve(pendingRows)
     if (path === '/api/assignments/confirm') return Promise.resolve({ status: 'success', msg: 'Konfirmasi L 1 AB berhasil! ✅' })
     if (path.includes('/api/appointments/driver-today')) return Promise.resolve([])
@@ -67,7 +68,8 @@ describe('DriverView', () => {
     expect(labels).toContain('BBM')
     expect(labels).toContain('Trip')
     expect(labels).toContain('OT')
-    expect(labels).toContain('Rapor')
+    expect(labels).toContain('Service')
+    expect(labels).not.toContain('Rapor')
     // v2.130.0 — Kasbon bukan tab navigasi lagi; ia sub-tab di dalam BBM.
     expect(labels).not.toContain('Kasbon')
     expect(w.findAll('.d-nav-item')).toHaveLength(4)
@@ -111,6 +113,16 @@ describe('DriverView', () => {
     expect(w.find('[data-testid="voucher-liter"]').exists()).toBe(true)
     expect(w.find('[data-testid="voucher-nominal"]').element.value).toContain('130.700')
     expect(w.text()).toContain('Kirim Pemakaian Voucher')
+    w.unmount()
+  })
+
+  it('tab Service menggantikan Rapor dan menampilkan form keluhan mobil', async () => {
+    const w = await mountView()
+    await w.findAll('.d-nav-item').find((b) => b.text().includes('Service')).trigger('click')
+    await flushPromises()
+    expect(w.text()).toContain('Catatan Service Mobil')
+    expect(w.text()).toContain('Nomor Polisi')
+    expect(w.text()).toContain('Kirim ke GA')
     w.unmount()
   })
 

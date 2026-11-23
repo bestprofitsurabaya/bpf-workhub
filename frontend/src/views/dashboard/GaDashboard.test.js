@@ -18,6 +18,9 @@ const CASH = [
   { status: 'GA_APPROVED', total_amount: 75000 },
 ]
 const TRIPS = [{ id: 1 }, { id: 2 }, { id: 3 }]
+const SERVICES = [
+  { id: 11, display_id: 'SRV-SBY-20261123-0001', driver_name: 'DRIVERSBY_RIVAN', driver_display_name: 'Rivan', nopol: 'B 1126 DFC', km_kendaraan: 131900, keluhan: 'Rem depan berbunyi', status: 'SUBMITTED', created_at: '2026-11-23T08:00:00' },
+]
 
 const btnByText = (w, text) => w.findAll('button').find((b) => b.text() === text)
 const confirmYes = async (w) => {
@@ -33,6 +36,7 @@ async function mountView() {
     if (path.startsWith('/api/queue')) return Promise.resolve(QUEUE)
     if (path === '/api/cash/history') return Promise.resolve(CASH)
     if (path.startsWith('/api/trips')) return Promise.resolve({ data: TRIPS })
+    if (path === '/api/ga/service-reports') return Promise.resolve({ data: SERVICES })
     return Promise.resolve({ status: 'success' })
   })
   const w = mount(GaDashboard)
@@ -62,6 +66,17 @@ describe('GaDashboard', () => {
     expect(w.text()).toContain('L 1')
     expect(w.text()).toContain('3') // trips pending
     expect(w.text()).toContain('⚠️ ML')
+  })
+
+  it('menampilkan antrean catatan service mobil dari driver', async () => {
+    const w = await mountView()
+    expect(w.text()).toContain('Catatan Service Mobil')
+    expect(w.text()).toContain('SRV-SBY-20261123-0001')
+    expect(w.text()).toContain('Rivan')
+    expect(w.text()).toContain('B 1126 DFC')
+    const pdfBtn = w.findAll('button').find((b) => b.text().includes('Cetak'))
+    expect(pdfBtn).toBeTruthy()
+    w.unmount()
   })
 
   it('approve memanggil /api/queue/approve-ga setelah konfirmasi', async () => {

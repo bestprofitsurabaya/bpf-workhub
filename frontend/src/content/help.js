@@ -319,14 +319,15 @@ const PAGE_HELP = [
   {
     paths: ['/driver'],
     title: 'Aplikasi Driver',
-    summary: 'Empat tab bawah: BBM (klaim, voucher, kasbon & LPJ), Trip, OT, dan Rapor. Kasbon ada di dalam BBM.',
+    summary: 'Empat tab bawah: BBM (klaim, voucher, kasbon & LPJ, feedback), Trip, OT, dan Service. Kasbon ada di dalam BBM.',
     steps: [
       'BBM: pilih Klaim BBM bila Anda membayar dulu, atau Voucher Rekanan bila SPBU mitra yang menagih kantor. LPJ kasbon juga diisi di form ini.',
       'Kasbon & LPJ: sub-tab di dalam BBM untuk mengajukan uang muka. Setelah dana diterima, kewajiban LPJ muncul di atas form BBM.',
       'Trip: catat perjalanan dan hasil kunjungan; data aman tersimpan saat offline.',
-      'OT: ajukan lembur; Rapor: lihat ringkasan performa BBM kendaraan Anda.',
+      'OT: ajukan lembur; Service: sampaikan catatan kondisi mobil ke GA (bisa dicetak resmi).',
+      'Feedback km/L muncul otomatis setelah laporan BBM berhasil dikirim.',
     ],
-    terms: ['Klaim BBM', 'Voucher Rekanan', 'Kasbon', 'LPJ', 'Overtime', 'ODO'],
+    terms: ['Klaim BBM', 'Voucher Rekanan', 'Kasbon', 'LPJ', 'Overtime', 'ODO', 'Service'],
   },
   {
     paths: ['/marketing', '/chief-driver'],
@@ -357,7 +358,7 @@ const ROLE_FOCUS = {
   ob: 'Pengajuan air minum dan overtime bisa Anda pantau dari menu operasional.',
   security: 'Pengajuan overtime bisa Anda pantau dari menu Overtime Saya.',
   traineer: 'Verifikasi pendaftar first work ada di menu Absensi FirstWork; data pelamar cabang Anda bisa dilihat (hanya lihat) di menu Rekrutmen.',
-  driver: 'Gunakan tab bawah untuk BBM (termasuk Kasbon & LPJ), Trip, Overtime, dan Rapor. Data tetap tersimpan saat sinyal lemah.',
+  driver: 'Gunakan tab bawah untuk BBM (termasuk Kasbon & LPJ), Trip, Overtime, dan Service. Data tetap tersimpan saat sinyal lemah.',
 }
 
 export function onboardingSteps(role, user, isHoAdmin = false) {
@@ -367,7 +368,7 @@ export function onboardingSteps(role, user, isHoAdmin = false) {
       {
         icon: '👋',
         title: `Selamat datang, ${name}`,
-        body: 'Aplikasi driver punya empat tab di bawah: BBM, Trip, OT, dan Rapor.',
+        body: 'Aplikasi driver punya empat tab di bawah: BBM, Trip, OT, dan Service.',
         points: [
           'BBM = klaim/voucher/LPJ, dengan sub-tab Kasbon untuk uang muka.',
           'Buka panduan “Bingung bedanya?” di atas form BBM bila lupa.',

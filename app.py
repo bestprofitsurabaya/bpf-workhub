@@ -571,6 +571,7 @@ from modules.transcoder import register_transcoder_routes
 from modules.pdfkit import register_pdfkit_routes
 from modules.deploy_guard import install_deploy_guard  # v2.98.0
 from modules.routes_voucher import register_voucher_routes              # v2.107.0
+from modules.routes_driver_service import register_driver_service_routes  # v2.131.0
 from modules.routes_mfa import register_mfa_routes                      # v2.112.0
 from modules.routes_cv_online import register_cv_online_routes          # v2.113.0
 from modules.routes_agenda import register_agenda_routes                 # v2.123.0
@@ -620,6 +621,7 @@ register_transcoder_routes(app)
 register_pdfkit_routes(app)
 register_subsidy_routes(app)  # v2.50.0 — integrasi Subsidi Tepat
 register_voucher_routes(app)  # v2.107.0 — voucher rekanan
+register_driver_service_routes(app)  # v2.131.0 — catatan service driver → GA
 register_agenda_routes(app)   # v2.123.0 — Agenda + bridge calendar Cordova
 register_app_release_routes(app)  # v2.126.0 — manifest & unduhan APK Agenda
 

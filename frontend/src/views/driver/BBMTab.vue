@@ -14,6 +14,19 @@ const props = defineProps({ startView: { type: String, default: 'laporan' } })
 const view = ref(props.startView === 'kasbon' ? 'kasbon' : 'laporan')
 const pendingLpj = ref([])
 
+// v2.131.0 — feedback km/L (dulu tab Rapor) muncul setelah submit BBM berhasil.
+const feedback = ref(null)
+async function loadFeedback(nopolValue) {
+  const n = String(nopolValue || '').trim()
+  if (!n) return
+  try {
+    const d = await api('/api/get-feedback/' + encodeURIComponent(n))
+    feedback.value = d?.status === 'success'
+      ? { performa: d.performa, avg: d.avg_km_per_liter, msg: d.msg, nopol: n }
+      : null
+  } catch { feedback.value = null }
+}
+
 async function loadPendingLpj() {
   try {
     const rows = await api('/api/cash/pending-lpj', { params: { driver: store.driverName } })
@@ -276,8 +289,10 @@ async function submit() {
       const j = await r.json().catch(() => null)
       if (r.ok && j?.status === 'success') {
         const label = isLpj ? 'LPJ' : (isVoucher ? 'Voucher' : 'Klaim')
+        const fbNopol = form.value.nopol
         emit('toast', `✅ ${label} terkirim: ${j.transaction_id || j.msg}`, 'success')
         resetForm()
+        await loadFeedback(fbNopol)
       } else {
         emit('toast', '❌ ' + (j?.msg || 'Gagal mengirim'), 'error')
       }
@@ -342,6 +357,21 @@ onMounted(() => {
       <button type="button" class="btn btn-sm btn-primary" @click="openLpj(pendingLpj[0])">
         📝 Isi LPJ sekarang
       </button>
+    </div>
+
+    <!-- Feedback km/L setelah submit BBM (menggantikan tab Rapor lama) -->
+    <div v-if="feedback" class="feedback-card">
+      <div class="row" style="justify-content:space-between;gap:8px;">
+        <b style="font-size:13px;">📊 Feedback Pemakaian BBM · {{ feedback.nopol }}</b>
+        <button type="button" class="btn-icon" aria-label="Tutup feedback" @click="feedback = null">✕</button>
+      </div>
+      <div class="row" style="align-items:center;gap:10px;margin-top:6px;">
+        <span class="badge" :class="feedback.performa === 'BOROS' ? 'badge-red' : feedback.performa === 'CUKUP' ? 'badge-amber' : 'badge-green'">
+          {{ feedback.performa }}
+        </span>
+        <b style="font-size:16px;">{{ feedback.avg }} KM/L</b>
+      </div>
+      <p class="muted" style="font-size:11px;margin:6px 0 0;">{{ feedback.msg }}</p>
     </div>
 
     <!-- Mode LPJ -->
@@ -502,6 +532,17 @@ onMounted(() => {
   min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
   display: inline-flex; align-items: center; justify-content: center;
 }
+/* Feedback km/L after-submit */
+.feedback-card {
+  padding: 10px 12px; margin-bottom: 12px; border-radius: 12px;
+  background: var(--bg-3, #f0fdf4); border: 1px solid var(--success, #16a34a);
+}
+html.dark .feedback-card { background: rgba(22, 163, 74, .12); }
+.badge { font-size:10px; padding:2px 8px; border-radius:8px; font-weight:800; }
+.badge-amber { background:#fef3c7; color:#92400e; }
+.badge-green { background:#d1fae5; color:#065f46; }
+.badge-red { background:#fee2e2; color:#b91c1c; }
+
 /* Kewajiban LPJ setelah kasbon cair */
 .lpj-due {
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap;

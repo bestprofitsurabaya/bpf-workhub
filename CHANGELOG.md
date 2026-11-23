@@ -7,6 +7,21 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.131.0 — 23 November 2026 (Tab Service driver & feedback BBM)
+
+- PWA driver: tab **Rapor** diganti **Service**. Driver mengisi form
+  "Catatan Tambahan Service Mobil" (nama driver, nopol, jenis mobil, KM,
+  catatan keluhan) sesuai contoh formulir Word GA; data terkirim langsung
+  ke antrean GA lewat `/api/driver/service`.
+- GA: panel baru di Dashboard GA untuk melihat, menyelesaikan/menolak, dan
+  mencetak **PDF dokumen resmi** (`DriverServicePDF`, kop perusahaan +
+  kolom tanda tangan Driver & GA).
+- Feedback km/L (dulu tab Rapor) kini muncul otomatis sebagai kartu setelah
+  driver berhasil mengirim laporan BBM.
+- Tabel baru `driver_service_reports` (idempoten, dibuat saat startup).
+
+---
+
 ## v2.130.1 — 20 November 2026 (Deteksi OTP agen Subsidi Tepat)
 
 - `agent/subsiditepat/scripts/otp_supervisor.mjs` — `logTail` tidak lagi

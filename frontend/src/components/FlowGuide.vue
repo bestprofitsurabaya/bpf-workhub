@@ -66,10 +66,10 @@ const DRIVER_ITEMS = [
     where: 'Ajukan di sub-tab Kasbon (dalam BBM); kewajiban LPJ muncul di atas form BBM.',
   },
   {
-    icon: '📊', title: 'Rapor', badge: 'Hanya melihat',
-    what: 'Ringkasan performa BBM kendaraan Anda (rata-rata km/liter).',
+    icon: '🔧', title: 'Service', badge: 'Catatan ke GA',
+    what: 'Sampaikan keluhan/kondisi kendaraan untuk bahan servis. GA bisa mencetak dokumen resminya.',
     when: 'Untuk melihat apakah konsumsi BBM wajar. Tidak perlu mengisi apa pun.',
-    where: 'Tab Rapor.',
+    where: 'Tab Service; feedback km/L muncul otomatis setelah submit BBM.',
   },
 ]
 
@@ -102,7 +102,7 @@ const items = computed(() => (props.audience === 'driver' ? DRIVER_ITEMS : STAFF
       Laporan = melihat hasil, bukan mengajukan.
     </p>
     <p v-if="audience === 'driver'" class="fg-note fg-note-driver">
-      Subsidi Tepat dan Laporan staf bukan pekerjaan driver. Ringkasan performa Anda ada di tab <b>Rapor</b>.
+      Subsidi Tepat dan Laporan staf bukan pekerjaan driver. Catatan kondisi mobil ada di tab <b>Service</b>; feedback km/L muncul setelah submit BBM.
     </p>
   </details>
 </template>

@@ -631,6 +631,26 @@ CREATE TABLE IF NOT EXISTS vehicle_service_logs (
     CONSTRAINT fk_vslog FOREIGN KEY (vehicle_asset_id) REFERENCES vehicle_assets (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- v2.131.0 — catatan tambahan service mobil dari PWA driver → GA
+CREATE TABLE IF NOT EXISTS driver_service_reports (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    display_id VARCHAR(40) NOT NULL UNIQUE,
+    driver_name VARCHAR(100) NOT NULL,
+    driver_display_name VARCHAR(100) DEFAULT '',
+    nopol VARCHAR(20) NOT NULL,
+    vehicle_type VARCHAR(50) DEFAULT '',
+    km_kendaraan INT NOT NULL DEFAULT 0,
+    keluhan TEXT NOT NULL,
+    status ENUM('SUBMITTED','REVIEWED','REJECTED') NOT NULL DEFAULT 'SUBMITTED',
+    ga_note VARCHAR(500) DEFAULT '',
+    reviewed_by VARCHAR(100) DEFAULT '',
+    reviewed_at TIMESTAMP NULL DEFAULT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    KEY idx_dsr_driver (driver_name, created_at),
+    KEY idx_dsr_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS maintenance_recommendations (
     id INT AUTO_INCREMENT PRIMARY KEY,
     asset_type ENUM('ac','vehicle') NOT NULL,
