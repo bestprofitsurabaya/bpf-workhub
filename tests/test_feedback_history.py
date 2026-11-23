@@ -26,6 +26,9 @@ class FakeCursor:
         return [dict(r) for r in rows]
 
     def fetchone(self):
+        # Pemeriksaan kepemilikan nopol (helper _driver_owns_nopol).
+        if 'from drivers' in self.sql:
+            return {'ok': 1} if self.state['owned'] else None
         return None
 
     def close(self):
@@ -45,7 +48,7 @@ class FakeConn:
 
 @pytest.fixture()
 def client(monkeypatch):
-    state = {'rows': [], 'calls': []}
+    state = {'rows': [], 'calls': [], 'owned': True}
     monkeypatch.setattr(
         'modules.routes_api_transactions.get_db_connection',
         lambda: FakeConn(state))
@@ -109,7 +112,11 @@ def test_feedback_history_normalisasi_nopol_dan_scope(client):
     login(c)
     rv = c.get('/api/driver/feedback-history?nopol=l%201413.cbi')
     assert rv.status_code == 200
-    sql, params = state['calls'][0]
+    # Pertanyaan kepemilikan memakai nopol apa adanya (belum dinormalkan).
+    own_sql, own_params = state['calls'][0]
+    assert 'from drivers' in own_sql
+    assert own_params[1] == 'l 1413.cbi'
+    sql, params = next((s, p) for s, p in state['calls'] if 'from transactions' in s)
     assert "replace(replace(upper(nopol), ' ', ''), '.', '')" in sql
     assert params[0] == 'L1413CBI'
     assert 'km_per_liter > 0' in sql
@@ -118,3 +125,26 @@ def test_feedback_history_normalisasi_nopol_dan_scope(client):
     assert 'is_dummy=0 or is_dummy is null' in sql
     assert 'order by created_at desc' in sql
     assert 'limit 5' in sql
+
+
+def test_feedback_history_driver_tidak_bisa_baca_nopol_orang_lain(client):
+    c, state = client
+    login(c)
+    state['owned'] = False
+    rv = c.get('/api/driver/feedback-history?nopol=L1413CBI')
+    assert rv.status_code == 403
+    body = rv.get_json()
+    assert body['msg'] == 'Rapor hanya untuk kendaraan Anda.'
+    assert 'data' not in body
+    # History query tidak boleh dijalankan untuk nopol yang tidak dimiliki.
+    assert all('from transactions' not in sql for sql, _ in state['calls'])
+
+
+def test_feedback_history_role_non_driver_tetap_bisa_baca(client):
+    c, state = client
+    login(c, 'ga')
+    state['owned'] = False  # helper hanya membatasi role driver
+    state['rows'] = [{'date': '2026-11-23', 'km_per_liter': '9.50'}]
+    rv = c.get('/api/driver/feedback-history?nopol=L1413CBI')
+    assert rv.status_code == 200
+    assert rv.get_json()['data'][0]['km_per_liter'] == 9.5

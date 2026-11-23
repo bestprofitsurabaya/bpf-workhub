@@ -573,7 +573,8 @@ def register_transaction_api(app):
         penulisan di tabel transaksi tetap dikenali. Tanpa nopol — atau saat DB
         bermasalah — selalu mengembalikan {'data': []}, bukan 500.
         """
-        nopol = request.args.get('nopol', '').strip()
+        raw_nopol = request.args.get('nopol', '')
+        nopol = raw_nopol.strip()
         normalized = nopol.replace(' ', '').replace('.', '').upper()
         if not normalized:
             return jsonify({'data': []})
@@ -582,6 +583,13 @@ def register_transaction_api(app):
             if not conn:
                 return jsonify({'data': []})
             cursor = conn.cursor(dictionary=True)
+            # Sama seperti get-feedback: driver hanya boleh membaca nopol miliknya.
+            # Helper menerima nopol apa adanya (belum dinormalkan) — untuk role
+            # non-driver helper langsung mengizinkan.
+            if not _driver_owns_nopol(cursor, raw_nopol):
+                cursor.close(); conn.close()
+                return jsonify({"status": "error",
+                                "msg": "Rapor hanya untuk kendaraan Anda."}), 403
             cursor.execute(
                 "SELECT DATE_FORMAT(created_at, '%Y-%m-%d') AS date, km_per_liter "
                 "FROM transactions "
