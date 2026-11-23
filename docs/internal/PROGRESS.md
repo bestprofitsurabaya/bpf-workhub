@@ -2583,3 +2583,14 @@ tes & verifikasi; perubahan produksi butuh konfirmasi eksplisit.
 - GA (`ga_sby`) melihat laporan tersebut, PDF resmi berhasil diunduh
   (`%PDF`, 57 kB), review `REVIEWED` sukses.
 - Data uji dihapus; tabel `driver_service_reports` kembali kosong.
+
+### Finalisasi panduan v2.131.2 (23 Nov, 15:25 WIB)
+- Tab Service PWA driver sudah diseragamkan dengan BBM/Trip/OT (field polos,
+  tanpa kartu abu). Screenshot final diambil ulang.
+- PDF diregenerasi untuk v2.131.2: Driver (6 hlm), GA (6 hlm), Semua Pengguna
+  (22 hlm), Service Driver (5 hlm), Service GA (5 hlm). Semua disimpan di
+  `C:\Users\it.ef\Documents\`.
+- Panduan Semua Pengguna memuat 20 screenshot aksi kritis, termasuk modal
+  detail klaim GA dan detail air minum Finance (data uji sudah dihapus).
+- Verifikasi: backend 1486 passed, frontend 411 passed, stamp v2.131.2,
+  container sehat.

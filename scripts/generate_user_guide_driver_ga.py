@@ -19,7 +19,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from modules.pdf_generator import BPFBasePDF, INK, GRAY_LABEL, RULE
 
-VERSION = 'v2.131.1'
+VERSION = 'v2.131.2'
 TANGGAL = '23 November 2026'
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SHOT_GA = os.path.join(ROOT, 'docs', 'public', 'screenshots', 'ga-service-audit.png')
