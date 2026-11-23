@@ -111,8 +111,18 @@ function draw() {
 // Gambar hanya setelah data sudah ada DAN library grafik sudah siap.
 // Dipanggil dari load() maupun loadChartLib() sehingga urutan resolusi
 // keduanya tidak penting dan grafik tetap dibuat tepat sekali.
+// drawScheduled mencegah dua jalur menjadwalkan nextTick(draw) pada tick
+// yang sama (mis. API dan library resolve bersamaan) → destroy/recreate boros.
+let drawScheduled = false
 function maybeDraw() {
-  if (chartReady.value && d.value && !loading.value) nextTick(draw)
+  if (drawScheduled) return
+  if (chartReady.value && d.value && !loading.value) {
+    drawScheduled = true
+    nextTick(() => {
+      drawScheduled = false
+      draw()
+    })
+  }
 }
 
 async function load() {
@@ -178,7 +188,7 @@ onBeforeUnmount(() => { [ch1, ch2, ch3].forEach((c) => c && c.destroy()) })
   <div>
     <PageHeader icon="📈" title="Analisis BBM & Armada" subtitle="Tren biaya, frekuensi klaim, efisiensi kendaraan, dan kesehatan armada" />
 
-    <div v-if="chartError" class="alert" style="margin-bottom:12px;">⚠️ {{ chartError }}</div>
+    <div v-if="chartError" class="alert alert-error" style="margin-bottom:12px;">⚠️ {{ chartError }}</div>
     <div v-else-if="!chartReady" data-testid="chart-loading" class="card card-pad muted" style="margin-bottom:16px;font-size:12px;">📊 Memuat library grafik…</div>
 
     <ReportMeta

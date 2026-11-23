@@ -27,6 +27,8 @@ describe('AnalyticsView', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     apiMock.mockResolvedValue(RESP)
+    // new Chart() harus mengembalikan objek dengan destroy() agar draw() ulang aman.
+    ChartMock.mockImplementation(function () { this.destroy = vi.fn() })
   })
 
   it('menampilkan kartu statistik finance, ga, cash & fleet dari response API', async () => {
@@ -80,5 +82,46 @@ describe('AnalyticsView', () => {
     const w = mount(AnalyticsView, { global: { plugins: [createPinia()] } })
     expect(w.find('[data-testid="chart-loading"]').exists()).toBe(true)
     w.unmount()
+  })
+
+  it('memakai alert-error pada banner gagal memuat library grafik', async () => {
+    ChartMock.register.mockImplementationOnce(() => { throw new Error('register gagal') })
+    const w = mount(AnalyticsView)
+    await flushPromises()
+    await flushPromises()
+    const banner = w.findAll('.alert').find((n) => n.text().includes('Gagal memuat library grafik'))
+    expect(banner).toBeDefined()
+    expect(banner.classes()).toContain('alert-error')
+  })
+
+  it('menggambar ulang sekali saja saat dua load selesai dalam tick yang sama (dedupe maybeDraw)', async () => {
+    const w = mount(AnalyticsView)
+    await flushPromises()
+    await flushPromises()
+    expect(ChartMock).toHaveBeenCalledTimes(3) // draw awal dari mount
+    ChartMock.mockClear()
+
+    const deferred = []
+    let analyticsCalls = 0
+    apiMock.mockImplementation((url) => {
+      if (url === '/api/vehicle-health') return Promise.resolve(RESP)
+      analyticsCalls++
+      return new Promise((resolve) => deferred.push(resolve))
+    })
+
+    const reload = w.findAll('button').find((b) => b.text().includes('Muat ulang'))
+    expect(reload).toBeDefined()
+    await reload.trigger('click')
+    await reload.trigger('click')
+    expect(deferred).toHaveLength(2)
+
+    deferred[0](RESP)
+    deferred[1](RESP)
+    await flushPromises()
+    await flushPromises()
+
+    expect(analyticsCalls).toBe(2)
+    // Tanpa dedupe, dua maybeDraw menjadwalkan dua draw → 6 new Chart().
+    expect(ChartMock).toHaveBeenCalledTimes(3)
   })
 })
