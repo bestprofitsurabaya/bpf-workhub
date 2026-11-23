@@ -4,6 +4,8 @@ import { io } from 'socket.io-client'
 /**
  * Realtime store (ISO/IEC 27001 A.8 — only the events each role needs):
  * - ga/finance/admin : broadcast new_claim / new_trip_report (ops board)
+ * - finance/admin    : join finance_board -> new_finance_task (klaim siap bayar)
+ * - ga/admin         : join appointments_board -> new_service_report (catatan service)
  * - marketing        : join appointments_board -> appointment_update
  * - chief_driver     : join appointments_board -> appointment_update
  */
@@ -39,6 +41,14 @@ export const useRealtimeStore = defineStore('realtime', {
         // Pengajuan air minum baru — relevan untuk Finance & admin
         if (['finance', 'admin'].includes(role)) {
           socket.on('water_purchase_new', (d) => this.push(`💧 ${d?.ob_name || 'OB'} mengajukan pembelian air minum ${d?.display_id || ''}`, 'water_purchase_new', d))
+          // Task 4: klaim disetujui GA → masuk antrean pencairan Finance.
+          socket.on('new_finance_task', (d) => this.push(`💰 Klaim ${d?.display_id || ''} siap dicairkan`, 'new_finance_task', d))
+        }
+
+        // Task 3: catatan service dari driver — GA/Admin perlu menyegarkan
+        // antrean review (GaDashboard me-watch event ini).
+        if (['ga', 'admin'].includes(role)) {
+          socket.on('new_service_report', (d) => this.push(`🔧 Catatan service ${d?.display_id || ''} baru dari driver`, 'new_service_report', d))
         }
 
         // Appointment board (marketing / chief driver)
@@ -74,11 +84,15 @@ export const useRealtimeStore = defineStore('realtime', {
     joinRooms(role) {
       if (!socket) return
       try {
-        if (role === 'marketing' || role === 'chief_driver') {
+        if (role === 'marketing' || role === 'chief_driver' || role === 'ga' || role === 'admin') {
           socket.emit('join_room', { room: 'appointments_board' })
         }
         if (role === 'ga_hr' || role === 'admin') {
           socket.emit('join_room', { room: 'ga_hr_board' })
+        }
+        // Task 4: room notifikasi klaim siap bayar (finance/admin).
+        if (role === 'finance' || role === 'admin') {
+          socket.emit('join_room', { room: 'finance_board' })
         }
       } catch { /* noop */ }
     },
