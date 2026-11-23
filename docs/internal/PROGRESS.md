@@ -2583,3 +2583,12 @@ tes & verifikasi; perubahan produksi butuh konfirmasi eksplisit.
   menampilkan KM manual (78179) dan keluhan bernomor (1., 2.) dengan rapi;
   tombol Cetak PDF, Tolak, Selesaikan tersedia. Layout desktop terbaca baik.
 - Data uji audit (id 4) dihapus; tabel kembali kosong. Sesi browser audit ditutup.
+
+### Audit PWA driver Service (23 Nov, 11:20 WIB)
+- Login `driversby_guruh` / 123456 → /app/driver: 4 tab (BBM, Trip, OT, Service)
+  tampil benar; tab Rapor sudah tidak ada.
+- Tab Service: identitas driver/nopol/jenis mobil otomatis, **KM manual**
+  (diisi 78179), keluhan bernomor bisa ditambah/dikurangi.
+- Submit 2 poin keluhan → toast sukses, riwayat driver menampilkan
+  `SRV-SBY-20261123-0003` dengan keluhan `1. … / 2. …` rapi.
+- Data uji dihapus; tabel kembali kosong. Sesi browser audit ditutup.
