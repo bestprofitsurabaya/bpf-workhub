@@ -2541,3 +2541,16 @@ tes & verifikasi; perubahan produksi butuh konfirmasi eksplisit.
 - Total WorkHub sekarang **84 transaksi · 1.180,25 L · Rp 11.802.500**
   (LPJ Rp 5.121.500 + voucher Rp 6.681.000, klaim Rp 0).
 - Tagihan voucher rekanan open: **46 baris / Rp 6.681.000**, settled 0.
+
+### Verifikasi deploy v2.131.0 (23 Nov 2026, 10:30 WIB)
+- Commit `60012b3` di-push; image di-build ulang, container healthy.
+- Stamp 7 titik + DB master/12 cabang = v2.131.0; tabel
+  `driver_service_reports` sudah dibuat otomatis saat startup.
+- Test: backend **1485 passed, 6 skipped** (termasuk 5 test service),
+  frontend **54 file / 410 test passed**, `npm run build` sukses.
+- Smoke test API (akun `ga_sby`): daftar laporan service tampil, PDF resmi
+  berhasil diunduh (`%PDF`, 57 kB), review REVIEWED sukses. Data uji sudah
+  dihapus (tabel kembali kosong).
+- Endpoint driver sudah diuji via unit test Flask; uji HTTP langsung belum
+  dilakukan karena PIN driver belum diketahui (rate limit tercapai saat
+  mencoba PIN umum).
