@@ -2554,3 +2554,11 @@ tes & verifikasi; perubahan produksi butuh konfirmasi eksplisit.
 - Endpoint driver sudah diuji via unit test Flask; uji HTTP langsung belum
   dilakukan karena PIN driver belum diketahui (rate limit tercapai saat
   mencoba PIN umum).
+
+### Smoke test driver → GA berhasil (23 Nov, 10:45 WIB)
+- Login `driversby_guruh` / PIN 123456 → POST `/api/driver/service`
+  menghasilkan `SRV-SBY-20261123-0001` (id 3), nopol B 2737 SRQ otomatis
+  dari profil, status SUBMITTED.
+- GA (`ga_sby`) melihat laporan tersebut, PDF resmi berhasil diunduh
+  (`%PDF`, 57 kB), review `REVIEWED` sukses.
+- Data uji dihapus; tabel `driver_service_reports` kembali kosong.
