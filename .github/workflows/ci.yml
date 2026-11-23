@@ -89,6 +89,8 @@ jobs:
         run: python scripts/check_branch_db_map.py
       - name: Run tests (unit, DB service tersedia)
         run: python -m pytest tests/ -q
+      - name: Check schema drift
+        run: python scripts/check_schema_drift.py
 
   image-scan:
     name: Image security scan (Trivy)
