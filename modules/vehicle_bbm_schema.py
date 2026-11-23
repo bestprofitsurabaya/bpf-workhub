@@ -36,8 +36,8 @@ _SEED = """
 INSERT IGNORE INTO vehicle_bbm_allowed
   (vehicle_type, bbm_type, min_km_per_liter, max_km_per_liter,
    warning_km_per_liter, good_km_per_liter, is_default)
-SELECT v.vehicle_type, b.bbm_type, 5.00, 18.00, 10.50, 12.50,
-       CASE WHEN b.bbm_type = v.bbm_default THEN 1 ELSE 0 END
+SELECT v.vehicle_type, b.name AS bbm_type, 5.00, 18.00, 10.50, 12.50,
+       CASE WHEN b.name = v.bbm_default THEN 1 ELSE 0 END
 FROM (
     SELECT vehicle_type, MAX(bbm_default) AS bbm_default
     FROM vehicles

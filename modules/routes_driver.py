@@ -549,15 +549,23 @@ def register_driver_routes(app, socketio):
             cursor.execute(
                 """SELECT d.name,
                           COALESCE(NULLIF(TRIM(d.display_name), ''), d.name) AS display_name,
-                          d.nopol, d.vehicle_type, d.bbm_type, d.is_active,
+                          COALESCE(a.nopol, d.nopol) AS nopol,
+                          COALESCE(a.vehicle_type, d.vehicle_type) AS vehicle_type,
+                          COALESCE(a.bbm_type, d.bbm_type) AS bbm_type,
+                          d.is_active,
                           COALESCE(NULLIF(v.initial_odo_km, 0),
                                    (SELECT MAX(va.last_odometer) FROM vehicle_assets va
-                                     WHERE va.nopol = d.nopol), 0) AS initial_odo_km,
+                                     WHERE va.nopol = COALESCE(a.nopol, d.nopol)), 0) AS initial_odo_km,
                           (SELECT MAX(t.odo_km) FROM transactions t
-                            WHERE t.nopol = d.nopol AND COALESCE(t.odo_km, 0) > 0) AS last_odo_km
+                            WHERE t.nopol = COALESCE(a.nopol, d.nopol)
+                              AND COALESCE(t.odo_km, 0) > 0) AS last_odo_km
                      FROM drivers d
-                     LEFT JOIN vehicles v ON v.nopol = d.nopol
-                    WHERE d.name=%s""",
+                     LEFT JOIN vehicle_assignments a
+                            ON a.driver_name = d.name AND a.is_current = 1
+                     LEFT JOIN vehicles v ON v.nopol = COALESCE(a.nopol, d.nopol)
+                    WHERE d.name=%s
+                    ORDER BY a.id DESC
+                    LIMIT 1""",
                 (driver_name,))
             profile = cursor.fetchone()
             cursor.close(); conn.close()

@@ -7,6 +7,49 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.132.0 — 23 November 2026 (Driver mengajukan ganti kendaraan)
+
+- **Profil & Kendaraan di header driver.** Blok nama + nopol kini membuka panel
+  yang menampilkan kendaraan aktif, daftar **kendaraan kosong**, daftar
+  **kendaraan yang sudah ada driver**, pengajuan saya, dan kartu serah terima.
+  Tidak ada tab navigasi baru — empat tab bawah tetap.
+- **Dua jenis pengajuan:** `move` (pindah ke kendaraan kosong; nopol lama masuk
+  pool) dan `exchange` (tukar dua arah dengan rekan satu cabang). Wajib
+  kategori + alasan minimal 10 karakter.
+- **GA tetap pemutus.** Approve/reject hanya role `ga`/`admin`; finance hanya
+  baca. Approve berjalan dalam satu transaksi: tutup assignment lama, buat
+  assignment baru, sinkronkan `drivers.nopol/vehicle_type/bbm_type`, dan tulis
+  dua baris `assignment_swaps` ber-`request_id`.
+- **Bukti serah terima wajib.** Masing-masing penerima mengirim odometer + foto
+  kendaraan yang diterima; `exchange` butuh dua kiriman, `move` satu. Tombol
+  konfirmasi biasa diblokir (`handover_required`) selama bukti belum lengkap.
+- **Pengajuan berantai aman.** Pengajuan `approved` yang belum selesai ditutup
+  `superseded` setelah GA mencentang peringatan; guard konfirmasi otomatis
+  melepas kunci bila assignment sudah berubah.
+- **Alur GA lama ikut dikunci.** `create`/`swap`/`release` memakai transaksi,
+  `SELECT ... FOR UPDATE`, menutup pengajuan yang tersentuh, dan memeriksa
+  invarian satu kendaraan aktif per driver sebelum commit.
+- Tabel baru `assignment_swap_requests` + kolom `assignment_swaps.request_id`
+  (aditif & idempoten; dibuat di master dan semua cabang saat startup).
+- **Header driver ikut assignment aktif.** `/api/driver/me` kini membaca
+  `vehicle_assignments.is_current = 1` lebih dulu, sehingga nopol di header
+  tidak lagi basi terhadap cache `drivers.nopol` (kasus DRIVERSBY_ABIEM:
+  `L 1415 CBI` → `B 1126 DFC`).
+- **Seed `vehicle_bbm_allowed` yang diam-diam gagal diperbaiki.** Tabel
+  `bbm_types` memakai kolom `name`, tetapi seed memilih `b.bbm_type` → error
+  1054 setiap tabel kosong (cabang baru / pasca-restore) dan tabel tetap
+  kosong. Seed kini memakai `b.name`; cabang tanpa `bbm_types`/`vehicles`
+  tetap kosong secara wajar.
+- Verifikasi: 55 tes backend baru (termasuk DB scratch), 13 tes frontend baru;
+  pytest penuh 1591 lulus (6 skip), vitest 442 lulus, stamp 7 titik + DB
+  konsisten, skema master sesuai `init.sql`, smoke Rekap Pengeluaran lulus.
+  Smoke PDF BBM tidak dapat lulus pada dataset ini: seluruh 12 skema berisi
+  **0 baris `transactions`**, sehingga cek "tx is_reported=TRUE" dan rekap PDF
+  berbasis data tidak punya subjek; jalur render tetap tercakup pytest
+  (`tests/test_pdf_compact.py`, `tests/test_water.py`).
+
+---
+
 ## v2.131.6 — 23 November 2026 (Drift skema semua cabang + self-heal kolom)
 
 - `scripts/check_schema_drift.py` kini memeriksa **setiap DB cabang aktif**,

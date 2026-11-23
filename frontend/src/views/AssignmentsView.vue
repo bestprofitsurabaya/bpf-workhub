@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, ref, computed } from 'vue'
+import { onBeforeUnmount, onMounted, ref, computed } from 'vue'
 import { api } from '../api'
 import { useAuthStore } from '../stores/auth'
 import LoadingState from '../components/LoadingState.vue'
@@ -40,19 +40,96 @@ const remarkText = ref('')
 // v2.73.0 — antrean konfirmasi serah terima (confirmed_by_driver = 0)
 const pendingCount = computed(() => active.value.filter((a) => !a.confirmed_by_driver).length)
 
+// v2.132.0 — pengajuan tukar / pindah kendaraan dari driver
+const swapRequests = ref([])
+const reqBusy = ref(false)
+const reqModal = ref(null)      // { mode: 'approve' | 'reject', row }
+const reqNote = ref('')
+const reqConflict = ref(null)
+const ackSupersede = ref(false)
+const pendingRequests = computed(() => swapRequests.value.filter((r) => r.status === 'pending'))
+const REQ_STATUS = {
+  pending: { label: '⏳ Menunggu', cls: '' },
+  approved: { label: '✅ Disetujui', cls: 'badge-green' },
+  completed: { label: '✔ Selesai', cls: 'badge-green' },
+  rejected: { label: '✕ Ditolak', cls: 'badge-red' },
+  cancelled: { label: '✕ Dibatalkan', cls: '' },
+  superseded: { label: '↪ Ditutup', cls: '' },
+}
+function reqStatusLabel(status) {
+  return (REQ_STATUS[status] || {}).label || status || '-'
+}
+function reqStatusClass(status) {
+  return (REQ_STATUS[status] || {}).cls || ''
+}
+function requestTarget(row) {
+  return row.swap_type === 'move' ? 'kosong' : `${row.target_driver} · ${row.target_nopol}`
+}
+
+function openApprove(row) {
+  reqModal.value = { mode: 'approve', row }
+  reqConflict.value = null
+  ackSupersede.value = false
+  reqNote.value = ''
+  msg.value = ''
+}
+
+function openReject(row) {
+  reqModal.value = { mode: 'reject', row }
+  reqConflict.value = null
+  reqNote.value = ''
+  msg.value = ''
+}
+
+async function submitDecision() {
+  const modal = reqModal.value
+  if (!modal) return
+  reqBusy.value = true
+  msg.value = ''
+  try {
+    if (modal.mode === 'approve') {
+      const r = await api(`/api/assignments/swap-requests/${modal.row.id}/approve`, {
+        method: 'POST',
+        body: { acknowledge_supersede: ackSupersede.value },
+      })
+      msg.value = `✅ ${r.msg || 'Pengajuan disetujui'}`
+    } else {
+      if (!reqNote.value.trim()) return
+      const r = await api(`/api/assignments/swap-requests/${modal.row.id}/reject`, {
+        method: 'POST',
+        body: { note: reqNote.value.trim() },
+      })
+      msg.value = `✅ ${r.msg || 'Pengajuan ditolak'}`
+    }
+    reqModal.value = null
+    reqConflict.value = null
+    await load()
+  } catch (e) {
+    msg.value = '❌ ' + e.message
+    if (e.data && e.data.code === 'supersede_required') {
+      reqConflict.value = e.data
+      ackSupersede.value = false
+    }
+  } finally {
+    reqBusy.value = false
+  }
+}
+
 async function load() {
   loading.value = true; err.value = ''
   try {
-    const [a, u, d, s] = await Promise.all([
+    const [a, u, d, s, q] = await Promise.all([
       api('/api/assignments/active').catch(() => []),
       api('/api/assignments/unassigned').catch(() => []),
       api('/api/drivers').catch(() => []),
       api('/api/assignments/swap-history').catch(() => []),
+      api('/api/assignments/swap-requests').catch(() => []),
     ])
     active.value = Array.isArray(a) ? a : []
     unassigned.value = Array.isArray(u) ? u : []
     drivers.value = Array.isArray(d) ? d : []
     swaps.value = Array.isArray(s) ? s : []
+    swapRequests.value = Array.isArray(q) ? q : []
   } catch (e) { err.value = e.message }
   finally { loading.value = false }
 }
@@ -114,7 +191,16 @@ async function saveRemark() {
   finally { busy.value = false }
 }
 
-onMounted(load)
+let pollTimer = null
+onMounted(() => {
+  load()
+  // Pengajuan driver bisa masuk kapan saja — segarkan diam-diam tiap 60 detik.
+  pollTimer = setInterval(load, 60000)
+})
+onBeforeUnmount(() => {
+  if (pollTimer) clearInterval(pollTimer)
+  pollTimer = null
+})
 </script>
 
 <template>
@@ -142,6 +228,9 @@ onMounted(load)
     <div style="margin-bottom:10px;">
       <button class="btn" :class="tab === 'aktif' ? 'btn-primary' : ''" @click="tab = 'aktif'">
         Saat Ini ({{ active.length }})<span v-if="pendingCount" class="badge badge-red" style="margin-left:6px;">⏳ {{ pendingCount }} belum konfirmasi</span>
+      </button>
+      <button class="btn" :class="tab === 'pengajuan' ? 'btn-primary' : ''" @click="tab = 'pengajuan'">
+        📨 Pengajuan<span v-if="pendingRequests.length" class="badge badge-red" style="margin-left:6px;">{{ pendingRequests.length }}</span>
       </button>
       <button class="btn" :class="tab === 'swap' ? 'btn-primary' : ''" @click="tab = 'swap'">🔄 Riwayat Tukar Driver ({{ swaps.length }})</button>
     </div>
@@ -178,7 +267,40 @@ onMounted(load)
       </div>
     </div>
 
-    <div class="card" v-else>
+    <div class="card" v-else-if="tab === 'pengajuan'">
+      <div class="table-wrap">
+        <table class="tbl">
+          <thead><tr>
+            <th>Waktu</th><th>Jenis</th><th>Pengaju</th><th>Tujuan</th>
+            <th>Kategori</th><th>Alasan</th><th>Status</th><th>Aksi</th>
+          </tr></thead>
+          <tbody>
+            <tr v-for="r in swapRequests" :key="r.id" :data-request-id="r.id">
+              <td>{{ r.created_at }}<br><span class="muted">{{ r.request_code }}</span></td>
+              <td>{{ r.swap_type === 'move' ? '➡️ Pindah' : '🔄 Tukar' }}</td>
+              <td><b>{{ r.requester_driver }}</b><br><span class="muted">{{ r.requester_nopol }}</span></td>
+              <td>
+                <template v-if="r.swap_type === 'move'"><span class="muted">kosong</span></template>
+                <template v-else><b>{{ r.target_driver }}</b><br><span class="muted">{{ r.target_nopol }}</span></template>
+              </td>
+              <td>{{ categoryLabel(r.category) }}</td>
+              <td>{{ r.reason }}</td>
+              <td><span class="badge" :class="reqStatusClass(r.status)">{{ reqStatusLabel(r.status) }}</span></td>
+              <td style="white-space:nowrap;">
+                <template v-if="r.status === 'pending'">
+                  <button class="btn btn-sm btn-primary" @click="openApprove(r)">Setujui</button>
+                  <button class="btn btn-sm btn-danger" style="margin-left:6px;" @click="openReject(r)">Tolak</button>
+                </template>
+                <span v-else class="muted">{{ r.ga_name || '—' }}</span>
+              </td>
+            </tr>
+            <tr v-if="!swapRequests.length"><td colspan="8" class="empty">Belum ada pengajuan driver.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card" v-else-if="tab === 'swap'">
       <div class="table-wrap">
         <table class="tbl">
           <thead><tr>
@@ -230,6 +352,61 @@ onMounted(load)
         <div class="row" style="justify-content:flex-end;gap:6px;">
           <button class="btn" @click="swapOpen = false">Batal</button>
           <button class="btn btn-primary" :disabled="busy || !swapForm.nopol || !swapForm.new_driver || !swapForm.reason" @click="submitSwap">{{ busy ? '⏳ Menyimpan…' : '✅ Tukar' }}</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal keputusan pengajuan driver (v2.132.0) -->
+    <div v-if="reqModal" class="modal-overlay" role="dialog" aria-modal="true"
+         aria-label="Keputusan pengajuan" @click.self="reqModal = null">
+      <div class="card card-pad" style="max-width:480px;width:92vw;">
+        <h3>{{ reqModal.mode === 'approve' ? '✅ Setujui Pengajuan' : '✕ Tolak Pengajuan' }}</h3>
+        <p class="muted" style="font-size:12px;margin-top:2px;">
+          {{ reqModal.row.request_code || ('#' + reqModal.row.id) }} ·
+          {{ reqModal.row.swap_type === 'move' ? 'Pindah kendaraan' : 'Tukar kendaraan' }} ·
+          <b>{{ reqModal.row.requester_driver }}</b> ({{ reqModal.row.requester_nopol }})
+          → {{ requestTarget(reqModal.row) }}
+        </p>
+        <p style="font-size:12px;">Alasan: {{ reqModal.row.reason }}</p>
+
+        <template v-if="reqModal.mode === 'approve'">
+          <p class="muted" style="font-size:12px;">
+            <template v-if="reqModal.row.swap_type === 'move'">
+              Kendaraan {{ reqModal.row.requester_nopol }} akan masuk pool dan
+              {{ reqModal.row.requester_driver }} menerima {{ reqModal.row.target_nopol }}.
+            </template>
+            <template v-else>
+              Kedua kendaraan langsung bertukar pengemudi setelah disetujui.
+            </template>
+          </p>
+          <div v-if="reqConflict" class="alert alert-error" style="font-size:12px;">
+            Ada serah terima lain yang belum selesai:
+            <b>{{ (reqConflict.conflicts || []).join(', ') }}</b>.
+            Pengajuan lama akan ditutup bila Anda lanjutkan.
+          </div>
+          <label v-if="reqConflict" style="display:flex;gap:8px;align-items:center;font-size:12px;margin:8px 0;">
+            <input type="checkbox" v-model="ackSupersede" />
+            Ya, tutup serah terima sebelumnya dan setujui pengajuan ini
+          </label>
+        </template>
+        <template v-else>
+          <div class="field" style="margin-bottom:10px;">
+            <label>Catatan penolakan <span class="req">*</span></label>
+            <textarea class="textarea" rows="3" v-model="reqNote"
+                      placeholder="cth: kendaraan masih dipakai untuk shift malam…"></textarea>
+          </div>
+        </template>
+
+        <div class="row" style="justify-content:flex-end;gap:6px;">
+          <button class="btn" @click="reqModal = null">Batal</button>
+          <button v-if="reqModal.mode === 'approve'" class="btn btn-primary"
+                  :disabled="reqBusy || (reqConflict && !ackSupersede)" @click="submitDecision">
+            {{ reqBusy ? '⏳ Memproses…' : '✅ Setujui' }}
+          </button>
+          <button v-else class="btn btn-danger"
+                  :disabled="reqBusy || !reqNote.trim()" @click="submitDecision">
+            {{ reqBusy ? '⏳ Memproses…' : '✕ Tolak' }}
+          </button>
         </div>
       </div>
     </div>

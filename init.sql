@@ -935,7 +935,44 @@ CREATE TABLE IF NOT EXISTS assignment_swaps (
     category VARCHAR(30) DEFAULT NULL,
     reason TEXT DEFAULT NULL,
     ga_name VARCHAR(100) DEFAULT NULL,
-    created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP
+    request_id INT DEFAULT NULL,
+    created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+    KEY idx_swap_request (request_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- v2.132.0 — antrean pengajuan ganti kendaraan dari driver.
+-- assignment_swaps tetap menjadi log eksekusi; tabel ini menyimpan siklus
+-- hidup pengajuan (pending → approved → completed / rejected / cancelled /
+-- superseded) beserta bukti serah terima.
+CREATE TABLE IF NOT EXISTS assignment_swap_requests (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    request_code VARCHAR(24) DEFAULT NULL,
+    branch_code VARCHAR(10) DEFAULT NULL,
+    swap_type VARCHAR(10) NOT NULL DEFAULT 'exchange',
+    requester_driver VARCHAR(100) NOT NULL,
+    requester_nopol VARCHAR(20) NOT NULL,
+    target_driver VARCHAR(100) DEFAULT NULL,
+    target_nopol VARCHAR(20) NOT NULL,
+    category VARCHAR(30) NOT NULL,
+    reason VARCHAR(500) NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'pending',
+    ga_name VARCHAR(100) DEFAULT NULL,
+    ga_note VARCHAR(500) DEFAULT NULL,
+    decided_at DATETIME DEFAULT NULL,
+    executed_at DATETIME DEFAULT NULL,
+    requester_odo INT DEFAULT NULL,
+    requester_photo VARCHAR(255) DEFAULT NULL,
+    requester_handover_at DATETIME DEFAULT NULL,
+    target_odo INT DEFAULT NULL,
+    target_photo VARCHAR(255) DEFAULT NULL,
+    target_handover_at DATETIME DEFAULT NULL,
+    completed_at DATETIME DEFAULT NULL,
+    created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_swap_request_code (request_code),
+    KEY idx_swap_req_status (status, created_at),
+    KEY idx_swap_req_requester (requester_driver, status),
+    KEY idx_swap_req_target (target_driver, status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ============================================================

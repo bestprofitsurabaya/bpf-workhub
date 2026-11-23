@@ -1,4 +1,4 @@
-# 📖 Panduan Pengguna BPF WorkHub v2.131.6
+# 📖 Panduan Pengguna BPF WorkHub v2.132.0
 
 > **Siapa pun kamu — sopir, OB, admin, atau pimpinan — panduan ini ditulis untuk kamu.**
 > Tidak perlu paham teknis. Cukup ikuti langkah-langkah sesuai bagianmu.
@@ -266,7 +266,7 @@ di sidebar untuk mencatat lembur sendiri:
 
 ### 4.1 Halaman Driver
 
-Buka halaman Driver (bisa dipasang di HP). **Login dengan Username & PIN** yang diberikan Admin. Ada 5 tab: **⛽ BBM**, **💰 Kasbon**, **🗺️ Trip**, **⏰ OT**, **📊 Rapor**.
+Buka halaman Driver (bisa dipasang di HP). **Login dengan Username & PIN** yang diberikan Admin. Ada 4 tab bawah: **⛽ BBM**, **🗺️ Trip**, **⏰ OT**, dan **🔧 Service**. Kasbon ada di dalam BBM. Ketuk **blok nama + nopol di header** untuk membuka **👤 Profil & Kendaraan** (termasuk ganti kendaraan, sejak v2.132.0).
 
 > 🚛 **Serah terima kendaraan (v2.73.0)** — begitu kendaraan baru ditugaskan
 > ke kamu, muncul banner **"Serah Terima Kendaraan"** di atas: cek dulu
@@ -355,6 +355,27 @@ Supaya tidak ketinggalan penugasan atau kabar klaim walau aplikasi ditutup:
 - **Matikan** kapan saja lewat panel 🔔 yang sama (mis. HP dipakai bergantian).
 - Notifikasi hanya pemberitahuan; data yang kamu isi tetap dikirim oleh antrean offline saat aplikasi dibuka.
 
+### 4.9 Ganti Kendaraan dari Profil 🔄 (sejak v2.132.0)
+
+Blok nama + nopol di bagian atas aplikasi kini bisa diketuk untuk membuka
+**👤 Profil & Kendaraan**. Di sana ada dua cara berpindah kendaraan:
+
+- **Ambil** pada daftar *Kendaraan kosong* → pengajuan **pindah** satu arah.
+  Kendaraan lamamu masuk pool setelah disetujui.
+- **Tukar** pada daftar *Kendaraan dengan driver* → pengajuan **tukar** dua arah
+  dengan rekan satu cabang.
+
+Setiap pengajuan wajib memilih kategori dan menulis alasan (minimal 10
+karakter). Setelah dikirim statusnya **⏳ Menunggu GA** dan masih bisa
+dibatalkan. GA yang menyetujui — kamu tidak perlu menekan apa pun sampai ada
+kabar.
+
+Begitu disetujui, buka lagi panel profil: muncul kartu **Serah terima** untuk
+kendaraan yang kamu terima. Isi **odometer** dan unggah **foto kendaraan**,
+lalu tekan **📷 Kirim Bukti**. Untuk tukar dua arah, rekanmu juga mengirim satu
+bukti dari sisinya; status menjadi **✔ Selesai** setelah keduanya lengkap.
+Tombol konfirmasi biasa tidak dipakai untuk kendaraan hasil tukar.
+
 ---
 
 ## 5. Untuk GA — Verifikasi & Pengawasan 🧾
@@ -415,6 +436,11 @@ Halaman **🚗 Penugasan Driver** kini lengkap:
 - **⏳ Status serah terima** — kolom "Serah Terima" menampilkan driver yang
   belum mengonfirmasi (⏳) — cocok dengan badge di menu; driver konfirmasi
   sendiri dari aplikasi Driver-nya (banner "Serah Terima Kendaraan").
+- **📨 Tab Pengajuan (v2.132.0)** — pengajuan driver: pindah ke kendaraan
+  kosong atau tukar dengan rekan, lengkap dengan kategori, alasan, dan status.
+  **Setujui** langsung mengeksekusi pertukaran dalam satu transaksi; **Tolak**
+  wajib catatan. Bila masih ada serah terima lain yang belum selesai, GA diminta
+  mencentang peringatan agar pengajuan lama ditutup rapi sebagai `superseded`.
 
 ---
 

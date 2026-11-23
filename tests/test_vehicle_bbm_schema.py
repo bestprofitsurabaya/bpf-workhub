@@ -63,6 +63,18 @@ def test_ddl_tanpa_foreign_key_dan_seed_hanya_saat_kosong():
     assert conn.committed
 
 
+def test_seed_memakai_kolom_name_dari_bbm_types():
+    """v2.132.0 — bbm_types tidak punya kolom `bbm_type`; seed lama 1054."""
+    conn = _FakeConn(count=0)
+    assert vehicle_bbm_schema.ensure_vehicle_bbm_schema(conn) is True
+
+    seed = next(s for s in conn.executed
+                if s.upper().startswith('INSERT IGNORE'))
+    assert 'b.name AS bbm_type' in seed
+    assert 'b.name = v.bbm_default' in seed
+    assert 'b.bbm_type' not in seed
+
+
 def test_seed_dilewati_saat_tabel_sudah_berisi():
     conn = _FakeConn(count=4)
     assert vehicle_bbm_schema.ensure_vehicle_bbm_schema(conn) is True

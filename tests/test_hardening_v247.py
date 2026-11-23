@@ -116,9 +116,11 @@ class TestAssignmentConfirmAuth:
                    data=json.dumps({'driver_name': 'PENYUSUP', 'nopol': 'L 1 ABC'}),
                    content_type='application/json')
         assert r.status_code == 200
-        sql, params = conn.sql_log[0]
+        # v2.132.0: /confirm lebih dulu menanyakan pengajuan serah terima
+        # (SELECT), jadi UPDATE bukan lagi entri pertama di sql_log.
+        sql, params = next((s, p) for s, p in conn.sql_log
+                           if 'confirmed_by_driver' in s)
         assert params[0] == 'BUDI', 'identitas harus dari sesi'
-        assert 'confirmed_by_driver' in sql
 
     def test_back_office_boleh_mewakili_driver(self, monkeypatch):
         conn = FakeConn(rowcount=1)

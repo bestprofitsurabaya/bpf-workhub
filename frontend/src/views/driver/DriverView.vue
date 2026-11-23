@@ -10,6 +10,7 @@ import TripTab from './TripTab.vue'
 import ServiceTab from './ServiceTab.vue'
 import OvertimeDriverTab from './OvertimeDriverTab.vue'
 import HelpCenter from '../../components/HelpCenter.vue'
+import DriverProfileSheet from '../../components/DriverProfileSheet.vue'
 import OnboardingTour from '../../components/OnboardingTour.vue'
 import FlowGuide from '../../components/FlowGuide.vue'
 import { onboardingSteps } from '../../content/help.js'
@@ -24,6 +25,7 @@ const brandIcon = '/static/icon-192.png'
 const dark = ref(localStorage.getItem('bpf_dark') === '1')
 const toasts = ref([])
 const helpOpen = ref(false)
+const profileOpen = ref(false)
 const tourOpen = ref(false)
 const tourSteps = ref([])
 const onboardKey = computed(() => `bpf_onboarded:${auth.user?.user_name || ''}`)
@@ -37,6 +39,12 @@ function startTour() {
 function finishTour() {
   if (auth.user?.user_name) localStorage.setItem(onboardKey.value, '1')
   tourOpen.value = false
+}
+
+// v2.132.0 — panel profil & kendaraan (ganti kendaraan dari header)
+async function onProfileChanged() {
+  await store.loadProfile()
+  await loadPendingTask()
 }
 
 // v2.130.0 — 4 tab. Kasbon bukan lagi tab sendiri: ia hanya relevan untuk BBM
@@ -274,10 +282,13 @@ onBeforeUnmount(() => {
     <!-- Header -->
     <header class="d-header">
       <img :src="brandIcon" alt="BPF" class="d-logo" />
-      <div class="grow" style="min-width:0;">
-        <div class="d-name">{{ store.driverDisplayName || (auth.user?.full_name || 'Driver') }}</div>
-        <div class="muted" style="font-size:10px;">{{ store.profile?.nopol || '' }} · {{ store.profile?.vehicle_type || '' }}</div>
-      </div>
+      <button class="grow d-ident" type="button" aria-label="Buka profil & kendaraan"
+              @click="profileOpen = true">
+        <span class="d-name">{{ store.driverDisplayName || (auth.user?.full_name || 'Driver') }}</span>
+        <span class="muted d-ident-sub">
+          {{ store.profile?.nopol || '' }} · {{ store.profile?.vehicle_type || '' }} · 👤
+        </span>
+      </button>
       <button class="btn-icon" title="Bantuan & glosarium" aria-label="Bantuan" @click="helpOpen = true">❓</button>
       <DriverNotifBell />
       <button class="btn-icon" :title="dark ? 'Mode terang' : 'Mode gelap'" @click="toggleDark">{{ dark ? '☀️' : '🌙' }}</button>
@@ -314,10 +325,18 @@ onBeforeUnmount(() => {
         <div class="d-handover-text">
           <b>🚛 Serah Terima Kendaraan</b>
           <span class="muted" style="font-size:11px;">
-            {{ pendingTask.nopol }} · {{ pendingTask.vehicle_type }} — pastikan kondisi kendaraan sudah dicek, lalu konfirmasi.
+            {{ pendingTask.nopol }} · {{ pendingTask.vehicle_type }} —
+            <template v-if="pendingTask.handover_request_id">
+              unggah odometer + foto kendaraan yang Anda terima.
+            </template>
+            <template v-else>
+              pastikan kondisi kendaraan sudah dicek, lalu konfirmasi.
+            </template>
           </span>
         </div>
-        <button class="btn btn-primary" :disabled="confirming" @click="confirmTask">
+        <button v-if="pendingTask.handover_request_id" class="btn btn-primary"
+                @click="profileOpen = true">📷 Isi Serah Terima</button>
+        <button v-else class="btn btn-primary" :disabled="confirming" @click="confirmTask">
           {{ confirming ? '⏳ Menyimpan…' : '✅ Konfirmasi Serah Terima' }}
         </button>
       </div>
@@ -340,6 +359,9 @@ onBeforeUnmount(() => {
         </button>
       </nav>
     </template>
+
+    <!-- v2.132.0 — profil & ganti kendaraan (dibuka dari blok identitas header) -->
+    <DriverProfileSheet v-model="profileOpen" @changed="onProfileChanged" />
 
     <!-- Panel antrean & status sinkronisasi -->
     <div v-if="syncOpen" class="d-sync-overlay" @click.self="syncOpen = false">
@@ -410,6 +432,12 @@ onBeforeUnmount(() => {
 }
 .d-logo { width: 34px; height: 34px; border-radius: 9px; }
 .d-name { font-weight: 800; font-size: 14px; }
+.d-ident {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 1px;
+  background: none; border: none; padding: 0; cursor: pointer; text-align: left;
+  color: inherit; min-width: 0;
+}
+.d-ident-sub { font-size: 10px; }
 .d-status {
   display: flex; align-items: center; gap: 10px; padding: 6px 14px; font-size: 11px;
   border-bottom: 1px solid var(--border); position: sticky; top: 59px; z-index: 19;

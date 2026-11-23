@@ -41,8 +41,10 @@ step() {
 }
 
 # 1. Container
+# Healthcheck punya start_period; setelah `compose up` status sempat
+# "health: starting" selama ±1 menit. Tunggu, jangan langsung vonis gagal.
 step "Container $WEB up & healthy" \
-  "docker ps --filter name=$WEB --format '{{.Status}}' | grep -q 'healthy'"
+  "for i in \$(seq 1 30); do docker ps --filter name=$WEB --format '{{.Status}}' | grep -q 'healthy' && exit 0; sleep 5; done; exit 1"
 
 # 2. /api/health
 step "/api/health merespons 200" \

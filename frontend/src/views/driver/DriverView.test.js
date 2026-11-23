@@ -25,6 +25,14 @@ vi.mock('../../utils/gps', () => ({
 let pendingRows = [] // v2.73.0 — assignment yang belum dikonfirmasi (default kosong)
 let pendingLpjRows = [] // kasbon berstatus FUNDS_WITH_DRIVER
 
+// v2.132.0 — konteks panel profil (kendaraan kosong / rekan / pengajuan)
+let swapContext = {
+  me: { driver: 'RIVAN', nopol: 'L 1 AB', vehicle_type: 'AVANZA' },
+  free_vehicles: [{ nopol: 'L 9 ZZ', vehicle_type: 'AVANZA' }],
+  partners: [],
+  requests: [],
+}
+
 function mockApi() {
   apiMock.mockImplementation((path, opts = {}) => {
     if (path === '/api/driver/me') return Promise.resolve({ name: 'RIVAN', display_name: 'Rivan', nopol: 'L 1 AB', vehicle_type: 'AVANZA', bbm_type: 'PERTALITE', is_active: true, initial_odo_km: 81441, last_odo_km: 81441 })
@@ -38,6 +46,7 @@ function mockApi() {
       return Promise.resolve({ data: [] })
     }
     if (path === '/api/assignments/pending') return Promise.resolve(pendingRows)
+    if (path === '/api/assignments/swap-context') return Promise.resolve(swapContext)
     if (path === '/api/assignments/confirm') return Promise.resolve({ status: 'success', msg: 'Konfirmasi L 1 AB berhasil! ✅' })
     if (path.includes('/api/appointments/driver-today')) return Promise.resolve([])
     if (path.includes('/api/vehicle-allowed-bbm/')) return Promise.resolve([])
@@ -232,6 +241,52 @@ describe('Konfirmasi serah terima kendaraan (v2.73.0)', () => {
     expect(apiMock).toHaveBeenCalledWith('/api/assignments/confirm', { method: 'POST', body: { nopol: 'L 1 AB' } })
     // setelah sukses banner hilang
     expect(w.text()).not.toContain('Serah Terima Kendaraan')
+    w.unmount()
+  })
+})
+
+describe('Profil & kendaraan (v2.132.0)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    pendingRows = []
+    pendingLpjRows = []
+    swapContext = {
+      me: { driver: 'RIVAN', nopol: 'L 1 AB', vehicle_type: 'AVANZA' },
+      free_vehicles: [{ nopol: 'L 9 ZZ', vehicle_type: 'AVANZA' }],
+      partners: [],
+      requests: [],
+    }
+    localStorage.setItem('bpf_onboarded:rivan', '1')
+    localStorage.setItem('driverTab', 'bbm')
+  })
+  afterEach(() => { vi.unstubAllGlobals() })
+
+  it('blok identitas header membuka panel profil & kendaraan', async () => {
+    const w = await mountView()
+    const btn = w.find('button[aria-label="Buka profil & kendaraan"]')
+    expect(btn.exists()).toBe(true)
+    await btn.trigger('click')
+    await flushPromises()
+    expect(apiMock).toHaveBeenCalledWith('/api/assignments/swap-context')
+    expect(w.text()).toContain('Profil & Kendaraan')
+    expect(w.text()).toContain('Kendaraan kosong (1)')
+    expect(w.text()).toContain('L 9 ZZ')
+    w.unmount()
+  })
+
+  it('banner serah terima hasil tukar membuka panel bukti, bukan confirm', async () => {
+    pendingRows = [{
+      driver_name: 'RIVAN', nopol: 'L 1 AB', vehicle_type: 'AVANZA',
+      handover_request_id: 9,
+    }]
+    const w = await mountView()
+    expect(w.text()).toContain('Isi Serah Terima')
+    await w.findAll('button')
+      .find((b) => b.text().includes('Isi Serah Terima')).trigger('click')
+    await flushPromises()
+    expect(apiMock).toHaveBeenCalledWith('/api/assignments/swap-context')
+    expect(apiMock.mock.calls.some((c) => c[0] === '/api/assignments/confirm')).toBe(false)
+    expect(w.text()).toContain('Profil & Kendaraan')
     w.unmount()
   })
 })
