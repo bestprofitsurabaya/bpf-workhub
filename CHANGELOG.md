@@ -7,6 +7,31 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.131.4 — 23 November 2026 (Pulihkan klaim BBM SBY/MALANG)
+
+- Insiden produksi: tabel `vehicle_bbm_allowed` hilang dari DB master
+  (DB untuk cabang SBY & MALANG) saat rekonsiliasi 20 Nov. Akibatnya
+  `validate_bbm_for_vehicle` menolak **semua** klaim BBM driver dengan 400
+  "Table ... doesn't exist"; tidak ada transaksi 21–23 Nov.
+- Tabel dipulihkan di master dengan struktur yang sama seperti DB cabang
+  (tanpa foreign key, karena `vehicles.vehicle_type` di master tidak unik)
+  dan diisi 4 kombinasi standar (AVANZA/INNOVA × PERTALITE/PERTAMAX).
+- `modules/vehicle_bbm_schema.py`: ensure idempoten saat startup untuk master
+  dan seluruh cabang; `validate_bbm_for_vehicle` membuat ulang tabel sekali
+  bila error 1146 lalu mengulang query.
+- `scripts/overall_check.sh`: cek drift skema master terhadap `init.sql`
+  supaya tabel hilang tertangkap sebelum rilis.
+- `check_version_stamps.py --with-db` kini membandingkan stamp DB dengan
+  versi kode; sebelumnya DB tertinggal tetap dilaporkan ✅ asal seragam.
+- Verifikasi: 8 driver aktif SBY valid; pytest + vitest + smoke lulus;
+  drift checker ✅ (45 tabel).
+- Rilis B (optimasi lanjutan): QR verifikasi pada PDF resmi service
+  (`qrcode[pil]==8.2`, payload `BPF-SERVICE:<id>:<sha256>`), perbaikan
+  nilai form yang terkliping, dan lazy-load `chart.js` pada Analytics
+  (chunk 215 → 13 kB; halaman driver tidak ikut memuatnya).
+
+---
+
 ## v2.131.3 — 23 November 2026 (Optimasi CI, E2E & alur harian)
 
 - CI: `scripts/check_schema_drift.py` + seed `init.sql` sebelum `Run tests`;

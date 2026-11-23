@@ -12,6 +12,7 @@ from modules.voucher_schema import ensure_voucher_schema  # v2.107.0
 from modules.bbm_guard import register_proof_hashes as _register_proof_hashes
 from modules import idempotency
 from modules.gps_schema import parse_gps_at, parse_gps_accuracy, ensure_gps_schema
+from modules.vehicle_bbm_schema import ensure_vehicle_bbm_schema  # v2.131.4
 from datetime import datetime
 import os
 import json
@@ -60,7 +61,11 @@ def register_driver_routes(app, socketio):
                     ok = True
                     break
                 _time.sleep(3)
-            if ok and ensure_fuel_prices_schema():
+            if ok:
+                # v2.131.4: pulihkan tabel yang bisa hilang saat restore DB
+                # (insiden 20 Nov: klaim BBM SBY/MALANG mati 3 hari).
+                ensure_vehicle_bbm_schema()
+                ensure_fuel_prices_schema()
                 ensure_voucher_schema()
                 from modules.branch_manager import list_branches
                 from modules.config import get_db_connection as _gc
@@ -70,6 +75,7 @@ def register_driver_routes(app, socketio):
                         c = _gc(branch_code=b.get('code'))
                         if c:
                             ensure_anti_fraud_schema(c)
+                            ensure_vehicle_bbm_schema(c)
                             ensure_fuel_prices_schema(c)
                             ensure_voucher_schema(c)
                             try:

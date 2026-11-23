@@ -52,6 +52,10 @@ step "/api/health merespons 200" \
 step "Stamp versi 7 titik + DB konsisten" \
   "docker exec -w /app $WEB python3 scripts/check_version_stamps.py --with-db | grep -q '✅ Semua titik stamp konsisten'"
 
+# 3b. Skema master vs init.sql (v2.131.4: tabel hilang = klaim BBM mati)
+step "Skema DB master sesuai init.sql" \
+  "docker exec -w /app $WEB python3 scripts/check_schema_drift.py"
+
 # 4. pytest penuh
 step "Pytest penuh (guaranteed no-fail summary)" \
   "docker exec -w /app $WEB sh -c 'python3 -m pytest tests/ -q' | tail -1"

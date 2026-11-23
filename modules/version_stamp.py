@@ -104,12 +104,18 @@ def check_all(root=None):
 def check_db_stamps():
     """Probe stamp DB (titik opsional ke-8): master + branches.system_version.
 
+    Nilai DB HARUS sama dengan versi kode (IDENTITY_DEFAULTS), bukan sekadar
+    seragam antar cabang. v2.131.4: sebelumnya checker hanya menuntut
+    uniformity sehingga DB yang tertinggal di v2.131.3 tetap dilaporkan ✅.
+
     Hanya jalan di tempat dengan DB (container/server). Tidak pernah raise —
     error jadi titik ok=False dengan pesan error.
     """
     result = []
     try:
         from modules.config import get_master_connection
+        from modules.company_identity import IDENTITY_DEFAULTS
+        expected = IDENTITY_DEFAULTS.get('system_version')
         conn = get_master_connection()
         if not conn:
             return [{'name': 'DB master (system_config)', 'value': None, 'ok': False, 'error': 'koneksi DB gagal'}]
@@ -117,14 +123,26 @@ def check_db_stamps():
         try:
             cur.execute("SELECT config_value FROM system_config WHERE config_key='system_version'")
             row = cur.fetchone()
-            result.append({'name': 'DB master (system_config)', 'value': row and row['config_value'], 'ok': bool(row)})
+            master_val = row and row['config_value']
+            result.append({
+                'name': 'DB master (system_config)',
+                'value': master_val,
+                'ok': bool(master_val) and master_val == expected,
+                'error': None if master_val == expected else f'kode {expected}',
+            })
             cur.execute("SELECT DISTINCT system_version FROM branches")
             vals = sorted({r['system_version'] for r in cur.fetchall() if r['system_version']})
+            if len(vals) > 1:
+                err = 'tidak seragam: ' + ', '.join(vals)
+            elif len(vals) == 1 and vals[0] != expected:
+                err = f'kode {expected}'
+            else:
+                err = None
             result.append({
                 'name': 'DB branches.system_version',
                 'value': vals[0] if len(vals) == 1 else (vals or None),
-                'ok': len(vals) == 1,
-                'error': None if len(vals) <= 1 else 'tidak seragam: ' + ', '.join(vals),
+                'ok': len(vals) == 1 and vals[0] == expected,
+                'error': err,
             })
         finally:
             cur.close()

@@ -525,15 +525,42 @@ def log_activity_async(tx_id, action, user_type, user_name, old_data=None, new_d
     production_pool_executor.submit(_log)
 
 def validate_bbm_for_vehicle(vehicle_type, bbm_type):
-    """Validate BBM type for vehicle"""
+    """Validate BBM type for vehicle.
+
+    v2.131.4: bila tabel `vehicle_bbm_allowed` hilang (mis. setelah restore
+    DB), tabel dibuat ulang + di-seed lalu query diulang sekali. Insiden
+    20 Nov 2026: tabel hilang dari DB master (SBY+MALANG) sehingga SEMUA
+    klaim BBM driver ditolak 400 selama 3 hari.
+    """
     from modules.config import get_db_connection
+    conn = None
     try:
         conn = get_db_connection()
         if not conn: return {'valid': False, 'error': 'DB error'}
-        cursor = conn.cursor(dictionary=True)
-        cursor.execute("SELECT * FROM vehicle_bbm_allowed WHERE vehicle_type=%s AND bbm_type=%s", (vehicle_type, bbm_type))
-        result = cursor.fetchone()
-        cursor.close(); conn.close()
+
+        def _query():
+            cursor = conn.cursor(dictionary=True)
+            try:
+                cursor.execute(
+                    "SELECT * FROM vehicle_bbm_allowed "
+                    "WHERE vehicle_type=%s AND bbm_type=%s",
+                    (vehicle_type, bbm_type))
+                return cursor.fetchone()
+            finally:
+                cursor.close()
+
+        try:
+            result = _query()
+        except Exception as exc:
+            missing = (getattr(exc, 'errno', None) == 1146
+                       and 'vehicle_bbm_allowed' in str(exc))
+            if not missing:
+                raise
+            from modules.vehicle_bbm_schema import ensure_vehicle_bbm_schema
+            if not ensure_vehicle_bbm_schema(conn):
+                raise
+            result = _query()
+
         if result:
             return {'valid': True, 'limits': {
                 'min': result['min_km_per_liter'], 'max': result['max_km_per_liter'],
@@ -542,6 +569,12 @@ def validate_bbm_for_vehicle(vehicle_type, bbm_type):
         return {'valid': False, 'error': f'BBM {bbm_type} tidak tersedia untuk {vehicle_type}'}
     except Exception as e:
         return {'valid': False, 'error': str(e)}
+    finally:
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
 def get_or_create_driver(driver_name, nopol, vehicle_type, bbm_type='PERTALITE'):
     """Auto-discover or create driver profile"""

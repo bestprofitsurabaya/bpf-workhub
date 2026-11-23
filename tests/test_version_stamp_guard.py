@@ -84,3 +84,67 @@ def test_write_branch_identity_tak_bisa_menahan_versi_lama():
 def _stamp_points():
     from modules.version_stamp import STAMP_POINTS
     return STAMP_POINTS
+
+class _DbCursor:
+    def __init__(self, master, branches):
+        self.master = master
+        self.branches = branches
+
+    def execute(self, sql):
+        self._branches_query = 'branches' in sql
+
+    def fetchone(self):
+        return {'config_value': self.master}
+
+    def fetchall(self):
+        return [{'system_version': v} for v in self.branches]
+
+    def close(self):
+        pass
+
+
+class _DbConn:
+    def __init__(self, master, branches):
+        self.master = master
+        self.branches = branches
+
+    def cursor(self, dictionary=False):
+        return _DbCursor(self.master, self.branches)
+
+    def close(self):
+        pass
+
+
+def _patch_db(monkeypatch, master, branches):
+    import modules.config as config
+    monkeypatch.setattr(
+        config, 'get_master_connection',
+        lambda: _DbConn(master, branches))
+
+
+def test_check_db_stamps_lolos_saat_sama_dengan_versi_kode(monkeypatch):
+    from modules.company_identity import IDENTITY_DEFAULTS
+    from modules.version_stamp import check_db_stamps
+    ver = IDENTITY_DEFAULTS['system_version']
+    _patch_db(monkeypatch, ver, [ver])
+    db = check_db_stamps()
+    assert all(d['ok'] for d in db), db
+
+
+def test_check_db_stamps_menolak_db_tertinggal(monkeypatch):
+    """Regresi v2.131.4: DB v2.131.3 vs kode v2.131.4 harus GAGAL."""
+    from modules.version_stamp import check_db_stamps
+    _patch_db(monkeypatch, 'v0.0.1', ['v0.0.1'])
+    db = check_db_stamps()
+    assert not all(d['ok'] for d in db), db
+    assert any(d.get('error') for d in db)
+
+
+def test_check_db_stamps_menolak_cabang_tidak_seragam(monkeypatch):
+    from modules.company_identity import IDENTITY_DEFAULTS
+    from modules.version_stamp import check_db_stamps
+    ver = IDENTITY_DEFAULTS['system_version']
+    _patch_db(monkeypatch, ver, [ver, 'v0.0.1'])
+    db = check_db_stamps()
+    assert not all(d['ok'] for d in db), db
+
