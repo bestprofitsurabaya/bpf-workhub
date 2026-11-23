@@ -2592,3 +2592,14 @@ tes & verifikasi; perubahan produksi butuh konfirmasi eksplisit.
 - Submit 2 poin keluhan → toast sukses, riwayat driver menampilkan
   `SRV-SBY-20261123-0003` dengan keluhan `1. … / 2. …` rapi.
 - Data uji dihapus; tabel kembali kosong. Sesi browser audit ditutup.
+
+### Dokumen panduan resmi PDF (23 Nov, 12:00 WIB)
+- Dibuat 4 dokumen dengan kop perusahaan & versi v2.131.1:
+  1. `Panduan_Resmi_Driver_v2.131.1.pdf` (6 halaman)
+  2. `Panduan_Resmi_GA_v2.131.1.pdf` (6 halaman)
+  3. `Panduan_Service_Driver_v2.131.1.pdf` (5 halaman)
+  4. `Panduan_Service_GA_v2.131.1.pdf` (5 halaman)
+- Generator: `scripts/generate_user_guide_driver_ga.py`; ilustrasi dari
+  `docs/public/screenshots/`. Tampilan diverifikasi dengan render Poppler
+  (cover, daftar isi, tabel, dan screenshot terbaca rapi).
+- File PDF disimpan di `C:\Users\it.ef\Documents\`.
