@@ -8,7 +8,10 @@ USE bpf_asset_system;
 -- Vehicles
 CREATE TABLE IF NOT EXISTS vehicles (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    vehicle_type VARCHAR(50) NOT NULL UNIQUE,
+    -- v2.131.5: produksi menyimpan SATU BARIS PER NOPOL (banyak AVANZA),
+    -- jadi vehicle_type TIDAK unik. FK apa pun ke vehicles(vehicle_type)
+    -- karena itu tidak sah dan sudah dihapus dari tabel turunan.
+    vehicle_type VARCHAR(50) NOT NULL,
     -- v2.47.1: nopol & bbm_default dipakai endpoint /api/vehicles/*
     -- (SEBELUMNYA hanya ada di DB produksi hasil ALTER manual — fresh
     -- install dari init.sql langsung 500 'Unknown column nopol').
@@ -50,7 +53,6 @@ CREATE TABLE IF NOT EXISTS vehicle_bbm_allowed (
     is_default BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (vehicle_type) REFERENCES vehicles(vehicle_type) ON DELETE CASCADE,
     FOREIGN KEY (bbm_type) REFERENCES bbm_types(name) ON DELETE CASCADE,
     UNIQUE KEY unique_vehicle_bbm (vehicle_type, bbm_type)
 );
@@ -145,7 +147,6 @@ CREATE TABLE IF NOT EXISTS transactions (
     transaction_notes TEXT DEFAULT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (vehicle_type) REFERENCES vehicles(vehicle_type),
     FOREIGN KEY (bbm_type) REFERENCES bbm_types(name),
     INDEX idx_nopol (nopol),
     INDEX idx_status (status),

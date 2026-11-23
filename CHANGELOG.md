@@ -7,6 +7,23 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.131.5 — 23 November 2026 (Skema kendaraan selaras produksi)
+
+- `init.sql` tidak lagi menuntut `vehicles.vehicle_type` UNIQUE. Produksi
+  menyimpan **satu baris per nopol** (banyak AVANZA), sehingga fresh install
+  gagal saat menambah kendaraan kedua bertipe sama dan FK ke
+  `vehicles(vehicle_type)` mustahil.
+- Hapus FK `vehicle_bbm_allowed.vehicle_type` dan `transactions.vehicle_type`
+  ke `vehicles(vehicle_type)`; FK ke `bbm_types(name)` tetap dipertahankan.
+- `scripts/check_schema_drift.py` kini ikut membandingkan unique constraint
+  (PK/UNIQUE) terhadap `init.sql`, bukan hanya tabel & kolom — drift yang
+  memicu insiden BBM 20 Nov bisa tertangkap sebelum rilis. Prefix index
+  (`address(255)`) dan nama index berbeda tetap dianggap sama.
+- Verifikasi: fresh install di DB scratch menerima 2 kendaraan AVANZA;
+  drift checker produksi ✅ 45 tabel; pytest + vitest + smoke lulus.
+
+---
+
 ## v2.131.4 — 23 November 2026 (Pulihkan klaim BBM SBY/MALANG)
 
 - Insiden produksi: tabel `vehicle_bbm_allowed` hilang dari DB master

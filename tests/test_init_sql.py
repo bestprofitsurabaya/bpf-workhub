@@ -102,3 +102,30 @@ def test_applicants_schema_has_expected_columns():
                 'upline', 'user_field'):
         assert re.search(rf'^\s*{col}\s+', body, re.I | re.M), \
             f'applicants.{col} hilang'
+
+def test_vehicles_per_nopol_tidak_unik_per_tipe():
+    """Produksi menyimpan satu baris per nopol (7 AVANZA).
+
+    UNIQUE(vehicle_type) membuat fresh install gagal saat menambah kendaraan
+    kedua dengan tipe sama, dan membuat FK ke vehicles(vehicle_type) mustahil.
+    """
+    body = dict(_table_blocks())['vehicles']
+    line = next(
+        (ln.strip() for ln in body.splitlines()
+         if ln.strip().lower().startswith('vehicle_type ')), '')
+    assert line, 'kolom vehicles.vehicle_type hilang dari init.sql'
+    assert 'UNIQUE' not in line.upper(), (
+        'vehicles.vehicle_type tidak boleh UNIQUE — model kendaraan per nopol')
+    assert re.search(r'UNIQUE\s+KEY\s+idx_nopol\s*\(\s*nopol\s*\)', body, re.I), (
+        'nopol harus tetap unik')
+
+
+def test_tidak_ada_fk_ke_vehicles_vehicle_type():
+    """FK ke vehicles(vehicle_type) hanya sah bila vehicle_type unik."""
+    sql = INIT_SQL.read_text(encoding='utf-8')
+    offenders = re.findall(
+        r'FOREIGN\s+KEY\s*\(\s*vehicle_type\s*\)\s*REFERENCES\s+'
+        r'vehicles\s*\(\s*vehicle_type\s*\)', sql, re.I)
+    assert not offenders, (
+        f'{len(offenders)} FK ke vehicles(vehicle_type) tidak valid karena '
+        'vehicle_type tidak unik')

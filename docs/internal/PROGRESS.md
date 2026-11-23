@@ -4,7 +4,7 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 **Terakhir diperbarui:** 2026-11-23<br>
 **Branch:** `main`<br>
-**Versi terbaru:** v2.131.4 (23 Nov — klaim BBM SBY/MALANG pulih: `vehicle_bbm_allowed` hilang dari DB master saat rekonsiliasi 20 Nov) · v2.130.0 (20 Nov — halaman driver memakai nama dari Pengaturan (`drivers.display_name`), bukan username) · v2.129.1 (20 Nov — Web Push driver akhirnya sampai: `ttl=86400` + `Urgency: high`; TTL 0 membuat FCM membuang pesan saat HP tidak terhubung) · v2.128.4 (19 Nov — motto brand di halaman login: "Satu Platform, Semua Operasional" menggantikan nama kota "Jakarta") · v2.128.3 (19 Nov — Web Push benar-benar terkirim: objek Vapid, bukan string PEM) · v2.128.2 (19 Nov — bersihkan langganan push mati di DB cabang yang benar) · v2.112.0 (17 Nov — MFA TOTP: login dua langkah, kebijakan admin off/optional/required_roles, kode pemulihan, panduan Microsoft Authenticator) · v2.111.0 (17 Nov — OCR NIK dari crop label + validasi tanggal lahir) · v2.108.2 (13 Nov — hapus data uji FirstWork oleh admin/traineer, demo per cabang bisa dibersihkan, seed demo idempoten) · v2.108.1 (13 Nov — validasi server trip & bukti foto) · v2.104.0 (12 Nov — Fase 3 selesai: KPI bisa diklik ke daftar baris terfilter, antrean bawa baris nyata + aksi GA, antrean keempat SPBU mismatch) · v2.103.0 (12 Nov — meja kerja BBM: isolasi cabang, definisi metrik tunggal, context bar, antrean Perlu Tindakan) · v2.84.0 (12 Nov — semua cabang wajib tautan ber-token + QR statis lokal) · v2.83.0 (12 Nov — ID Fingerprint & ID BPF: backfill 1.831 baris, panel traineer, koreksi per baris) · v2.82.0 (11 Nov — audit isolasi cabang FirstWork: token per cabang, KTP tertutup, NIK disamarkan) · v2.81.0 (11 Nov — Profil Saya) · v2.80.0 (11 Nov — Absensi FirstWork + migrasi 1.831 baris sheet) · v2.77.0 (3 Nov — OTP SubsidiTepat: anti request ganda, supervisor verifikasi status, cooldown resend; siklus OTP end-to-end OK — kode diverifikasi → token → 192 transaksi SPBU terimpor)
+**Versi terbaru:** v2.131.5 (23 Nov — `init.sql` selaras produksi: kendaraan per-nopol, cek unique constraint) · v2.131.4 (23 Nov — klaim BBM SBY/MALANG pulih: `vehicle_bbm_allowed` hilang dari DB master saat rekonsiliasi 20 Nov) · v2.130.0 (20 Nov — halaman driver memakai nama dari Pengaturan (`drivers.display_name`), bukan username) · v2.129.1 (20 Nov — Web Push driver akhirnya sampai: `ttl=86400` + `Urgency: high`; TTL 0 membuat FCM membuang pesan saat HP tidak terhubung) · v2.128.4 (19 Nov — motto brand di halaman login: "Satu Platform, Semua Operasional" menggantikan nama kota "Jakarta") · v2.128.3 (19 Nov — Web Push benar-benar terkirim: objek Vapid, bukan string PEM) · v2.128.2 (19 Nov — bersihkan langganan push mati di DB cabang yang benar) · v2.112.0 (17 Nov — MFA TOTP: login dua langkah, kebijakan admin off/optional/required_roles, kode pemulihan, panduan Microsoft Authenticator) · v2.111.0 (17 Nov — OCR NIK dari crop label + validasi tanggal lahir) · v2.108.2 (13 Nov — hapus data uji FirstWork oleh admin/traineer, demo per cabang bisa dibersihkan, seed demo idempoten) · v2.108.1 (13 Nov — validasi server trip & bukti foto) · v2.104.0 (12 Nov — Fase 3 selesai: KPI bisa diklik ke daftar baris terfilter, antrean bawa baris nyata + aksi GA, antrean keempat SPBU mismatch) · v2.103.0 (12 Nov — meja kerja BBM: isolasi cabang, definisi metrik tunggal, context bar, antrean Perlu Tindakan) · v2.84.0 (12 Nov — semua cabang wajib tautan ber-token + QR statis lokal) · v2.83.0 (12 Nov — ID Fingerprint & ID BPF: backfill 1.831 baris, panel traineer, koreksi per baris) · v2.82.0 (11 Nov — audit isolasi cabang FirstWork: token per cabang, KTP tertutup, NIK disamarkan) · v2.81.0 (11 Nov — Profil Saya) · v2.80.0 (11 Nov — Absensi FirstWork + migrasi 1.831 baris sheet) · v2.77.0 (3 Nov — OTP SubsidiTepat: anti request ganda, supervisor verifikasi status, cooldown resend; siklus OTP end-to-end OK — kode diverifikasi → token → 192 transaksi SPBU terimpor)
 
 
 ---
@@ -21,6 +21,23 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 - Verifikasi: 429 vitest, pytest terkait + regresi, E2E Rilis A 3/3 tetap lolos.
 - Versi v2.131.4 sudah dipakai bersama perbaikan insiden `vehicle_bbm_allowed`
   di bawah; stamp 7 titik + DB disinkron saat deploy.
+
+---
+
+## 🧱 23 Nov 2026 — Skema kendaraan selaras produksi (v2.131.5)
+
+- `init.sql` masih menuntut `vehicles.vehicle_type` UNIQUE padahal produksi
+  menyimpan satu baris per nopol (7 AVANZA di SBY). Fresh install akan gagal
+  menambah kendaraan kedua bertipe sama; FK ke `vehicles(vehicle_type)` juga
+  mustahil dan sudah dihapus dari `vehicle_bbm_allowed` & `transactions`.
+- `check_schema_drift.py` diperluas: unique constraint (PK/UNIQUE) kini
+  dibandingkan per kumpulan kolom, jadi `vehicle_type` yang kehilangan UNIQUE
+  tidak lagi lolos diam-diam. Prefix index `address(255)` didukung.
+- Diverifikasi dengan fresh install di DB scratch (`bpf_schema_test`):
+  2 baris AVANZA masuk, skema ✅, DB scratch dihapus. Produksi tidak diubah
+  (memang sudah tanpa UNIQUE/FK tersebut).
+- Catatan: `check_version_stamps.py` (v2.131.4) sudah menuntut stamp DB sama
+  dengan versi kode.
 
 ---
 
