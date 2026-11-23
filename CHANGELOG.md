@@ -7,6 +7,22 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.131.3 — 23 November 2026 (Optimasi CI, E2E & alur harian)
+
+- CI: `scripts/check_schema_drift.py` + seed `init.sql` sebelum `Run tests`;
+  job E2E Playwright untuk 3 alur kritis (driver service, GA review+PDF,
+  Finance lihat klaim siap bayar) dengan guard anti-produksi.
+- GA: filter status/tanggal/pencarian dan bulk review pada Catatan Service
+  (maks. 50 ID, all-or-nothing, audit via `activity_logs`).
+- Finance: notifikasi realtime `new_finance_task` saat klaim disetujui GA;
+  store realtime kini berlangganan event tersebut dan `new_service_report`.
+- Driver: riwayat 5 feedback km/L terakhir di bawah kartu feedback BBM,
+  dengan pembatasan kepemilikan nopol (anti-IDOR).
+- Perbaikan audit service: `activity_logs.transaction_id = NULL` agar tidak
+  melanggar FK ke `transactions`.
+
+---
+
 ## v2.131.2 — 23 November 2026 (Seragamkan tab Service)
 
 - `ServiceTab.vue` — tampilan diselaraskan dengan tab BBM/Trip/OT: field

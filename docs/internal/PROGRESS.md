@@ -9,6 +9,16 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 ---
 
+## ⚙️ 23 Nov 2026 — Rilis A optimasi (v2.131.3)
+
+- 10 commit hasil SDD (5 task + 3 fix). Final review READY; 1 temuan audit FK
+  diperbaiki di commit c1a036e; scoped re-review bersih.
+- Verifikasi: backend pytest 20+ terkait & regresi, frontend 426 test,
+  E2E Playwright 3/3, npm audit bersih.
+- Stamp 7 titik + DB akan disinkron saat deploy.
+
+---
+
 ## 🎨 23 Nov 2026 — Tab Service diseragamkan (v2.131.2)
 
 - Audit UI PWA driver: tab Service masih pakai kartu abu/row label sementara
