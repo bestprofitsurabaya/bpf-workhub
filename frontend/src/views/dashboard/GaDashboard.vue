@@ -31,6 +31,12 @@ const gaDetail = ref(null) // wave-18A: payload detail (status terbaru) untuk to
 const serviceReports = ref([])
 const serviceFor = ref(null)
 const serviceNote = ref('')
+// Task 3 — filter & bulk review catatan service
+const svcFilterStatus = ref('')
+const svcFilterFrom = ref('')
+const svcFilterTo = ref('')
+const svcFilterQ = ref('')
+const svcSelected = ref([])
 
 function openDetail(tx) {
   detailFor.value = tx
@@ -94,6 +100,67 @@ function printServicePdf(r) {
   window.open(`/api/ga/service-reports/${r.id}/pdf`, '_blank')
 }
 
+function applyServiceFilter() {
+  svcSelected.value = []
+  return load()
+}
+
+function resetServiceFilter() {
+  svcFilterStatus.value = ''
+  svcFilterFrom.value = ''
+  svcFilterTo.value = ''
+  svcFilterQ.value = ''
+  svcSelected.value = []
+  return load()
+}
+
+function toggleService(id) {
+  const i = svcSelected.value.indexOf(id)
+  if (i >= 0) svcSelected.value.splice(i, 1)
+  else svcSelected.value.push(id)
+}
+
+async function bulkServiceReview(status) {
+  if (!svcSelected.value.length) return
+  const ids = [...svcSelected.value]
+  let note = ''
+  if (status === 'REJECTED') {
+    const answer = await ask(
+      `Tolak ${ids.length} laporan service? Catatan GA wajib diisi.`,
+      {
+        title: 'Tolak laporan service', confirmText: 'Ya, tolak', danger: true,
+        input: true, placeholder: 'Alasan penolakan (wajib)',
+      }
+    )
+    if (!answer) return
+    note = answer
+  } else {
+    const ok = await ask(
+      `Tandai ${ids.length} laporan service sebagai selesai?`,
+      { title: 'Tandai selesai', confirmText: 'Ya, tandai selesai' }
+    )
+    if (!ok) return
+  }
+  busy.value = true
+  try {
+    const body = { ids, status }
+    if (status === 'REJECTED') body.ga_note = note
+    await api('/api/ga/service-reports/bulk-review', { method: 'POST', body })
+    if (typeof emitToast === 'function') {
+      emitToast(status === 'REVIEWED'
+        ? `✅ ${ids.length} laporan ditandai selesai`
+        : `✕ ${ids.length} laporan ditolak`)
+    }
+    svcSelected.value = []
+    await load()
+  } catch (e) {
+    if (typeof emitToast === 'function') emitToast('❌ ' + (e.message || 'Gagal memperbarui'), 'error')
+    else alert(e.message || 'Gagal memperbarui')
+  } finally {
+    busy.value = false
+  }
+}
+
 const fmt = formatRupiah
 
 const waitingCash = () =>
@@ -108,7 +175,12 @@ async function load() {
       api('/api/queue', { params: { tab: 'ga' } }).catch(() => []),
       api('/api/cash/history').catch(() => []),
       api('/api/trips', { params: { status: 'pending' } }).catch(() => ({ data: [] })),
-      api('/api/ga/service-reports').catch(() => ({ data: [] })),
+      api('/api/ga/service-reports', { params: {
+        status: svcFilterStatus.value,
+        from: svcFilterFrom.value,
+        to: svcFilterTo.value,
+        q: svcFilterQ.value,
+      } }).catch(() => ({ data: [] })),
     ])
     stats.value = s
     queue.value = q || []
@@ -283,10 +355,37 @@ watch(
           <h3 style="margin:0;">🔧 Catatan Service Mobil (Driver → GA)</h3>
           <span class="muted" style="font-size:11px;">{{ serviceReports.filter(r => r.status === 'SUBMITTED').length }} menunggu diproses</span>
         </div>
+        <div class="row svc-filter" style="gap:8px;align-items:flex-end;margin-top:8px;">
+          <label class="muted" style="font-size:11px;">Status
+            <select class="inp" v-model="svcFilterStatus" style="display:block;margin-top:4px;">
+              <option value="">Semua</option>
+              <option value="SUBMITTED">SUBMITTED</option>
+              <option value="REVIEWED">REVIEWED</option>
+              <option value="REJECTED">REJECTED</option>
+            </select>
+          </label>
+          <label class="muted" style="font-size:11px;">Dari
+            <input class="inp" type="date" v-model="svcFilterFrom" style="display:block;margin-top:4px;">
+          </label>
+          <label class="muted" style="font-size:11px;">Sampai
+            <input class="inp" type="date" v-model="svcFilterTo" style="display:block;margin-top:4px;">
+          </label>
+          <label class="muted" style="font-size:11px;">Cari
+            <input class="inp" v-model="svcFilterQ" placeholder="No. form / nopol / keluhan" style="display:block;margin-top:4px;">
+          </label>
+          <button class="btn btn-sm" @click="applyServiceFilter">Terapkan</button>
+          <button class="btn btn-sm" @click="resetServiceFilter">Reset</button>
+        </div>
+        <div class="row" style="gap:8px;align-items:center;margin-top:8px;">
+          <span class="muted" style="font-size:12px;">{{ svcSelected.length }} dipilih</span>
+          <button class="btn btn-sm btn-primary" :disabled="busy || !svcSelected.length" @click="bulkServiceReview('REVIEWED')">✅ Tandai selesai ({{ svcSelected.length }})</button>
+          <button class="btn btn-sm btn-danger" :disabled="busy || !svcSelected.length" @click="bulkServiceReview('REJECTED')">✕ Tolak ({{ svcSelected.length }})</button>
+        </div>
         <table class="table" style="margin-top:8px;">
-          <thead><tr><th>No. Form</th><th>Driver</th><th>Nopol</th><th>KM</th><th>Status</th><th>Tanggal</th><th></th></tr></thead>
+          <thead><tr><th></th><th>No. Form</th><th>Driver</th><th>Nopol</th><th>KM</th><th>Status</th><th>Tanggal</th><th></th></tr></thead>
           <tbody>
             <tr v-for="r in serviceReports" :key="r.id">
+              <td><input type="checkbox" :disabled="r.status !== 'SUBMITTED'" :checked="svcSelected.includes(r.id)" @change="toggleService(r.id)" :title="r.status === 'SUBMITTED' ? 'Pilih untuk aksi bulk' : 'Sudah diproses'"></td>
               <td>{{ r.display_id }}</td>
               <td>{{ r.driver_display_name || r.driver_name }}</td>
               <td>{{ r.nopol }}</td>
@@ -300,7 +399,7 @@ watch(
                 <button class="btn btn-sm" style="margin-left:6px;" @click="printServicePdf(r)" title="Cetak dokumen resmi">📄 Cetak</button>
               </td>
             </tr>
-            <tr v-if="!serviceReports.length"><td colspan="7" class="muted">Belum ada catatan service dari driver.</td></tr>
+            <tr v-if="!serviceReports.length"><td colspan="8" class="muted">Belum ada catatan service dari driver.</td></tr>
           </tbody>
         </table>
       </div>

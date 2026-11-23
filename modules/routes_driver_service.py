@@ -129,10 +129,37 @@ def register_driver_service_routes(app):
     @role_required(GA_ROLES)
     def api_ga_service_reports():
         status = (request.args.get('status') or '').strip().upper()
+        date_from = (request.args.get('from') or '').strip()
+        date_to = (request.args.get('to') or '').strip()
+        q = (request.args.get('q') or '').strip()
+
+        def _parse_date(value):
+            try:
+                return datetime.strptime(value, '%Y-%m-%d')
+            except (ValueError, TypeError):
+                return None
+
+        dfrom = _parse_date(date_from) if date_from else None
+        dto = _parse_date(date_to) if date_to else None
+        if (date_from and not dfrom) or (date_to and not dto):
+            return jsonify({'status': 'error', 'msg': 'Format tanggal harus YYYY-MM-DD'}), 400
+        if dfrom and dto and dfrom > dto:
+            return jsonify({'status': 'error', 'msg': 'Tanggal dari tidak boleh setelah tanggal sampai'}), 400
+
         params, where = [], []
         if status in ('SUBMITTED', 'REVIEWED', 'REJECTED'):
             where.append('status=%s')
             params.append(status)
+        if dfrom:
+            where.append('DATE(created_at) >= %s')
+            params.append(date_from)
+        if dto:
+            where.append('DATE(created_at) <= %s')
+            params.append(date_to)
+        if q:
+            like = '%' + q + '%'
+            where.append('(display_id LIKE %s OR nopol LIKE %s OR keluhan LIKE %s)')
+            params.extend([like, like, like])
         sql = "SELECT * FROM driver_service_reports"
         if where:
             sql += " WHERE " + " AND ".join(where)
@@ -144,6 +171,72 @@ def register_driver_service_routes(app):
         try:
             cur.execute(sql, params)
             return jsonify({'data': [_row_to_dict(r) for r in cur.fetchall()]})
+        finally:
+            cur.close()
+            conn.close()
+
+    @app.route('/api/ga/service-reports/bulk-review', methods=['POST'])
+    @role_required(GA_ROLES)
+    def api_ga_service_bulk_review():
+        data = request.get_json(silent=True) or {}
+        ids = data.get('ids')
+        if not isinstance(ids, list) or not (1 <= len(ids) <= 50):
+            return jsonify({'status': 'error',
+                            'msg': 'ids harus berupa daftar 1 sampai 50'}), 400
+        clean_ids = []
+        for value in ids:
+            if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+                return jsonify({'status': 'error',
+                                'msg': 'ids harus berupa bilangan bulat positif'}), 400
+            if value not in clean_ids:
+                clean_ids.append(value)
+        status = str(data.get('status') or '').strip().upper()
+        if status not in ('REVIEWED', 'REJECTED'):
+            return jsonify({'status': 'error',
+                            'msg': 'Status harus REVIEWED atau REJECTED'}), 400
+        note = str(data.get('ga_note') or '').strip()[:500]
+        if status == 'REJECTED' and not note:
+            return jsonify({'status': 'error',
+                            'msg': 'ga_note wajib diisi untuk penolakan'}), 400
+
+        conn = get_db_connection()
+        if not conn:
+            return jsonify({'status': 'error', 'msg': 'DB error'}), 500
+        actor = _actor()
+        placeholders = ','.join(['%s'] * len(clean_ids))
+        cur = conn.cursor(dictionary=True)
+        try:
+            # All-or-nothing: hanya baris yang masih SUBMITTED yang boleh diubah.
+            cur.execute(
+                f"SELECT id, status FROM driver_service_reports WHERE id IN ({placeholders})",
+                clean_ids)
+            found = {r['id']: r['status'] for r in cur.fetchall()}
+            if any(found.get(rid) != 'SUBMITTED' for rid in clean_ids):
+                conn.rollback()
+                return jsonify({'status': 'error',
+                                'msg': 'Sebagian laporan tidak ditemukan atau sudah diproses'}), 409
+            cur.execute(
+                f"""UPDATE driver_service_reports
+                    SET status=%s, ga_note=%s, reviewed_by=%s, reviewed_at=NOW()
+                    WHERE id IN ({placeholders}) AND status='SUBMITTED'""",
+                [status, note, actor] + clean_ids)
+            updated = cur.rowcount
+            if updated != len(clean_ids):
+                # Jika ada baris yang berubah status di antara pra-cek dan UPDATE,
+                # batalkan seluruh batch — tidak boleh ada perubahan sebagian.
+                conn.rollback()
+                return jsonify({'status': 'error',
+                                'msg': 'Sebagian laporan tidak ditemukan atau sudah diproses'}), 409
+            conn.commit()
+            for rid in clean_ids:
+                log_activity_async(rid, 'driver_service_bulk', 'ga', actor,
+                                   new_data={'id': rid, 'status': status, 'ga_note': note},
+                                   ip=request.remote_addr,
+                                   branch_code=session.get('branch_code', ''))
+            return jsonify({'status': 'success', 'updated': updated})
+        except Exception as e:
+            conn.rollback()
+            return jsonify({'status': 'error', 'msg': str(e)[:200]}), 500
         finally:
             cur.close()
             conn.close()

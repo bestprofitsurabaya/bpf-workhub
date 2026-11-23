@@ -135,7 +135,9 @@ describe('GaDashboard', () => {
     expect(w.text()).toContain('Saya sudah memeriksa foto bukti')
     const submitBtn = w.findAll('button').find((b) => b.text().includes('Verifikasi & Setujui'))
     expect(submitBtn.attributes('disabled')).toBeDefined() // belum centang
-    await w.find('input[type="checkbox"]').setValue(true)
+    // Scope ke modal verifikasi: tabel service juga punya checkbox bulk.
+    const verifyLabel = w.findAll('label').find((l) => l.text().includes('Saya sudah memeriksa foto bukti'))
+    await verifyLabel.find('input[type="checkbox"]').setValue(true)
     await submitBtn.trigger('click')
     await flushPromises()
     expect(apiMock).toHaveBeenCalledWith('/api/queue/verify/6', {
@@ -223,5 +225,88 @@ describe('GaDashboard', () => {
     await flushPromises()
     await w.findAll('button').find((b) => b.text() === '📄 PDF').trigger('click')
     expect(openSpy).toHaveBeenCalledWith('/admin/report/5')
+  })
+
+  // --- Task 3: filter & bulk review catatan service -----------------------
+  const serviceRow = (w) => w.findAll('tbody tr').find((r) => r.text().includes('SRV-SBY-20261123-0001'))
+  const svcCallPaths = () => apiMock.mock.calls.map(([p]) => p).filter((p) => p.startsWith('/api/ga/service-reports'))
+  const confirmBulk = async (w, text, value) => {
+    const b = w.findAll('button').find((x) => x.text() === text)
+    expect(b).toBeTruthy()
+    if (value !== undefined) await w.find('textarea').setValue(value)
+    await b.trigger('click')
+    await flushPromises()
+  }
+
+  it('menampilkan filter status/tanggal/cari dan tombol aksi bulk', async () => {
+    const w = await mountView()
+    expect(w.find('select').exists()).toBe(true)
+    expect(w.findAll('input[type="date"]').length).toBe(2)
+    expect(w.find('input[placeholder*="No. form"]').exists()).toBe(true)
+    expect(btnByText(w, 'Terapkan')).toBeTruthy()
+    expect(btnByText(w, 'Reset')).toBeTruthy()
+    expect(w.text()).toContain('Tandai selesai (0)')
+    expect(w.text()).toContain('Tolak (0)')
+  })
+
+  it('Terapkan mengirim status/from/to/q ke endpoint service-reports', async () => {
+    const w = await mountView()
+    await w.find('select').setValue('SUBMITTED')
+    const dates = w.findAll('input[type="date"]')
+    await dates[0].setValue('2026-11-20')
+    await dates[1].setValue('2026-11-30')
+    await w.find('input[placeholder*="No. form"]').setValue('rem')
+    await btnByText(w, 'Terapkan').trigger('click')
+    await flushPromises()
+    // api() di-mock: params dikirim sebagai objek (helper asli yang menyusun query string).
+    const call = apiMock.mock.calls.find(
+      ([p, opts]) => p === '/api/ga/service-reports' && opts?.params?.status
+    )
+    expect(call[1].params).toEqual({
+      status: 'SUBMITTED', from: '2026-11-20', to: '2026-11-30', q: 'rem',
+    })
+  })
+
+  it('Reset mengosongkan filter lalu memuat ulang tanpa query', async () => {
+    const w = await mountView()
+    await w.find('select').setValue('SUBMITTED')
+    await btnByText(w, 'Terapkan').trigger('click')
+    await flushPromises()
+    await btnByText(w, 'Reset').trigger('click')
+    await flushPromises()
+    expect(svcCallPaths().at(-1)).toBe('/api/ga/service-reports')
+    expect(w.find('select').element.value).toBe('')
+  })
+
+  it('checkbox per baris memperbarui jumlah terpilih', async () => {
+    const w = await mountView()
+    await serviceRow(w).find('input[type="checkbox"]').setValue(true)
+    expect(w.text()).toContain('Tandai selesai (1)')
+    expect(w.text()).toContain('Tolak (1)')
+  })
+
+  it('Tandai selesai bulk memanggil bulk-review dengan status REVIEWED', async () => {
+    const w = await mountView()
+    await serviceRow(w).find('input[type="checkbox"]').setValue(true)
+    await w.findAll('button').find((b) => b.text().includes('Tandai selesai')).trigger('click')
+    await flushPromises()
+    await confirmBulk(w, 'Ya, tandai selesai')
+    expect(apiMock).toHaveBeenCalledWith('/api/ga/service-reports/bulk-review', {
+      method: 'POST',
+      body: { ids: [11], status: 'REVIEWED' },
+    })
+  })
+
+  it('Tolak bulk meminta catatan GA wajib lalu mengirim ga_note', async () => {
+    const w = await mountView()
+    await serviceRow(w).find('input[type="checkbox"]').setValue(true)
+    await w.findAll('button').find((b) => b.text().includes('Tolak (1)')).trigger('click')
+    await flushPromises()
+    expect(w.text()).toContain('Catatan GA wajib diisi')
+    await confirmBulk(w, 'Ya, tolak', 'Foto tidak sesuai')
+    expect(apiMock).toHaveBeenCalledWith('/api/ga/service-reports/bulk-review', {
+      method: 'POST',
+      body: { ids: [11], status: 'REJECTED', ga_note: 'Foto tidak sesuai' },
+    })
   })
 })
