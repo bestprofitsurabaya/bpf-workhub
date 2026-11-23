@@ -36,6 +36,25 @@ def _client_ip():
     return client_ip()
 
 
+def notify_finance_task(row):
+    """Beri tahu Finance (realtime) bahwa klaim sudah siap dicairkan.
+
+    Event dikirim ke room `finance_board` yang hanya bisa dimasuki role
+    finance/admin. Dipanggil HANYA setelah transisi status ke verified_ga
+    benar-benar terjadi — bukan saat halaman dibuka.
+    """
+    from modules.realtime import emit_event
+    emit_event(
+        'new_finance_task',
+        {
+            'id': row['id'],
+            'display_id': row.get('display_id'),
+            'nominal': row.get('nominal'),
+        },
+        room='finance_board',
+    )
+
+
 def register_spa_routes(app):
 
     # ================================================================
@@ -446,6 +465,15 @@ def register_spa_routes(app):
                         push_driver_notification(row[0], 'claim', 'approved', f'Klaim {row[1]} Anda disetujui GA', row[1])
                 except Exception as ne:
                     print(f"[notify] approve error: {ne}")
+                # Task 4: klaim kini masuk antrean Finance — beri tahu realtime.
+                # Jalur notifikasi driver tidak boleh menghalangi event ini.
+                try:
+                    cursor.execute("SELECT id, display_id, nominal FROM transactions WHERE id=%s", (tx_id,))
+                    finance_row = cursor.fetchone()
+                    if finance_row:
+                        notify_finance_task(finance_row)
+                except Exception as ne:
+                    print(f"[finance notify] approve error: {ne}")
             cursor.close(); conn.close()
             if affected == 0:
                 return jsonify({'status': 'error', 'msg': f'Transaksi #{tx_id} tidak ditemukan atau sudah diproses.'}), 409

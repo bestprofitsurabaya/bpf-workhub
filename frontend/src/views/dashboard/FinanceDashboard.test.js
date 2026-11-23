@@ -3,6 +3,7 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import FinanceDashboard from './FinanceDashboard.vue'
 import { useAuthStore } from '../../stores/auth'
+import { useRealtimeStore } from '../../stores/realtime'
 
 const { apiMock } = vi.hoisted(() => ({ apiMock: vi.fn() }))
 vi.mock('../../api', () => ({ api: apiMock }))
@@ -86,6 +87,25 @@ describe('FinanceDashboard', () => {
     expect(w.text()).toContain('Antrean Verifikasi Air Minum')
     expect(w.text()).toContain('WTR-009')
     expect(apiMock).toHaveBeenCalledWith('/api/water/recap')
+  })
+
+  it('memuat ulang ringkasan saat ada notifikasi new_finance_task', async () => {
+    const w = await mountView()
+    expect(apiMock).toHaveBeenCalledOnce()
+
+    const realtime = useRealtimeStore()
+    apiMock.mockResolvedValue({ badges: { ...BADGES, bbm_verify_pending: 4 } })
+    realtime.items.unshift({
+      id: 101,
+      type: 'new_finance_task',
+      text: '💰 Klaim BPF-1 siap dicairkan',
+      data: { id: 5, display_id: 'BPF-1', nominal: 100000 },
+    })
+    await flushPromises()
+
+    expect(apiMock).toHaveBeenCalledTimes(2)
+    expect(apiMock).toHaveBeenLastCalledWith('/api/nav/badges')
+    expect(w.find('[data-testid="priority-bbm_verify_pending"]').text()).toContain('4')
   })
 
   it('menampilkan keadaan gagal ringkasan, tetapi pintasan kerja tetap tersedia', async () => {

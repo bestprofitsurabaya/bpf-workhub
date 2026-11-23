@@ -1,7 +1,8 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { api } from '../../api'
 import { useAuthStore } from '../../stores/auth'
+import { useRealtimeStore } from '../../stores/realtime'
 import StatCard from '../../components/StatCard.vue'
 import PageHeader from '../../components/PageHeader.vue'
 import { formatDate } from '../../utils/format.js'
@@ -68,6 +69,11 @@ async function loadWater() {
   }
 }
 
+async function load() {
+  await loadBadges()
+  if (activeTab.value === 'water' && water.value) await loadWater()
+}
+
 function switchTab(tab) {
   activeTab.value = tab
   if (tab === 'water' && !water.value && !waterLoading.value) loadWater()
@@ -77,7 +83,21 @@ function exportCsv() {
   window.location.href = '/api/water/recap/export' + buildWaterQuery()
 }
 
-onMounted(loadBadges)
+onMounted(load)
+
+// Task 4: antrean Finance langsung refresh saat GA menyetujui klaim
+// (event realtime new_finance_task di room finance_board).
+const realtime = useRealtimeStore()
+let lastFinanceTask = null
+watch(
+  () => realtime.items[0],
+  (item) => {
+    if (item && item.type === 'new_finance_task' && item.id !== lastFinanceTask && !loading.value) {
+      lastFinanceTask = item.id
+      load()
+    }
+  }
+)
 </script>
 
 <template>

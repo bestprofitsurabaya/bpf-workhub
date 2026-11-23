@@ -13,6 +13,8 @@ _sid_room = {}
 _ROOM_ROLES = {
     'appointments_board': ('marketing', 'chief_driver', 'ga', 'admin'),
     'ga_hr_board': ('ga_hr', 'admin'),
+    # Task 4: klaim siap bayar hanya boleh diketahui Finance/Admin.
+    'finance_board': ('finance', 'admin'),
 }
 
 
