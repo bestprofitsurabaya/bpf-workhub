@@ -7,6 +7,18 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.131.1 — 23 November 2026 (KM manual & keluhan bernomor)
+
+- PWA driver: **KM Kendaraan** tidak lagi dipaksa dari profil. Field tetap
+  di-prefill dari ODO terakhir sebagai referensi, tetapi wajib dikonfirmasi /
+  diisi manual dan harus > 0 sebelum bisa dikirim.
+- Catatan keluhan kini berupa **daftar bernomor** yang bisa ditambah
+  (maks. 10 poin) dan dikurangi. Backend menyimpannya sebagai teks
+  `1. … / 2. …`, sehingga tampil rapi di riwayat driver, panel GA, dan PDF resmi.
+- Kompatibel dengan klien lama yang masih mengirim `keluhan` sebagai string.
+
+---
+
 ## v2.131.0 — 23 November 2026 (Tab Service driver & feedback BBM)
 
 - PWA driver: tab **Rapor** diganti **Service**. Driver mengisi form

@@ -9,6 +9,17 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
 
 ---
 
+## 🔧 23 Nov 2026 — KM manual & keluhan bernomor (v2.131.1)
+
+- `ServiceTab.vue` — KM kendaraan jadi input manual (prefill dari profil hanya
+  referensi, wajib > 0). Keluhan jadi daftar bernomor dengan tombol
+  "＋ Tambah Keluhan" dan ✕ hapus per poin (maks. 10).
+- `routes_driver_service.py` — terima `keluhan_items[]`, simpan sebagai teks
+  bernomor; `km_kendaraan <= 0` ditolak. String `keluhan` lama tetap diterima.
+- Test: 6 backend + 14 DriverView lulus.
+
+---
+
 ## 🔧 23 Nov 2026 — Tab Service driver & feedback BBM (v2.131.0)
 
 **Kebutuhan:** tab Rapor di PWA driver diganti tab Service; driver mengisi

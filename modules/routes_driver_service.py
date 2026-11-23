@@ -40,7 +40,15 @@ def register_driver_service_routes(app):
     @role_required(DRIVER_ROLES)
     def api_driver_service_submit():
         data = request.get_json(silent=True) or {}
-        keluhan = str(data.get('keluhan') or '').strip()
+        # v2.131.1: keluhan dikirim sebagai daftar bernomor. Terima juga string
+        # lama untuk kompatibilitas klien yang belum diperbarui.
+        raw_items = data.get('keluhan_items')
+        if isinstance(raw_items, list):
+            rows = [str(x or '').strip() for x in raw_items]
+            rows = [x for x in rows if x]
+            keluhan = '\n'.join(f'{i + 1}. {x}' for i, x in enumerate(rows))
+        else:
+            keluhan = str(data.get('keluhan') or '').strip()
         if not keluhan:
             return jsonify({'status': 'error', 'msg': 'Catatan keluhan wajib diisi'}), 400
         if len(keluhan) > 2000:
@@ -64,8 +72,9 @@ def register_driver_service_routes(app):
                 km = int(float(data.get('km_kendaraan') or 0))
             except (TypeError, ValueError):
                 km = 0
-            if km < 0:
-                km = 0
+            # v2.131.1: KM diisi manual driver dan wajib > 0 (ODO profil bisa basi).
+            if km <= 0:
+                return jsonify({'status': 'error', 'msg': 'KM kendaraan wajib diisi manual dengan angka'}), 400
 
             display_id = generate_display_id('SRV', conn)
             cur.execute("""INSERT INTO driver_service_reports

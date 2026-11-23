@@ -92,13 +92,25 @@ def test_driver_submit_tersimpan(client):
     c, conn = client
     login(c, 'driver')
     rv = c.post('/api/driver/service', json={
-        'keluhan': 'Rem depan berbunyi keras', 'km_kendaraan': 131900})
+        'keluhan_items': ['Rem depan berbunyi keras', 'AC kurang dingin'],
+        'km_kendaraan': 131900})
     assert rv.status_code == 200
     d = rv.get_json()
     assert d['status'] == 'success'
     assert d['display_id'] == 'SRV-SBY-20261123-0001'
     assert conn.inserted[1] == 'DRIVERSBY_RIVAN'
     assert conn.inserted[3] == 'B 1126 DFC'
+    assert conn.inserted[6].startswith('1. Rem depan')
+    assert '2. AC kurang' in conn.inserted[6]
+
+
+def test_km_manual_wajib(client):
+    c, _ = client
+    login(c, 'driver')
+    rv = c.post('/api/driver/service', json={
+        'keluhan_items': ['Rem berbunyi'], 'km_kendaraan': 0})
+    assert rv.status_code == 400
+    assert 'KM' in rv.get_json()['msg']
 
 
 def test_ga_bisa_melihat_dan_memproses(client):

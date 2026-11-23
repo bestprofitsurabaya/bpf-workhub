@@ -33,7 +33,10 @@ function mockApi() {
     if (path === '/api/notifications') return Promise.resolve({ notifications: [], unread: 0 })
     if (path === '/api/cash/history') return Promise.resolve([])
     if (path === '/api/cash/pending-lpj') return Promise.resolve(pendingLpjRows)
-    if (path === '/api/driver/service') return Promise.resolve({ data: [] })
+    if (path === '/api/driver/service') {
+      if (opts.method === 'POST') return Promise.resolve({ status: 'success', display_id: 'SRV-TEST-0001', msg: 'Terkirim' })
+      return Promise.resolve({ data: [] })
+    }
     if (path === '/api/assignments/pending') return Promise.resolve(pendingRows)
     if (path === '/api/assignments/confirm') return Promise.resolve({ status: 'success', msg: 'Konfirmasi L 1 AB berhasil! ✅' })
     if (path.includes('/api/appointments/driver-today')) return Promise.resolve([])
@@ -113,6 +116,22 @@ describe('DriverView', () => {
     expect(w.find('[data-testid="voucher-liter"]').exists()).toBe(true)
     expect(w.find('[data-testid="voucher-nominal"]').element.value).toContain('130.700')
     expect(w.text()).toContain('Kirim Pemakaian Voucher')
+    w.unmount()
+  })
+
+  it('form Service KM manual dan keluhan bisa ditambah/dikurangi', async () => {
+    const w = await mountView()
+    await w.findAll('.d-nav-item').find((b) => b.text().includes('Service')).trigger('click')
+    await flushPromises()
+    const km = w.find('#svc-km')
+    expect(km.exists()).toBe(true)
+    await km.setValue('81234')
+    expect(km.element.value).toBe('81234')
+    const before = w.findAll('.svc-item').length
+    await w.findAll('button').find((b) => b.text().includes('Tambah Keluhan')).trigger('click')
+    expect(w.findAll('.svc-item').length).toBe(before + 1)
+    await w.findAll('.svc-remove').at(1).trigger('click')
+    expect(w.findAll('.svc-item').length).toBe(before)
     w.unmount()
   })
 
