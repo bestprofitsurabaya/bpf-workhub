@@ -43,6 +43,9 @@ backup/
 frontend/node_modules/
 frontend/dist/
 frontend/.vite/
+# Artefak E2E Playwright (dibuat saat npm run e2e)
+frontend/test-results/
+frontend/playwright-report/
 # Hasil build SPA yang disalin ke static (bind-mount host → container)
 static/app/
 NewsScraper_V1.5.1.py

@@ -96,6 +96,65 @@ jobs:
       - name: Check schema drift
         run: python scripts/check_schema_drift.py
 
+  # E2E alur kritis driver → GA → Finance. Berjalan pada Flask lokal yang
+  # di-seed dengan data uji oleh scripts/ci_e2e.sh — TIDAK pernah ke produksi.
+  e2e:
+    name: E2E (Playwright alur kritis)
+    runs-on: ubuntu-latest
+    services:
+      mariadb:
+        image: mariadb:10.11
+        env:
+          MARIADB_ROOT_PASSWORD: ci_root_pass_x9
+          MARIADB_DATABASE: bpf_asset_system
+          MARIADB_USER: bpf_user
+          MARIADB_PASSWORD: ci_app_pass_x9
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd "mariadb-admin ping -h 127.0.0.1 -u root -pci_root_pass_x9"
+          --health-interval 5s --health-timeout 5s --health-retries 15 --health-start-period 20s
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      SECRET_KEY: ci-secret-key
+      SESSION_COOKIE_SECURE: 'false'
+      DB_HOST: 127.0.0.1
+      DB_PORT: '3306'
+      DB_USER: bpf_user
+      DB_PASSWORD: ci_app_pass_x9
+      DB_NAME: bpf_asset_system
+      DB_POOL_SIZE: '2'
+      BRANCH_POOL_SIZE: '1'
+      DB_POOL_RETRIES: '1'
+      REDIS_URL: redis://127.0.0.1:6379/0
+      E2E_BASE_URL: http://127.0.0.1:5000
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install dependencies
+        run: |
+          sudo apt-get update && sudo apt-get install -y poppler-utils
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          cd frontend
+          npm ci
+          npx playwright install --with-deps chromium
+      - name: Run E2E (Flask lokal + DB uji)
+        run: bash scripts/ci_e2e.sh
+
   image-scan:
     name: Image security scan (Trivy)
     runs-on: ubuntu-latest
