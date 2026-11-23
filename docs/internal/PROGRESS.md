@@ -2603,3 +2603,15 @@ tes & verifikasi; perubahan produksi butuh konfirmasi eksplisit.
   `docs/public/screenshots/`. Tampilan diverifikasi dengan render Poppler
   (cover, daftar isi, tabel, dan screenshot terbaca rapi).
 - File PDF disimpan di `C:\Users\it.ef\Documents\`.
+
+### Panduan resmi semua pengguna & optimasi (23 Nov, 13:45 WIB)
+- `Panduan_Resmi_Semua_Pengguna_v2.131.1.pdf` dibuat: 22 halaman, 18 tangkapan
+  layar dari peran nyata (Driver, OB, Security, GA, Finance, Marketing,
+  Chief Driver, Receptionist, Traineer, GA HR, IT, Admin, Agenda).
+- Screenshot tersimpan di `docs/public/screenshots/all/`; generator diperbarui
+  agar caption tidak terpisah dari gambar saat page break.
+- Akses admin_sby memakai satu kode pemulihan MFA dari Documents host
+  (kode 88FDC-22359 sudah terpakai, jangan dipakai lagi).
+- Optimasi/cek WorkHub: stamp v2.131.1 konsisten, backend 1486 passed,
+  frontend seluruh suite lolos, endpoint & PDF service sudah di-smoke test,
+  container sehat. Tidak ada perubahan kode aplikasi pada tahap ini.

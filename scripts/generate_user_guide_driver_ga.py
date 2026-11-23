@@ -24,6 +24,9 @@ TANGGAL = '23 November 2026'
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SHOT_GA = os.path.join(ROOT, 'docs', 'public', 'screenshots', 'ga-service-audit.png')
 SHOT_DRIVER = os.path.join(ROOT, 'docs', 'public', 'screenshots', 'driver-service-audit.png')
+SHOTS = os.path.join(ROOT, 'docs', 'public', 'screenshots', 'all')
+def shot(name):
+    return os.path.join(SHOTS, name + '.png')
 
 
 class GuidePDF(BPFBasePDF):
@@ -136,6 +139,9 @@ class GuidePDF(BPFBasePDF):
     def screenshot(self, path, caption):
         if not os.path.exists(path):
             return
+        # Jangan pisahkan caption dari gambar saat halaman hampir penuh.
+        if self.get_y() > 175:
+            self.add_page()
         self.ln(1)
         self.set_font(self._font(), 'I', 8)
         self.set_text_color(*GRAY_LABEL)
@@ -489,6 +495,98 @@ class GuidePDF(BPFBasePDF):
             self.flow()
 
 
+    def build_all(self):
+        """Panduan resmi untuk semua peran/tim dalam satu dokumen."""
+        self.cover('Seluruh peran: Driver, OB, Security, GA, GA HR, Finance, Marketing, Chief Driver, Receptionist, Traineer, Content, Admin, dan IT. Lengkap dengan tangkapan layar tiap aksi kritis.')
+        self.toc([
+            ['A', 'Informasi Umum & Agenda'],
+            ['B', 'Driver - BBM, Kasbon, Trip, OT, Service'],
+            ['C', 'OB & Security - Air Minum dan Overtime'],
+            ['D', 'GA - Verifikasi, Kasbon, Service, Aset'],
+            ['E', 'Finance - Pembayaran, Rekap, Subsidi Tepat'],
+            ['F', 'Marketing & Chief Driver'],
+            ['G', 'Receptionist, Traineer, GA HR, Content'],
+            ['H', 'Admin & IT'],
+            ['I', 'Alur Kerja Lintas Peran'],
+            ['J', 'FAQ, Status & Glosarium'],
+        ])
+
+        self.h1('A. INFORMASI UMUM & AGENDA')
+        self.common()
+        self.h2('A.6 Agenda Bersama')
+        self.para('Agenda bisa dibaca semua peran. Admin dan Content Creator bisa menambah, '
+                  'mengubah, dan membagikan agenda; peran lain hanya melihat. Buka menu Agenda '
+                  'di sidebar atau kartu Agenda di dashboard.')
+        self.screenshot(shot('agenda'), 'Gambar 1. Halaman Agenda')
+
+        self.h1('B. DRIVER - BBM, KASBON, TRIP, OT, SERVICE')
+        self.driver()
+        self.screenshot(shot('driver_bbm'), 'Gambar 2. Form Laporan BBM mode Klaim')
+        self.screenshot(shot('driver_voucher'), 'Gambar 3. Form mode Voucher Rekanan')
+
+        self.h1('C. OB & SECURITY - AIR MINUM DAN OVERTIME')
+        self.h2('C.1 OB - Pembelian Air Minum')
+        self.para('Ajukan pengiriman air minum lewat menu Air Minum. Isi tanggal, item, jumlah, '
+                  'dan keterangan. Finance akan memverifikasi pengajuan sebelum diproses.')
+        self.screenshot(shot('ob_water'), 'Gambar 4. Daftar pengajuan air minum OB')
+        self.screenshot(shot('ob_form'), 'Gambar 5. Form Ajukan Pengiriman air minum')
+        self.h2('C.2 OB & Security - Overtime Saya')
+        self.para('Buka Overtime Saya untuk mengisi tanggal, jam, dan keterangan lembur. '
+                  'Pengajuan masuk antrean GA HR.')
+        self.screenshot(shot('security_overtime'), 'Gambar 6. Form Overtime Saya')
+
+        self.h1('D. GA - VERIFIKASI, KASBON, SERVICE, ASET')
+        self.ga()
+        self.screenshot(shot('ga_service'), 'Gambar 7. Dashboard GA dan panel Catatan Service')
+
+        self.h1('E. FINANCE - PEMBAYARAN, REKAP, SUBSIDI TEPAT')
+        self.h2('E.1 Dashboard Finance')
+        self.para('Finance melihat antrean air minum, klaim siap bayar, kasbon, dan kartu '
+                  'Subsidi Tepat. Verifikasi air minum sebelum pembayaran.')
+        self.screenshot(shot('finance'), 'Gambar 8. Dashboard Finance')
+        self.h2('E.2 Rekap Pengeluaran')
+        self.para('Buka menu BBM, Kasbon & SPBU untuk melihat realisasi tiga kanal: LPJ, '
+                  'voucher rekanan, dan klaim tunai. Total = LPJ + voucher + klaim.')
+        self.screenshot(shot('finance_laporan'), 'Gambar 9. Laporan realisasi pengeluaran')
+
+        self.h1('F. MARKETING & CHIEF DRIVER')
+        self.h2('F.1 Marketing - Appointment')
+        self.para('Buat jadwal kunjungan, pilih driver dan tanggal, lalu simpan. Hasil kunjungan '
+                  'diisi driver dan menjadi bahan laporan konversi.')
+        self.screenshot(shot('marketing'), 'Gambar 10. Dashboard Marketing / Appointment')
+        self.h2('F.2 Chief Driver - Pembagian Tugas')
+        self.para('Atur rute otomatis atau manual, tugaskan driver, dan unduh rekap harian. '
+                  'Perubahan langsung terlihat driver lewat notifikasi.')
+        self.screenshot(shot('chief'), 'Gambar 11. Dashboard Chief Driver')
+
+        self.h1('G. RECEPTIONIST, TRAINEER, GA HR, CONTENT')
+        self.h2('G.1 Receptionist - Rekrutmen')
+        self.para('Input pelamar, perbarui status, dan sinkron data dari Sheet bila dipakai.')
+        self.screenshot(shot('receptionist'), 'Gambar 12. Halaman Rekrutmen')
+        self.h2('G.2 Traineer - Absensi FirstWork')
+        self.para('Lihat dan verifikasi data pengisian FirstWork. Filter status, lalu tandai '
+                  'terverifikasi atau tolak.')
+        self.screenshot(shot('traineer'), 'Gambar 13. Absensi FirstWork')
+        self.h2('G.3 GA HR - Overtime')
+        self.para('Lihat pengajuan overtime driver/OB/security, unduh Excel atau PDF, dan '
+                  'refresh data dari Google Sheet bila sumbernya sheet.')
+        self.screenshot(shot('gahr'), 'Gambar 14. Data Overtime GA HR')
+
+        self.h1('H. ADMIN & IT')
+        self.h2('H.1 Admin - User & Pengaturan')
+        self.para('Admin mengelola user, role, cabang, kendaraan, dan pengaturan sistem. '
+                  'Perubahan role berpengaruh langsung pada menu yang tersedia.')
+        self.screenshot(shot('admin'), 'Gambar 15. Dashboard Admin')
+        self.screenshot(shot('admin_users'), 'Gambar 16. Manajemen User & Driver')
+        self.h2('H.2 IT - News Scraper & Inventaris')
+        self.para('IT cabang menjalankan scrape berita, mengelola inventaris aset, label QR, '
+                  'dan transceiver/transcoder sesuai wewenang.')
+        self.screenshot(shot('it'), 'Gambar 17. Modul News Scraper IT')
+
+        self.flow()
+        self.faq()
+        self.glossary()
+
 def make_pdf(filename, doc_title, audience, builder, role):
     pdf = GuidePDF(doc_title, audience)
     try:
@@ -497,8 +595,10 @@ def make_pdf(filename, doc_title, audience, builder, role):
         pass
     if builder == 'full':
         pdf.build_full(role)
-    else:
+    elif builder == 'service':
         pdf.build_service(role)
+    else:
+        pdf.build_all()
     pdf.output(filename)
     print('OK:', filename)
 
@@ -514,6 +614,8 @@ def main():
              'Panduan Service - Driver', 'Driver PWA cabang', 'service', 'driver')
     make_pdf(os.path.join(out_dir, f'Panduan_Service_GA_{VERSION}.pdf'),
              'Panduan Service - GA', 'GA / General Affairs cabang', 'service', 'ga')
+    make_pdf(os.path.join(out_dir, f'Panduan_Resmi_Semua_Pengguna_{VERSION}.pdf'),
+             'Panduan Resmi Seluruh Pengguna', 'Semua peran BPF WorkHub', 'all', 'none')
 
 
 if __name__ == '__main__':
