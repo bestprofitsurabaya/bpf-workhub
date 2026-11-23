@@ -98,6 +98,10 @@ def ensure_overtime_schema(conn=None):
         # v2.22.1: kolom baru untuk data Driver lengkap (NO KENDARAAN, broker,
         # manager, dokumen merge). Guarded — aman bila tabel sudah dibuat duluan.
         for col, ddl in (
+            # v2.131.6: display_id & source ada di init.sql tetapi tidak pernah
+            # ditambal ke DB cabang lama (MALANG) → drift & PDF/aksi gagal.
+            ('display_id', "ALTER TABLE overtime_driver ADD COLUMN display_id VARCHAR(30) DEFAULT ''"),
+            ('source', "ALTER TABLE overtime_driver ADD COLUMN source VARCHAR(20) DEFAULT 'sheet'"),
             ('no_kendaraan', "ALTER TABLE overtime_driver ADD COLUMN no_kendaraan VARCHAR(30) DEFAULT ''"),
             ('broker', "ALTER TABLE overtime_driver ADD COLUMN broker VARCHAR(150) DEFAULT ''"),
             ('manager', "ALTER TABLE overtime_driver ADD COLUMN manager VARCHAR(150) DEFAULT ''"),

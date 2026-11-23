@@ -18,6 +18,7 @@ Branch DB tidak tersedia di CI, jadi check ini hanya untuk DB master.
 import os
 import re
 import sys
+import time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 INIT_SQL = os.path.join(ROOT, 'init.sql')
@@ -170,13 +171,20 @@ def parse_init_unique(text):
     return expected
 
 
-def query_unique_from_db(cursor):
-    """Ambil unique constraint DB aktif → {tabel: {(kolom, ...), ...}}."""
-    cursor.execute(
-        'SELECT TABLE_NAME, INDEX_NAME, COLUMN_NAME, SEQ_IN_INDEX '
-        'FROM information_schema.STATISTICS '
-        'WHERE TABLE_SCHEMA = DATABASE() AND NON_UNIQUE = 0 '
-        'ORDER BY TABLE_NAME, INDEX_NAME, SEQ_IN_INDEX')
+def query_unique_from_db(cursor, schema=None):
+    """Ambil unique constraint `schema` → {tabel: {(kolom, ...), ...}}."""
+    if schema:
+        cursor.execute(
+            'SELECT TABLE_NAME, INDEX_NAME, COLUMN_NAME, SEQ_IN_INDEX '
+            'FROM information_schema.STATISTICS '
+            'WHERE TABLE_SCHEMA = %s AND NON_UNIQUE = 0 '
+            'ORDER BY TABLE_NAME, INDEX_NAME, SEQ_IN_INDEX', (schema,))
+    else:
+        cursor.execute(
+            'SELECT TABLE_NAME, INDEX_NAME, COLUMN_NAME, SEQ_IN_INDEX '
+            'FROM information_schema.STATISTICS '
+            'WHERE TABLE_SCHEMA = DATABASE() AND NON_UNIQUE = 0 '
+            'ORDER BY TABLE_NAME, INDEX_NAME, SEQ_IN_INDEX')
     grouped = {}
     for row in cursor.fetchall():
         if isinstance(row, dict):
@@ -217,11 +225,16 @@ def compare_unique_with_db(expected, actual):
     return missing
 
 
-def compare_with_db(expected, cursor):
-    """List tabel/kolom di `expected` yang tidak ada di skema DB aktif."""
-    cursor.execute(
-        'SELECT TABLE_NAME, COLUMN_NAME FROM information_schema.COLUMNS '
-        'WHERE TABLE_SCHEMA = DATABASE()')
+def collect_columns(cursor, schema=None):
+    """{tabel: {kolom}} dari `schema` (None = database aktif)."""
+    if schema:
+        cursor.execute(
+            'SELECT TABLE_NAME, COLUMN_NAME FROM information_schema.COLUMNS '
+            'WHERE TABLE_SCHEMA = %s', (schema,))
+    else:
+        cursor.execute(
+            'SELECT TABLE_NAME, COLUMN_NAME FROM information_schema.COLUMNS '
+            'WHERE TABLE_SCHEMA = DATABASE()')
     actual = {}
     for row in cursor.fetchall():
         if isinstance(row, dict):
@@ -229,7 +242,11 @@ def compare_with_db(expected, cursor):
         else:
             table, column = row[0], row[1]
         actual.setdefault(str(table).lower(), set()).add(str(column).lower())
+    return actual
 
+
+def missing_columns(expected, actual):
+    """List tabel/kolom di `expected` yang tidak ada di `actual`."""
     missing = []
     for table, columns in expected.items():
         present = actual.get(table.lower())
@@ -240,6 +257,41 @@ def compare_with_db(expected, cursor):
             if column.lower() not in present:
                 missing.append(f'kolom {table}.{column} hilang dari DB')
     return missing
+
+
+def compare_with_db(expected, cursor):
+    """List tabel/kolom di `expected` yang tidak ada di skema DB aktif."""
+    return missing_columns(expected, collect_columns(cursor))
+
+
+def branch_schemas(cursor):
+    """[(kode_cabang, nama_db)] aktif; [] bila tabel `branches` tidak ada.
+
+    Dipakai untuk memeriksa skema SEMUA cabang (v2.131.6) — sebelumnya hanya
+    master, sehingga drift seperti MALANG kehilangan kolom GPS lolos.
+    """
+    try:
+        cursor.execute(
+            "SELECT code, db_name FROM branches WHERE is_active = 1")
+        rows = cursor.fetchall()
+    except Exception:
+        return []
+    branches = []
+    for row in rows:
+        if isinstance(row, dict):
+            code, db_name = row.get('code'), row.get('db_name')
+        else:
+            code, db_name = row[0], row[1]
+        if code and db_name:
+            branches.append((str(code), str(db_name)))
+    return branches
+
+
+def compare_schema(expected, expected_unique, cursor, schema):
+    """Bandingkan satu DB bernama `schema` (dipakai untuk DB cabang)."""
+    return (missing_columns(expected, collect_columns(cursor, schema))
+            + compare_unique_with_db(
+                expected_unique, query_unique_from_db(cursor, schema)))
 
 
 def get_db_connection():
@@ -253,6 +305,8 @@ def main():
         sql = f.read()
     expected = parse_init_sql(sql)
     expected_unique = parse_init_unique(sql)
+    branch_missing = []
+    branch_schemas_checked = []
 
     reason = ''
     try:
@@ -274,6 +328,28 @@ def main():
                 missing += compare_unique_with_db(expected_unique, actual_unique)
             except Exception as exc:  # information_schema versi lain
                 print(f'PERINGATAN: cek unique constraint dilewati ({exc})')
+
+            # v2.131.6: periksa juga DB setiap cabang aktif.
+            # Retry singkat: startup menambal kolom (ALTER) di latar; metadata
+            # information_schema bisa sesaat belum menampilkan tabel yang
+            # sedang diubah → jangan laporkan drift palsu.
+            master_db = getattr(conn, 'database', None) or ''
+            branches = [(code, db_name) for code, db_name
+                        in branch_schemas(cursor) if db_name != master_db]
+            branch_schemas_checked.extend(code for code, _ in branches)
+            for attempt in range(3):
+                branch_missing = []
+                for code, db_name in branches:
+                    try:
+                        items = compare_schema(
+                            expected, expected_unique, cursor, db_name)
+                    except Exception as exc:
+                        items = [f'gagal membaca skema: {exc}']
+                    branch_missing += [f'[{code}] {item}' for item in items]
+                if not branch_missing:
+                    break
+                if attempt < 2:
+                    time.sleep(1.5)
         finally:
             cursor.close()
     except Exception as exc:
@@ -282,12 +358,14 @@ def main():
     finally:
         conn.close()
 
-    if missing:
-        print(f'❌ Schema drift — {len(missing)} objek hilang dari DB:')
-        for item in missing:
+    problems = list(missing) + branch_missing
+    if problems:
+        print(f'❌ Schema drift — {len(problems)} objek hilang dari DB:')
+        for item in problems:
             print(f'  - {item}')
         return 1
-    print(f'✅ Skema DB sesuai init.sql ({len(expected)} tabel)')
+    print(f'✅ Skema DB sesuai init.sql ({len(expected)} tabel, '
+          f'master + {len(branch_schemas_checked)} cabang)')
     return 0
 
 

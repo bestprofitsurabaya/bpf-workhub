@@ -7,6 +7,21 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.131.6 — 23 November 2026 (Drift skema semua cabang + self-heal kolom)
+
+- `scripts/check_schema_drift.py` kini memeriksa **setiap DB cabang aktif**,
+  bukan hanya master: tabel, kolom, dan unique constraint dilaporkan dengan
+  kode cabang. CI yang tidak punya baris `branches` tetap aman (dilewati).
+- `ensure_anti_fraud_schema` menambal 5 kolom alamat GPS
+  (`gps_kelurahan`…`gps_kode_pos`) yang dipakai INSERT klaim driver;
+  `ensure_overtime_schema` menambal `overtime_driver.display_id` & `source`.
+  DB cabang lama (MALANG) belum punya kolom-kolom itu sehingga klaim/PDF
+  berisiko gagal "Unknown column". Startup menambal otomatis (idempoten).
+- Verifikasi: `check_schema_drift.py` menemukan 7 kolom hilang di MLG sebelum
+  perbaikan, lalu ✅ 0 drift untuk master + 11 cabang setelah restart.
+
+---
+
 ## v2.131.5 — 23 November 2026 (Skema kendaraan selaras produksi)
 
 - `init.sql` tidak lagi menuntut `vehicles.vehicle_type` UNIQUE. Produksi

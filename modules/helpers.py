@@ -315,6 +315,14 @@ _TX_NEW_COLUMNS = (
     ("proof_meta", "JSON NULL"),
     ("anomaly_cleared_by", "VARCHAR(150) NULL"),
     ("anomaly_cleared_at", "TIMESTAMP NULL NULL"),
+    # v2.131.6: INSERT klaim driver menulis 5 kolom alamat GPS ini, tetapi DB
+    # cabang lama (mis. MALANG) belum memilikinya → klaim gagal "Unknown
+    # column". Startup menambal tiap DB cabang (idempoten).
+    ("gps_kelurahan", "VARCHAR(100) DEFAULT ''"),
+    ("gps_kecamatan", "VARCHAR(100) DEFAULT ''"),
+    ("gps_kota", "VARCHAR(100) DEFAULT ''"),
+    ("gps_provinsi", "VARCHAR(100) DEFAULT ''"),
+    ("gps_kode_pos", "VARCHAR(10) DEFAULT ''"),
 )
 
 
