@@ -1,6 +1,5 @@
 <script setup>
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { Chart, registerables } from 'chart.js'
 import { api } from '../api'
 import LoadingState from '../components/LoadingState.vue'
 import ErrorState from '../components/ErrorState.vue'
@@ -9,7 +8,23 @@ import ReportMeta from '../components/ReportMeta.vue'
 import { csvLine, csvMeta, downloadCsv } from '../utils/csv.js'
 import { BASIS_VERSION, REPORT_BASIS } from '../content/reportBasis.js'
 
-Chart.register(...registerables)
+// Rilis B: chart.js sengaja tidak di-import statis. Library ~216 kB ini
+// dimuat malas saat komponen mount agar tidak masuk bundle driver PWA.
+let ChartCtor = null
+const chartReady = ref(false)
+const chartError = ref('')
+
+async function loadChartLib() {
+  try {
+    const m = await import('chart.js')
+    ChartCtor = m.Chart
+    ChartCtor.register(...(m.registerables || []))
+    chartReady.value = true
+    maybeDraw()
+  } catch (e) {
+    chartError.value = 'Gagal memuat library grafik: ' + (e?.message || 'tidak diketahui')
+  }
+}
 
 function localISO(d) {
   const mm = String(d.getMonth() + 1).padStart(2, '0')
@@ -53,8 +68,8 @@ const num = (n) => Number(n || 0).toLocaleString('id-ID')
 const axis = () => (document.documentElement.classList.contains('dark') ? '#94a3b8' : '#64748b')
 
 function drawChart(canvas, type, labels, values, color, label) {
-  if (!canvas) return null
-  return new Chart(canvas, {
+  if (!canvas || !ChartCtor) return null
+  return new ChartCtor(canvas, {
     type,
     data: {
       labels: labels || [],
@@ -93,6 +108,13 @@ function draw() {
   ch3 = drawChart(cEff.value, 'bar', fl.eff_labels, fl.eff_values, '#059669', 'km/liter')
 }
 
+// Gambar hanya setelah data sudah ada DAN library grafik sudah siap.
+// Dipanggil dari load() maupun loadChartLib() sehingga urutan resolusi
+// keduanya tidak penting dan grafik tetap dibuat tepat sekali.
+function maybeDraw() {
+  if (chartReady.value && d.value && !loading.value) nextTick(draw)
+}
+
 async function load() {
   loading.value = true; err.value = ''; notice.value = ''
   try {
@@ -101,7 +123,7 @@ async function load() {
   } catch (e) { err.value = e.message }
   finally {
     loading.value = false
-    nextTick(draw)
+    maybeDraw()
     loadVehicleHealth()
   }
 }
@@ -145,13 +167,19 @@ function exportCsv() {
   downloadCsv(`analisis_bbm_${start.value}_${end.value}.csv`, lines)
 }
 
-onMounted(load)
+onMounted(() => {
+  loadChartLib()
+  load()
+})
 onBeforeUnmount(() => { [ch1, ch2, ch3].forEach((c) => c && c.destroy()) })
 </script>
 
 <template>
   <div>
     <PageHeader icon="📈" title="Analisis BBM & Armada" subtitle="Tren biaya, frekuensi klaim, efisiensi kendaraan, dan kesehatan armada" />
+
+    <div v-if="chartError" class="alert" style="margin-bottom:12px;">⚠️ {{ chartError }}</div>
+    <div v-else-if="!chartReady" data-testid="chart-loading" class="card card-pad muted" style="margin-bottom:16px;font-size:12px;">📊 Memuat library grafik…</div>
 
     <ReportMeta
       title="Analisis BBM & Armada"

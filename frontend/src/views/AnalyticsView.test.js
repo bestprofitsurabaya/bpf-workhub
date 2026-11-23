@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
+import { createPinia } from 'pinia'
 import AnalyticsView from './AnalyticsView.vue'
 
 const { apiMock, ChartMock } = vi.hoisted(() => {
@@ -73,5 +74,11 @@ describe('AnalyticsView', () => {
     await flushPromises()
     expect(w.text()).toContain('DB error')
     expect(ChartMock).not.toHaveBeenCalled()
+  })
+
+  it('tidak me-render chart sebelum library dimuat', async () => {
+    const w = mount(AnalyticsView, { global: { plugins: [createPinia()] } })
+    expect(w.find('[data-testid="chart-loading"]').exists()).toBe(true)
+    w.unmount()
   })
 })
