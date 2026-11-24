@@ -1,9 +1,13 @@
-"""Rekrutmen — endpoint lookup publik (Rilis A).
+"""Rekrutmen — lookup publik & exception langkah staff (Rilis A).
 
 `GET /api/recruitment/lookup?nik=<16 digit>&dob=YYYY-MM-DD` menjawab satu
 pertanyaan saja: "NIK ini sudah dikenal sistem rekrutmen atau belum?"
 Jawabannya HANYA boolean (`known`, `can_continue`) — tidak ada cabang, tahap,
 nama, atau data pribadi lain, dan tidak ada baris yang ditulis.
+
+`POST /api/recruitment/steps/<step_id>/exception` dipakai petugas
+(traineer/ga_hr/admin) untuk mengecualikan satu langkah yang masih `BELUM`
+atau `PENDING`. Alasan wajib (maks. 500 karakter) dan tercatat di audit.
 
 Deteksi bersifat global ke DB master (lintas cabang), memakai tiga sumber:
 `recruitment_cases`, `cv_online_submissions.nik`, `first_work_submissions.nik`.
@@ -16,10 +20,11 @@ normalisasi NIK bersama, dan `Cache-Control: no-store`.
 import re
 from datetime import datetime
 
-from flask import jsonify, request
+from flask import jsonify, request, session
 
 from modules.config import get_master_connection
-from modules.helpers import client_ip, normalize_nik, redis_rate_hit
+from modules.helpers import (client_ip, log_activity_async, normalize_nik,
+                             redis_rate_hit, role_required)
 
 # 10 pengecekan / menit / IP. Endpoint ini menjawab keberadaan NIK, jadi
 # kuota longgar = alat enumerasi data pribadi (lihat check-nik FirstWork).
@@ -30,6 +35,11 @@ _LOOKUP_PREFIX = 'recruitment'
 # Sumber keberadaan NIK — DB master, tanpa filter cabang.
 _NIK_TABLES = ('recruitment_cases', 'cv_online_submissions',
                'first_work_submissions')
+
+# Exception langkah: hanya status sebelum selesai yang boleh dikecualikan.
+_EXCEPTION_ROLES = ['traineer', 'ga_hr', 'admin']
+_EXCEPTION_ALLOWED = ('BELUM', 'PENDING')
+_REASON_MAX = 500
 
 _DATE_RE = re.compile(r'^\d{4}-\d{2}-\d{2}$')
 
@@ -103,6 +113,70 @@ def register_recruitment_routes(app):
         except Exception:
             # Jangan kembalikan str(e): detail DB bisa membocorkan skema/PII.
             return _response({'status': 'error', 'msg': 'DB error'}, 500)
+        finally:
+            if conn:
+                conn.close()
+
+    @app.route('/api/recruitment/steps/<int:step_id>/exception', methods=['POST'])
+    @role_required(_EXCEPTION_ROLES)
+    def api_recruitment_step_exception(step_id):
+        """Kecualikan satu langkah; hanya BELUM/PENDING yang boleh diubah."""
+        body = request.get_json(silent=True) or {}
+        raw_reason = body.get('reason')
+        reason = raw_reason.strip() if isinstance(raw_reason, str) else ''
+        if not reason or len(reason) > _REASON_MAX:
+            return jsonify({'status': 'error',
+                            'msg': f'Alasan wajib diisi (maks. '
+                                   f'{_REASON_MAX} karakter).'}), 400
+
+        conn = None
+        try:
+            conn = get_master_connection()
+            if not conn:
+                return jsonify({'status': 'error', 'msg': 'DB error'}), 500
+            cursor = conn.cursor(dictionary=True)
+            try:
+                cursor.execute(
+                    'SELECT id, status FROM recruitment_steps WHERE id=%s',
+                    (step_id,))
+                row = cursor.fetchone()
+                if not row:
+                    return jsonify({'status': 'error',
+                                    'msg': 'Langkah tidak ditemukan'}), 404
+                if row.get('status') not in _EXCEPTION_ALLOWED:
+                    return jsonify({'status': 'error',
+                                    'msg': 'Status langkah tidak mendukung '
+                                           'pengecualian'}), 409
+
+                actor = session.get('user_name') or 'system'
+                role = session.get('user_role') or ''
+                cursor.execute("""
+                    UPDATE recruitment_steps
+                    SET status='DIKECUALIKAN', exception_reason=%s,
+                        actor=%s, completed_at=NOW()
+                    WHERE id=%s
+                """, (reason, actor, step_id))
+                conn.commit()
+            finally:
+                cursor.close()
+
+            try:
+                # tx_id None: activity_logs.transaction_id ber-FK ke transactions;
+                # ID langkah cukup dibawa di new_data (v2.131.3 audit fix).
+                log_activity_async(None, 'recruitment_step_exception', role, actor,
+                                   new_data={'step_id': step_id, 'reason': reason})
+            except Exception:
+                # Audit gagal tidak boleh mengembalikan 500 setelah commit.
+                pass
+            return jsonify({'status': 'success', 'msg': 'Langkah dikecualikan',
+                            'data': {'id': step_id, 'status': 'DIKECUALIKAN'}})
+        except Exception:
+            if conn:
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
+            return jsonify({'status': 'error', 'msg': 'DB error'}), 500
         finally:
             if conn:
                 conn.close()
