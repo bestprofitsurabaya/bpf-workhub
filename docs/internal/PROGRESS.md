@@ -2735,3 +2735,20 @@ tes & verifikasi; perubahan produksi butuh konfirmasi eksplisit.
 - Sesi admin unitedw sudah logout; data uji tidak dibuat di produksi.
 - Rilis B (13 field demografi + ID FP/BPF berkode cabang + cetak kartu +
   impor 226 unitedw + backfill 1.738) masih menunggu.
+
+### Deploy & migrasi Rilis B rekrutmen (24 Nov 2026, 16:20 WIB)
+
+- Commit `a751e97` di-push; container healthy; stamp DB v2.133.1.
+- pytest produksi **1792 passed, 6 skipped**; frontend 473 test; build sukses.
+- Migrasi data dijalankan berurutan:
+  1. impor unitedw dry-run → `{inserted:223, merged:3, invalid:0}`
+  2. impor `--commit` → sama; diulang → `{skipped:226}` (idempoten)
+  3. backfill dry-run → `{scanned:1738, cases_created:1734, skipped:4}`
+  4. backfill `--commit` → sama; diulang → `{skipped:1738}`
+- Akhir: `first_work_submissions` **1964** (1738 lama + 226 unitedw),
+  `recruitment_cases` **1957**, `recruitment_steps` **1957**,
+  `case_branch_history` **1957**, `merged_cases` 2.
+- ID impor memakai prefix cabang asli (`EF_30031`, `EA_68922`, `EI_60849`).
+- Smoke kartu PDF: `%PDF`, 61.967 byte; NIK tampil `****-****-****-0002`,
+  tidak ada NIK lengkap di teks/raw PDF.
+- Semua CSV mentah (NAS, container, host) sudah dihapus.
