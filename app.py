@@ -589,6 +589,7 @@ from modules.routes_voucher import register_voucher_routes              # v2.107
 from modules.routes_driver_service import register_driver_service_routes  # v2.131.0
 from modules.routes_mfa import register_mfa_routes                      # v2.112.0
 from modules.routes_cv_online import register_cv_online_routes          # v2.113.0
+from modules.routes_recruitment import register_recruitment_routes       # Rilis A
 from modules.routes_agenda import register_agenda_routes                 # v2.123.0
 from modules.routes_app_release import register_app_release_routes      # v2.126.0
 
@@ -601,6 +602,7 @@ register_expense_routes(app)
 register_it_asset_routes(app)
 register_first_work_routes(app)   # v2.80.0 — Absensi FirstWork (trainee)
 register_cv_online_routes(app)    # v2.113.0 — Registrasi CV Online (trainee/GA-HR)
+register_recruitment_routes(app)  # Rilis A — lookup publik rekrutmen (boolean-only)
 register_profile_routes(app)      # v2.81.0 — Profil Saya (ganti nama & PIN)
 register_master_api(app)
 register_transaction_api(app)
