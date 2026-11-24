@@ -2862,6 +2862,68 @@ def register_first_work_routes(app):
                 except Exception:
                     pass
 
+    # ---------------- KARTU BPF (Rilis B Task 3) ----------------
+    @app.route('/api/first-work/card/<int:submission_id>.pdf')
+    @role_required(VIEW_ROLES)
+    def api_first_work_card_pdf(submission_id):
+        """Cetak kartu BPF satu pendaftar (nama, 4 digit NIK, cabang, reg. no, QR).
+
+        Kartu sengaja tidak menaruh NIK lengkap, dan QR hanya berisi nomor
+        registrasi (`BPF-FW:<registration_no>`) — tidak ada data pribadi lain
+        yang bisa dipindai dari dokumen ini.
+        """
+        conn = None
+        try:
+            conn = get_master_connection()
+            if not conn:
+                return jsonify({'error': 'DB error'}), 500
+            cursor = conn.cursor(dictionary=True)
+            try:
+                cursor.execute(
+                    'SELECT * FROM first_work_submissions WHERE id=%s',
+                    (submission_id,))
+                row = cursor.fetchone()
+            finally:
+                cursor.close()
+            if not row:
+                return jsonify({'error': 'Data tidak ditemukan'}), 404
+            if not _row_allowed(row, conn):
+                return jsonify({'error': 'Data di luar cabang Anda'}), 403
+
+            from modules.pdf_generator import FirstWorkCardPDF
+            # Kop mengikuti identitas global (BPFBasePDF) — tidak membuka
+            # koneksi DB tambahan hanya untuk mengambil identitas cabang.
+            pdf = FirstWorkCardPDF()
+            pdf.generate(row)
+            buf = io.BytesIO()
+            pdf.output(buf)
+            buf.seek(0)
+
+            filename_no = re.sub(
+                r'[^A-Za-z0-9_-]', '_',
+                _clean(row.get('registration_no') or submission_id, 60))
+            response = make_response(buf.read())
+            response.headers['Content-Type'] = 'application/pdf'
+            response.headers['Content-Disposition'] = (
+                f'attachment; filename=Kartu_BPF_{filename_no}.pdf')
+            # Kartu berisi data pribadi — jangan di-cache.
+            response.headers['Cache-Control'] = 'no-store'
+            log_activity_async(None, 'first_work_card_pdf',
+                               session.get('user_role', ''),
+                               session.get('full_name') or session.get('user_name') or '',
+                               new_data={'submission_id': submission_id,
+                                         'registration_no': row.get('registration_no')},
+                               ip=client_ip())
+            return response
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+        finally:
+            if conn:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+
     # ---------------- EXPORT ----------------
     @app.route('/api/first-work/export')
     @role_required(VIEW_ROLES)

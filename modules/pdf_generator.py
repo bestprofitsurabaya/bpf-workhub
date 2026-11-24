@@ -3,6 +3,9 @@ import os
 import re
 import io
 from datetime import datetime, date
+
+import qrcode
+
 from fpdf import FPDF
 from modules.company_identity import get_company_identity, IDENTITY_DEFAULTS  # noqa: F401
 
@@ -2833,3 +2836,164 @@ class AttestReportPDF(BPFBasePDF):
         _block(x_r, 'Verifikasi final,', ', '.join(sorted(finance_names)) or 'Finance',
                'Finance ( Verifikator Final )')
         self.set_y(y0 + 30)
+
+
+# ============================================================
+# KARTU BPF FIRST WORK (Rilis B Task 3)
+# ============================================================
+# Urutan & label demografi mengikuti routes_first_work.DEMOGRAPHIC_FIELDS /
+# DEMOGRAPHIC_LABELS. Sengaja DIDEKLARASIKAN DI SINI (bukan di-import) agar
+# modul PDF tetap bisa dipakai tanpa Flask; test_first_work_card_pdf menjaga
+# keduanya tetap sinkron.
+FIRST_WORK_CARD_DEMOGRAPHICS = (
+    ('tempat_lahir', 'Tempat Lahir'),
+    ('tanggal_lahir', 'Tanggal Lahir'),
+    ('jenis_kelamin', 'Jenis Kelamin'),
+    ('golongan_darah', 'Golongan Darah'),
+    ('alamat', 'Alamat'),
+    ('rt_rw', 'RT/RW'),
+    ('kel_desa', 'Kel/Desa'),
+    ('kecamatan', 'Kecamatan'),
+    ('agama', 'Agama'),
+    ('status_perkawinan', 'Status Perkawinan'),
+    ('pekerjaan', 'Pekerjaan'),
+    ('kewarganegaraan', 'Kewarganegaraan'),
+    ('berlaku_hingga', 'Berlaku Hingga'),
+)
+FW_CARD_QR_SIZE_MM = 20
+
+
+def fw_qr_payload(registration_no):
+    """Payload QR kartu FirstWork: `BPF-FW:<registration_no>` (ASCII, deterministik)."""
+    text = '' if registration_no is None else str(registration_no)
+    return 'BPF-FW:' + re.sub(r'[^A-Za-z0-9._-]', '', text)
+
+
+def render_fw_qr(registration_no):
+    """Render PNG QR ke BytesIO in-memory (siap dipakai FPDF.image())."""
+    qr = qrcode.QRCode(
+        error_correction=qrcode.constants.ERROR_CORRECT_M,
+        box_size=6,
+        border=2,
+    )
+    qr.add_data(fw_qr_payload(registration_no))
+    qr.make(fit=True)
+    buf = io.BytesIO()
+    qr.make_image(fill_color='black', back_color='white').save(buf, format='PNG')
+    buf.seek(0)
+    return buf
+
+
+class FirstWorkCardPDF(BPFBasePDF):
+    """Kartu BPF pendaftar FirstWork (satu halaman A4, kop & footer resmi).
+
+    Minimalisasi PII: NIK yang ditampilkan HANYA 4 digit terakhir; QR berisi
+    nomor registrasi saja. Baris legacy (13 field demografi NULL) tetap bisa
+    dicetak — field kosong dibiarkan kosong, bukan ditulis 'None'.
+    """
+
+    def __init__(self):
+        super().__init__(orientation='P', unit='mm', format='A4')
+        self.set_auto_page_break(auto=True, margin=15)
+        self.set_margins(12, 8, 12)
+
+    def render_qr(self, registration_no):
+        """Bungkus render_qr modul agar pemanggil PDF bisa memakai self.render_qr()."""
+        return render_fw_qr(registration_no)
+
+    @staticmethod
+    def _nik_last4(row):
+        """Topeng NIK: kembalikan `****-****-****-NNNN` atau '' bila tidak ada."""
+        raw = row.get('nik') or row.get('nik_raw') or ''
+        digits = re.sub(r'\D', '', str(raw))
+        if not digits:
+            return ''
+        if len(digits) <= 4:
+            return '****-' + digits
+        return '****-****-****-' + digits[-4:]
+
+    def _line(self, label, value, y=None, x=None, label_w=42, row_h=6.2,
+              font_size=9):
+        """Satu baris label:value dengan kolom nilai yang tidak terkliping.
+
+        Pola perbaikan v2.131.4 (test_driver_service_pdf_qr.py): `new_x='RMARGIN'`
+        diikuti `set_x(x + label_w)` — `cell(0, ...)` yang dimulai dari RMARGIN
+        akan terpotong di tepi halaman.
+        """
+        x = self.l_margin if x is None else x
+        if y is not None:
+            self.set_xy(x, y)
+        else:
+            self.set_x(x)
+        self.set_font(self._font(), 'B', font_size)
+        self.set_text_color(*GRAY_LABEL)
+        self.cell(label_w, row_h, self.clean_text(str(label)),
+                  new_x='RMARGIN', new_y='TOP')
+        self.set_x(x + label_w)
+        value_text = self.clean_text(str(value)) if value is not None else ''
+        self.set_font(self._font(), '', font_size)
+        self.set_text_color(*INK)
+        value_w = max(self.w - self.r_margin - x - label_w, 10)
+        # Potong berdasarkan LEBAR NYATA font (bukan jumlah karakter) agar
+        # nilai panjang tidak menimpa kolom berikutnya / tepi halaman.
+        if value_text and self.get_string_width(value_text) > value_w - 2:
+            clipped = value_text
+            while clipped and self.get_string_width(clipped + '...') > value_w - 2:
+                clipped = clipped[:-1]
+            value_text = clipped.rstrip() + '...'
+        self.cell(value_w, row_h, value_text,
+                  new_x='LMARGIN', new_y='NEXT')
+
+    def generate(self, row):
+        row = dict(row or {})
+        self.add_page()
+        f = self._font()
+        self.set_text_color(*INK)
+
+        registration_no = self.clean_text(row.get('registration_no') or '-')
+        # QR di pojok kanan atas halaman pertama, in-memory (tanpa file sementara).
+        self.image(
+            self.render_qr(registration_no),
+            x=self.w - self.r_margin - FW_CARD_QR_SIZE_MM,
+            y=self.get_y(),
+            w=FW_CARD_QR_SIZE_MM,
+            h=FW_CARD_QR_SIZE_MM,
+        )
+
+        self.set_font(f, 'B', 13)
+        self.cell(0, 8, 'KARTU BPF - FIRST WORK', align='C',
+                  new_x='LMARGIN', new_y='NEXT')
+        self.set_font(f, '', 8)
+        self.set_text_color(*GRAY_LABEL)
+        self.cell(0, 4.5, 'Kartu identitas pendaftar First Work', align='C',
+                  new_x='LMARGIN', new_y='NEXT')
+        self.set_text_color(*INK)
+        self.ln(2)
+
+        self.section_title('IDENTITAS PENDAFTAR')
+        self._line('Nama', row.get('nama') or '')
+        self._line('NIK (4 digit akhir)', self._nik_last4(row))
+        self._line('Cabang', row.get('branch_code') or '')
+        self._line('No. Registrasi', registration_no)
+        self.ln(2)
+
+        self.section_title('DATA DEMOGRAFI (KTP)')
+        col_w = (self.w - self.l_margin - self.r_margin) / 2
+        label_w, row_h, font_size = 32, 5.4, 7.5
+        y = self.get_y()
+        for i in range(0, len(FIRST_WORK_CARD_DEMOGRAPHICS), 2):
+            for j in range(2):
+                if i + j >= len(FIRST_WORK_CARD_DEMOGRAPHICS):
+                    continue
+                field, label = FIRST_WORK_CARD_DEMOGRAPHICS[i + j]
+                self._line(label, row.get(field), y=y,
+                           x=self.l_margin + j * col_w,
+                           label_w=label_w, row_h=row_h, font_size=font_size)
+            y += row_h
+        self.set_y(y + 3)
+        self.set_font(f, 'I', 6.5)
+        self.set_text_color(*GRAY_LABEL)
+        self.cell(0, 4, 'NIK ditampilkan 4 digit terakhir saja. '
+                        'Scan QR untuk pencocokan nomor registrasi.',
+                  new_x='LMARGIN', new_y='NEXT')
+        self.set_text_color(*INK)
