@@ -82,11 +82,11 @@ def register_recruitment_routes(app):
 
         nik, _raw = normalize_nik(request.args.get('nik'))
         if len(nik) != 16 or not _valid_dob(request.args.get('dob')):
-            # Sengaja sukses dengan valid:false (pola check-nik) agar tidak
-            # memberi petunjuk lebih banyak dari sekadar "input tidak valid".
-            # TIDAK membuka koneksi DB sama sekali pada jalur ini.
-            return _response({'status': 'success', 'valid': False,
-                              'known': False, 'can_continue': False})
+            # Kontrak 3 kunci dipertahankan juga untuk input invalid: tidak
+            # ada field `valid` atau petunjuk lain. TIDAK membuka koneksi DB
+            # sama sekali pada jalur ini.
+            return _response({'status': 'success', 'known': False,
+                              'can_continue': False})
 
         conn = None
         try:

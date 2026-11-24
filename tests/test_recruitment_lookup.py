@@ -169,6 +169,22 @@ class TestLookupBooleanOnly:
         assert data['known'] is False
         assert data['can_continue'] is False
 
+    @pytest.mark.parametrize('nik, dalam_db, expected_known', [
+        (NIK, False, False),   # NIK valid, belum terdaftar
+        (NIK, True, True),     # NIK valid, terdaftar
+        ('12345', False, False),  # NIK invalid — tanpa menyentuh DB
+    ])
+    def test_kontrak_tiga_kunci_sama_untuk_input_valid_dan_invalid(
+            self, client, db, nik, dalam_db, expected_known):
+        if dalam_db:
+            db.tables['first_work_submissions'].append(db.baris(NIK, 'SBY'))
+
+        data = _lookup(client, nik=nik).get_json()
+
+        assert set(data) == {'status', 'known', 'can_continue'}
+        assert data == {'status': 'success', 'known': expected_known,
+                        'can_continue': expected_known}
+
 
 class TestLookupBacaSaja:
     def test_tidak_menulis_row_walaupun_nik_baru(self, client, db):
@@ -190,10 +206,9 @@ class TestLookupBacaSaja:
         response = _lookup(client, nik=nik)
 
         assert response.status_code == 200
-        data = response.get_json()
-        assert data['valid'] is False
-        assert data['known'] is False
-        assert data['can_continue'] is False
+        assert response.get_json() == {
+            'status': 'success', 'known': False, 'can_continue': False,
+        }
         assert response.headers['Cache-Control'] == 'no-store'
 
     @pytest.mark.parametrize('dob', ['', '01-01-1999', '1999-02-30', '1999/01/01'])
@@ -206,7 +221,9 @@ class TestLookupBacaSaja:
         response = _lookup(client, dob=dob)
 
         assert response.status_code == 200
-        assert response.get_json()['valid'] is False
+        assert response.get_json() == {
+            'status': 'success', 'known': False, 'can_continue': False,
+        }
 
 
 class TestRateLimit:
