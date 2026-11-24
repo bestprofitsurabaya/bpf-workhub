@@ -1113,4 +1113,38 @@ CREATE TABLE IF NOT EXISTS cv_online_submissions (
     KEY idx_cvo_user (user_ef)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- ============================================================
+-- FIRST WORK — COUNTER ID FP/BPF (Rilis B Task 1)
+-- ============================================================
+-- Tabel FirstWork lain dibuat oleh helper runtime idempoten
+-- (modules/first_work_schema.py). Dua counter ini ditambahkan ke init.sql
+-- supaya fresh install & schema drift check CI melihat skema yang sama.
+CREATE TABLE IF NOT EXISTS first_work_id_counters (
+    series VARCHAR(4) NOT NULL PRIMARY KEY,
+    last_value INT NOT NULL DEFAULT 0,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS first_work_branch_counters (
+    branch_code VARCHAR(10) NOT NULL,
+    series VARCHAR(4) NOT NULL,
+    last_value INT NOT NULL DEFAULT 0,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (branch_code, series)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ID baru memakai format <prefix>_<nomor> (mis. EF_30031), jadi kolom lama
+-- INT dilebarkan. Aman dijalankan berulang; tabel FirstWork dibuat helper.
+SET @fw_exists = (SELECT COUNT(*) FROM information_schema.COLUMNS
+                  WHERE TABLE_SCHEMA = DATABASE()
+                    AND TABLE_NAME = 'first_work_submissions'
+                    AND COLUMN_NAME = 'fingerprint_no');
+SET @fw_sql = IF(@fw_exists = 0, 'SELECT 1',
+    'ALTER TABLE first_work_submissions
+        MODIFY COLUMN fingerprint_no VARCHAR(30) NULL,
+        MODIFY COLUMN bpf_no VARCHAR(30) NULL');
+PREPARE fw_stmt FROM @fw_sql; EXECUTE fw_stmt; DEALLOCATE PREPARE fw_stmt;
+
 SELECT '✅ v2 tables ready' AS result;

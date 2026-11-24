@@ -111,6 +111,14 @@ HONORIFIC_RE = re.compile(
 SERIES_FIELDS = {'B': 'sheet_seq1', 'C': 'sheet_seq2'}
 DEFAULT_ID_CONFIG = {'fingerprint_series': 'B', 'bpf_series': 'C'}
 
+# Rilis B Task 1 (desain E): prefix dua huruf yang dipakai unitedw pada
+# ID FP / ID BPF. Counter (angka) tetap memakai seri B / C seperti sebelumnya.
+BRANCH_ID_PREFIX = {
+    'JKT': 'EI', 'JKT2': 'EA', 'JMB': 'EB', 'MLG': 'EC', 'PTK': 'ED',
+    'SBY': 'EF', 'BDG': 'EG', 'MDN': 'EH', 'BJM': 'EJ', 'PKU': 'EK',
+    'LPG': 'EL', 'SMG': 'EM',
+}
+
 
 # ================================================================
 # UTIL
@@ -118,6 +126,15 @@ DEFAULT_ID_CONFIG = {'fingerprint_series': 'B', 'bpf_series': 'C'}
 def _clean(value, maxlen=None):
     text = re.sub(r'\s+', ' ', str(value or '')).strip()
     return text[:maxlen] if maxlen else text
+
+
+def branch_id_prefix(branch_code):
+    """Prefix ID FP/BPF untuk satu cabang; '' bila cabang tidak dikenal.
+
+    Cabang di luar pemetaan memakai jalur legacy (angka polos) supaya alur
+    lama tidak berubah — form publik sendiri sudah menolak cabang asing.
+    """
+    return BRANCH_ID_PREFIX.get(_clean(branch_code, 10).upper(), '')
 
 
 def _digits(value):
@@ -291,6 +308,32 @@ def _valid_id_number(value):
     return number if 0 < number <= 2_000_000_000 else None
 
 
+def _valid_id_value(value):
+    """Input ID FP/BPF: angka lama ATAU `<prefix>_<angka>` baru."""
+    text = str(value or '').strip()
+    if not text:
+        return None
+    prefix = ''
+    if '_' in text:
+        head, _, text = text.partition('_')
+        if head not in BRANCH_ID_PREFIX.values():
+            return None
+        prefix = head
+    number = _valid_id_number(text)
+    if number is None:
+        return None
+    return f'{prefix}_{number}' if prefix else number
+
+
+def _number_part(value):
+    """Angka dari ID lama ('int') maupun baru ('<prefix>_<int>')."""
+    text = str(value or '').strip()
+    if not text:
+        return 0
+    tail = text.rsplit('_', 1)[-1]
+    return int(tail) if tail.isdigit() else 0
+
+
 def _counter_branch_scope(conn=None):
     """Cabang yang counter-nya boleh dilihat sesi ini (None = semua cabang).
 
@@ -360,7 +403,7 @@ def _id_state(conn, branch_codes=None):
         usage = cursor.fetchone() or {}
     finally:
         cursor.close()
-    usage = {k: int(v or 0) for k, v in usage.items()}
+    usage = {k: _number_part(v) for k, v in usage.items()}
     branch_state = []
     for branch in branches or []:
         code = str(branch.get('code') or '').strip().upper()
@@ -381,8 +424,8 @@ def _id_state(conn, branch_codes=None):
             'next_bpf': (branch_counters[bp_key]
                          if bp_key in branch_counters
                          else counters.get(cfg['bpf_series'], 0)) + 1,
-            'max_fingerprint': int(used.get('max_fp') or 0) or None,
-            'max_bpf': int(used.get('max_bp') or 0) or None,
+            'max_fingerprint': _number_part(used.get('max_fp')) or None,
+            'max_bpf': _number_part(used.get('max_bp')) or None,
         })
     # Angka ringkas di atas tabel: untuk satu cabang pakai counter efektif
     # cabang itu (bila sudah punya), bukan counter global cabang lain.
@@ -511,8 +554,21 @@ def _next_id_number(conn, series, branch_code=None):
 
     v2.95.0: bila cabang sudah punya counter sendiri, pakai itu; bila belum,
     tetap memakai counter global sehingga format & perilaku lama tidak berubah.
+    Rilis B Task 1: pemakaian pertama oleh cabang menyemai counter cabang dari
+    posisi counter global, jadi nomor lanjut dari angka lama (bukan mulai 1).
     """
-    if branch_code and _branch_counter_get(conn, branch_code, series) is not None:
+    if branch_code:
+        if _branch_counter_get(conn, branch_code, series) is None:
+            cursor = conn.cursor()
+            try:
+                cursor.execute(
+                    "INSERT INTO first_work_branch_counters "
+                    "(branch_code, series, last_value) VALUES (%s,%s,%s) "
+                    "ON DUPLICATE KEY UPDATE "
+                    "last_value=GREATEST(last_value, VALUES(last_value))",
+                    (branch_code, series, _id_counter_get(conn, series)))
+            finally:
+                cursor.close()
         return _branch_counter_next(conn, branch_code, series)
     cursor = conn.cursor()
     try:
@@ -544,8 +600,14 @@ def _assign_id_numbers(conn, cfg=None, branch_code=None):
     Nomor dari counter bisa saja sudah dipakai baris historis (mis. traineer
     men-set angka awal yang mundur, atau pemetaan ditukar). Maka tiap nomor
     dicek; kalau terpakai, counter naik terus sampai ketemu nomor bebas.
+
+    Rilis B Task 1: cabang yang dikenal memakai counter `(branch_code, series)`
+    dan menghasilkan `<prefix>_<nomor>`; baris lama tidak disentuh. Cabang di
+    luar pemetaan (jalur legacy) tetap memakai counter global & angka polos.
     """
     cfg = cfg or _parse_id_config(_config_get(conn, CONFIG_ID))
+    prefix = branch_id_prefix(branch_code)
+    counter_branch = branch_code if prefix else None
     cursor = conn.cursor()
     result = {}
     try:
@@ -553,9 +615,10 @@ def _assign_id_numbers(conn, cfg=None, branch_code=None):
                                ('bpf_no', cfg['bpf_series'])):
             value = None
             for _ in range(500):
-                candidate = _next_id_number(conn, series, branch_code)
-                if not _number_taken(cursor, column, candidate):
-                    value = candidate
+                candidate = _next_id_number(conn, series, counter_branch)
+                formatted = f'{prefix}_{candidate}' if prefix else candidate
+                if not _number_taken(cursor, column, formatted):
+                    value = formatted
                     break
             result[column] = value
     finally:
@@ -2440,7 +2503,7 @@ def register_first_work_routes(app):
                     cursor.execute(
                         f'SELECT MAX({column}) AS used FROM first_work_submissions '
                         'WHERE branch_code=%s', (code,))
-                    used = int((cursor.fetchone() or {}).get('used') or 0)
+                    used = _number_part((cursor.fetchone() or {}).get('used'))
                     if used and start <= used:
                         return jsonify({
                             'status': 'error',
@@ -2475,14 +2538,16 @@ def register_first_work_routes(app):
         conn = None
         try:
             body = request.get_json(silent=True) or {}
-            fp = _valid_id_number(body.get('fingerprint_no'))
-            bp = _valid_id_number(body.get('bpf_no'))
+            fp = _valid_id_value(body.get('fingerprint_no'))
+            bp = _valid_id_value(body.get('bpf_no'))
             if 'fingerprint_no' in body and fp is None and body.get('fingerprint_no') is not None:
                 return jsonify({'status': 'error',
-                                'msg': 'ID Fingerprint harus angka > 0'}), 400
+                                'msg': 'ID Fingerprint harus angka > 0 '
+                                       'atau <prefix>_<angka>'}), 400
             if 'bpf_no' in body and bp is None and body.get('bpf_no') is not None:
                 return jsonify({'status': 'error',
-                                'msg': 'ID BPF harus angka > 0'}), 400
+                                'msg': 'ID BPF harus angka > 0 '
+                                       'atau <prefix>_<angka>'}), 400
             if 'fingerprint_no' not in body and 'bpf_no' not in body:
                 return jsonify({'status': 'error',
                                 'msg': 'Tidak ada perubahan'}), 400

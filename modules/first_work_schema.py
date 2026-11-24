@@ -140,11 +140,31 @@ def ensure_first_work_schema(conn=None):
         # '6495' = seri C) dan pemetaannya bisa diatur traineer.
         _run(cursor, """
             ALTER TABLE first_work_submissions
-                ADD COLUMN IF NOT EXISTS fingerprint_no INT NULL AFTER sheet_seq,
-                ADD COLUMN IF NOT EXISTS bpf_no INT NULL AFTER fingerprint_no,
+                ADD COLUMN IF NOT EXISTS fingerprint_no VARCHAR(30) NULL AFTER sheet_seq,
+                ADD COLUMN IF NOT EXISTS bpf_no VARCHAR(30) NULL AFTER fingerprint_no,
                 ADD INDEX IF NOT EXISTS idx_fw_fingerprint (fingerprint_no),
                 ADD INDEX IF NOT EXISTS idx_fw_bpf (bpf_no)
         """, 'first_work_submissions.id_columns')
+
+        # Rilis B Task 1: ID baru berbentuk `<prefix>_<nomor>` (mis. EF_30031),
+        # jadi kolom yang dulu INT harus diperlebar. Data lama berupa angka
+        # tetap terbaca sebagai string angka yang sama — tidak dinomori ulang.
+        try:
+            cursor.execute("""
+                SELECT DATA_TYPE FROM information_schema.COLUMNS
+                WHERE TABLE_SCHEMA = DATABASE()
+                  AND TABLE_NAME = 'first_work_submissions'
+                  AND COLUMN_NAME IN ('fingerprint_no', 'bpf_no')
+            """)
+            types = {str(row[0]).lower() for row in (cursor.fetchall() or [])}
+            if types and types != {'varchar'}:
+                _run(cursor, """
+                    ALTER TABLE first_work_submissions
+                        MODIFY COLUMN fingerprint_no VARCHAR(30) NULL AFTER sheet_seq,
+                        MODIFY COLUMN bpf_no VARCHAR(30) NULL AFTER fingerprint_no
+                """, 'first_work_submissions.id_columns_widen')
+        except Exception as e:
+            print(f'[first-work-schema] pelebaran kolom ID dilewati: {e}')
 
         # v2.88.0: versi scan KTP (lurus + watermark) dan hash integritasnya.
         _run(cursor, """
