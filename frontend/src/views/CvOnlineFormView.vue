@@ -23,6 +23,7 @@ const options = reactive({
 })
 
 const form = reactive({
+  nik: '',
   sumber_informasi: '',
   diundang_oleh: '',
   user_ef: '',
@@ -55,6 +56,20 @@ let restoring = false
 
 const pct = computed(() => Math.round((step.value / STEPS.length) * 100))
 const today = new Date().toISOString().slice(0, 10)
+
+const nikInfo = computed(() => {
+  const digits = String(form.nik || '').replace(/\D/g, '')
+  return { digits, valid: digits.length === 16 }
+})
+
+function onNik(event) {
+  form.nik = String(event.target.value || '').replace(/\D/g, '').slice(0, 16)
+}
+
+function maskNik(nik) {
+  const text = String(nik || '')
+  return text.length === 16 ? `${text.slice(0, 6)}••••${text.slice(-4)}` : text
+}
 
 const hpInfo = computed(() => {
   const digits = String(form.no_hp || '').replace(/\D/g, '')
@@ -135,6 +150,7 @@ function stepError(index) {
     if (!form.kontak_tidak_serumah.trim()) return 'Kontak tidak serumah wajib diisi.'
   }
   if (index === 1) {
+    if (!nikInfo.value.valid) return 'NIK sesuai KTP wajib 16 digit angka.'
     if (form.nama.trim().length < 3) return 'Nama Lengkap sesuai KTP wajib diisi (min. 3 karakter).'
     if (!form.tempat_lahir.trim()) return 'Tempat Lahir wajib diisi.'
     if (!form.tanggal_lahir) return 'Tanggal Lahir wajib diisi.'
@@ -188,6 +204,8 @@ async function submit() {
     return
   }
   error.value = ''
+  // NIK selalu dikirim sebagai 16 digit (sama seperti normalisasi server).
+  form.nik = nikInfo.value.digits.slice(0, 16)
   const payload = new FormData()
   Object.entries(form).forEach(([key, value]) => payload.append(key, String(value ?? '').trim()))
   payload.append('no_hp', hpInfo.value.hp || form.no_hp)
@@ -351,6 +369,19 @@ onBeforeUnmount(() => { /* tidak ada timer/stream yang perlu dibersihkan */ })
           <!-- Langkah 2: data pribadi -->
           <template v-else-if="step === 1">
             <div class="cv-field">
+              <label>NIK sesuai KTP <span class="req">*</span></label>
+              <input class="input" :value="form.nik" aria-label="NIK sesuai KTP"
+                     inputmode="numeric" autocomplete="off" maxlength="16"
+                     placeholder="16 digit angka" @input="onNik" />
+              <small class="cv-hint">
+                {{ form.nik.length }}/16 digit
+                <template v-if="nikInfo.valid"> · ✅ siap dikirim</template>
+                <template v-else-if="form.nik"> · ⚠️ NIK belum lengkap — perlu 16 digit angka.</template>
+                <template v-else> · Isi sesuai KTP, tanpa spasi atau tanda baca.</template>
+              </small>
+            </div>
+
+            <div class="cv-field">
               <label>Nama Lengkap <span class="req">*</span></label>
               <input class="input" v-model="form.nama" maxlength="150" autocomplete="name"
                      placeholder="Isilah sesuai KTP" />
@@ -466,6 +497,7 @@ onBeforeUnmount(() => { /* tidak ada timer/stream yang perlu dibersihkan */ })
           <template v-else>
             <div class="cv-review">
               <h4>Ringkasan</h4>
+              <div><span>NIK</span><b>{{ maskNik(form.nik) || '—' }}</b></div>
               <div><span>Nama</span><b>{{ form.nama || '—' }}</b></div>
               <div><span>Tempat / Tanggal Lahir</span><b>{{ form.tempat_lahir || '—' }}<template v-if="form.tanggal_lahir">, {{ form.tanggal_lahir }}</template></b></div>
               <div><span>Jenis Kelamin</span><b>{{ form.jenis_kelamin || '—' }}</b></div>
@@ -481,8 +513,8 @@ onBeforeUnmount(() => { /* tidak ada timer/stream yang perlu dibersihkan */ })
             <input type="checkbox" v-model="consent" />
             <span>Saya menyatakan data yang saya isi adalah benar dan saya
             <b>menyetujui syarat &amp; ketentuan serta penggunaan data pribadi saya</b>
-            (nama, tempat/tanggal lahir, alamat, No. HP, pendidikan, dan pengalaman
-            kerja) oleh PT Bestprofit Futures untuk proses rekrutmen ini.</span>
+            (NIK, nama, tempat/tanggal lahir, alamat, No. HP, pendidikan, dan
+            pengalaman kerja) oleh PT Bestprofit Futures untuk proses rekrutmen ini.</span>
           </label>
 
           <div class="cv-nav">

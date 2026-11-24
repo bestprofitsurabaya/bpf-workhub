@@ -25,7 +25,7 @@ from flask import (request, jsonify, session, make_response)
 # lewat _scope_branch().
 from modules.config import get_master_connection
 from modules.helpers import (role_required, log_activity_async, client_ip,
-                             redis_rate_hit)
+                             redis_rate_hit, normalize_nik)
 
 # ================================================================
 # KONSTANTA
@@ -250,7 +250,13 @@ def _form_path(branch_code, token=''):
 # ================================================================
 def validate_payload(form):
     """Validasi isian form publik. Return (data, error_message)."""
+    # NIK (Rilis A): kunci identitas rekrutmen. Normalisasi memakai helper yang
+    # SAMA dengan FirstWork — 16 digit angka, KTP, bukan notasi ilmiah.
+    nik, nik_raw = normalize_nik(form.get('nik'))
+
     data = {
+        'nik': nik,
+        'nik_raw': nik_raw,
         'sumber_informasi': _clean(form.get('sumber_informasi'), 150),
         'diundang_oleh': _clean(form.get('diundang_oleh'), 150),
         'kontak_serumah': _clean(form.get('kontak_serumah'), 2000),
@@ -272,6 +278,9 @@ def validate_payload(form):
         'pengalaman_1': _clean(form.get('pengalaman_1'), 2000),
         'pengalaman_2': _clean(form.get('pengalaman_2'), 2000),
     }
+
+    if not nik:
+        return None, 'NIK sesuai KTP wajib diisi dan harus 16 digit angka.'
 
     required = (
         ('sumber_informasi', 'Sumber Informasi wajib diisi'),
@@ -465,9 +474,9 @@ def register_cv_online_routes(app):
                          pendidikan_terakhir, sekolah_menengah, perguruan_tinggi,
                          pengalaman_status, pengalaman_lama, posisi_terakhir,
                          pengalaman_1, pengalaman_2, branch_code, status,
-                         consent_at)
+                         consent_at, nik, nik_raw)
                     VALUES (%s,'form',%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,
-                            %s,%s,%s,%s,%s,%s,%s,%s,%s,'submitted',%s)
+                            %s,%s,%s,%s,%s,%s,%s,%s,%s,'submitted',%s,%s,%s)
                 """, (
                     registration_no, submitted_at, data['sumber_informasi'],
                     data['diundang_oleh'], data['kontak_serumah'],
@@ -479,6 +488,7 @@ def register_cv_online_routes(app):
                     data['pengalaman_status'], data['pengalaman_lama'],
                     data['posisi_terakhir'], data['pengalaman_1'],
                     data['pengalaman_2'], branch_code, submitted_at,
+                    data['nik'], data['nik_raw'],
                 ))
                 submission_id = cursor.lastrowid
                 _add_event(cursor, submission_id, 'created', '', 'submitted',
@@ -873,6 +883,7 @@ def register_cv_online_routes(app):
             writer = csv.writer(buffer)
             writer.writerow([
                 'No. Registrasi', 'Waktu Kirim', 'Cabang', 'Status', 'Nama',
+                'NIK',
                 'Tempat Lahir', 'Tanggal Lahir', 'Jenis Kelamin', 'Domisili',
                 'Alamat', 'No. HP', 'Pendidikan Terakhir',
                 'Sekolah Menengah', 'Perguruan Tinggi', 'Pengalaman',
@@ -888,6 +899,9 @@ def register_cv_online_routes(app):
                     data.get('branch_code') or '',
                     STATUS_LABELS.get(data.get('status'), data.get('status') or ''),
                     data.get('nama') or '',
+                    # Baris lama (sebelum Rilis A) nik-nya NULL — pakai raw
+                    # bila ada, selain itu kosong (tidak mengubah data asli).
+                    data.get('nik') or data.get('nik_raw') or '',
                     data.get('tempat_lahir') or '',
                     data.get('tanggal_lahir') or '',
                     data.get('jenis_kelamin') or '',

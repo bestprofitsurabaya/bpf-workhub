@@ -36,7 +36,7 @@ from modules.config import get_master_connection
 # v2.85.0: import counter Redis (lihat helpers.redis_rate_hit — kini memakai
 # helper ini untuk limit submit & cek NIK).
 from modules.helpers import (role_required, log_activity_async, client_ip,
-                             save_file, redis_rate_hit)
+                             save_file, redis_rate_hit, normalize_nik)
 from modules.routes_overtime import _check_public_url
 # v2.88.0: normalisasi scan KTP di server (auto-orient, trim, watermark, SHA-256).
 from modules.ktp_scan import normalize_ktp
@@ -122,17 +122,8 @@ def _digits(value):
     return re.sub(r'\D', '', str(value or ''))
 
 
-def normalize_nik(value):
-    """Return (nik_valid_16, raw). Notasi ilmiah / panjang salah = invalid."""
-    raw = _clean(value, 32)
-    if not raw:
-        return '', ''
-    if re.search(r'[eE]\+|,', raw):
-        return '', raw
-    digits = _digits(raw)
-    if len(digits) == 16:
-        return digits, raw
-    return '', raw
+# normalize_nik kini di modules.helpers (dipakai bersama FirstWork & CV Online).
+# Symbol tetap tersedia di modul ini lewat import di atas.
 
 
 def normalize_hp(value):

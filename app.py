@@ -164,6 +164,13 @@ for _attempt in range(5):
         break
     _time.sleep(3)
 
+# Rilis A: NIK di CV Online — ALTER idempoten untuk DB yang sudah punya tabel.
+from modules.cv_online_schema import ensure_cv_online_nik_columns
+for _attempt in range(5):
+    if ensure_cv_online_nik_columns():
+        break
+    _time.sleep(3)
+
 # Receptionist sheet sync (v2.41.0): tabel employee_inout + kolom sync di
 # applicants (safe on every startup, paritas schema ensure lainnya).
 from modules.routes_receptionist import ensure_receptionist_schema

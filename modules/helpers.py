@@ -2,6 +2,7 @@
 from modules.integrity import note
 import os
 import json
+import re
 import ipaddress
 import secrets
 import threading
@@ -16,6 +17,23 @@ def safe_float(val, default=0.0):
         return float(val) if val is not None else default
     except (TypeError, ValueError):
         return default
+
+def normalize_nik(value):
+    """Normalisasi NIK: return (nik_valid_16_digit, raw).
+
+    Dipakai bersama oleh FirstWork dan CV Online (Rilis A). Notasi ilmiah
+    (mis. `1,23E+15` dari spreadsheet) dan jumlah digit bukan 16 ditolak.
+    """
+    raw = re.sub(r'\s+', ' ', str(value or '')).strip()[:32]
+    if not raw:
+        return '', ''
+    if re.search(r'[eE]\+|,', raw):
+        return '', raw
+    digits = re.sub(r'\D', '', raw)
+    if len(digits) == 16:
+        return digits, raw
+    return '', raw
+
 
 def resolve_user_pin(pin_field):
     """Kebijakan update PIN user (ISO/IEC 27001 A.9.4 — integritas kredensial).

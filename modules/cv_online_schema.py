@@ -70,6 +70,8 @@ def ensure_cv_online_schema(conn=None):
                 reviewed_by VARCHAR(100) DEFAULT '',
                 reviewed_at DATETIME NULL,
                 consent_at DATETIME NULL,
+                nik CHAR(16) NULL,
+                nik_raw VARCHAR(32) NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                 UNIQUE KEY uq_cvo_registration (registration_no),
@@ -140,6 +142,89 @@ def ensure_cv_online_schema(conn=None):
         return True
     except Exception as e:
         print(f'[cv-online-schema] fatal: {e}')
+        return False
+    finally:
+        if own and conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+
+# ================================================================
+# NIK pada CV Online (Rilis A) — ALTER idempoten untuk DB yang sudah ada.
+# CREATE TABLE IF NOT EXISTS di atas hanya berlaku untuk instalasi baru;
+# DB produksi yang sudah punya tabel ini butuh penambahan kolom eksplisit.
+# ================================================================
+_NIK_DDL = (
+    ('nik', 'ALTER TABLE cv_online_submissions '
+            'ADD COLUMN nik CHAR(16) NULL AFTER consent_at'),
+    ('nik_raw', 'ALTER TABLE cv_online_submissions '
+                'ADD COLUMN nik_raw VARCHAR(32) NULL AFTER nik'),
+)
+
+
+def ensure_cv_online_nik_columns(conn=None):
+    """Pastikan kolom nik & nik_raw ada di cv_online_submissions (DB master).
+
+    Idempoten: kolom yang sudah ada dilewati; error "duplicate column"
+    (1060) juga dianggap sukses untuk antisipasi dua worker startup bersamaan.
+    `conn` opsional — bila diberikan dipakai langsung dan TIDAK ditutup di sini.
+    """
+    own = conn is None
+    try:
+        if conn is None:
+            from modules.config import get_master_connection
+            conn = get_master_connection()
+        if not conn:
+            print('[cv-online-nik] DB master unavailable, skip migration')
+            return False
+
+        cursor = conn.cursor()
+        try:
+            try:
+                cursor.execute(
+                    "SELECT COLUMN_NAME FROM information_schema.COLUMNS "
+                    "WHERE TABLE_SCHEMA=DATABASE() "
+                    "AND TABLE_NAME='cv_online_submissions' "
+                    "AND COLUMN_NAME IN ('nik','nik_raw')")
+                rows = cursor.fetchall() or []
+                existing = set()
+                for row in rows:
+                    if isinstance(row, dict):
+                        name = row.get('COLUMN_NAME')
+                    elif isinstance(row, (tuple, list)):
+                        name = row[0]
+                    else:
+                        name = row
+                    existing.add(str(name or '').lower())
+            except Exception:
+                existing = set()
+
+            results = []
+            for column, sql in _NIK_DDL:
+                if column in existing:
+                    results.append(True)
+                    continue
+                try:
+                    cursor.execute(sql)
+                    results.append(True)
+                except Exception as e:
+                    text = str(e).lower()
+                    if '1060' in text or 'duplicate column' in text:
+                        results.append(True)
+                    else:
+                        print(f'[cv-online-nik] {column}: {e}')
+                        results.append(False)
+            conn.commit()
+            return all(results)
+        finally:
+            try:
+                cursor.close()
+            except Exception:
+                pass
+    except Exception as e:
+        print(f'[cv-online-nik] fatal: {e}')
         return False
     finally:
         if own and conn:

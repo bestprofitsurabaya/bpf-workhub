@@ -1063,4 +1063,54 @@ CREATE TABLE IF NOT EXISTS case_branch_history (
     KEY idx_cbh_case (case_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- ============================================================
+-- Registrasi CV Online (Rilis A): NIK kini jadi kunci identitas rekrutmen.
+-- DDL ini sumber kebenaran schema drift CI; sama dengan CREATE TABLE di
+-- modules/cv_online_schema.py (kolom nik/nik_raw juga di-ALTER saat startup
+-- untuk DB yang sudah ada lewat ensure_cv_online_nik_columns()).
+-- ============================================================
+CREATE TABLE IF NOT EXISTS cv_online_submissions (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    registration_no VARCHAR(40) NOT NULL,
+    source VARCHAR(20) NOT NULL DEFAULT 'form',
+    submitted_at DATETIME NOT NULL,
+    sumber_informasi VARCHAR(150) DEFAULT '',
+    diundang_oleh VARCHAR(150) DEFAULT '',
+    kontak_serumah TEXT NULL,
+    kontak_tidak_serumah TEXT NULL,
+    user_ef VARCHAR(20) DEFAULT '',
+    nama VARCHAR(150) NOT NULL,
+    tempat_lahir VARCHAR(100) DEFAULT '',
+    tanggal_lahir DATE NULL,
+    jenis_kelamin VARCHAR(10) DEFAULT '',
+    domisili VARCHAR(50) DEFAULT '',
+    alamat TEXT NULL,
+    no_hp VARCHAR(30) DEFAULT '',
+    no_hp_norm VARCHAR(20) DEFAULT '',
+    pendidikan_terakhir VARCHAR(50) DEFAULT '',
+    sekolah_menengah VARCHAR(150) DEFAULT '',
+    perguruan_tinggi VARCHAR(150) DEFAULT '',
+    pengalaman_status VARCHAR(20) DEFAULT '',
+    pengalaman_lama VARCHAR(30) DEFAULT '',
+    posisi_terakhir VARCHAR(150) DEFAULT '',
+    pengalaman_1 TEXT NULL,
+    pengalaman_2 TEXT NULL,
+    branch_code VARCHAR(10) NOT NULL DEFAULT 'SBY',
+    status VARCHAR(20) NOT NULL DEFAULT 'submitted',
+    review_note VARCHAR(500) DEFAULT '',
+    reviewed_by VARCHAR(100) DEFAULT '',
+    reviewed_at DATETIME NULL,
+    consent_at DATETIME NULL,
+    nik CHAR(16) NULL,
+    nik_raw VARCHAR(32) NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_cvo_registration (registration_no),
+    KEY idx_cvo_status (status),
+    KEY idx_cvo_branch (branch_code),
+    KEY idx_cvo_submitted (submitted_at),
+    KEY idx_cvo_hp (no_hp_norm),
+    KEY idx_cvo_user (user_ef)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 SELECT '✅ v2 tables ready' AS result;

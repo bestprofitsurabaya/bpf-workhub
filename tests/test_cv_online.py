@@ -38,6 +38,7 @@ BASE = {
     'alamat': 'Jl. Contoh No. 1, Surabaya',
     'no_hp': '081234567890',
     'pendidikan_terakhir': 'S1',
+    'nik': '3573010101990001',
 }
 
 
@@ -53,7 +54,7 @@ class TestValidation:
         for key in ('sumber_informasi', 'diundang_oleh', 'kontak_serumah',
                     'kontak_tidak_serumah', 'user_ef', 'nama', 'tempat_lahir',
                     'tanggal_lahir', 'jenis_kelamin', 'domisili', 'alamat',
-                    'no_hp', 'pendidikan_terakhir'):
+                    'no_hp', 'pendidikan_terakhir', 'nik'):
             data, error = cv.validate_payload({**BASE, key: ''})
             assert data is None, key
             assert error, key
