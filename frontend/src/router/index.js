@@ -34,6 +34,9 @@ const routes = [
   // Dipisah dari /cv-online supaya menu "Registrasi CV Online" tetap membuka
   // halaman data, bukan form.
   { path: '/cv-online-form', name: 'cv-online-form', component: () => import('../views/CvOnlineFormView.vue'), meta: { public: true } },
+  // Rilis A (Task 7) — portal satu tautan per cabang: empat kartu langkah,
+  // token cabang dibawa dari query ke form CV Online / FirstWork.
+  { path: '/recruitment-portal', name: 'recruitment-portal', component: () => import('../views/RecruitmentPortalView.vue'), meta: { public: true } },
   // Driver PWA (v2.4): layout mobile mandiri, wajib login PIN driver
   { path: '/driver', name: 'driver', component: () => import('../views/driver/DriverView.vue'), meta: { roles: ['driver'] } },
   {
