@@ -26,6 +26,8 @@ from flask import (request, jsonify, session, make_response)
 from modules.config import get_master_connection
 from modules.helpers import (role_required, log_activity_async, client_ip,
                              redis_rate_hit, normalize_nik)
+# Rilis A: kasus/langkah rekrutmen ditulis di transaksi submit yang sama.
+from modules.recruitment_service import upsert_case_step
 
 # ================================================================
 # KONSTANTA
@@ -497,6 +499,13 @@ def register_cv_online_routes(app):
                            'Persetujuan syarat & ketentuan serta pemrosesan '
                            'data pribadi dicatat saat pengiriman form',
                            'public', 'public', ip)
+                # Rilis A: satu kasus per NIK + langkah CV di cabang token.
+                # Memakai koneksi yang sama SEBELUM commit — bila gagal,
+                # except di bawah membatalkan submit beserta kasus/langkahnya.
+                upsert_case_step(data['nik'], data['nama'], birth,
+                                 branch_code, 'CV', registration_no,
+                                 evidence_type='cv_online_submission',
+                                 conn=conn)
                 conn.commit()
             finally:
                 cursor.close()

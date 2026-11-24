@@ -33,6 +33,8 @@ from flask import (request, jsonify, session, send_file, make_response)
 # cabang sesi; admin cabang lain tidak punya tabel ini, jadi pakai master dan
 # batasi baris lewat _scope_branch().
 from modules.config import get_master_connection
+# Rilis A: kasus/langkah rekrutmen ditulis di transaksi submit yang sama.
+from modules.recruitment_service import upsert_case_step
 # v2.85.0: import counter Redis (lihat helpers.redis_rate_hit — kini memakai
 # helper ini untuk limit submit & cek NIK).
 from modules.helpers import (role_required, log_activity_async, client_ip,
@@ -1591,6 +1593,14 @@ def register_first_work_routes(app):
                             'Persetujuan pemrosesan data pribadi (UU PDP) '
                             'dicatat saat pengiriman form','public','public',%s)
                 """, (submission_id, ip))
+                # Rilis A: satu kasus per NIK + langkah FIRSTWORK di cabang
+                # token. Koneksi yang sama dipakai SEBELUM commit — bila gagal,
+                # except di bawah membatalkan submit beserta kasus/langkahnya.
+                # Tanggal lahir belum ada di form FirstWork (paritas = Rilis B).
+                upsert_case_step(nik, nama, None, branch_code, 'FIRSTWORK',
+                                 registration_no,
+                                 evidence_type='first_work_submission',
+                                 conn=conn)
                 conn.commit()
             finally:
                 cursor.close()
