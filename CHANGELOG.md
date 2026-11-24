@@ -7,6 +7,23 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.133.0 — 24 November 2026 (Fondasi kasus rekrutmen lintas cabang)
+
+- WorkHub menjadi rumah alur rekrutmen: portal **satu tautan per cabang**,
+  NIK sebagai kunci identitas global, dan 4 langkah (CV, Training, TKD,
+  FirstWork) yang boleh selesai tidak berurutan.
+- Tabel `recruitment_cases`, `recruitment_steps`, `case_branch_history` di DB
+  master; perpindahan cabang hanya tercatat, tidak memblokir proses.
+- CV Online sekarang mewajibkan NIK 16 digit; lookup publik NIK mengembalikan
+  hanya `known`/`can_continue` (tanpa cabang/tahap, `no-store`, rate limit).
+- Submit CV/FirstWork mengisi kasus & langkah dalam transaksi yang sama.
+- Petugas Traineer/GA HR/Admin dapat menandai pengecualian langkah per orang
+  dengan alasan, melihat dashboard kasus, dan riwayat cabang.
+- Belum termasuk Rilis B: 13 field demografi, kode cabang ID FP/BPF, cetak
+  kartu, impor 226 data unitedw, dan backfill 1.738 data lama.
+
+---
+
 ## v2.132.0 — 23 November 2026 (Driver mengajukan ganti kendaraan)
 
 - **Profil & Kendaraan di header driver.** Blok nama + nopol kini membuka panel
