@@ -12,6 +12,12 @@ const auth = useAuthStore()
 const STAFF_ROLES = ['traineer', 'ga_hr', 'admin']
 const STEP_TYPES = ['CV', 'TRAINING', 'TKD', 'FIRSTWORK']
 const EXCEPTION_ALLOWED = ['BELUM', 'PENDING']
+// Rilis B (Task 6): bukti manual hanya untuk langkah yang datanya tidak
+// berasal dari modul nyata. CV/FIRSTWORK diisi submit CV Online/FirstWork.
+const EVIDENCE_STEP_TYPES = ['TRAINING', 'TKD']
+const EMPTY_EVIDENCE = {
+  open: false, date: '', note: '', file_url: '', score: '', saving: false,
+}
 
 const isStaff = computed(() => STAFF_ROLES.includes(auth.role))
 const subtitle = computed(() => isStaff.value
@@ -25,6 +31,19 @@ const msg = ref('')
 const rows = ref([])
 const expanded = ref('')
 const filters = reactive({ q: '', branch_code: '', status: '' })
+// Form bukti per langkah: kunci `s<id>` untuk langkah ada, `m<caseId>|<type>`
+// untuk langkah yang belum ada (dibuat malas saat POST pertama).
+const evidenceForms = reactive({})
+function evidenceKey(caseId, step) {
+  return step.id ? `s${step.id}` : `m${caseId}|${step.step_type}`
+}
+function formFor(key) {
+  return evidenceForms[key] || EMPTY_EVIDENCE
+}
+function toggleEvidence(key) {
+  if (!evidenceForms[key]) evidenceForms[key] = { ...EMPTY_EVIDENCE }
+  evidenceForms[key].open = !evidenceForms[key].open
+}
 
 const branchOptions = computed(() => {
   const codes = new Set()
@@ -74,6 +93,16 @@ function stepsFor(row, type) {
   return (row.steps || []).filter((s) => s.step_type === type)
 }
 
+// Langkah TRAINING/TKD yang belum ada tetap dapat diisi bukti: tampilkan
+// kartu "Bukti baru" dengan step_id=0 (dibuat malas oleh backend saat POST).
+function evidenceTargets(row, type) {
+  const steps = stepsFor(row, type)
+  if (steps.length) return steps
+  if (!EVIDENCE_STEP_TYPES.includes(type)) return []
+  return [{ id: 0, step_type: type, status: 'BELUM', branch_code: '',
+            exception_reason: null, completed_at: null }]
+}
+
 // Riwayat cabang diurutkan API dari terbaru; tetap hitung sendiri agar aman
 // bila urutan berubah. "Asal" = first_branch, "Saat ini" = kunjungan terakhir.
 function currentBranch(row) {
@@ -92,6 +121,11 @@ function toggleDetail(caseId) {
 
 function canException(step) {
   return isStaff.value && EXCEPTION_ALLOWED.includes(step.status)
+}
+
+function canEvidence(step) {
+  return isStaff.value && EVIDENCE_STEP_TYPES.includes(step.step_type)
+    && step.status !== 'DIKECUALIKAN'
 }
 
 async function load() {
@@ -147,6 +181,45 @@ async function markException(step) {
     err.value = e.message || 'Gagal mengecualikan langkah.'
   } finally {
     busy.value = false
+  }
+}
+
+async function submitEvidence(row, step) {
+  const key = evidenceKey(row.case_id, step)
+  const form = evidenceForms[key]
+  if (!form || form.saving || !canEvidence(step)) return
+
+  const date = String(form.date || '').trim()
+  const note = String(form.note || '').trim()
+  if (!date) { err.value = 'Tanggal bukti wajib diisi.'; return }
+  if (!note) { err.value = 'Catatan bukti wajib diisi.'; return }
+
+  const body = { date, note }
+  const fileUrl = String(form.file_url || '').trim()
+  const score = String(form.score || '').trim()
+  if (fileUrl) body.file_url = fileUrl
+  if (score) body.score = score
+  // Langkah belum ada: kirim step_id=0 agar backend membuatnya lebih dulu.
+  if (!step.id) {
+    body.case_id = row.case_id
+    body.step_type = step.step_type
+  }
+
+  form.saving = true
+  err.value = ''
+  msg.value = ''
+  try {
+    await api(`/api/recruitment/steps/${step.id || 0}/evidence`, {
+      method: 'POST',
+      body,
+    })
+    msg.value = 'Bukti berhasil disimpan.'
+    form.open = false
+    await load()
+  } catch (e) {
+    err.value = e.message || 'Gagal menyimpan bukti.'
+  } finally {
+    form.saving = false
   }
 }
 
@@ -220,18 +293,49 @@ onMounted(load)
                          :data-step-type="type">
                       <h4>{{ type }}</h4>
                       <p v-if="!stepsFor(row, type).length" class="fw-hint">Belum ada data</p>
-                      <div v-for="step in stepsFor(row, type)"
-                           :key="step.id ?? (step.step_type + '-' + step.branch_code)"
-                           class="rc-step">
-                        <span class="fw-badge" :class="statusBadge(step.status)">{{ step.status }}</span>
-                        <div class="fw-sub">Cabang: {{ step.branch_code || '—' }}</div>
-                        <div class="fw-sub">Selesai: {{ fmtDT(step.completed_at) }}</div>
-                        <div v-if="step.exception_reason" class="rc-reason">
-                          Alasan: {{ step.exception_reason }}
+                      <div v-for="step in evidenceTargets(row, type)"
+                           :key="evidenceKey(row.case_id, step)" class="rc-step">
+                        <template v-if="step.id">
+                          <span class="fw-badge" :class="statusBadge(step.status)">{{ step.status }}</span>
+                          <div class="fw-sub">Cabang: {{ step.branch_code || '—' }}</div>
+                          <div class="fw-sub">Selesai: {{ fmtDT(step.completed_at) }}</div>
+                          <div v-if="step.exception_reason" class="rc-reason">
+                            Alasan: {{ step.exception_reason }}
+                          </div>
+                          <button v-if="canException(step)" class="btn btn-sm"
+                                  :data-step-type="type" :disabled="busy"
+                                  @click="markException(step)">Kecualikan</button>
+                        </template>
+                        <div v-else class="fw-sub">Bukti baru · cabang diambil otomatis</div>
+                        <button v-if="canEvidence(step)" class="btn btn-sm"
+                                :data-evidence-step="evidenceKey(row.case_id, step)"
+                                :disabled="formFor(evidenceKey(row.case_id, step)).saving"
+                                @click="toggleEvidence(evidenceKey(row.case_id, step))">
+                          {{ formFor(evidenceKey(row.case_id, step)).open ? 'Tutup bukti' : 'Isi bukti' }}
+                        </button>
+                        <div v-if="canEvidence(step) && formFor(evidenceKey(row.case_id, step)).open"
+                             class="rc-evidence-form"
+                             :data-evidence-form="evidenceKey(row.case_id, step)">
+                          <label class="rc-field">Tanggal
+                            <input class="input" type="date"
+                                   v-model="formFor(evidenceKey(row.case_id, step)).date" />
+                          </label>
+                          <label class="rc-field">Catatan
+                            <textarea class="input" rows="2"
+                                      v-model="formFor(evidenceKey(row.case_id, step)).note"></textarea>
+                          </label>
+                          <label class="rc-field">URL berkas (opsional)
+                            <input class="input" data-field="file_url"
+                                   v-model="formFor(evidenceKey(row.case_id, step)).file_url" />
+                          </label>
+                          <label class="rc-field">Nilai (opsional)
+                            <input class="input" data-field="score"
+                                   v-model="formFor(evidenceKey(row.case_id, step)).score" />
+                          </label>
+                          <button class="btn btn-sm btn-primary" data-save-evidence
+                                  :disabled="formFor(evidenceKey(row.case_id, step)).saving"
+                                  @click="submitEvidence(row, step)">Simpan bukti</button>
                         </div>
-                        <button v-if="canException(step)" class="btn btn-sm"
-                                :data-step-type="type" :disabled="busy"
-                                @click="markException(step)">Kecualikan</button>
                       </div>
                     </div>
                   </div>
@@ -278,6 +382,13 @@ onMounted(load)
 .rc-step { padding: 6px 0; border-top: 1px dashed var(--border); }
 .rc-step .btn { margin-top: 8px; }
 .rc-reason { margin-top: 4px; font-size: 10px; color: #b45309; }
+.rc-evidence-form {
+  display: grid; gap: 6px; margin-top: 8px; padding: 8px;
+  border: 1px solid var(--border); border-radius: 8px; background: var(--bg);
+}
+.rc-field { display: grid; gap: 3px; font-size: 10px; color: var(--text-2); }
+.rc-field .input { width: 100%; font-size: 11px; padding: 4px 6px; }
+.rc-evidence-form .btn { margin-top: 0; }
 .rc-history-item {
   display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
   padding: 5px 0; border-bottom: 1px dashed var(--border); font-size: 12px;

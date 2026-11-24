@@ -14,6 +14,10 @@ beserta riwayat cabang dan langkahnya. NIK hanya dikirim sebagai empat digit
 terakhir (`****0002`), baik di respons maupun di audit. `case_id` sudah opaque
 (dibuat service tanpa NIK) sehingga dikembalikan apa adanya.
 
+`POST /api/recruitment/steps/<step_id>/evidence` dipakai staff untuk mencatat
+bukti manual TRAINING/TKD (Rilis B Task 6). `step_id=0` berarti langkah belum
+ada dan dibuat lebih dulu dari `case_id`/`step_type` di body.
+
 Deteksi bersifat global ke DB master (lintas cabang), memakai tiga sumber:
 `recruitment_cases`, `cv_online_submissions.nik`, `first_work_submissions.nik`.
 Peserta dengan NIK baru tetap boleh mengisi CV Online; keputusan kartu langkah
@@ -23,6 +27,7 @@ Pola mengikuti `/api/first-work/check-nik`: rate limit Redis per IP,
 normalisasi NIK bersama, dan `Cache-Control: no-store`.
 """
 import re
+import uuid
 from datetime import date, datetime
 
 from flask import jsonify, request, session
@@ -48,6 +53,13 @@ _STAFF_ROLES = ['traineer', 'ga_hr', 'admin']
 _EXCEPTION_ALLOWED = ('BELUM', 'PENDING')
 _REASON_MAX = 500
 
+# Bukti manual: hanya TRAINING/TKD yang datanya tidak berasal dari modul nyata.
+# CV/FIRSTWORK diisi oleh submit CV Online/FirstWork, jadi ditolak 409.
+_EVIDENCE_STEP_TYPES = ('TRAINING', 'TKD')
+_EVIDENCE_TOKEN_PREFIX = 'MEV-'
+# step_id=0 dipakai UI bila langkah belum ada (Task 4 hanya membuat CV/FIRSTWORK).
+_LAZY_STEP_ID = 0
+
 _DATE_RE = re.compile(r'^\d{4}-\d{2}-\d{2}$')
 
 
@@ -61,6 +73,15 @@ def _valid_dob(value):
     except ValueError:
         return False
     return True
+
+
+def _latest_branch_code(cursor, case_id, fallback=''):
+    """Cabang terakhir yang dipakai kasus; jatuh ke cabang asal bila kosong."""
+    cursor.execute(
+        'SELECT branch_code FROM case_branch_history WHERE case_id=%s '
+        'ORDER BY last_seen_at DESC, first_seen_at DESC LIMIT 1', (case_id,))
+    row = cursor.fetchone() or {}
+    return str(row.get('branch_code') or fallback or '')[:10]
 
 
 def _lookup_ok(ip):
@@ -304,6 +325,133 @@ def register_recruitment_routes(app):
                 pass
             return jsonify({'status': 'success', 'msg': 'Langkah dikecualikan',
                             'data': {'id': step_id, 'status': 'DIKECUALIKAN'}})
+        except Exception:
+            if conn:
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
+            return jsonify({'status': 'error', 'msg': 'DB error'}), 500
+        finally:
+            if conn:
+                conn.close()
+
+    @app.route('/api/recruitment/steps/<int:step_id>/evidence', methods=['POST'])
+    @role_required(_STAFF_ROLES)
+    def api_recruitment_step_evidence(step_id):
+        """Simpan bukti manual TRAINING/TKD.
+
+        `step_id=0` berarti langkah belum ada: dibuat lebih dulu dari
+        `case_id`/`step_type` di body dengan cabang terakhir si kasus.
+        NIK tidak pernah diterima maupun ditulis ke audit di endpoint ini.
+        """
+        body = request.get_json(silent=True) or {}
+
+        raw_date = body.get('date')
+        evidence_date = str(raw_date).strip() if isinstance(raw_date, str) else ''
+        if not _valid_dob(evidence_date):
+            return jsonify({'status': 'error',
+                            'msg': 'Tanggal bukti wajib diisi (YYYY-MM-DD).'}), 400
+
+        raw_note = body.get('note')
+        note = str(raw_note).strip() if isinstance(raw_note, str) else ''
+        note = note[:_REASON_MAX]  # exception_reason VARCHAR(500)
+
+        def _optional_text(key, limit):
+            value = body.get(key)
+            return str(value).strip()[:limit] if isinstance(value, str) else ''
+
+        file_url = _optional_text('file_url', 300)
+        score = _optional_text('score', 30)
+
+        lazy = step_id == _LAZY_STEP_ID
+        case_id = str(body.get('case_id') or '').strip()[:40]
+        step_type_body = str(body.get('step_type') or '').strip().upper()
+        if lazy and not case_id:
+            return jsonify({'status': 'error',
+                            'msg': 'case_id wajib untuk langkah baru.'}), 400
+        if lazy and step_type_body not in _EVIDENCE_STEP_TYPES:
+            return jsonify({'status': 'error',
+                            'msg': 'Jenis langkah tidak mendukung bukti manual'}), 409
+
+        conn = None
+        try:
+            conn = get_master_connection()
+            if not conn:
+                return jsonify({'status': 'error', 'msg': 'DB error'}), 500
+            cursor = conn.cursor(dictionary=True)
+            try:
+                if lazy:
+                    cursor.execute(
+                        'SELECT case_id, first_branch FROM recruitment_cases '
+                        'WHERE case_id=%s', (case_id,))
+                    case_row = cursor.fetchone()
+                    if not case_row:
+                        return jsonify({'status': 'error',
+                                        'msg': 'Kasus tidak ditemukan'}), 404
+                    branch = _latest_branch_code(
+                        cursor, case_id, case_row.get('first_branch'))
+                    cursor.execute("""
+                        INSERT IGNORE INTO recruitment_steps
+                            (case_id, step_type, status, branch_code)
+                        VALUES (%s,%s,'BELUM',%s)
+                    """, (case_id, step_type_body, branch))
+                    cursor.execute("""
+                        SELECT id FROM recruitment_steps
+                        WHERE case_id=%s AND step_type=%s AND branch_code=%s
+                        ORDER BY id DESC LIMIT 1
+                    """, (case_id, step_type_body, branch))
+                    created = cursor.fetchone()
+                    if not created:
+                        return jsonify({'status': 'error', 'msg': 'DB error'}), 500
+                    step_id = created['id']
+
+                cursor.execute(
+                    'SELECT id, case_id, step_type, status FROM recruitment_steps '
+                    'WHERE id=%s', (step_id,))
+                row = cursor.fetchone()
+                if not row:
+                    return jsonify({'status': 'error',
+                                    'msg': 'Langkah tidak ditemukan'}), 404
+                if row.get('step_type') not in _EVIDENCE_STEP_TYPES:
+                    return jsonify({'status': 'error',
+                                    'msg': 'Langkah ini tidak menerima bukti manual'}), 409
+                if row.get('status') == 'DIKECUALIKAN':
+                    return jsonify({'status': 'error',
+                                    'msg': 'Langkah dikecualikan tidak bisa diisi'}), 409
+
+                actor = session.get('user_name') or 'system'
+                role = session.get('user_role') or ''
+                evidence_id = (_EVIDENCE_TOKEN_PREFIX
+                               + uuid.uuid4().hex[:16])
+                cursor.execute("""
+                    UPDATE recruitment_steps
+                    SET status=%s, evidence_type=%s, evidence_id=%s,
+                        exception_reason=%s, completed_at=%s, actor=%s
+                    WHERE id=%s
+                """, ('SELESAI', 'manual_evidence', evidence_id, note,
+                      evidence_date, actor, step_id))
+                conn.commit()
+            finally:
+                cursor.close()
+
+            try:
+                # tx_id None: activity_logs.transaction_id ber-FK ke transactions.
+                log_activity_async(
+                    None, 'recruitment_step_evidence', role, actor,
+                    new_data={'step_id': step_id,
+                              'case_id': str(row.get('case_id') or ''),
+                              'date': evidence_date, 'note': note,
+                              'file_url': file_url, 'score': score,
+                              'created': bool(lazy)})
+            except Exception:
+                pass  # Audit gagal tidak boleh mengembalikan 500 setelah commit.
+            return jsonify({
+                'status': 'success', 'msg': 'Bukti tersimpan',
+                'data': {'id': step_id, 'step_type': row.get('step_type'),
+                         'status': 'SELESAI', 'date': evidence_date,
+                         'evidence_id': evidence_id},
+            })
         except Exception:
             if conn:
                 try:

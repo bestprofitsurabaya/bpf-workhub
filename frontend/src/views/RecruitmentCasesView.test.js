@@ -151,4 +151,101 @@ describe('RecruitmentCasesView (Dashboard kasus staff)', () => {
     expect(caseCalls.length).toBe(1)
     expect(w.text()).toContain('Alasan wajib diisi')
   })
+
+  it('form bukti hanya untuk TRAINING/TKD, bisa dibuka dan ditutup', async () => {
+    const w = await mountRole()
+    await openDetail(w)
+
+    const toggles = w.findAll('button[data-evidence-step]')
+    expect(toggles.map((b) => b.attributes('data-evidence-step'))).toEqual(['s12', 's13'])
+    expect(w.find('[data-evidence-form="s12"]').exists()).toBe(false)
+
+    await w.find('button[data-evidence-step="s12"]').trigger('click')
+    expect(w.find('[data-evidence-form="s12"]').exists()).toBe(true)
+    expect(w.find('button[data-evidence-step="s12"]').text()).toContain('Tutup bukti')
+
+    await w.find('button[data-evidence-step="s12"]').trigger('click')
+    expect(w.find('[data-evidence-form="s12"]').exists()).toBe(false)
+  })
+
+  it('form bukti mengirim POST evidence lengkap lalu memuat ulang daftar', async () => {
+    const w = await mountRole()
+    await openDetail(w)
+    await w.find('button[data-evidence-step="s12"]').trigger('click')
+    const form = w.find('[data-evidence-form="s12"]')
+
+    await form.find('input[type="date"]').setValue('2026-11-24')
+    await form.find('textarea').setValue('Lulus pelatihan')
+    await form.find('input[data-field="file_url"]').setValue('https://x/bukti.pdf')
+    await form.find('input[data-field="score"]').setValue('88')
+    await form.find('button[data-save-evidence]').trigger('click')
+    await flushPromises()
+
+    expect(postCalls).toEqual([{
+      path: '/api/recruitment/steps/12/evidence',
+      opts: {
+        method: 'POST',
+        body: {
+          date: '2026-11-24', note: 'Lulus pelatihan',
+          file_url: 'https://x/bukti.pdf', score: '88',
+        },
+      },
+    }])
+    expect(caseCalls.length).toBe(2)
+    expect(w.text()).toContain('Bukti berhasil disimpan')
+  })
+
+  it('bukti tanpa tanggal ditolak di sisi klien tanpa POST', async () => {
+    const w = await mountRole()
+    await openDetail(w)
+    await w.find('button[data-evidence-step="s13"]').trigger('click')
+    const form = w.find('[data-evidence-form="s13"]')
+    await form.find('textarea').setValue('Catatan tanpa tanggal')
+
+    await form.find('button[data-save-evidence]').trigger('click')
+    await flushPromises()
+
+    expect(postCalls).toEqual([])
+    expect(caseCalls.length).toBe(1)
+    expect(w.text()).toContain('Tanggal bukti wajib diisi')
+  })
+
+  it('langkah TRAINING/TKD yang belum ada tetap punya form bukti (lazy create)', async () => {
+    const original = CASES[0].steps
+    CASES[0].steps = original.filter((s) => s.step_type !== 'TKD')
+    try {
+      const w = await mountRole()
+      await openDetail(w)
+      const key = 'mRC-a1b2c3d4e5f6|TKD'
+      expect(w.find(`button[data-evidence-step="${key}"]`).exists()).toBe(true)
+
+      await w.find(`button[data-evidence-step="${key}"]`).trigger('click')
+      const form = w.find(`[data-evidence-form="${key}"]`)
+      await form.find('input[type="date"]').setValue('2026-11-24')
+      await form.find('textarea').setValue('Ujian TKD selesai')
+      await form.find('button[data-save-evidence]').trigger('click')
+      await flushPromises()
+
+      expect(postCalls).toEqual([{
+        path: '/api/recruitment/steps/0/evidence',
+        opts: {
+          method: 'POST',
+          body: {
+            date: '2026-11-24', note: 'Ujian TKD selesai',
+            case_id: 'RC-a1b2c3d4e5f6', step_type: 'TKD',
+          },
+        },
+      }])
+      expect(caseCalls.length).toBe(2)
+    } finally {
+      CASES[0].steps = original
+    }
+  })
+
+  it('form bukti tidak muncul untuk non-staff', async () => {
+    const w = await mountRole('finance')
+    await openDetail(w)
+
+    expect(w.findAll('button[data-evidence-step]').length).toBe(0)
+  })
 })
