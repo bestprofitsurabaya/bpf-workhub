@@ -7,6 +7,22 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.133.1 — 24 November 2026 (Paritas & rekonsiliasi rekrutmen)
+
+- FirstWork: 13 field demografi dari unitedw kini tersedia di form publik,
+  review, dan ekspor; data lama tetap bisa dibaca (kolom nullable).
+- ID FP / ID BPF baru memakai prefix cabang (12 kode: EI, EA, EB, EC, ED, EF,
+  EG, EH, EJ, EK, EL, EM) dengan counter per cabang; nomor lama tidak diubah.
+- Kartu BPF FirstWork: PDF dengan kop resmi, NIK 4 digit terakhir, QR
+  `BPF-FW:<registration_no>`, dan 13 field demografi.
+- Import 226 pengajuan unitedw (13–24 Nov) dengan kunci alami idempoten;
+  3 NIK ganda digabung dengan `merged_from`, 9 email ganda ditandai.
+- Backfill 1.738 kasus lama tanpa mengubah `first_work_submissions`.
+- Training & TKD bisa dicatat lewat evidence generik (tanggal, catatan),
+  langkah dibuat otomatis bila belum ada.
+
+---
+
 ## v2.133.0 — 24 November 2026 (Fondasi kasus rekrutmen lintas cabang)
 
 - WorkHub menjadi rumah alur rekrutmen: portal **satu tautan per cabang**,
