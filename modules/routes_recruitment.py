@@ -9,6 +9,10 @@ nama, atau data pribadi lain, dan tidak ada baris yang ditulis.
 (traineer/ga_hr/admin) untuk mengecualikan satu langkah yang masih `BELUM`
 atau `PENDING`. Alasan wajib (maks. 500 karakter) dan tercatat di audit.
 
+`GET /api/recruitment/cases` menyuapi dashboard staff (Task 6): daftar kasus
+beserta riwayat cabang dan langkahnya. NIK hanya dikirim sebagai empat digit
+terakhir (`****0002`), baik di respons maupun di audit.
+
 Deteksi bersifat global ke DB master (lintas cabang), memakai tiga sumber:
 `recruitment_cases`, `cv_online_submissions.nik`, `first_work_submissions.nik`.
 Peserta dengan NIK baru tetap boleh mengisi CV Online; keputusan kartu langkah
@@ -18,7 +22,7 @@ Pola mengikuti `/api/first-work/check-nik`: rate limit Redis per IP,
 normalisasi NIK bersama, dan `Cache-Control: no-store`.
 """
 import re
-from datetime import datetime
+from datetime import date, datetime
 
 from flask import jsonify, request, session
 
@@ -36,8 +40,10 @@ _LOOKUP_PREFIX = 'recruitment'
 _NIK_TABLES = ('recruitment_cases', 'cv_online_submissions',
                'first_work_submissions')
 
+# Peran staff rekrutmen (dashboard + exception langkah).
+_STAFF_ROLES = ['traineer', 'ga_hr', 'admin']
+
 # Exception langkah: hanya status sebelum selesai yang boleh dikecualikan.
-_EXCEPTION_ROLES = ['traineer', 'ga_hr', 'admin']
 _EXCEPTION_ALLOWED = ('BELUM', 'PENDING')
 _REASON_MAX = 500
 
@@ -67,6 +73,33 @@ def _response(payload, status=200):
     resp = jsonify(payload)
     resp.headers['Cache-Control'] = 'no-store'
     return resp, status
+
+
+def _mask_nik(value):
+    """Tampilkan maksimal empat digit terakhir; NIK penuh tidak pernah keluar."""
+    text = str(value or '').strip()
+    return ('****' + text[-4:]) if text else '****'
+
+
+def _mask_case_id(value):
+    """ID kasus bawaan Task 4 berbentuk `RC-<16 digit>` — NIK-nya ikut ditutup."""
+    text = str(value or '')
+    if text.startswith('RC-'):
+        suffix = text[3:]
+        if len(suffix) == 16 and suffix.isdigit():
+            return 'RC-' + _mask_nik(suffix)
+    return text
+
+
+def _as_text(value):
+    """Nilai waktu dari DB (datetime/date) -> string; None tetap None."""
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value.strftime('%Y-%m-%d %H:%M:%S')
+    if isinstance(value, date):
+        return value.isoformat()
+    return str(value)
 
 
 def _nik_known(cursor, nik):
@@ -117,8 +150,115 @@ def register_recruitment_routes(app):
             if conn:
                 conn.close()
 
+    @app.route('/api/recruitment/cases', methods=['GET'])
+    @role_required(_STAFF_ROLES)
+    def api_recruitment_cases():
+        """Daftar kasus staff: riwayat cabang + langkah, NIK selalu termasker."""
+        role = session.get('user_role') or ''
+        actor = session.get('user_name') or 'system'
+        raw_nik = request.args.get('nik') or ''
+        nik, _raw = normalize_nik(raw_nik)
+        branch_code = (request.args.get('branch_code') or '').strip().upper()[:10]
+        status = (request.args.get('status') or '').strip()[:30]
+
+        if raw_nik.strip() and len(nik) != 16:
+            # Filter NIK tidak valid = tidak ada baris; tidak buka DB sama sekali.
+            data = []
+        else:
+            conn = None
+            try:
+                conn = get_master_connection()
+                if not conn:
+                    return jsonify({'status': 'error', 'msg': 'DB error'}), 500
+                cursor = conn.cursor(dictionary=True)
+                try:
+                    conditions, params = [], []
+                    if nik:
+                        conditions.append('c.nik=%s')
+                        params.append(nik)
+                    if branch_code:
+                        conditions.append(
+                            '(c.first_branch=%s OR EXISTS ('
+                            'SELECT 1 FROM case_branch_history h '
+                            'WHERE h.case_id=c.case_id AND h.branch_code=%s) '
+                            'OR EXISTS ('
+                            'SELECT 1 FROM recruitment_steps s '
+                            'WHERE s.case_id=c.case_id AND s.branch_code=%s))')
+                        params.extend([branch_code] * 3)
+                    if status:
+                        conditions.append('c.status=%s')
+                        params.append(status)
+
+                    sql = ('SELECT c.case_id, c.nik, c.nama, c.first_branch, '
+                           'c.status FROM recruitment_cases c')
+                    if conditions:
+                        sql += ' WHERE ' + ' AND '.join(conditions)
+                    sql += ' ORDER BY c.first_seen_at DESC LIMIT 100'
+                    cursor.execute(sql, tuple(params))
+                    rows = cursor.fetchall() or []
+
+                    branches_by_case, steps_by_case = {}, {}
+                    case_ids = [row['case_id'] for row in rows]
+                    if case_ids:
+                        # Dua query massal, bukan N+1; placeholder dibangun dari
+                        # jumlah ID, bukan dari input pengguna.
+                        marks = ','.join(['%s'] * len(case_ids))
+                        cursor.execute(
+                            'SELECT case_id, branch_code, first_seen_at, '
+                            'last_seen_at FROM case_branch_history '
+                            f'WHERE case_id IN ({marks}) '
+                            'ORDER BY first_seen_at DESC', tuple(case_ids))
+                        for b in cursor.fetchall() or []:
+                            branches_by_case.setdefault(b['case_id'], []).append({
+                                'branch_code': str(b.get('branch_code') or ''),
+                                'first_seen_at': _as_text(b.get('first_seen_at')),
+                                'last_seen_at': _as_text(b.get('last_seen_at')),
+                            })
+                        cursor.execute(
+                            'SELECT case_id, step_type, status, branch_code, '
+                            'exception_reason, completed_at FROM recruitment_steps '
+                            f'WHERE case_id IN ({marks}) '
+                            'ORDER BY step_type, branch_code', tuple(case_ids))
+                        for s in cursor.fetchall() or []:
+                            steps_by_case.setdefault(s['case_id'], []).append({
+                                'step_type': str(s.get('step_type') or ''),
+                                'status': str(s.get('status') or ''),
+                                'branch_code': str(s.get('branch_code') or ''),
+                                'exception_reason': _as_text(
+                                    s.get('exception_reason')),
+                                'completed_at': _as_text(s.get('completed_at')),
+                            })
+
+                    data = [{
+                        'case_id': _mask_case_id(r.get('case_id')),
+                        'nik_masked': _mask_nik(r.get('nik')),
+                        'nama': str(r.get('nama') or ''),
+                        'first_branch': str(r.get('first_branch') or ''),
+                        'status': str(r.get('status') or ''),
+                        'branches': branches_by_case.get(r['case_id'], []),
+                        'steps': steps_by_case.get(r['case_id'], []),
+                    } for r in rows]
+                finally:
+                    cursor.close()
+            except Exception:
+                # Jangan kembalikan str(e): detail DB bisa membocorkan skema/PII.
+                return jsonify({'status': 'error', 'msg': 'DB error'}), 500
+            finally:
+                if conn:
+                    conn.close()
+
+        try:
+            # tx_id None karena ini aksi baca, bukan transaksi (v2.131.3).
+            log_activity_async(
+                None, 'recruitment_cases_view', role, actor,
+                new_data={'nik_masked': _mask_nik(nik) if nik else '****',
+                          'count': len(data)})
+        except Exception:
+            pass  # Audit gagal tidak boleh menggagalkan pembacaan dashboard.
+        return jsonify({'data': data})
+
     @app.route('/api/recruitment/steps/<int:step_id>/exception', methods=['POST'])
-    @role_required(_EXCEPTION_ROLES)
+    @role_required(_STAFF_ROLES)
     def api_recruitment_step_exception(step_id):
         """Kecualikan satu langkah; hanya BELUM/PENDING yang boleh diubah."""
         body = request.get_json(silent=True) or {}
