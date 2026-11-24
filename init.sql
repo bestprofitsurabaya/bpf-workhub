@@ -1114,11 +1114,78 @@ CREATE TABLE IF NOT EXISTS cv_online_submissions (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ============================================================
--- FIRST WORK — COUNTER ID FP/BPF (Rilis B Task 1)
+-- FIRST WORK — SUBMISSION & COUNTER ID (Rilis B Task 1/2)
 -- ============================================================
--- Tabel FirstWork lain dibuat oleh helper runtime idempoten
--- (modules/first_work_schema.py). Dua counter ini ditambahkan ke init.sql
--- supaya fresh install & schema drift check CI melihat skema yang sama.
+-- Tabel FirstWork juga dibuat oleh helper runtime idempoten
+-- (modules/first_work_schema.py). Definisi di init.sql adalah sumber
+-- kebenaran fresh install & schema drift check CI, jadi harus sinkron dengan
+-- helper (termasuk kolom hasil ALTER: ID, scan KTP, dan 13 field demografi).
+CREATE TABLE IF NOT EXISTS first_work_submissions (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    registration_no VARCHAR(40) NOT NULL,
+    source VARCHAR(20) NOT NULL DEFAULT 'form',
+    source_uid VARCHAR(64) NOT NULL,
+    sheet_row INT NULL,
+    sheet_seq VARCHAR(20) DEFAULT '',
+    fingerprint_no VARCHAR(30) NULL,
+    bpf_no VARCHAR(30) NULL,
+    submitted_at DATETIME NOT NULL,
+    email VARCHAR(150) DEFAULT '',
+    nik VARCHAR(32) DEFAULT '',
+    nik_raw VARCHAR(32) DEFAULT '',
+    nik_valid TINYINT(1) NOT NULL DEFAULT 0,
+    nama VARCHAR(150) NOT NULL,
+    -- 13 field demografi Rilis B Task 2 — nullable untuk data lama.
+    tempat_lahir VARCHAR(100) NULL,
+    tanggal_lahir DATE NULL,
+    jenis_kelamin VARCHAR(20) NULL,
+    golongan_darah VARCHAR(5) NULL,
+    alamat VARCHAR(255) NULL,
+    rt_rw VARCHAR(20) NULL,
+    kel_desa VARCHAR(100) NULL,
+    kecamatan VARCHAR(100) NULL,
+    agama VARCHAR(30) NULL,
+    status_perkawinan VARCHAR(30) NULL,
+    pekerjaan VARCHAR(100) NULL,
+    kewarganegaraan VARCHAR(30) NULL,
+    berlaku_hingga VARCHAR(30) NULL,
+    pendidikan_raw VARCHAR(100) DEFAULT '',
+    pendidikan_norm VARCHAR(30) DEFAULT '',
+    referensi_raw VARCHAR(150) DEFAULT '',
+    referensi_norm VARCHAR(100) DEFAULT '',
+    referrer_id INT NULL,
+    referrer_needs_review TINYINT(1) NOT NULL DEFAULT 0,
+    no_hp VARCHAR(30) DEFAULT '',
+    no_hp_norm VARCHAR(20) DEFAULT '',
+    branch_code VARCHAR(10) NOT NULL DEFAULT 'SBY',
+    ktp_file VARCHAR(255) DEFAULT '',
+    ktp_scan_file VARCHAR(255) DEFAULT '',
+    ktp_sha256 CHAR(64) DEFAULT '',
+    ktp_drive_url VARCHAR(500) DEFAULT '',
+    photoid_url VARCHAR(500) DEFAULT '',
+    merged_doc_id VARCHAR(100) DEFAULT '',
+    merged_doc_url VARCHAR(500) DEFAULT '',
+    merge_status VARCHAR(255) DEFAULT '',
+    status VARCHAR(30) NOT NULL DEFAULT 'submitted',
+    verification_note VARCHAR(500) DEFAULT '',
+    verified_by VARCHAR(100) DEFAULT '',
+    verified_at DATETIME NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_fw_registration (registration_no),
+    UNIQUE KEY uq_fw_source_uid (source_uid),
+    KEY idx_fw_status (status),
+    KEY idx_fw_branch (branch_code),
+    KEY idx_fw_submitted (submitted_at),
+    KEY idx_fw_nik (nik),
+    KEY idx_fw_hp (no_hp_norm),
+    KEY idx_fw_referrer (referrer_id),
+    KEY idx_fw_fingerprint (fingerprint_no),
+    KEY idx_fw_bpf (bpf_no)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Dua counter ID FP/BPF ditambahkan supaya fresh install & schema drift check
+-- CI melihat skema yang sama dengan helper runtime.
 CREATE TABLE IF NOT EXISTS first_work_id_counters (
     series VARCHAR(4) NOT NULL PRIMARY KEY,
     last_value INT NOT NULL DEFAULT 0,

@@ -68,6 +68,21 @@ def ensure_first_work_schema(conn=None):
                 nik_raw VARCHAR(32) DEFAULT '',
                 nik_valid TINYINT(1) NOT NULL DEFAULT 0,
                 nama VARCHAR(150) NOT NULL,
+                -- Rilis B Task 2: 13 field demografi (nullable — form lama
+                -- & baris historis tetap terbaca). Sama dengan ALTER di bawah.
+                tempat_lahir VARCHAR(100) NULL,
+                tanggal_lahir DATE NULL,
+                jenis_kelamin VARCHAR(20) NULL,
+                golongan_darah VARCHAR(5) NULL,
+                alamat VARCHAR(255) NULL,
+                rt_rw VARCHAR(20) NULL,
+                kel_desa VARCHAR(100) NULL,
+                kecamatan VARCHAR(100) NULL,
+                agama VARCHAR(30) NULL,
+                status_perkawinan VARCHAR(30) NULL,
+                pekerjaan VARCHAR(100) NULL,
+                kewarganegaraan VARCHAR(30) NULL,
+                berlaku_hingga VARCHAR(30) NULL,
                 pendidikan_raw VARCHAR(100) DEFAULT '',
                 pendidikan_norm VARCHAR(30) DEFAULT '',
                 referensi_raw VARCHAR(150) DEFAULT '',
@@ -172,6 +187,25 @@ def ensure_first_work_schema(conn=None):
                 ADD COLUMN IF NOT EXISTS ktp_scan_file VARCHAR(255) DEFAULT '' AFTER ktp_file,
                 ADD COLUMN IF NOT EXISTS ktp_sha256 CHAR(64) DEFAULT '' AFTER ktp_scan_file
         """, 'first_work_submissions.ktp_scan_columns')
+
+        # Rilis B Task 2: 13 field demografi dari KTP. Semua NULL — pengisian
+        # lama & baris sheet historis tidak perlu mengisi salah pun.
+        _run(cursor, """
+            ALTER TABLE first_work_submissions
+                ADD COLUMN IF NOT EXISTS tempat_lahir VARCHAR(100) NULL,
+                ADD COLUMN IF NOT EXISTS tanggal_lahir DATE NULL,
+                ADD COLUMN IF NOT EXISTS jenis_kelamin VARCHAR(20) NULL,
+                ADD COLUMN IF NOT EXISTS golongan_darah VARCHAR(5) NULL,
+                ADD COLUMN IF NOT EXISTS alamat VARCHAR(255) NULL,
+                ADD COLUMN IF NOT EXISTS rt_rw VARCHAR(20) NULL,
+                ADD COLUMN IF NOT EXISTS kel_desa VARCHAR(100) NULL,
+                ADD COLUMN IF NOT EXISTS kecamatan VARCHAR(100) NULL,
+                ADD COLUMN IF NOT EXISTS agama VARCHAR(30) NULL,
+                ADD COLUMN IF NOT EXISTS status_perkawinan VARCHAR(30) NULL,
+                ADD COLUMN IF NOT EXISTS pekerjaan VARCHAR(100) NULL,
+                ADD COLUMN IF NOT EXISTS kewarganegaraan VARCHAR(30) NULL,
+                ADD COLUMN IF NOT EXISTS berlaku_hingga VARCHAR(30) NULL
+        """, 'first_work_submissions.demographic_columns')
 
         _run(cursor, """
             CREATE TABLE IF NOT EXISTS first_work_id_counters (

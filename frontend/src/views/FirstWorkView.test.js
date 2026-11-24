@@ -9,12 +9,21 @@ const { apiMock, authMock } = vi.hoisted(() => ({
 vi.mock('../api', () => ({ api: apiMock }))
 vi.mock('../stores/auth', () => ({ useAuthStore: () => authMock }))
 
+const DEMO_ROW = {
+  tempat_lahir: 'Surabaya', tanggal_lahir: '1995-01-19',
+  jenis_kelamin: 'Laki-laki', golongan_darah: 'O',
+  alamat: 'Jl. Contoh No. 12', rt_rw: '03/04', kel_desa: 'Keputih',
+  kecamatan: 'Sukolilo', agama: 'Islam', status_perkawinan: 'Belum Menikah',
+  pekerjaan: 'Karyawan Swasta', kewarganegaraan: 'WNI',
+  berlaku_hingga: 'SEUMUR HIDUP',
+}
+
 const ROWS = [
   {
     id: 7, registration_no: 'FW-20251111-0007', nama: 'Budi Santoso',
     nik: '3573010101990001', no_hp: '081234567890', pendidikan_norm: 'SMA',
     referrer_name: 'IFAH', submitted_at: '2026-11-11 09:00:00',
-    status: 'submitted', status_label: 'Menunggu',
+    status: 'submitted', status_label: 'Menunggu', ...DEMO_ROW,
   },
 ]
 
@@ -27,6 +36,9 @@ async function mountRole(role, { scope = 'MLG', branches } = {}) {
   apiMock.mockImplementation((path) => {
     if (path === '/api/first-work') {
       return Promise.resolve({ data: ROWS, stats: { total: 1, submitted: 1 }, total: 1, page: 1, scope_branch: scope })
+    }
+    if (String(path).startsWith('/api/first-work/7')) {
+      return Promise.resolve({ data: { ...ROWS[0], events: [] } })
     }
     if (path === '/api/first-work/meta') return Promise.resolve({ referrers: [] })
     // v2.97.1: tautan form butuh entri ber-token untuk cabang sesi; mock kosong
@@ -77,6 +89,24 @@ describe('FirstWorkView (Absensi FirstWork)', () => {
   it('role cabang tidak melihat filter cabang', async () => {
     const w = await mountRole('traineer')
     expect(w.find('select[aria-label="Filter cabang"]').exists()).toBe(false)
+  })
+
+  it('daftar & detail menampilkan 13 field demografi (Rilis B Task 2)', async () => {
+    const w = await mountRole('traineer')
+    // Ringkasan di tabel: tempat/tanggal lahir, jenis kelamin, golongan darah.
+    expect(w.text()).toContain('Surabaya')
+    expect(w.text()).toContain('1995-01-19')
+
+    await w.findAll('button').find((b) => b.text() === 'Detail').trigger('click')
+    await flushPromises()
+    const detailText = w.text()
+    for (const label of ['Tempat Lahir', 'Tanggal Lahir', 'Jenis Kelamin',
+      'Golongan Darah', 'Alamat', 'RT/RW', 'Kel/Desa', 'Kecamatan', 'Agama',
+      'Status Perkawinan', 'Pekerjaan', 'Kewarganegaraan', 'Berlaku Hingga']) {
+      expect(detailText, label).toContain(label)
+    }
+    expect(detailText).toContain('Jl. Contoh No. 12')
+    expect(detailText).toContain('SEUMUR HIDUP')
   })
 
   it('cabang terpilih ikut terbawa ke tautan ekspor CSV', async () => {

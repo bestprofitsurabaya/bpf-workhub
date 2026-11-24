@@ -6,6 +6,26 @@ const PENDIDIKAN = ['SMA', 'SMK', 'MA', 'D3', 'D4', 'S1', 'S2', 'S3']
 const DRAFT_KEY = 'bpf_fw_draft_v1'
 const STEPS = ['Identitas', 'Kontak & Referensi', 'Ringkasan']
 
+// Rilis B Task 2 — 13 field demografi (semuanya OPSIONAL). Urutan harus sama
+// dengan DEMOGRAPHIC_FIELDS di backend agar payload & ekspor sejajar.
+const DEMOGRAPHIC_FIELDS = [
+  'tempat_lahir', 'tanggal_lahir', 'jenis_kelamin', 'golongan_darah',
+  'alamat', 'rt_rw', 'kel_desa', 'kecamatan', 'agama',
+  'status_perkawinan', 'pekerjaan', 'kewarganegaraan', 'berlaku_hingga',
+]
+const DEMO_LABELS = {
+  tempat_lahir: 'Tempat Lahir', tanggal_lahir: 'Tanggal Lahir',
+  jenis_kelamin: 'Jenis Kelamin', golongan_darah: 'Golongan Darah',
+  alamat: 'Alamat', rt_rw: 'RT/RW', kel_desa: 'Kel/Desa',
+  kecamatan: 'Kecamatan', agama: 'Agama',
+  status_perkawinan: 'Status Perkawinan', pekerjaan: 'Pekerjaan',
+  kewarganegaraan: 'Kewarganegaraan', berlaku_hingga: 'Berlaku Hingga',
+}
+const JENIS_KELAMIN = ['Laki-laki', 'Perempuan']
+const GOLONGAN_DARAH = ['A', 'B', 'AB', 'O', '-']
+const AGAMA = ['Islam', 'Kristen', 'Katolik', 'Hindu', 'Buddha', 'Konghucu', 'Lainnya']
+const STATUS_PERKAWINAN = ['Belum Menikah', 'Menikah', 'Cerai', 'Lainnya']
+
 // Cabang tujuan diambil dari link (?cabang=MLG). Server tetap memvalidasi
 // terhadap master branches dan menolak nilai asing (jatuh ke SBY).
 const linkParams = new URLSearchParams(window.location.search)
@@ -39,6 +59,8 @@ const PROVINSI = {
 const form = reactive({
   nik: '', nama: '', pendidikan: '',
   referrer_id: '', referensi_text: '', no_hp: '',
+  // Demografi KTP — tidak menyentuh nik/nama yang diisi OCR.
+  ...Object.fromEntries(DEMOGRAPHIC_FIELDS.map((field) => [field, ''])),
 })
 const referrers = ref([])
 const metaLoading = ref(true)
@@ -148,7 +170,9 @@ function restoreDraft() {
     const raw = localStorage.getItem(DRAFT_KEY)
     if (!raw) return
     const draft = JSON.parse(raw)
-    const hasData = draft && (draft.nik || draft.nama || draft.no_hp || draft.pendidikan || draft.referensi_text)
+    const hasData = draft && (draft.nik || draft.nama || draft.no_hp
+      || draft.pendidikan || draft.referensi_text
+      || DEMOGRAPHIC_FIELDS.some((field) => draft[field]))
     if (!hasData) return
     Object.assign(form, {
       nik: String(draft.nik || '').slice(0, 16),
@@ -157,6 +181,8 @@ function restoreDraft() {
       referrer_id: draft.referrer_id || '',
       referensi_text: draft.referensi_text || '',
       no_hp: draft.no_hp || '',
+      ...Object.fromEntries(DEMOGRAPHIC_FIELDS.map(
+        (field) => [field, String(draft[field] || '')])),
     })
     step.value = Math.min(Number(draft.step) || 0, STEPS.length - 1)
     restored.value = true
@@ -738,6 +764,11 @@ async function submit() {
   payload.append('branch', resolvedBranch.value)
   if (linkToken) payload.append('t', linkToken)
   payload.append('consent', '1')
+  // Data demografi opsional: dikirim apa adanya (string kosong = NULL di DB).
+  // Sumber NIK/nama tetap `nik`/`nama` — tidak diambil dari field ini.
+  for (const field of DEMOGRAPHIC_FIELDS) {
+    payload.append(field, String(form[field] || '').trim())
+  }
   payload.append('ktp', ktpFile.value)
 
   const csrf = localStorage.getItem('bpf_csrf') || sessionStorage.getItem('bpf_csrf')
@@ -766,6 +797,7 @@ function reset() {
   Object.assign(form, {
     nik: '', nama: '', pendidikan: '',
     referrer_id: '', referensi_text: '', no_hp: '',
+    ...Object.fromEntries(DEMOGRAPHIC_FIELDS.map((field) => [field, ''])),
   })
   ktpFile.value = null
   ktpLabel.value = ''
@@ -947,7 +979,8 @@ onBeforeUnmount(() => {
           <div class="fw-field">
             <label>NIK sesuai KTP <span class="req">*</span></label>
             <input class="input" :value="form.nik" inputmode="numeric" autocomplete="off"
-                   maxlength="16" placeholder="16 digit angka" @input="onNik" />
+                   aria-label="NIK sesuai KTP" maxlength="16" placeholder="16 digit angka"
+                   @input="onNik" />
             <small class="fw-hint">
               {{ form.nik.length }}/16 digit
               <template v-if="nikCheck.state === 'checking'"> · memeriksa…</template>
@@ -980,6 +1013,55 @@ onBeforeUnmount(() => {
             <input class="input" v-model="form.nama" maxlength="150" autocomplete="name"
                    placeholder="cth: Ahmad Fauzi" @blur="onNamaBlur" />
             <small class="fw-hint">Tulis persis seperti di KTP, tanpa gelar.</small>
+          </div>
+
+          <!-- Rilis B Task 2: demografi identitas KTP (opsional). -->
+          <div class="fw-demo-title">Data sesuai KTP <span>(opsional)</span></div>
+
+          <div class="fw-field">
+            <label for="fw-tempat-lahir">Tempat Lahir</label>
+            <input id="fw-tempat-lahir" class="input" v-model="form.tempat_lahir"
+                   aria-label="Tempat Lahir" maxlength="100" autocomplete="address-level2"
+                   placeholder="cth: Surabaya" />
+          </div>
+
+          <div class="fw-field">
+            <label for="fw-tanggal-lahir">Tanggal Lahir</label>
+            <input id="fw-tanggal-lahir" class="input" v-model="form.tanggal_lahir"
+                   aria-label="Tanggal Lahir" type="date" maxlength="10"
+                   autocomplete="bday" />
+            <small class="fw-hint">Boleh kosong — NIK sudah berisi tanggal lahir.</small>
+          </div>
+
+          <div class="fw-field">
+            <label for="fw-jenis-kelamin">Jenis Kelamin</label>
+            <select id="fw-jenis-kelamin" class="select" v-model="form.jenis_kelamin"
+                    aria-label="Jenis Kelamin">
+              <option value="">— Pilih —</option>
+              <option v-for="value in JENIS_KELAMIN" :key="value" :value="value">{{ value }}</option>
+            </select>
+          </div>
+
+          <div class="fw-field">
+            <label for="fw-golongan-darah">Golongan Darah</label>
+            <select id="fw-golongan-darah" class="select" v-model="form.golongan_darah"
+                    aria-label="Golongan Darah">
+              <option value="">— Pilih —</option>
+              <option v-for="value in GOLONGAN_DARAH" :key="value" :value="value">{{ value }}</option>
+            </select>
+          </div>
+
+          <div class="fw-field">
+            <label for="fw-kewarganegaraan">Kewarganegaraan</label>
+            <input id="fw-kewarganegaraan" class="input" v-model="form.kewarganegaraan"
+                   aria-label="Kewarganegaraan" maxlength="30" placeholder="cth: WNI" />
+          </div>
+
+          <div class="fw-field">
+            <label for="fw-berlaku-hingga">Berlaku Hingga</label>
+            <input id="fw-berlaku-hingga" class="input" v-model="form.berlaku_hingga"
+                   aria-label="Berlaku Hingga" maxlength="30"
+                   placeholder="cth: 2030-01-19 atau SEUMUR HIDUP" />
           </div>
         </template>
 
@@ -1019,6 +1101,58 @@ onBeforeUnmount(() => {
               <template v-else>⚠️ Nomor belum valid — perlu 10–14 digit dan diawali 08.</template>
             </small>
           </div>
+
+          <!-- Rilis B Task 2: alamat & data kependudukan (opsional). -->
+          <div class="fw-demo-title">Data Kependudukan <span>(opsional)</span></div>
+
+          <div class="fw-field">
+            <label for="fw-alamat">Alamat</label>
+            <textarea id="fw-alamat" class="input" v-model="form.alamat"
+                      aria-label="Alamat" rows="2" maxlength="255"
+                      autocomplete="street-address" placeholder="Alamat sesuai KTP" />
+          </div>
+
+          <div class="fw-field">
+            <label for="fw-rt-rw">RT/RW</label>
+            <input id="fw-rt-rw" class="input" v-model="form.rt_rw"
+                   aria-label="RT/RW" maxlength="20" placeholder="cth: 03/04" />
+          </div>
+
+          <div class="fw-field">
+            <label for="fw-kel-desa">Kel/Desa</label>
+            <input id="fw-kel-desa" class="input" v-model="form.kel_desa"
+                   aria-label="Kel/Desa" maxlength="100" placeholder="cth: Keputih" />
+          </div>
+
+          <div class="fw-field">
+            <label for="fw-kecamatan">Kecamatan</label>
+            <input id="fw-kecamatan" class="input" v-model="form.kecamatan"
+                   aria-label="Kecamatan" maxlength="100" placeholder="cth: Sukolilo" />
+          </div>
+
+          <div class="fw-field">
+            <label for="fw-agama">Agama</label>
+            <select id="fw-agama" class="select" v-model="form.agama" aria-label="Agama">
+              <option value="">— Pilih —</option>
+              <option v-for="value in AGAMA" :key="value" :value="value">{{ value }}</option>
+            </select>
+          </div>
+
+          <div class="fw-field">
+            <label for="fw-status-perkawinan">Status Perkawinan</label>
+            <select id="fw-status-perkawinan" class="select" v-model="form.status_perkawinan"
+                    aria-label="Status Perkawinan">
+              <option value="">— Pilih —</option>
+              <option v-for="value in STATUS_PERKAWINAN" :key="value" :value="value">{{ value }}</option>
+            </select>
+          </div>
+
+          <div class="fw-field">
+            <label for="fw-pekerjaan">Pekerjaan</label>
+            <input id="fw-pekerjaan" class="input" v-model="form.pekerjaan"
+                   aria-label="Pekerjaan" maxlength="100" autocomplete="organization-title"
+                   placeholder="cth: Karyawan Swasta" />
+          </div>
         </template>
 
         <!-- Langkah 3: ringkasan + persetujuan -->
@@ -1044,6 +1178,9 @@ onBeforeUnmount(() => {
             <div><span>Pendidikan</span><b>{{ form.pendidikan || '—' }}</b></div>
             <div><span>Referensi</span><b>{{ manualRef ? (form.referensi_text || '—') : (referrers.find(r => String(r.id) === form.referrer_id)?.name || '—') }}</b></div>
             <div><span>No. Handphone</span><b>{{ hpInfo.hp || '—' }}</b></div>
+            <div v-for="field in DEMOGRAPHIC_FIELDS" :key="field">
+              <span>{{ DEMO_LABELS[field] }}</span><b>{{ form[field] || '—' }}</b>
+            </div>
           </div>
         </template>
 
@@ -1143,6 +1280,10 @@ onBeforeUnmount(() => {
 .fw-brand p { font-size: 11px; color: var(--text-3); margin-top: 2px; }
 .fw-field { margin-bottom: 14px; }
 .fw-field > label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 5px; }
+/* Pemisah grup kecil — satu kolom di HP, tetap enak di layar lebar. */
+.fw-demo-title { margin: 18px 0 12px; padding-top: 12px; border-top: 1px dashed var(--border);
+  font-size: 12px; font-weight: 700; }
+.fw-demo-title span { font-weight: 400; color: var(--text-3); font-size: 10px; }
 .fw-hint { display: block; font-size: 10px; color: var(--text-3); margin-top: 4px; }
 .fw-hint-ocr { color: #7c3aed; line-height: 1.5; margin-top: 6px; }
 .fw-ktp-done {

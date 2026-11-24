@@ -42,6 +42,22 @@ const allPageSelected = computed(() => {
 })
 const editFields = reactive({ nama: '', nik: '', pendidikan: '', no_hp: '', referrer_id: '' })
 
+// Rilis B Task 2 — 13 field demografi tampil di daftar (ringkas) & detail.
+const DEMO_LABELS = {
+  tempat_lahir: 'Tempat Lahir', tanggal_lahir: 'Tanggal Lahir',
+  jenis_kelamin: 'Jenis Kelamin', golongan_darah: 'Golongan Darah',
+  alamat: 'Alamat', rt_rw: 'RT/RW', kel_desa: 'Kel/Desa',
+  kecamatan: 'Kecamatan', agama: 'Agama',
+  status_perkawinan: 'Status Perkawinan', pekerjaan: 'Pekerjaan',
+  kewarganegaraan: 'Kewarganegaraan', berlaku_hingga: 'Berlaku Hingga',
+}
+const DEMO_FIELDS = Object.keys(DEMO_LABELS)
+function demografiRingkas(row) {
+  const parts = [row.tempat_lahir, row.tanggal_lahir, row.jenis_kelamin,
+    row.golongan_darah ? `Gol. ${row.golongan_darah}` : ''].filter(Boolean)
+  return parts.join(' · ') || '—'
+}
+
 // v2.83.0: ID Fingerprint & ID BPF — tampil di tabel, diedit traineer/admin,
 // angka awal & pemetaan kolom counter sheet bisa diatur.
 const idCfg = ref(null)
@@ -813,6 +829,7 @@ onMounted(() => {
               <th>ID Fingerprint</th>
               <th>ID BPF</th>
               <th>Pendidikan</th>
+              <th>Demografi</th>
               <th>Referensi</th>
               <th>Waktu Kirim</th>
               <th>Status</th>
@@ -833,6 +850,7 @@ onMounted(() => {
               <td class="nowrap">{{ row.fingerprint_no ?? '—' }}</td>
               <td class="nowrap">{{ row.bpf_no ?? '—' }}</td>
               <td>{{ row.pendidikan_norm || row.pendidikan_raw || '—' }}</td>
+              <td class="fw-demo-cell">{{ demografiRingkas(row) }}</td>
               <td>
                 {{ row.referrer_name || row.referensi_raw || '—' }}
                 <span v-if="row.referrer_needs_review" class="fw-flag" title="Perlu pemetaan referrer">⚠️</span>
@@ -945,6 +963,10 @@ onMounted(() => {
         <div><span>Referensi</span><b>{{ detail.referrer_name || detail.referensi_raw || '—' }}</b>
           <small v-if="detail.referrer_needs_review">Belum dipetakan ke master</small></div>
         <div><span>No. HP</span><b>{{ detail.no_hp || '—' }}</b></div>
+        <!-- 13 field demografi Rilis B Task 2 (nullable → '—' bila kosong). -->
+        <div v-for="field in DEMO_FIELDS" :key="field">
+          <span>{{ DEMO_LABELS[field] }}</span><b>{{ detail[field] || '—' }}</b>
+        </div>
         <div><span>ID Fingerprint</span><b>{{ detail.fingerprint_no ?? '—' }}</b></div>
         <div><span>ID BPF</span><b>{{ detail.bpf_no ?? '—' }}</b></div>
         <div><span>Waktu Kirim</span><b>{{ fmtDT(detail.submitted_at) }}</b></div>
@@ -1042,6 +1064,7 @@ onMounted(() => {
 .fw-chip.active { border-color: var(--primary, #7c3aed); color: var(--primary, #7c3aed); background: var(--surface-2, #f5f3ff); }
 .fw-chip.active b { color: inherit; }
 .fw-sub { font-size: 11px; color: var(--text-3); margin-top: 2px; }
+.fw-demo-cell { font-size: 11px; max-width: 190px; word-break: break-word; }
 .fw-stats { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
 .fw-stat {
   background: var(--surface); border: 1px solid var(--border); border-radius: 12px;

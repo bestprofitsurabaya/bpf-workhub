@@ -100,6 +100,32 @@ HONORIFIC_RE = re.compile(
     r'^(kak|kaka|bu|ibu|pak|bapak|mas|mbak|mba|sdr|sdri|saudara|saudari)\s+',
     re.IGNORECASE)
 
+# Rilis B Task 2 — 13 field demografi dari KTP. Semua opsional (nullable)
+# supaya form lama & baris historis tetap terbaca. Urutan ini dipakai bersama
+# untuk INSERT, SELECT ekspor, dan label CSV — jangan diubah setengah hati.
+DEMOGRAPHIC_FIELDS = (
+    'tempat_lahir', 'tanggal_lahir', 'jenis_kelamin', 'golongan_darah',
+    'alamat', 'rt_rw', 'kel_desa', 'kecamatan', 'agama',
+    'status_perkawinan', 'pekerjaan', 'kewarganegaraan', 'berlaku_hingga',
+)
+DEMOGRAPHIC_MAXLEN = {
+    'tempat_lahir': 100, 'jenis_kelamin': 20, 'golongan_darah': 5,
+    'alamat': 255, 'rt_rw': 20, 'kel_desa': 100, 'kecamatan': 100,
+    'agama': 30, 'status_perkawinan': 30, 'pekerjaan': 100,
+    'kewarganegaraan': 30, 'berlaku_hingga': 30,
+}
+DEMOGRAPHIC_LABELS = {
+    'tempat_lahir': 'Tempat Lahir', 'tanggal_lahir': 'Tanggal Lahir',
+    'jenis_kelamin': 'Jenis Kelamin', 'golongan_darah': 'Golongan Darah',
+    'alamat': 'Alamat', 'rt_rw': 'RT/RW', 'kel_desa': 'Kel/Desa',
+    'kecamatan': 'Kecamatan', 'agama': 'Agama',
+    'status_perkawinan': 'Status Perkawinan', 'pekerjaan': 'Pekerjaan',
+    'kewarganegaraan': 'Kewarganegaraan', 'berlaku_hingga': 'Berlaku Hingga',
+}
+# `tanggal_lahir` dibakukan ke YYYY-MM-DD agar enak diurutkan/filter.
+# `berlaku_hingga` sengaja teks bebas: KTP juga memakai "SEUMUR HIDUP".
+DEMO_DATE_FIELDS = ('tanggal_lahir',)
+
 # ================================================================
 # ID FINGERPRINT & ID BPF (v2.83.0)
 # ================================================================
@@ -126,6 +152,37 @@ BRANCH_ID_PREFIX = {
 def _clean(value, maxlen=None):
     text = re.sub(r'\s+', ' ', str(value or '')).strip()
     return text[:maxlen] if maxlen else text
+
+
+def _demographic_date(value):
+    """Tanggal bebas (YYYY-MM-DD / DD/MM/YYYY / DD-MM-YYYY) -> ISO, else None."""
+    text = _clean(value, 30)
+    if not text:
+        return None
+    for fmt in ('%Y-%m-%d', '%d/%m/%Y', '%d-%m-%Y'):
+        try:
+            return datetime.strptime(text, fmt).date().isoformat()
+        except ValueError:
+            continue
+    return None
+
+
+def _demographic_values(source=None):
+    """Sanitasi 13 field demografi; field kosong/invalid -> None (nullable).
+
+    Baca HANYA nama field yang tercantum di DEMOGRAPHIC_FIELDS — tidak pernah
+    menimpa `nik`/`nama` yang sudah diisi pengguna (atau hasil OCR di form).
+    """
+    source = source if source is not None else request.form
+    values = {}
+    for field in DEMOGRAPHIC_FIELDS:
+        raw = source.get(field)
+        if field in DEMO_DATE_FIELDS:
+            values[field] = _demographic_date(raw)
+        else:
+            text = _clean(raw, DEMOGRAPHIC_MAXLEN[field])
+            values[field] = text or None
+    return values
 
 
 def branch_id_prefix(branch_code):
@@ -1622,6 +1679,11 @@ def register_first_work_routes(app):
                                 'msg': 'Gagal menyimpan file KTP. Coba lagi.'}), 400
 
             source_uid = 'form-' + uuid.uuid4().hex
+            # Rilis B Task 2: field demografi opsional. NIK/nama tetap berasal
+            # dari input `nik`/`nama` (hasil OCR di form) — tidak dari sini.
+            demo = _demographic_values(request.form)
+            demo_columns = ', '.join(DEMOGRAPHIC_FIELDS)
+            demo_marks = ', '.join(['%s'] * len(DEMOGRAPHIC_FIELDS))
             cursor = conn.cursor()
             try:
                 cursor.execute("""
@@ -1630,16 +1692,18 @@ def register_first_work_routes(app):
                          nik, nik_raw, nik_valid, nama, pendidikan_raw,
                          pendidikan_norm, referensi_raw, referensi_norm,
                          referrer_id, referrer_needs_review, no_hp, no_hp_norm,
-                         branch_code, ktp_file, status, fingerprint_no, bpf_no)
+                         branch_code, ktp_file, status, fingerprint_no, bpf_no,
+                         """ + demo_columns + """)
                     VALUES (%s,'form',%s,%s,%s,%s,1,%s,%s,%s,%s,%s,
-                            %s,%s,%s,%s,%s,%s,'submitted',%s,%s)
+                            %s,%s,%s,%s,%s,%s,'submitted',%s,%s,
+                            """ + demo_marks + """)
                 """, (
                     registration_no, source_uid, submitted_at, nik, nik_raw,
                     nama, pendidikan, normalize_pendidikan(pendidikan),
                     referensi_raw, normalize_name(referensi_raw),
                     referrer_id, referrer_needs_review, no_hp_raw, no_hp,
                     branch_code, filename, fingerprint_no, bpf_no,
-                ))
+                ) + tuple(demo[field] for field in DEMOGRAPHIC_FIELDS))
                 submission_id = cursor.lastrowid
                 cursor.execute("""
                     INSERT INTO first_work_events
@@ -1659,7 +1723,8 @@ def register_first_work_routes(app):
                 # Rilis A: satu kasus per NIK + langkah FIRSTWORK di cabang
                 # token. Koneksi yang sama dipakai SEBELUM commit — bila gagal,
                 # except di bawah membatalkan submit beserta kasus/langkahnya.
-                # Tanggal lahir belum ada di form FirstWork (paritas = Rilis B).
+                # Field tanggal_lahir sudah tersedia (Rilis B Task 2), tetapi
+                # penyalurannya ke kasus rekrutmen bukan cakupan Task 2.
                 upsert_case_step(nik, nama, None, branch_code, 'FIRSTWORK',
                                  registration_no,
                                  evidence_type='first_work_submission',
@@ -2846,13 +2911,15 @@ def register_first_work_routes(app):
             where_sql = (' WHERE ' + ' AND '.join(where)) if where else ''
             cursor = conn.cursor(dictionary=True)
             try:
+                demo_select = ', '.join('s.' + field for field in DEMOGRAPHIC_FIELDS)
                 cursor.execute("""
                     SELECT s.registration_no, s.branch_code, s.fingerprint_no,
                            s.bpf_no, s.submitted_at, s.nama, s.nik,
                            s.nik_raw, s.nik_valid, s.pendidikan_raw,
                            s.pendidikan_norm, s.referensi_raw, r.name AS referrer_name,
                            s.no_hp, s.status, s.verification_note, s.verified_by,
-                           s.verified_at, s.merge_status
+                           s.verified_at, s.merge_status,
+                           """ + demo_select + """
                     FROM first_work_submissions s
                     LEFT JOIN first_work_referrers r ON r.id=s.referrer_id
                 """ + where_sql + " ORDER BY s.submitted_at DESC, s.id DESC", params)
@@ -2869,7 +2936,8 @@ def register_first_work_routes(app):
                              'Waktu Kirim', 'Nama', 'NIK',
                              'NIK Valid', 'Pendidikan', 'Referensi', 'No. HP',
                              'Status', 'Catatan Verifikasi', 'Diverifikasi Oleh',
-                             'Waktu Verifikasi'])
+                             'Waktu Verifikasi']
+                            + [DEMOGRAPHIC_LABELS[field] for field in DEMOGRAPHIC_FIELDS])
             for row in rows:
                 writer.writerow([
                     row.get('registration_no'), row.get('branch_code'),
@@ -2882,7 +2950,7 @@ def register_first_work_routes(app):
                     row.get('no_hp'), STATUS_LABELS.get(row.get('status'), row.get('status')),
                     row.get('verification_note'), row.get('verified_by'),
                     row.get('verified_at'),
-                ])
+                ] + [row.get(field) or '' for field in DEMOGRAPHIC_FIELDS])
             response = make_response('\ufeff' + output.getvalue())
             response.headers['Content-Type'] = 'text/csv; charset=utf-8'
             export_label = scope or branch_filter or 'SEMUA'
