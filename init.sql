@@ -1013,4 +1013,54 @@ CREATE TABLE IF NOT EXISTS approval_requests (
     INDEX idx_appr_doc (doc_type, status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- ============================================================
+-- Kasus rekrutmen lintas cabang (Rilis A) — DB master.
+-- Satu kasus per NIK; langkah mengikuti token cabang yang dipakai peserta.
+-- Sama dengan DDL di modules/recruitment_schema.py (dijalankan startup).
+-- ============================================================
+CREATE TABLE IF NOT EXISTS recruitment_cases (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    case_id VARCHAR(40) NOT NULL,
+    nik CHAR(16) NOT NULL,
+    nama VARCHAR(150) NOT NULL,
+    tanggal_lahir DATE NULL,
+    first_seen_at DATETIME NULL,
+    first_branch VARCHAR(10) NOT NULL DEFAULT '',
+    status VARCHAR(30) NOT NULL DEFAULT 'AKTIF',
+    merged_from VARCHAR(255) NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_rc_case_id (case_id),
+    UNIQUE KEY uq_rc_nik (nik),
+    KEY idx_rc_status (status),
+    KEY idx_rc_first_branch (first_branch)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS recruitment_steps (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    case_id VARCHAR(40) NOT NULL,
+    step_type ENUM('CV','TRAINING','TKD','FIRSTWORK') NOT NULL,
+    status ENUM('BELUM','PENDING','SELESAI','DIKECUALIKAN') NOT NULL DEFAULT 'BELUM',
+    branch_code VARCHAR(10) NOT NULL DEFAULT '',
+    evidence_type VARCHAR(30) NOT NULL DEFAULT '',
+    evidence_id VARCHAR(64) NOT NULL DEFAULT '',
+    exception_reason VARCHAR(500) NULL,
+    completed_at DATETIME NULL,
+    actor VARCHAR(100) NOT NULL DEFAULT '',
+    UNIQUE KEY uq_rs_case_step_branch (case_id, step_type, branch_code),
+    KEY idx_rs_case (case_id),
+    KEY idx_rs_branch (branch_code),
+    KEY idx_rs_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS case_branch_history (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    case_id VARCHAR(40) NOT NULL,
+    branch_code VARCHAR(10) NOT NULL,
+    first_seen_at DATETIME NULL,
+    last_seen_at DATETIME NULL,
+    UNIQUE KEY uq_cbh_case_branch (case_id, branch_code),
+    KEY idx_cbh_case (case_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 SELECT '✅ v2 tables ready' AS result;

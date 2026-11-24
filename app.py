@@ -124,6 +124,14 @@ for _attempt in range(5):
         break
     _time.sleep(3)
 
+# Kasus rekrutmen lintas cabang (Rilis A): tabel recruitment_* di DB master.
+# Aman diulang tiap startup, sama seperti ensure_appointments_schema().
+from modules.recruitment_schema import ensure_recruitment_schema
+for _attempt in range(5):
+    if ensure_recruitment_schema():
+        break
+    _time.sleep(3)
+
 # Sistem Overtime (v2.22): tabel overtime_driver & overtime_ob_security
 from modules.overtime_schema import ensure_overtime_schema
 for _attempt in range(5):
