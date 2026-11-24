@@ -69,6 +69,9 @@ const routes = [
       { path: 'receptionist', name: 'receptionist', component: () => import('../views/dashboard/ReceptionistView.vue'), meta: { roles: ['receptionist', 'traineer', 'admin'], title: 'Rekrutmen' } },
       // URL lama "Rekrutan Saya" — diarahkan ke halaman Rekrutmen.
       { path: 'traineer', redirect: '/receptionist' },
+      // Rilis A (Task 6) — dashboard kasus rekrutmen: NIK termasker, empat
+      // langkah, riwayat cabang, dan pengecualian langkah untuk staff.
+      { path: 'recruitment-cases', name: 'recruitment-cases', component: () => import('../views/RecruitmentCasesView.vue'), meta: { roles: ['traineer', 'ga_hr', 'admin'], title: 'Dashboard Kasus Rekrutmen' } },
       // In-Out Karyawan (v2.41.0) — catatan keluar-masuk (read-only, sync sheet)
       { path: 'inout', name: 'inout', component: () => import('../views/dashboard/EmployeeInOutView.vue'), meta: { roles: ['receptionist', 'admin'] } },
       // Absensi FirstWork (v2.80.0) — verifikasi Traineer, lihat Finance, kelola Admin

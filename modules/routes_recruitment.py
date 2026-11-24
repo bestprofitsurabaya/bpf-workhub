@@ -205,13 +205,16 @@ def register_recruitment_routes(app):
                                 'first_seen_at': _as_text(b.get('first_seen_at')),
                                 'last_seen_at': _as_text(b.get('last_seen_at')),
                             })
+                        # id langkah ikut dikirim supaya dashboard bisa memanggil
+                        # POST /api/recruitment/steps/<id>/exception (Task 6).
                         cursor.execute(
-                            'SELECT case_id, step_type, status, branch_code, '
+                            'SELECT id, case_id, step_type, status, branch_code, '
                             'exception_reason, completed_at FROM recruitment_steps '
                             f'WHERE case_id IN ({marks}) '
                             'ORDER BY step_type, branch_code', tuple(case_ids))
                         for s in cursor.fetchall() or []:
                             steps_by_case.setdefault(s['case_id'], []).append({
+                                'id': s.get('id'),
                                 'step_type': str(s.get('step_type') or ''),
                                 'status': str(s.get('status') or ''),
                                 'branch_code': str(s.get('branch_code') or ''),

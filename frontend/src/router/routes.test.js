@@ -33,6 +33,16 @@ describe('path Registrasi CV Online', () => {
   })
 })
 
+// Rilis A (Task 6) — dashboard kasus rekrutmen untuk staff.
+describe('path Dashboard kasus rekrutmen', () => {
+  it('/recruitment-cases hanya untuk traineer, ga_hr, admin', () => {
+    const route = router.resolve('/recruitment-cases')
+    expect(route.name).toBe('recruitment-cases')
+    expect(route.meta.roles).toEqual(['traineer', 'ga_hr', 'admin'])
+    expect(route.meta.public).toBeFalsy()
+  })
+})
+
 // v2.113.1 — audit menu "Laporan & Analisis": tiga tautan lama tetap hidup
 // sebagai redirect ke tab Laporan di /cash (bookmark & tautan beredar tidak
 // putus), tetapi tidak lagi tampil sebagai menu terpisah di sidebar.

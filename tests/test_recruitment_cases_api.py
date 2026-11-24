@@ -116,10 +116,10 @@ class _FakeConn:
              'last_seen_at': datetime(2026, 11, 21, 11, 0)},
         ]
         self.steps = [
-            {'case_id': CASE_A, 'step_type': 'CV', 'status': 'SELESAI',
+            {'id': 11, 'case_id': CASE_A, 'step_type': 'CV', 'status': 'SELESAI',
              'branch_code': 'SBY', 'exception_reason': None,
              'completed_at': datetime(2026, 11, 20, 10, 5)},
-            {'case_id': CASE_A, 'step_type': 'FIRSTWORK',
+            {'id': 14, 'case_id': CASE_A, 'step_type': 'FIRSTWORK',
              'status': 'DIKECUALIKAN', 'branch_code': 'JKT',
              'exception_reason': 'Tidak hadir',
              'completed_at': datetime(2026, 11, 21, 11, 0)},
@@ -230,8 +230,11 @@ class TestKontrakRespons:
         assert sby['last_seen_at'] == '2026-11-21 11:00:00'
 
         assert len(case['steps']) == 2
-        assert set(case['steps'][0]) == {'step_type', 'status', 'branch_code',
-                                         'exception_reason', 'completed_at'}
+        # Task 6: id langkah dibutuhkan tombol exception di dashboard staff.
+        assert set(case['steps'][0]) == {'id', 'step_type', 'status',
+                                         'branch_code', 'exception_reason',
+                                         'completed_at'}
+        assert {s['id'] for s in case['steps']} == {11, 14}
         excluded = next(s for s in case['steps']
                         if s['status'] == 'DIKECUALIKAN')
         assert excluded['exception_reason'] == 'Tidak hadir'
