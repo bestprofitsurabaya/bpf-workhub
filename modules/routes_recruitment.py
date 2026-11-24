@@ -11,7 +11,8 @@ atau `PENDING`. Alasan wajib (maks. 500 karakter) dan tercatat di audit.
 
 `GET /api/recruitment/cases` menyuapi dashboard staff (Task 6): daftar kasus
 beserta riwayat cabang dan langkahnya. NIK hanya dikirim sebagai empat digit
-terakhir (`****0002`), baik di respons maupun di audit.
+terakhir (`****0002`), baik di respons maupun di audit. `case_id` sudah opaque
+(dibuat service tanpa NIK) sehingga dikembalikan apa adanya.
 
 Deteksi bersifat global ke DB master (lintas cabang), memakai tiga sumber:
 `recruitment_cases`, `cv_online_submissions.nik`, `first_work_submissions.nik`.
@@ -79,16 +80,6 @@ def _mask_nik(value):
     """Tampilkan maksimal empat digit terakhir; NIK penuh tidak pernah keluar."""
     text = str(value or '').strip()
     return ('****' + text[-4:]) if text else '****'
-
-
-def _mask_case_id(value):
-    """ID kasus bawaan Task 4 berbentuk `RC-<16 digit>` — NIK-nya ikut ditutup."""
-    text = str(value or '')
-    if text.startswith('RC-'):
-        suffix = text[3:]
-        if len(suffix) == 16 and suffix.isdigit():
-            return 'RC-' + _mask_nik(suffix)
-    return text
 
 
 def _as_text(value):
@@ -230,7 +221,7 @@ def register_recruitment_routes(app):
                             })
 
                     data = [{
-                        'case_id': _mask_case_id(r.get('case_id')),
+                        'case_id': str(r.get('case_id') or ''),
                         'nik_masked': _mask_nik(r.get('nik')),
                         'nama': str(r.get('nama') or ''),
                         'first_branch': str(r.get('first_branch') or ''),

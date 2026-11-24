@@ -1,4 +1,4 @@
-"""Regresi endpoint daftar kasus rekrutmen staff (Task 5 — fix round 1).
+"""Regresi endpoint daftar kasus rekrutmen staff (Task 5 — fix round 1/2).
 
 `GET /api/recruitment/cases` dipakai dashboard Task 6. Kontraknya: hanya staff
 (traineer/ga_hr/admin), NIK pada respons dan audit HANYA 4 digit terakhir,
@@ -11,6 +11,7 @@ import json
 import os
 import sys
 from datetime import datetime
+from pathlib import Path
 
 import pytest
 from flask import Flask  # noqa: E402
@@ -21,10 +22,9 @@ from modules import routes_recruitment as rr  # noqa: E402
 
 NIK_A = '3573010101990001'
 NIK_B = '3573010101990002'
-CASE_A = 'RC-' + NIK_A
-CASE_B = 'RC-' + NIK_B
-MASKED_A = 'RC-****0001'
-MASKED_B = 'RC-****0002'
+# Fix round 2: case_id bersifat opaque (bukan RC-<NIK>) dan tidak dimasker.
+CASE_A = 'RC-a1b2c3d4e5f6'
+CASE_B = 'RC-f6e5d4c3b2a1'
 
 
 class _FakeCursor:
@@ -212,7 +212,7 @@ class TestKontrakRespons:
 
         assert set(case) == {'case_id', 'nik_masked', 'nama', 'first_branch',
                              'status', 'branches', 'steps'}
-        assert case['case_id'] == MASKED_B
+        assert case['case_id'] == CASE_B
         assert NIK_B not in case['case_id']
         assert case['nama'] == 'Budi'
         assert case['first_branch'] == 'JKT'
@@ -220,7 +220,7 @@ class TestKontrakRespons:
 
     def test_riwayat_cabang_dan_langkah_termasuk(self, app, db, logs):
         case = next(c for c in _get(app).get_json()['data']
-                    if c['case_id'] == MASKED_A)
+                    if c['case_id'] == CASE_A)
 
         assert len(case['branches']) == 2
         assert set(case['branches'][0]) == {'branch_code', 'first_seen_at',
@@ -238,12 +238,33 @@ class TestKontrakRespons:
         assert excluded['completed_at'] == '2026-11-21 11:00:00'
         assert case['steps'][0]['completed_at'] == '2026-11-20 10:05:00'
 
+    def test_case_id_sama_persis_dengan_yang_tersimpan(self, app, db, logs):
+        cases = _get(app).get_json()['data']
+        tersimpan = {row['case_id'] for row in db.cases}
+
+        assert {case['case_id'] for case in cases} == tersimpan
+        assert CASE_A in tersimpan and CASE_B in tersimpan
+
+    def test_case_id_tidak_berasal_dari_nik(self, app, db, logs):
+        cases = _get(app).get_json()['data']
+
+        for case in cases:
+            assert case['case_id'].startswith('RC-')
+            assert NIK_A not in case['case_id']
+            assert NIK_B not in case['case_id']
+
+
+def test_route_tidak_memasker_case_id():
+    source = (Path(__file__).resolve().parents[1] / 'modules'
+              / 'routes_recruitment.py').read_text(encoding='utf-8')
+    assert '_mask_case_id' not in source
+
 
 class TestFilter:
     def test_filter_nik_dinormalisasi(self, app, db, logs):
         response = _get(app, nik='3573 0101 0199 0002')
 
-        assert [c['case_id'] for c in response.get_json()['data']] == [MASKED_B]
+        assert [c['case_id'] for c in response.get_json()['data']] == [CASE_B]
 
     def test_filter_nik_tidak_ada_mengembalikan_kosong(self, app, db, logs):
         response = _get(app, nik='3573010101999999')
@@ -263,22 +284,22 @@ class TestFilter:
 
     def test_filter_branch_code_lewat_riwayat_atau_langkah(self, app, db, logs):
         assert {c['case_id'] for c in _get(app, branch_code='JKT')
-                .get_json()['data']} == {MASKED_A, MASKED_B}
+                .get_json()['data']} == {CASE_A, CASE_B}
         assert [c['case_id'] for c in _get(app, branch_code='SBY')
-                .get_json()['data']] == [MASKED_A]
+                .get_json()['data']] == [CASE_A]
 
     def test_filter_branch_code_tidak_dikenal_kosong(self, app, db, logs):
         assert _get(app, branch_code='XXX').get_json() == {'data': []}
 
     def test_filter_status_kasus(self, app, db, logs):
         assert [c['case_id'] for c in _get(app, status='AKTIF')
-                .get_json()['data']] == [MASKED_A]
+                .get_json()['data']] == [CASE_A]
         assert _get(app, status='SELESAI').get_json() == {'data': []}
 
     def test_filter_gabungan(self, app, db, logs):
         response = _get(app, nik=NIK_A, branch_code='SBY', status='AKTIF')
 
-        assert [c['case_id'] for c in response.get_json()['data']] == [MASKED_A]
+        assert [c['case_id'] for c in response.get_json()['data']] == [CASE_A]
         assert _get(app, nik=NIK_A, status='NONAKTIF').get_json() == {'data': []}
 
     def test_urutan_terbaru_dulu_dan_maks_100(self, app, db, logs):

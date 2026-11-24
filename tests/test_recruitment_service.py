@@ -128,9 +128,11 @@ class _FakeCursor:
         if table in ('cv_online_branch_forms', 'first_work_branch_forms'):
             return self.conn.tables[table]
         rows = self.conn.tables.get(table, [])
-        if 'nik=%s' in upper and params:
+        # `upper` sudah di-uppercase — kunci filter memakai huruf besar agar
+        # SELECT per NIK benar-benar memisahkan kasus berbeda (fix round 2).
+        if 'NIK=%S' in upper and params:
             rows = [r for r in rows if str(r.get('nik')) == str(params[0])]
-        elif 'case_id=%s' in upper and params:
+        elif 'CASE_ID=%S' in upper and params:
             rows = [r for r in rows if str(r.get('case_id')) == str(params[0])]
         if 'COUNT(*)' in upper:
             return {'n': len(rows)}
@@ -407,6 +409,41 @@ class TestIntegrasiFirstWork:
         assert db.tables['recruitment_cases'] == []
         assert db.tables['recruitment_steps'] == []
         assert db.tables['case_branch_history'] == []
+
+
+class TestCaseIdOpaque:
+    """Fix round 2: NIK tidak boleh tersemat di case_id (primary key)."""
+
+    NIK_SAMA_4_DIGIT = '3573010101990002'  # berbagi '0002' dengan NIK
+
+    def test_case_id_baru_tidak_mengandung_nik(self):
+        from modules.recruitment_service import _new_case_id
+
+        case_id = _new_case_id(NIK)
+
+        assert case_id.startswith('RC-')
+        assert NIK not in case_id
+        assert case_id[3:] != NIK
+        assert len(case_id) <= 40  # recruitment_cases.case_id VARCHAR(40)
+
+    def test_case_id_baru_unik_untuk_setiap_pembuatan(self):
+        from modules.recruitment_service import _new_case_id
+
+        generated = {_new_case_id(NIK) for _ in range(50)}
+
+        assert len(generated) == 50
+
+    def test_dua_nik_berbagi_empat_digit_tetap_dua_case_id(self, db):
+        first = _upsert(nik=NIK, conn=db)
+        second = _upsert(nik=self.NIK_SAMA_4_DIGIT, conn=db)
+
+        assert first != second
+        for case_id in (first, second):
+            assert case_id.startswith('RC-')
+            assert NIK not in case_id
+            assert self.NIK_SAMA_4_DIGIT not in case_id
+        assert {r['case_id'] for r in db.tables['recruitment_cases']} == {
+            first, second}
 
 
 def test_service_memakai_helper_normalisasi_nik_yang_sama():

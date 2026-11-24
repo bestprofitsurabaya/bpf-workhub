@@ -10,6 +10,7 @@ ia berjalan di dalam transaksi submit yang sama, sehingga kegagalannya
 membatalkan submit juga (tidak ada kasus/langkah yatim). Dipanggil tanpa
 `conn`, fungsi membuka, meng-commit, dan menutup koneksi master sendiri.
 """
+import uuid
 from datetime import datetime
 
 from modules.config import get_master_connection
@@ -20,8 +21,13 @@ VALID_STEP_TYPES = frozenset(('CV', 'FIRSTWORK'))
 
 
 def _new_case_id(nik):
-    """ID kasus stabil per NIK (unik juga dijaga UNIQUE KEY nik)."""
-    return f'RC-{nik}'
+    """Buat ID kasus opaque; NIK tidak pernah tertanam di primary key.
+
+    `nik` tetap diterima untuk menjaga tanda tangan fungsi, tetapi identitas
+    satu-orang-satu-kasus dijaga oleh UNIQUE KEY `nik`, bukan oleh case_id.
+    ID acak juga menghindari tabrakan saat dua NIK berbagi 4 digit terakhir.
+    """
+    return 'RC-' + uuid.uuid4().hex[:12]
 
 
 def upsert_case_step(nik, nama, dob, branch_code, step_type, evidence_id,
