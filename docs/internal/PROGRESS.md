@@ -2713,3 +2713,15 @@ tes & verifikasi; perubahan produksi butuh konfirmasi eksplisit.
   detail klaim GA dan detail air minum Finance (data uji sudah dihapus).
 - Verifikasi: backend 1486 passed, frontend 411 passed, stamp v2.131.2,
   container sehat.
+
+### Deploy Rilis A rekrutmen (24 Nov 2026, 15:55 WIB)
+
+- Commit `9dfb95c` di-push; image di-build ulang; container healthy.
+- Stamp 7 titik + DB master/12 cabang = v2.133.0.
+- Verifikasi: pytest produksi **1698 passed, 6 skipped**; frontend 462 test;
+  tabel `recruitment_cases`, `recruitment_steps`, `case_branch_history` ada.
+- Smoke: staff login → `/api/recruitment/cases` 200; lookup NIK lama →
+  `known=true` dengan tepat 3 kunci; portal `/app/recruitment-portal` 200.
+- Sesi admin unitedw sudah logout; data uji tidak dibuat di produksi.
+- Rilis B (13 field demografi + ID FP/BPF berkode cabang + cetak kartu +
+  impor 226 unitedw + backfill 1.738) masih menunggu.
