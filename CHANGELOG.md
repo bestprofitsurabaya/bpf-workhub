@@ -7,6 +7,32 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.134.0 — 25 November 2026 (Hub rekrutmen dan TKD online)
+
+- Satu menu **Rekrutmen** berisi tab `pelamar | kasus | cv | firstwork | tkd |
+  tautan`. Route lama tetap hidup sebagai redirect/guard, jadi bookmark dan
+  tautan yang sudah dibagikan tidak putus.
+- Satu link portal per cabang `/app/recruitment-portal?token=…`. Tab **Tautan**
+  menampilkan satu link dan QR per cabang; link CV/FirstWork tidak lagi
+  dibagikan terpisah.
+- **TKD online**: bank soal berisi 30 soal bernilai + 1 soal motivasi (seed
+  sebagai draft), ujian menampilkan 20 soal + 1 motivasi dengan waktu 25 menit
+  dan ambang lulus 70. Kuota `REGULASI 7 · PERUSAHAAN 4 · PRODUK 6 · HITUNG 3`,
+  tier modal $30k/$50k/$100k.
+- Maksimal **2 percobaan**. Skor resmi otomatis memakai nilai tertinggi;
+  koreksi manual Traineer selalu menang. Pelamar bisa melihat skor lagi dengan
+  NIK + tanggal lahir.
+- Penilaian dilakukan di server: kunci jawaban tidak pernah dikirim ke browser.
+  Setiap attempt menyimpan snapshot soal, opsi, kunci, dan poin; attempt yang
+  kedaluwarsa difinalisasi saat dibuka kembali (lazy).
+- Staff mendapat tab bank soal (CRUD, impor, ekspor), tab hasil dengan detail
+  dan koreksi skor, serta pengaturan khusus admin plus indikator kesiapan bank.
+- **Deploy**: `tkd_settings.active=0` saat rilis — TKD tetap tertutup. Bank
+  soal di-seed sebagai draft dan wajib di-review/diaktifkan sebelum ujian
+  dibuka.
+
+---
+
 ## v2.133.1 — 24 November 2026 (Paritas & rekonsiliasi rekrutmen)
 
 - FirstWork: 13 field demografi dari unitedw kini tersedia di form publik,

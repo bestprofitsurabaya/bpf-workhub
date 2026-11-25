@@ -20,6 +20,17 @@ ENDPOINTS = [('GET', BASE), ('PUT', BASE + '/answers/1'),
              ('POST', BASE + '/submit'), ('GET', BASE + '/result')]
 
 
+@pytest.fixture(autouse=True)
+def _waktu_import_yang_basi(monkeypatch):
+    """Simulasikan suite panjang: expiry tidak boleh berasal dari waktu import.
+
+    Regresi v2.134.0: pytest penuh butuh >20 menit tanpa DB, jadi konstanta
+    `ATTEMPT` yang dihitung saat modul diimpor sudah kedaluwarsa saat tes ini
+    dijalankan. Fixture `ctx` wajib membuat expires_at yang segar per tes.
+    """
+    monkeypatch.setitem(ATTEMPT, 'expires_at', datetime.now() - timedelta(minutes=1))
+
+
 class _Cursor:
     """Cursor tiruan yang mencatat SQL dan commit lewat `cursor.connection`."""
 
@@ -58,7 +69,10 @@ def ctx(monkeypatch):
     a = Flask(__name__); a.secret_key = 'tkd-test'
     rt.register_tkd_routes(a)
     conn = _Conn()
-    state = {'attempt': dict(ATTEMPT), 'items': [dict(ITEM)],
+    # Expiry harus dihitung saat tes berjalan, bukan saat modul diimpor:
+    # suite penuh bisa berjalan >20 menit tanpa DB (lihat fixture atas).
+    attempt = dict(ATTEMPT, expires_at=datetime.now() + timedelta(minutes=20))
+    state = {'attempt': attempt, 'items': [dict(ITEM)],
              'finalize_calls': [], 'submit_audits': [], 'rate_calls': [],
              'fetch_for_update': [], 'results': []}
 
