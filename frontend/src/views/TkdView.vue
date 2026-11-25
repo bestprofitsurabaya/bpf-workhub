@@ -1,6 +1,7 @@
 <script setup>
 import { computed, h, ref } from 'vue'
 import TkdBankPanel from './TkdBankPanel.vue'
+import TkdResultsPanel from './TkdResultsPanel.vue'
 
 // Dipakai sebagai tab di hub rekrutmen: PageHeader tidak dirender di sini.
 defineProps({ embedded: { type: Boolean, default: false } })
@@ -11,14 +12,19 @@ const TABS = [
   { id: 'pengaturan', label: 'Pengaturan' },
 ]
 
-// Placeholder untuk panel hasil/pengaturan (diganti Tasks 17/18).
+// Placeholder untuk panel pengaturan (diganti Task 18).
 const PlaceholderPanel = {
   render: () => h('div', { class: 'card card-pad' }, [h('p', 'Segera tersedia.')]),
 }
 
+const PANELS = {
+  bank: TkdBankPanel,
+  hasil: TkdResultsPanel,
+  pengaturan: PlaceholderPanel,
+}
+
 const activeTab = ref('bank')
-const activePanel = computed(() =>
-  activeTab.value === 'bank' ? TkdBankPanel : PlaceholderPanel)
+const activePanel = computed(() => PANELS[activeTab.value] || TkdBankPanel)
 </script>
 
 <template>
