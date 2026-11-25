@@ -3,7 +3,7 @@
 File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks saat sesi baru dimulai.
 
 **Terakhir diperbarui:** 2026-11-25<br>
-**Branch:** `feat/recruitment-hub-tkd` (v2.134.0 belum di-merge ke `main`)<br>
+**Branch:** `main` (v2.134.0 sudah di-merge dan di-deploy di NAS; `origin/main` belum di-push)<br>
 **Versi terbaru:** v2.134.0 (25 Nov — satu menu Rekrutmen bertab + satu link portal per cabang; TKD online dengan 2 percobaan, skor resmi tertinggi, koreksi Traineer; bank soal draft dan TKD tertutup sampai diaktifkan) · v2.133.1 (23 Nov — driver mengajukan tukar/pindah kendaraan dari panel Profil; GA menyetujui; bukti odometer + foto) · v2.131.6 (23 Nov — drift skema semua cabang + self-heal kolom GPS/overtime) · v2.131.5 (23 Nov — `init.sql` selaras produksi: kendaraan per-nopol, cek unique constraint) · v2.131.4 (23 Nov — klaim BBM SBY/MALANG pulih: `vehicle_bbm_allowed` hilang dari DB master saat rekonsiliasi 20 Nov) · v2.130.0 (20 Nov — halaman driver memakai nama dari Pengaturan (`drivers.display_name`), bukan username) · v2.129.1 (20 Nov — Web Push driver akhirnya sampai: `ttl=86400` + `Urgency: high`; TTL 0 membuat FCM membuang pesan saat HP tidak terhubung) · v2.128.4 (19 Nov — motto brand di halaman login: "Satu Platform, Semua Operasional" menggantikan nama kota "Jakarta") · v2.128.3 (19 Nov — Web Push benar-benar terkirim: objek Vapid, bukan string PEM) · v2.128.2 (19 Nov — bersihkan langganan push mati di DB cabang yang benar) · v2.112.0 (17 Nov — MFA TOTP: login dua langkah, kebijakan admin off/optional/required_roles, kode pemulihan, panduan Microsoft Authenticator) · v2.111.0 (17 Nov — OCR NIK dari crop label + validasi tanggal lahir) · v2.108.2 (13 Nov — hapus data uji FirstWork oleh admin/traineer, demo per cabang bisa dibersihkan, seed demo idempoten) · v2.108.1 (13 Nov — validasi server trip & bukti foto) · v2.104.0 (12 Nov — Fase 3 selesai: KPI bisa diklik ke daftar baris terfilter, antrean bawa baris nyata + aksi GA, antrean keempat SPBU mismatch) · v2.103.0 (12 Nov — meja kerja BBM: isolasi cabang, definisi metrik tunggal, context bar, antrean Perlu Tindakan) · v2.84.0 (12 Nov — semua cabang wajib tautan ber-token + QR statis lokal) · v2.83.0 (12 Nov — ID Fingerprint & ID BPF: backfill 1.831 baris, panel traineer, koreksi per baris) · v2.82.0 (11 Nov — audit isolasi cabang FirstWork: token per cabang, KTP tertutup, NIK disamarkan) · v2.81.0 (11 Nov — Profil Saya) · v2.80.0 (11 Nov — Absensi FirstWork + migrasi 1.831 baris sheet) · v2.77.0 (3 Nov — OTP SubsidiTepat: anti request ganda, supervisor verifikasi status, cooldown resend; siklus OTP end-to-end OK — kode diverifikasi → token → 192 transaksi SPBU terimpor)
 
 
@@ -37,27 +37,26 @@ File ini melacak status project agar AI (Buffy/Codebuff) bisa memahami konteks s
   ada fixture regresi yang menyimulasikan konstanta basi.
 - Belum diverifikasi: stamp DB/master+branch, `docker compose build web` di
   NAS, dan smoke browser manual — ditunda ke langkah deploy di bawah.
-- **Deploy di NAS (belum dilakukan):**
-  1. `docker compose build web` di NAS, lalu restart stack.
-  2. Biarkan migrasi skema berjalan otomatis saat startup (idempoten); pastikan
-     tabel pengaturan TKD, bank soal, dan attempt tersedia di master/cabang.
-  3. Di host/container yang bisa melihat DB:
-     `python3 scripts/sync_version_stamp.py` lalu
-     `python3 scripts/check_version_stamps.py --with-db` → exit 0 (master +
-     `branches.system_version`).
-  4. `python3 scripts/seed_tkd_bank.py` — insert-if-absent; soal masuk sebagai
-     **draft**, bukan aktif.
-  5. Di UI staff, review bank soal lalu aktifkan soal yang sudah disetujui.
-  6. **Tetap `tkd_settings.active=0`** sampai bank siap; nyalakan pengaturan
+- **Deploy di NAS (selesai 25 Nov 2026):**
+  1. ✅ `docker compose build web` + `docker compose up -d web`; healthcheck
+     container `healthy`.
+  2. ✅ Migrasi skema otomatis saat startup; tabel `tkd_questions`,
+     `tkd_settings`, `tkd_attempts`, dan `tkd_attempt_items` tersedia.
+  3. ✅ `python3 scripts/sync_version_stamp.py` (12 baris `branches` + master)
+     lalu `python3 scripts/check_version_stamps.py --with-db` → exit 0.
+  4. ✅ `python3 scripts/seed_tkd_bank.py` — 31 soal masuk sebagai **draft**
+     (`active=0`), bukan aktif.
+  5. ⏳ Di UI staff, review bank soal lalu aktifkan soal yang sudah disetujui.
+  6. ⏳ **Tetap `tkd_settings.active=0`** sampai bank siap; nyalakan pengaturan
      hanya jika indikator kesiapan bank hijau.
-  7. Pilot di **1 cabang (SBY)**, lalu verifikasi alur 2 percobaan, skor resmi
+  7. ⏳ Pilot di **1 cabang (SBY)**, lalu verifikasi alur 2 percobaan, skor resmi
      = tertinggi, dan koreksi Traineer terlihat oleh pelamar.
-  8. Smoke manual viewport 375 px: portal token SBY → NIK + tanggal lahir →
+  8. ⏳ Smoke manual viewport 375 px: portal token SBY → NIK + tanggal lahir →
      kartu TKD → mulai → jawab → tutup → buka lagi → lanjut → submit → skor
      tampil → buka portal lagi dengan NIK + tanggal lahir → skor resmi tampil;
      cek pula satu link + QR per cabang di tab Tautan.
-- Branch `feat/recruitment-hub-tkd` belum di-merge atau di-push saat rilis ini
-  dibuat.
+- Branch `feat/recruitment-hub-tkd` sudah di-merge fast-forward ke `main` NAS
+  pada 25 Nov 2026; `origin/main` belum di-push.
 
 ---
 
