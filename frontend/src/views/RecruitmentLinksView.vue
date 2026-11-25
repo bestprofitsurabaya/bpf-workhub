@@ -78,6 +78,12 @@ async function copyLink(entry) {
 // QR dibuat lokal di browser. URL mengandung token rahasia, jadi jangan
 // dikirim ke layanan pembuat QR pihak ketiga.
 const qrModal = reactive({ show: false, code: '', label: '', url: '', dataUrl: '' })
+let qrGeneration = 0
+
+function closeQr() {
+  qrGeneration++ // Batalkan hasil QR yang masih dibuat untuk modal lama.
+  qrModal.show = false
+}
 
 async function showQr(entry) {
   const url = portalUrl(entry)
@@ -85,6 +91,7 @@ async function showQr(entry) {
     err.value = 'Belum ada token; hubungi Admin.'
     return
   }
+  const generation = ++qrGeneration
   Object.assign(qrModal, {
     show: true,
     code: entry.branch_code || '',
@@ -93,8 +100,13 @@ async function showQr(entry) {
     dataUrl: '',
   })
   try {
-    qrModal.dataUrl = await QRCode.toDataURL(url, { width: 420, margin: 2 })
+    const dataUrl = await QRCode.toDataURL(url, { width: 420, margin: 2 })
+    // Modal bisa ditutup/dibuka untuk cabang lain saat toDataURL berjalan.
+    // Jangan pernah menempelkan QR lama ke judul dan URL cabang yang baru.
+    if (generation !== qrGeneration || !qrModal.show || qrModal.url !== url) return
+    qrModal.dataUrl = dataUrl
   } catch (e) {
+    if (generation !== qrGeneration) return
     err.value = 'Gagal membuat QR: ' + (e?.message || e)
     qrModal.show = false
   }
@@ -187,7 +199,7 @@ onMounted(loadLinks)
     </div>
 
     <Modal v-if="qrModal.show" :title="`QR Portal Rekrutmen ${qrModal.code}`"
-           @close="qrModal.show = false">
+           @close="closeQr">
       <div class="qr-body">
         <img v-if="qrModal.dataUrl" class="qr-image" :src="qrModal.dataUrl"
              alt="QR portal rekrutmen" />
@@ -196,7 +208,7 @@ onMounted(loadLinks)
         <div class="link-actions">
           <button class="btn btn-sm btn-primary" type="button" :disabled="!qrModal.dataUrl"
                   @click="printQr">🖨️ Cetak QR</button>
-          <button class="btn btn-sm" type="button" @click="qrModal.show = false">Tutup</button>
+          <button class="btn btn-sm" type="button" @click="closeQr">Tutup</button>
         </div>
       </div>
     </Modal>
