@@ -30,7 +30,7 @@ const APPLICANTS = [
   },
 ]
 
-async function mountView(role, { ho = false } = {}) {
+async function mountView(role, { ho = false, embedded = false } = {}) {
   authMock.role = role
   authMock.isHoAdmin = ho
   authMock.user = role === 'traineer'
@@ -62,6 +62,7 @@ async function mountView(role, { ho = false } = {}) {
     return Promise.resolve({ status: 'success', msg: 'ok' })
   })
   const w = mount(ReceptionistView, {
+    props: { embedded },
     global: { stubs: { RouterLink: { template: '<a><slot /></a>' } } },
   })
   await flushPromises()
@@ -151,5 +152,18 @@ describe('ReceptionistView (Rekrutmen)', () => {
     await flushPromises()
     const call = apiMock.mock.calls.filter((c) => c[0] === '/api/applicants').pop()
     expect(call[1].params.search).toBe('andi')
+  })
+
+  it('embedded menyembunyikan PageHeader beserta slot aksinya', async () => {
+    const normal = await mountView('receptionist')
+    expect(normal.find('.page-header').exists()).toBe(true)
+    expect(normal.find('.ph-actions').exists()).toBe(true)
+    normal.unmount()
+
+    const embedded = await mountView('receptionist', { embedded: true })
+    expect(embedded.find('.page-header').exists()).toBe(false)
+    expect(embedded.find('.ph-actions').exists()).toBe(false)
+    expect(embedded.text()).toContain('Andi Wijaya')
+    embedded.unmount()
   })
 })

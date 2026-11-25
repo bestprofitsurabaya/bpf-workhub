@@ -27,7 +27,7 @@ const ROWS = [
   },
 ]
 
-async function mountRole(role, { scope = 'MLG', branches } = {}) {
+async function mountRole(role, { scope = 'MLG', branches, embedded = false } = {}) {
   authMock.role = role
   const forms = branches || [{
     branch_code: 'MLG', branch_name: 'Cabang Malang',
@@ -48,7 +48,10 @@ async function mountRole(role, { scope = 'MLG', branches } = {}) {
     }
     return Promise.resolve({})
   })
-  const w = mount(FirstWorkView, { global: { stubs: { RouterLink: { template: '<a><slot /></a>' } } } })
+  const w = mount(FirstWorkView, {
+    props: { embedded },
+    global: { stubs: { RouterLink: { template: '<a><slot /></a>' } } },
+  })
   await flushPromises()
   return w
 }
@@ -169,5 +172,18 @@ describe('FirstWorkView (Absensi FirstWork)', () => {
     const link = w.findAll('a').find((a) => a.text().includes('Buka Form Publik'))
     expect(link).toBeTruthy()
     expect(link.attributes('href')).toContain('cabang=MLG')
+  })
+
+  it('embedded menyembunyikan PageHeader beserta tombol aksinya', async () => {
+    const normal = await mountRole('traineer')
+    expect(normal.find('.page-header').exists()).toBe(true)
+    expect(labels(normal)).toContain('↗ Buka Form Publik')
+    normal.unmount()
+
+    const embedded = await mountRole('traineer', { embedded: true })
+    expect(embedded.find('.page-header').exists()).toBe(false)
+    expect(labels(embedded)).not.toContain('↗ Buka Form Publik')
+    expect(embedded.text()).toContain('Budi Santoso')
+    embedded.unmount()
   })
 })

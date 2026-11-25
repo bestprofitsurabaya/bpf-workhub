@@ -32,7 +32,7 @@ const CASES = [
 let caseCalls
 let postCalls
 
-async function mountRole(role = 'traineer') {
+async function mountRole(role = 'traineer', { embedded = false } = {}) {
   authMock.role = role
   caseCalls = []
   postCalls = []
@@ -47,7 +47,7 @@ async function mountRole(role = 'traineer') {
     }
     return Promise.resolve({})
   })
-  const w = mount(RecruitmentCasesView)
+  const w = mount(RecruitmentCasesView, { props: { embedded } })
   await flushPromises()
   return w
 }
@@ -247,5 +247,16 @@ describe('RecruitmentCasesView (Dashboard kasus staff)', () => {
     await openDetail(w)
 
     expect(w.findAll('button[data-evidence-step]').length).toBe(0)
+  })
+
+  it('embedded menyembunyikan PageHeader tetapi mempertahankan daftar kasus', async () => {
+    const normal = await mountRole()
+    expect(normal.find('.page-header').exists()).toBe(true)
+    normal.unmount()
+
+    const embedded = await mountRole('traineer', { embedded: true })
+    expect(embedded.find('.page-header').exists()).toBe(false)
+    expect(embedded.text()).toContain('Andi Saputra')
+    embedded.unmount()
   })
 })

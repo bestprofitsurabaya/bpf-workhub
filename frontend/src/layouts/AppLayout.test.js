@@ -26,6 +26,7 @@ function makeRouter() {
       { path: '/settings', component: Blank },
       { path: '/cash', component: Blank },
       { path: '/receptionist', component: Blank },
+      { path: '/recruitment', component: Blank },
       { path: '/first-work', component: Blank },
     ],
   })
@@ -65,7 +66,8 @@ describe('AppLayout — P1 navigasi', () => {
     // admin tidak terlibat ACC apa pun → grup Persetujuan kosong & tidak tampil
     expect(nav).not.toContain('ACC Atasan')
     expect(nav).toContain('Rekrutmen')
-    expect(nav).toContain('Absensi FirstWork')
+    expect(nav).not.toContain('Absensi FirstWork')
+    expect(nav).not.toContain('Registrasi CV Online')
     expect(nav).toContain('Perkakas IT')
     expect(nav).not.toContain('Rekrutan Saya')
     expect(nav).not.toContain('Access Review')
@@ -90,11 +92,13 @@ describe('AppLayout — P1 navigasi', () => {
     w.unmount()
   })
 
-  it('menu traineer hanya berisi Rekrutmen (lihat saja) & Absensi FirstWork', async () => {
+  it('menu traineer hanya berisi satu Rekrutmen (semua tab di dalamnya)', async () => {
     const { w } = await mountLayout({ role: 'traineer', userName: 'traineer_mlg', isHo: false, path: '/first-work' })
     const nav = w.find('.side-nav').text()
     expect(nav).toContain('Rekrutmen')
-    expect(nav).toContain('Absensi FirstWork')
+    expect(nav).not.toContain('Absensi FirstWork')
+    expect(nav).not.toContain('Registrasi CV Online')
+    expect(w.findAll('.side-nav a').filter((a) => a.text().includes('Rekrutmen')).length).toBe(1)
     for (const hidden of ['Rekrutan Saya', 'Pelamar Kerja', 'User & Driver', 'Sync Sheet', 'In-Out Karyawan']) {
       expect(nav).not.toContain(hidden)
     }
@@ -120,8 +124,7 @@ describe('AppLayout — P1 navigasi', () => {
     const { w } = await mountLayout({ role: 'admin', userName: 'admin', isHo: true })
     const ga = w.findAll('.side-nav a').find((a) => a.text().includes('Dashboard GA'))
     expect(ga.text()).toContain('3')
-    const fw = w.findAll('.side-nav a').find((a) => a.text().includes('Absensi FirstWork'))
-    expect(fw.text()).toContain('4')
+    // Badge FirstWork/CV kini tampil di tab hub, bukan lagi di sidebar.
     w.unmount()
   })
 

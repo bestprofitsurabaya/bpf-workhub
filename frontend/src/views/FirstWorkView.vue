@@ -6,6 +6,9 @@ import { useAuthStore } from '../stores/auth'
 import PageHeader from '../components/PageHeader.vue'
 import Modal from '../components/Modal.vue'
 
+// Saat dipakai sebagai tab hub, header beserta tombol aksinya disembunyikan.
+defineProps({ embedded: { type: Boolean, default: false } })
+
 const auth = useAuthStore()
 const isAdmin = computed(() => auth.role === 'admin')
 // v2.97.1: pengaturan counter GLOBAL hanya Admin Pusat; counter per cabang
@@ -616,7 +619,7 @@ onMounted(() => {
 
 <template>
   <div class="fw-view">
-    <PageHeader icon="📝" title="Absensi FirstWork" :subtitle="subtitle">
+    <PageHeader v-if="!embedded" icon="📝" title="Absensi FirstWork" :subtitle="subtitle">
       <a v-if="canVerify && formLink" class="btn" :href="formLink" target="_blank" rel="noopener">↗ Buka Form Publik</a>
       <button v-if="canVerify && formLink" class="btn" @click="copyFormLink">🔗 Salin Link</button>
       <button v-if="canVerify && formLink" class="btn" @click="showQr(formLink, 'Form FirstWork ' + activeBranchCode)">▦ QR</button>

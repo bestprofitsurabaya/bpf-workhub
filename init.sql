@@ -1028,6 +1028,13 @@ CREATE TABLE IF NOT EXISTS recruitment_cases (
     first_branch VARCHAR(10) NOT NULL DEFAULT '',
     status VARCHAR(30) NOT NULL DEFAULT 'AKTIF',
     merged_from VARCHAR(255) NULL,
+    tkd_score DECIMAL(5,2) NULL,
+    tkd_score_source ENUM('AUTO','MANUAL') NULL,
+    tkd_score_note VARCHAR(500) NULL,
+    tkd_score_updated_by VARCHAR(100) NULL,
+    tkd_score_updated_at DATETIME NULL,
+    tkd_best_attempt_id VARCHAR(40) NULL,
+    tkd_passed TINYINT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     UNIQUE KEY uq_rc_case_id (case_id),
@@ -1061,6 +1068,80 @@ CREATE TABLE IF NOT EXISTS case_branch_history (
     last_seen_at DATETIME NULL,
     UNIQUE KEY uq_cbh_case_branch (case_id, branch_code),
     KEY idx_cbh_case (case_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ============================================================
+-- TKD online (Rilis C): bank soal, pengaturan, attempt, dan jawaban.
+-- Sama dengan DDL di modules/tkd_schema.py (drift check CI).
+-- ============================================================
+CREATE TABLE IF NOT EXISTS tkd_questions (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    code VARCHAR(40) NOT NULL,
+    category ENUM('REGULASI','PERUSAHAAN','PRODUK','HITUNG','PROFIL') NOT NULL,
+    type ENUM('MCQ','NUMERIC','SHORT_TEXT','PROFILE_TEXT') NOT NULL,
+    prompt TEXT NOT NULL,
+    options JSON NULL,
+    answer JSON NULL,
+    points DECIMAL(5,2) NOT NULL DEFAULT 1,
+    modal_tier VARCHAR(10) NULL,
+    active TINYINT NOT NULL DEFAULT 0,
+    sort_order INT NOT NULL DEFAULT 0,
+    created_by VARCHAR(100) NOT NULL DEFAULT '',
+    updated_by VARCHAR(100) NOT NULL DEFAULT '',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_tkd_q_code (code),
+    KEY idx_tkd_q_cat (category, active)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS tkd_settings (
+    id TINYINT PRIMARY KEY DEFAULT 1,
+    question_count INT NOT NULL DEFAULT 20,
+    duration_minutes INT NOT NULL DEFAULT 25,
+    pass_score DECIMAL(5,2) NOT NULL DEFAULT 70,
+    max_attempts INT NOT NULL DEFAULT 2,
+    quota JSON NULL,
+    shuffle_options TINYINT NOT NULL DEFAULT 1,
+    active TINYINT NOT NULL DEFAULT 0,
+    updated_by VARCHAR(100) NOT NULL DEFAULT '',
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS tkd_attempts (
+    id VARCHAR(40) NOT NULL,
+    case_id VARCHAR(40) NOT NULL,
+    attempt_no INT NOT NULL,
+    branch_code VARCHAR(10) NOT NULL DEFAULT '',
+    modal_tier VARCHAR(10) NOT NULL DEFAULT '',
+    status ENUM('BERLANGSUNG','SELESAI','KEDALUWARSA') NOT NULL,
+    settings_snapshot JSON NOT NULL,
+    pass_score_snapshot DECIMAL(5,2) NOT NULL,
+    started_at DATETIME NOT NULL,
+    expires_at DATETIME NOT NULL,
+    submitted_at DATETIME NULL,
+    score DECIMAL(5,2) NULL,
+    total_points DECIMAL(6,2) NOT NULL DEFAULT 0,
+    correct_count INT NOT NULL DEFAULT 0,
+    passed TINYINT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_tkd_a_case_no (case_id, attempt_no),
+    KEY idx_tkd_a_case (case_id, status),
+    KEY idx_tkd_a_branch (branch_code, submitted_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS tkd_attempt_items (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    attempt_id VARCHAR(40) NOT NULL,
+    question_id BIGINT NOT NULL,
+    position INT NOT NULL,
+    snapshot JSON NOT NULL,
+    answer JSON NULL,
+    answered_at DATETIME NULL,
+    is_correct TINYINT NULL,
+    points_awarded DECIMAL(5,2) NULL,
+    UNIQUE KEY uq_tkd_i_attempt_pos (attempt_id, position),
+    KEY idx_tkd_i_attempt (attempt_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ============================================================

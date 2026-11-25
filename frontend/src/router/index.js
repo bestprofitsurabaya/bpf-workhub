@@ -68,20 +68,25 @@ const routes = [
       { path: 'expenses', name: 'expenses', redirect: (to) => ({ path: '/cash', query: legacyReportQuery(to.query, 'realisasi') }), meta: { roles: ['finance', 'admin'] } },
       // Form overtime user OB & Security (v2.39) — dari dalam aplikasi (login)
       { path: 'overtime-me', name: 'overtime-me', component: () => import('../views/OvertimeMeView.vue'), meta: { roles: ['ob', 'security'] } },
-      // Rekrutmen (v2.80) — receptionist mengelola, traineer hanya melihat.
-      { path: 'receptionist', name: 'receptionist', component: () => import('../views/dashboard/ReceptionistView.vue'), meta: { roles: ['receptionist', 'traineer', 'admin'], title: 'Rekrutmen' } },
-      // URL lama "Rekrutan Saya" — diarahkan ke halaman Rekrutmen.
-      { path: 'traineer', redirect: '/receptionist' },
+      // Satu pintu Rekrutmen: semua modul staff jadi tab di /recruitment.
+      { path: 'recruitment', name: 'recruitment', component: () => import('../views/RecruitmentHubView.vue'), meta: { roles: ['receptionist', 'traineer', 'finance', 'ga_hr', 'admin'], title: 'Rekrutmen' } },
+      // URL lama tetap dikenali agar bookmark & tautan beredar tidak putus.
+      // Redirect diproses sebelum beforeEach: meta pada record redirect TIDAK
+      // pernah dipakai guard. Otorisasi ada di /recruitment (meta.roles hub)
+      // dan di filter tab per role di dalam hub.
+      { path: 'receptionist', redirect: { path: '/recruitment', query: { tab: 'pelamar' } } },
+      // URL lama "Rekrutan Saya" — diarahkan ke tab Pelamar di hub.
+      { path: 'traineer', redirect: { path: '/recruitment', query: { tab: 'pelamar' } } },
       // Rilis A (Task 6) — dashboard kasus rekrutmen: NIK termasker, empat
       // langkah, riwayat cabang, dan pengecualian langkah untuk staff.
-      { path: 'recruitment-cases', name: 'recruitment-cases', component: () => import('../views/RecruitmentCasesView.vue'), meta: { roles: ['traineer', 'ga_hr', 'admin'], title: 'Dashboard Kasus Rekrutmen' } },
+      { path: 'recruitment-cases', redirect: { path: '/recruitment', query: { tab: 'kasus' } } },
       // In-Out Karyawan (v2.41.0) — catatan keluar-masuk (read-only, sync sheet)
       { path: 'inout', name: 'inout', component: () => import('../views/dashboard/EmployeeInOutView.vue'), meta: { roles: ['receptionist', 'admin'] } },
       // Absensi FirstWork (v2.80.0) — verifikasi Traineer, lihat Finance, kelola Admin
       { path: 'first-work', name: 'first-work', component: () => import('../views/FirstWorkView.vue'), meta: { roles: ['traineer', 'finance', 'ga_hr', 'admin'], title: 'Absensi FirstWork' } },
-      // Registrasi CV Online (v2.113.0) — data pelamar; hanya traineer, GA/HR,
-      // dan admin (termasuk Admin Pusat) yang boleh melihat.
-      { path: 'cv-online', name: 'cv-online', component: () => import('../views/CvOnlineView.vue'), meta: { roles: ['traineer', 'ga_hr', 'admin'], title: 'Registrasi CV Online' } },
+      // Registrasi CV Online (v2.113.0) — data pelamar kini menjadi tab di hub;
+      // URL lama membuka tab CV, lalu hub menyesuaikan tab sesuai peran.
+      { path: 'cv-online', redirect: { path: '/recruitment', query: { tab: 'cv' } } },
       { path: 'assets', name: 'assets', component: () => import('../views/dashboard/AssetsView.vue'), meta: { roles: ['ga', 'admin'] } },
       { path: 'ga-hr', name: 'ga-hr', component: () => import('../views/dashboard/OvertimeView.vue'), meta: { roles: ['ga_hr', 'admin'] } },
       { path: 'it', name: 'it', component: () => import('../views/ItEfView.vue'), meta: { roles: ['it_sby', 'it_hu', 'it_jkt2', 'it_bdg', 'it_smg', 'it_mlg', 'it_mdn', 'it_bjm', 'it_plm', 'it_lpg', 'admin'] } },
@@ -132,6 +137,12 @@ router.beforeEach(async (to) => {
     // publik yang baru alih-alih memaksa pendaftar login.
     if (to.name === 'first-work') return { name: 'first-work-form', query: to.query }
     return { name: 'login', query: { next: to.fullPath } }
+  }
+  // Halaman data FirstWork tetap terdaftar (bukan redirect murni) supaya
+  // bookmark lama terbuka. Setelah login, arahkan ke tab FirstWork di hub dan
+  // bawa query yang ada (mis. filter/cabang dari tautan lama).
+  if (to.name === 'first-work') {
+    return { path: '/recruitment', query: { ...to.query, tab: 'firstwork' } }
   }
   const roles = to.meta.roles
   if (roles && !roles.includes(auth.role)) {

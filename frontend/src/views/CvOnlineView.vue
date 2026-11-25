@@ -6,6 +6,9 @@ import { useAuthStore } from '../stores/auth'
 import PageHeader from '../components/PageHeader.vue'
 import Modal from '../components/Modal.vue'
 
+// Saat dipakai sebagai tab hub, header beserta tombol aksinya disembunyikan.
+defineProps({ embedded: { type: Boolean, default: false } })
+
 const auth = useAuthStore()
 const isAdmin = computed(() => auth.role === 'admin')
 const canVerify = computed(() => ['traineer', 'admin'].includes(auth.role))
@@ -274,7 +277,7 @@ onMounted(() => {
 
 <template>
   <div class="cv-view">
-    <PageHeader icon="📄" title="Registrasi CV Online" :subtitle="subtitle">
+    <PageHeader v-if="!embedded" icon="📄" title="Registrasi CV Online" :subtitle="subtitle">
       <a v-if="canVerify && formLink" class="btn" :href="formLink" target="_blank" rel="noopener">↗ Buka Form Publik</a>
       <button v-if="canVerify && formLink" class="btn" @click="copyLink(formLink)">🔗 Salin Link</button>
       <button v-if="canVerify && formLink" class="btn" @click="showQr(formLink, 'Form CV Online ' + activeBranchCode)">▦ QR</button>

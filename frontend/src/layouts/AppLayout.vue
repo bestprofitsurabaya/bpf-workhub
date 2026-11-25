@@ -126,15 +126,13 @@ const MENU_GROUPS = [
     ],
   },
   {
-    // Rekrutmen: satu sumber data pelamar. Receptionist mengelola, Traineer
-    // hanya membaca; verifikasi kehadiran calon karyawan ada di FirstWork.
+    // Satu menu Rekrutmen; pelamar, kasus, CV Online, FirstWork, TKD, dan
+    // tautan form kini menjadi tab di dalam hub (badge antrean ikut ke tab).
     label: 'Rekrutmen & Trainee',
     items: [
-      { label: 'Rekrutmen', path: '/receptionist', icon: '🪪', roles: ['receptionist', 'traineer', 'admin'], keywords: 'pelamar kerja recruitment rekrutmen' },
-      // v2.80.0: form publik trainee + verifikasi (traineer, finance read-only, admin)
-      { label: 'Absensi FirstWork', path: '/first-work', icon: '📝', roles: ['traineer', 'finance', 'ga_hr', 'admin'], badge: 'first_work_pending', keywords: 'absensi first work trainee verifikasi' },
-      // v2.113.0: form publik registrasi CV + verifikasi data pelamar.
-      { label: 'Registrasi CV Online', path: '/cv-online', icon: '📄', roles: ['traineer', 'ga_hr', 'admin'], badge: 'cv_online_pending', keywords: 'cv online registrasi pelamar rekrutmen data pribadi' },
+      { label: 'Rekrutmen', path: '/recruitment', icon: '🪪',
+        roles: ['receptionist', 'traineer', 'finance', 'ga_hr', 'admin'],
+        keywords: 'rekrutmen pelamar cv firstwork tkd trainee recruitment' },
     ],
   },
   // v2.113.1: grup "Laporan & Analisis" dihapus. Sejak v2.100.0 ketiga laporan
@@ -458,7 +456,7 @@ onBeforeUnmount(() => {
         <div class="search-foot">↑↓ pilih · Enter buka · Esc tutup</div>
       </div>
     </div>
-    <HelpCenter :open="helpOpen" :path="route.path" :role="auth.role" @close="helpOpen = false" @replay-tour="startTour" />
+    <HelpCenter :open="helpOpen" :path="route.path" :tab="String(route.query.tab || '')" :role="auth.role" @close="helpOpen = false" @replay-tour="startTour" />
     <OnboardingTour :open="tourOpen" :steps="tourSteps" @close="finishTour" @done="finishTour" />
     <ToastStack />
   </div>

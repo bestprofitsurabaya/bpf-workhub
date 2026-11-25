@@ -247,22 +247,94 @@ const PAGE_HELP = [
     terms: ['Audit Log', 'Transcoder'],
   },
   {
-    paths: ['/receptionist'],
-    title: 'Rekrutmen',
-    summary: 'Data pelamar kerja cabang Anda: interview, 4 hari training, sampai lulus.',
+    paths: ['/recruitment'],
+    title: '🪪 Rekrutmen',
+    summary: 'Pelamar, kasus, CV Online, FirstWork, TKD, dan tautan form dalam satu halaman.',
     steps: [
-      'Receptionist mengelola penuh: verifikasi, koreksi data, kehadiran, status, dan laporan PDF.',
-      'Traineer melihat halaman yang sama dalam mode lihat saja — tanpa tombol pengelolaan.',
+      'Pilih tab Pelamar, Kasus, CV Online, FirstWork, TKD, atau Tautan — hanya tab untuk peran Anda yang tampil.',
+      'Angka pada tab CV Online/FirstWork adalah jumlah pendaftar yang menunggu tindakan.',
+      'Tab yang tidak diizinkan otomatis diganti dengan tab pertama yang boleh dibuka.',
+      'Tautan lama (/receptionist, /recruitment-cases, /cv-online) tetap membuka tab yang bersesuaian.',
+    ],
+    tabs: {
+      pelamar: {
+        title: 'Rekrutmen — Pelamar',
+        summary: 'Data pelamar kerja cabang Anda: interview, 4 hari training, sampai lulus.',
+        steps: [
+          'Receptionist mengelola penuh: verifikasi, koreksi data, kehadiran, status, dan laporan PDF.',
+          'Traineer melihat tab ini dalam mode lihat saja — tanpa tombol pengelolaan.',
+          'Isi filter tanggal/upline/user/status lalu tekan Cari untuk mempersempit daftar.',
+          'Verifikasi kehadiran calon karyawan ada di tab FirstWork pada menu yang sama.',
+        ],
+      },
+      kasus: {
+        title: 'Rekrutmen — Kasus',
+        summary: 'Dashboard kasus rekrutmen: NIK termasker, empat langkah, dan riwayat cabang.',
+        steps: [
+          'Buka Detail untuk melihat langkah dan bukti yang sudah masuk.',
+          'Form bukti hanya tersedia untuk staff yang berhak; perubahan tercatat di riwayat.',
+          'Skor TKD otomatis tampil bila pelamar sudah mengerjakan ujian.',
+        ],
+      },
+      cv: {
+        title: 'Rekrutmen — CV Online',
+        summary: 'Pelamar mengisi form publik per cabang; Traineer/Admin memverifikasi dari tab ini.',
+        steps: [
+          'Bagikan tautan/QR form cabang lewat tab Tautan — tautan tanpa token ditolak.',
+          'Chip status membuka antrean; Detail menampilkan seluruh isian pelamar.',
+          'Admin Pusat bisa memilih Semua cabang atau satu cabang; ekspor CSV ikut filter.',
+          'GA/HR hanya melihat dan mengekspor; verifikasi ada di Traineer/Admin.',
+        ],
+      },
+      firstwork: {
+        title: 'Rekrutmen — FirstWork',
+        summary: 'Pendaftar first work mengisi form publik; Traineer memverifikasi dari tab ini.',
+        steps: [
+          'Chip Menunggu membuka antrean yang belum diverifikasi.',
+          'Buka Detail untuk memeriksa NIK, referensi, dan unduh KTP sebelum memutuskan.',
+          'Penolakan wajib diberi alasan; semua keputusan tercatat di riwayat.',
+          'Admin Pusat: pilih Semua cabang/satu cabang; ekspor CSV ikut filter itu.',
+        ],
+      },
+      tkd: {
+        title: 'Rekrutmen — TKD',
+        summary: 'Bank soal, hasil ujian, dan pengaturan TKD untuk staf rekrutmen.',
+        steps: [
+          'Kelola bank soal dan kategori sebelum membagikan ujian ke pelamar.',
+          'Periksa hasil attempt; koreksi skor bila diperlukan dengan alasan yang jelas.',
+          'Buka tab Kasus untuk melihat skor resmi pada data pelamar.',
+        ],
+      },
+      tautan: {
+        title: 'Rekrutmen — Tautan Form',
+        summary: 'Satu tempat untuk menyalin dan membagikan tautan/QR form per cabang.',
+        steps: [
+          'Pilih cabang lalu salin tautan form CV Online atau FirstWork.',
+          'Bagikan tautan/QR ke pengundang — tautan tanpa token ditolak.',
+          'Antrean pendaftar terbaca di tab CV Online dan FirstWork.',
+        ],
+      },
+    },
+    terms: ['Audit Log', 'HO'],
+  },
+  {
+    paths: ['/receptionist'],
+    title: 'Rekrutmen — Pelamar (tautan lama)',
+    summary: 'Tautan lama kini membuka tab Pelamar di menu Rekrutmen.',
+    steps: [
+      'Tab Pelamar dipakai Receptionist untuk verifikasi, koreksi data, kehadiran, status, dan laporan PDF.',
+      'Traineer melihat tab yang sama dalam mode lihat saja — tanpa tombol pengelolaan.',
       'Isi filter tanggal/upline/user/status lalu tekan Cari untuk mempersempit daftar.',
+      'Verifikasi kehadiran calon karyawan ada di tab FirstWork pada menu Rekrutmen yang sama.',
     ],
     terms: ['Audit Log'],
   },
   {
     paths: ['/cv-online'],
-    title: 'Registrasi CV Online',
-    summary: 'Pelamar mengisi form publik per cabang; Traineer/Admin memverifikasi.',
+    title: 'Rekrutmen — CV Online (tautan lama)',
+    summary: 'Tautan lama kini membuka tab CV Online di menu Rekrutmen; pendaftar tetap mengisi form publik.',
     steps: [
-      'Bagikan tautan/QR form cabang ke pengundang — tautan tanpa token ditolak.',
+      'Bagikan tautan/QR form cabang lewat tab Tautan — tautan tanpa token ditolak.',
       'Chip status membuka antrean; Detail menampilkan seluruh isian pelamar.',
       'Admin Pusat bisa memilih Semua cabang atau satu cabang; ekspor CSV ikut filter.',
       'GA/HR hanya melihat dan mengekspor; verifikasi ada di Traineer/Admin.',
@@ -271,13 +343,12 @@ const PAGE_HELP = [
   },
   {
     paths: ['/first-work'],
-    title: 'Absensi FirstWork',
-    summary: 'Pendaftar first work mengisi form publik; Traineer memverifikasi datanya.',
+    title: 'Rekrutmen — FirstWork (tautan lama)',
+    summary: 'Tautan lama kini membuka tab FirstWork di menu Rekrutmen; pendaftar tetap mengisi form publik.',
     steps: [
       'Chip Menunggu membuka antrean yang belum diverifikasi.',
       'Buka Detail untuk memeriksa NIK, referensi, dan unduh KTP sebelum memutuskan.',
       'Penolakan wajib diberi alasan; semua keputusan tercatat di riwayat.',
-      'Data hanya berisi cabang Anda — cabang lain tidak terlihat.',
       'Admin Pusat: pilih Semua cabang/satu cabang; ekspor CSV ikut filter itu.',
     ],
     terms: ['HO'],
@@ -343,22 +414,26 @@ const PAGE_HELP = [
   },
 ]
 
-export function helpForPath(path) {
+export function helpForPath(path, tab = '') {
   const p = String(path || '').replace(/\/+$/, '') || '/'
-  return PAGE_HELP.find((h) => h.paths.some((x) => p === x || p.startsWith(`${x}/`))) || null
+  const entry = PAGE_HELP.find((h) => h.paths.some((x) => p === x || p.startsWith(`${x}/`)))
+  if (!entry) return null
+  const tabHelp = entry.tabs?.[String(tab || '')]
+  // Tab tidak dikenal memakai panduan induk, bukan panduan tab lain.
+  return tabHelp ? { ...entry, ...tabHelp } : entry
 }
 
 const ROLE_FOCUS = {
-  admin: 'Dashboard menampilkan ringkasan cabang Anda. Data cabang lain tetap terpisah dan tidak terlihat dari akun ini.',
+  admin: 'Dashboard menampilkan ringkasan cabang Anda. Semua tab Rekrutmen (Pelamar, Kasus, CV Online, FirstWork, TKD, Tautan) tersedia di menu Rekrutmen; data cabang lain tetap terpisah.',
   ga: 'Pekerjaan utama Anda ada di Dashboard GA: verifikasi klaim BBM dan pantau penugasan driver.',
-  finance: 'Pekerjaan utama Anda ada di Dashboard Finance: cairkan klaim terverifikasi dan cek rekap air minum.',
+  finance: 'Pekerjaan utama Anda ada di Dashboard Finance: cairkan klaim terverifikasi dan cek rekap air minum. Antrean FirstWork ada di tab FirstWork menu Rekrutmen.',
   marketing: 'Marketing Hub membantu Anda memantau appointment dan hasil kunjungan nasabah.',
   chief_driver: 'Chief Driver mengatur penugasan, mengganti driver, dan memantau perjalanan yang berjalan.',
-  ga_hr: 'Halaman Overtime membantu Anda mengelola pengajuan lembur dan batas waktunya.',
-  receptionist: 'Menu Rekrutmen berisi data pelamar kerja cabang Anda; in-out karyawan ada di menu SDM.',
+  ga_hr: 'Menu Rekrutmen memuat tab Kasus, CV Online, TKD, dan Tautan; pengajuan lembur ada di halaman Overtime.',
+  receptionist: 'Menu Rekrutmen memuat tab Pelamar dan Tautan; in-out karyawan ada di menu SDM.',
   ob: 'Pengajuan air minum dan overtime bisa Anda pantau dari menu operasional.',
   security: 'Pengajuan overtime bisa Anda pantau dari menu Overtime Saya.',
-  traineer: 'Verifikasi pendaftar first work ada di menu Absensi FirstWork; data pelamar cabang Anda bisa dilihat (hanya lihat) di menu Rekrutmen.',
+  traineer: 'Verifikasi pendaftar first work ada di tab FirstWork menu Rekrutmen; data pelamar cabang Anda bisa dilihat (hanya lihat) di tab Pelamar yang sama.',
   driver: 'Gunakan tab bawah untuk BBM (termasuk Kasbon & LPJ), Trip, Overtime, dan Service. Ketuk nama di header untuk Profil & Kendaraan dan mengajukan ganti kendaraan. Data tetap tersimpan saat sinyal lemah.',
 }
 
@@ -422,7 +497,7 @@ export function onboardingSteps(role, user, isHoAdmin = false) {
       title: 'Mulai dari yang mendesak',
       body: 'Di dashboard, blok “Perlu Tindakan Hari Ini” menunjukkan pekerjaan yang menunggu. Klik kartunya untuk langsung menuju antrean.',
       points: [
-        'Angka badge di sidebar = jumlah yang menunggu tindakan.',
+        'Angka badge di sidebar atau tab Rekrutmen = jumlah yang menunggu tindakan.',
         'Kartu bernilai 0 disembunyikan agar layar tidak penuh.',
       ],
     },

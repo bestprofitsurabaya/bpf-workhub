@@ -132,6 +132,13 @@ for _attempt in range(5):
         break
     _time.sleep(3)
 
+# TKD online (Rilis C): tabel tkd_* + kolom skor di recruitment_cases.
+from modules.tkd_schema import ensure_tkd_schema
+for _attempt in range(5):
+    if ensure_tkd_schema():
+        break
+    _time.sleep(3)
+
 # Sistem Overtime (v2.22): tabel overtime_driver & overtime_ob_security
 from modules.overtime_schema import ensure_overtime_schema
 for _attempt in range(5):
@@ -590,6 +597,7 @@ from modules.routes_driver_service import register_driver_service_routes  # v2.1
 from modules.routes_mfa import register_mfa_routes                      # v2.112.0
 from modules.routes_cv_online import register_cv_online_routes          # v2.113.0
 from modules.routes_recruitment import register_recruitment_routes       # Rilis A
+from modules.routes_tkd import register_tkd_routes                      # Rilis C
 from modules.routes_agenda import register_agenda_routes                 # v2.123.0
 from modules.routes_app_release import register_app_release_routes      # v2.126.0
 
@@ -603,6 +611,7 @@ register_it_asset_routes(app)
 register_first_work_routes(app)   # v2.80.0 — Absensi FirstWork (trainee)
 register_cv_online_routes(app)    # v2.113.0 — Registrasi CV Online (trainee/GA-HR)
 register_recruitment_routes(app)  # Rilis A — lookup publik rekrutmen (boolean-only)
+register_tkd_routes(app)  # Rilis C — status/mulai ujian + endpoint staff TKD
 register_profile_routes(app)      # v2.81.0 — Profil Saya (ganti nama & PIN)
 register_master_api(app)
 register_transaction_api(app)
@@ -694,6 +703,13 @@ CSRF_EXEMPT_PREFIXES = (
     # yang kebetulan masih bersesi login tidak boleh tertahan token CSRF basi;
     # endpoint tetap dijaga rate limit per IP + token cabang + validasi isian.
     '/api/cv-online/public',
+    # Rilis C: form ujian TKD dibuka tanpa login (token cabang + rate limit
+    # tetap dipakai). Hanya jalur attempt publik yang dikecualikan — endpoint
+    # staff (/questions, /score, /settings, /attempts daftar, /review/) tetap
+    # dilindungi CSRF.
+    '/api/recruitment/tkd/status',
+    '/api/recruitment/tkd/start',
+    '/api/recruitment/tkd/attempts/',
 )
 
 @app.context_processor

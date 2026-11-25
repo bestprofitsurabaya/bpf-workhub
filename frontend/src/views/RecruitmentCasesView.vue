@@ -4,6 +4,9 @@ import { api } from '../api'
 import { useAuthStore } from '../stores/auth'
 import PageHeader from '../components/PageHeader.vue'
 
+// Saat dipakai sebagai tab hub, header induk disembunyikan (prop embedded).
+defineProps({ embedded: { type: Boolean, default: false } })
+
 // Rilis A (Task 6): dashboard kasus rekrutmen untuk staff. Satu kasus per NIK,
 // empat langkah (CV/TRAINING/TKD/FIRSTWORK) dan riwayat perpindahan cabang.
 // NIK tidak pernah dikirim/diterima dalam bentuk penuh — API hanya mengirim
@@ -228,7 +231,7 @@ onMounted(load)
 
 <template>
   <div class="fw-view">
-    <PageHeader icon="🗂️" title="Dashboard Kasus Rekrutmen" :subtitle="subtitle" />
+    <PageHeader v-if="!embedded" icon="🗂️" title="Dashboard Kasus Rekrutmen" :subtitle="subtitle" />
 
     <div v-if="err" class="alert alert-error">{{ err }}</div>
     <div v-if="msg" class="alert alert-success">{{ msg }}</div>

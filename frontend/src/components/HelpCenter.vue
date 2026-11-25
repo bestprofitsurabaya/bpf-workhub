@@ -8,6 +8,7 @@ const props = defineProps({
   open: { type: Boolean, default: false },
   path: { type: String, default: '/' },
   role: { type: String, default: '' },
+  tab: { type: String, default: '' },
 })
 const emit = defineEmits(['close', 'replay-tour'])
 
@@ -16,7 +17,7 @@ const q = ref('')
 const p5Mode = ref(isUsabilityMode())
 const p5 = ref(firstAction())
 
-const pageHelp = computed(() => helpForPath(props.path))
+const pageHelp = computed(() => helpForPath(props.path, props.tab))
 const glossary = computed(() => {
   const needle = q.value.trim().toLowerCase()
   if (!needle) return GLOSSARY

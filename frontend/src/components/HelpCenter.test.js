@@ -1,6 +1,7 @@
 import { afterEach, describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
 import HelpCenter from './HelpCenter.vue'
+import { helpForPath } from '../content/help.js'
 
 afterEach(() => { localStorage.clear(); sessionStorage.clear() })
 
@@ -11,6 +12,22 @@ describe('HelpCenter', () => {
     expect(w.text()).toContain('BBM, Kasbon & SPBU')
     expect(w.text()).toContain('Klaim BBM')
     expect(w.text()).toContain('LPJ')
+  })
+
+  it('panduan hub Rekrutmen mengikuti tab yang sedang dibuka', () => {
+    const hub = mount(HelpCenter, { props: { open: true, path: '/recruitment' } })
+    expect(hub.text()).toContain('🪪 Rekrutmen')
+    expect(hub.text()).toContain('Pelamar')
+    hub.unmount()
+
+    const cv = mount(HelpCenter, { props: { open: true, path: '/recruitment', tab: 'cv' } })
+    expect(cv.text()).toContain('Rekrutmen — CV Online')
+    expect(cv.text()).toContain('Bagikan tautan/QR')
+    cv.unmount()
+
+    expect(helpForPath('/recruitment', 'tautan').title).toContain('Tautan')
+    expect(helpForPath('/recruitment', 'rahasia').title).toBe('🪪 Rekrutmen')
+    expect(helpForPath('/cash')).toBeTruthy()
   })
 
   it('glosarium bisa dicari dan istilah terkait bisa diklik', async () => {

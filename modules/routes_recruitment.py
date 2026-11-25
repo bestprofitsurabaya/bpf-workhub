@@ -26,6 +26,7 @@ ada di portal (Task 7), bukan di endpoint ini.
 Pola mengikuti `/api/first-work/check-nik`: rate limit Redis per IP,
 normalisasi NIK bersama, dan `Cache-Control: no-store`.
 """
+import math
 import re
 import uuid
 from datetime import date, datetime
@@ -35,6 +36,7 @@ from flask import jsonify, request, session
 from modules.config import get_master_connection
 from modules.helpers import (client_ip, log_activity_async, normalize_nik,
                              redis_rate_hit, role_required)
+from modules.tkd_service import load_settings, set_manual_score
 
 # 10 pengecekan / menit / IP. Endpoint ini menjawab keberadaan NIK, jadi
 # kuota longgar = alat enumerasi data pribadi (lihat check-nik FirstWork).
@@ -52,6 +54,10 @@ _STAFF_ROLES = ['traineer', 'ga_hr', 'admin']
 # Exception langkah: hanya status sebelum selesai yang boleh dikecualikan.
 _EXCEPTION_ALLOWED = ('BELUM', 'PENDING')
 _REASON_MAX = 500
+
+# Cabang tanpa sesi TIDAK boleh jadi "semua cabang": sentinel ini sengaja
+# tidak cocok dengan kode cabang mana pun (sama seperti routes_tkd).
+_NO_BRANCH = '__NOBRANCH__'
 
 # Bukti manual: hanya TRAINING/TKD yang datanya tidak berasal dari modul nyata.
 # CV/FIRSTWORK diisi oleh submit CV Online/FirstWork, jadi ditolak 409.
@@ -114,6 +120,55 @@ def _as_text(value):
     return str(value)
 
 
+def _as_float(value):
+    """Skor DB (Decimal/int/str) -> float; None atau sampah -> None."""
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if math.isfinite(number) else None
+
+
+def _as_int(value):
+    """Flag angka dari DB -> int; None tetap None."""
+    number = _as_float(value)
+    return int(number) if number is not None else None
+
+
+def _portal_scope_branch(conn):
+    """None hanya untuk Admin Pusat; selain itu cabang sesi (fail-closed)."""
+    if session.get('user_role') == 'admin':
+        try:
+            from modules.admin_scope import is_ho_admin
+            if is_ho_admin(conn):
+                return None
+        except Exception:
+            pass  # Hak tidak terbaca tidak boleh menaikkan ke lintas cabang.
+    return str(session.get('branch_code') or '').strip().upper()[:10] or _NO_BRANCH
+
+
+def _active_flag(value):
+    """Flag aktif DB: hanya 1/True/'1' yang aktif; '0'/0/kosong tidak."""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value == 1
+    return str(value or '').strip().lower() in ('1', 'true')
+
+
+def _parse_tkd_score(text):
+    """Skor TKD manual: (nilai float, valid) dalam rentang 0–100."""
+    if not text:
+        return None, True
+    try:
+        value = float(text)
+    except (TypeError, ValueError):
+        return None, False
+    return (value, True) if 0.0 <= value <= 100.0 else (None, False)
+
+
 def _nik_known(cursor, nik):
     """True bila NIK ada di salah satu sumber (berhenti di temuan pertama)."""
     for table in _NIK_TABLES:
@@ -162,6 +217,78 @@ def register_recruitment_routes(app):
             if conn:
                 conn.close()
 
+    @app.route('/api/recruitment/portal-links', methods=['GET'])
+    @role_required(['receptionist', 'traineer', 'ga_hr', 'admin'])
+    def api_recruitment_portal_links():
+        """Satu tautan portal per cabang; token hanya dikirim di dalam URL."""
+        role = session.get('user_role') or ''
+        actor = session.get('user_name') or 'system'
+        conn = None
+        try:
+            conn = get_master_connection()
+            if not conn:
+                return jsonify({'status': 'error', 'msg': 'DB error'}), 500
+            scope = _portal_scope_branch(conn)
+            cursor = conn.cursor(dictionary=True)
+            try:
+                if scope is None:  # Admin Pusat: hanya cabang aktif, tanpa filter.
+                    cursor.execute(
+                        'SELECT code, name FROM branches '
+                        'WHERE is_active=1 ORDER BY code')
+                else:
+                    # Non-HO selalu memakai bind: sentinel tidak cocok apa pun.
+                    cursor.execute(
+                        'SELECT code, name FROM branches '
+                        'WHERE is_active=1 AND code=%s ORDER BY code', (scope,))
+                branches = cursor.fetchall() or []
+                if scope is None:
+                    cursor.execute(
+                        'SELECT branch_code, form_token, active '
+                        'FROM cv_online_branch_forms')
+                else:
+                    cursor.execute(
+                        'SELECT branch_code, form_token, active '
+                        'FROM cv_online_branch_forms WHERE branch_code=%s',
+                        (scope,))
+                tokens = {}
+                for row in cursor.fetchall() or []:
+                    code = str(row.get('branch_code') or '').strip().upper()
+                    tokens[code] = row
+            finally:
+                cursor.close()
+
+            data = []
+            for info in branches:
+                code = str(info.get('code') or '').strip().upper()
+                if not code or (scope is not None and code != scope):
+                    continue
+                token_row = tokens.get(code) or {}
+                token = str(token_row.get('form_token') or '').strip()
+                active = bool(token) and _active_flag(token_row.get('active', 1))
+                data.append({
+                    'branch_code': code,
+                    'branch_name': str(info.get('name') or code),
+                    # Token tidak pernah jadi field terpisah: QR memakai URL ini.
+                    'portal_path': (f'/app/recruitment-portal?token={token}'
+                                    if active else ''),
+                    'active': active,
+                })
+        except Exception:
+            # Jangan kembalikan str(e): detail DB bisa membocorkan skema/PII.
+            return jsonify({'status': 'error', 'msg': 'DB error'}), 500
+        finally:
+            if conn:
+                conn.close()
+
+        try:
+            # tx_id None karena ini aksi baca, bukan transaksi. Tanpa NIK.
+            log_activity_async(
+                None, 'recruitment_portal_links_view', role, actor,
+                new_data={'scope_branch': scope, 'count': len(data)})
+        except Exception:
+            pass  # Audit gagal tidak boleh menggagalkan pembacaan tautan.
+        return jsonify({'data': data, 'scope_branch': scope})
+
     @app.route('/api/recruitment/cases', methods=['GET'])
     @role_required(_STAFF_ROLES)
     def api_recruitment_cases():
@@ -202,7 +329,9 @@ def register_recruitment_routes(app):
                         params.append(status)
 
                     sql = ('SELECT c.case_id, c.nik, c.nama, c.first_branch, '
-                           'c.status FROM recruitment_cases c')
+                           'c.status, c.tkd_score, c.tkd_score_source, '
+                           'c.tkd_score_note, c.tkd_passed '
+                           'FROM recruitment_cases c')
                     if conditions:
                         sql += ' WHERE ' + ' AND '.join(conditions)
                     sql += ' ORDER BY c.first_seen_at DESC LIMIT 100'
@@ -252,6 +381,10 @@ def register_recruitment_routes(app):
                         'status': str(r.get('status') or ''),
                         'branches': branches_by_case.get(r['case_id'], []),
                         'steps': steps_by_case.get(r['case_id'], []),
+                        'tkd_score': _as_float(r.get('tkd_score')),
+                        'tkd_score_source': _as_text(r.get('tkd_score_source')),
+                        'tkd_score_note': _as_text(r.get('tkd_score_note')),
+                        'tkd_passed': _as_int(r.get('tkd_passed')),
                     } for r in rows]
                 finally:
                     cursor.close()
@@ -374,6 +507,12 @@ def register_recruitment_routes(app):
             return jsonify({'status': 'error',
                             'msg': 'Jenis langkah tidak mendukung bukti manual'}), 409
 
+        score_value, score_ok = _parse_tkd_score(score)
+        # Langkah baru: tolak skor buruk sebelum INSERT (tidak ada write).
+        if lazy and step_type_body == 'TKD' and not score_ok:
+            return jsonify({'status': 'error',
+                            'msg': 'Skor TKD harus angka 0–100.'}), 400
+
         conn = None
         try:
             conn = get_master_connection()
@@ -407,8 +546,8 @@ def register_recruitment_routes(app):
                     step_id = created['id']
 
                 cursor.execute(
-                    'SELECT id, case_id, step_type, status FROM recruitment_steps '
-                    'WHERE id=%s', (step_id,))
+                    'SELECT id, case_id, step_type, status, branch_code '
+                    'FROM recruitment_steps WHERE id=%s', (step_id,))
                 row = cursor.fetchone()
                 if not row:
                     return jsonify({'status': 'error',
@@ -422,16 +561,37 @@ def register_recruitment_routes(app):
 
                 actor = session.get('user_name') or 'system'
                 role = session.get('user_role') or ''
-                evidence_id = (_EVIDENCE_TOKEN_PREFIX
-                               + uuid.uuid4().hex[:16])
-                cursor.execute("""
-                    UPDATE recruitment_steps
-                    SET status=%s, evidence_type=%s, evidence_id=%s,
-                        exception_reason=%s, completed_at=%s, actor=%s
-                    WHERE id=%s
-                """, ('SELESAI', 'manual_evidence', evidence_id, note,
-                      evidence_date, actor, step_id))
-                conn.commit()
+                tkd_score = row.get('step_type') == 'TKD' and bool(score)
+                if tkd_score and not score_ok:
+                    return jsonify({'status': 'error',
+                                    'msg': 'Skor TKD harus angka 0–100.'}), 400
+                if tkd_score:
+                    # Skor manual TKD: service yang menulis skor kasus, status,
+                    # dan bukti langkah — jangan ditimpa UPDATE manual di bawah.
+                    result = set_manual_score(
+                        cursor, row.get('case_id'), score_value,
+                        note or 'Bukti manual TKD', actor,
+                        load_settings(cursor)['pass_score'],
+                        row.get('branch_code') or '') or {}
+                    conn.commit()
+                    evidence_id = ''
+                    final_status = ('SELESAI' if result.get('passed')
+                                    else 'PENDING')
+                    audit_score = score_value
+                else:
+                    # Tanpa skor (atau TRAINING): perilaku bukti manual lama.
+                    evidence_id = (_EVIDENCE_TOKEN_PREFIX
+                                   + uuid.uuid4().hex[:16])
+                    cursor.execute("""
+                        UPDATE recruitment_steps
+                        SET status=%s, evidence_type=%s, evidence_id=%s,
+                            exception_reason=%s, completed_at=%s, actor=%s
+                        WHERE id=%s
+                    """, ('SELESAI', 'manual_evidence', evidence_id, note,
+                          evidence_date, actor, step_id))
+                    conn.commit()
+                    final_status = 'SELESAI'
+                    audit_score = score
             finally:
                 cursor.close()
 
@@ -442,14 +602,14 @@ def register_recruitment_routes(app):
                     new_data={'step_id': step_id,
                               'case_id': str(row.get('case_id') or ''),
                               'date': evidence_date, 'note': note,
-                              'file_url': file_url, 'score': score,
+                              'file_url': file_url, 'score': audit_score,
                               'created': bool(lazy)})
             except Exception:
                 pass  # Audit gagal tidak boleh mengembalikan 500 setelah commit.
             return jsonify({
                 'status': 'success', 'msg': 'Bukti tersimpan',
                 'data': {'id': step_id, 'step_type': row.get('step_type'),
-                         'status': 'SELESAI', 'date': evidence_date,
+                         'status': final_status, 'date': evidence_date,
                          'evidence_id': evidence_id},
             })
         except Exception:

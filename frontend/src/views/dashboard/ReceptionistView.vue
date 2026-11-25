@@ -11,6 +11,10 @@ import PageHeader from '../../components/PageHeader.vue'
 import LoadingState from '../../components/LoadingState.vue'
 import ErrorState from '../../components/ErrorState.vue'
 
+// Dipakai sebagai tab di hub rekrutmen: judul/aksi induk disembunyikan agar
+// tidak dobel header, tetapi seluruh tabel & aksi baris tetap berfungsi.
+defineProps({ embedded: { type: Boolean, default: false } })
+
 const confirmRef = ref(null)
 const ask = (message, opts) => confirmRef.value?.open(message, opts) ?? Promise.resolve(false)
 
@@ -352,7 +356,7 @@ onMounted(() => {
 
 <template>
   <div>
-    <PageHeader icon="🪪" title="Rekrutmen"
+    <PageHeader v-if="!embedded" icon="🪪" title="Rekrutmen"
                 :subtitle="hoView ? 'Data pelamar kerja seluruh cabang — pilih cabang untuk mengelola' : canEdit ? 'Data pelamar kerja: interview, training & lulusan' : 'Data pelamar kerja cabang Anda — hanya lihat'">
       <span v-if="branchLabel" class="badge badge-blue">🏢 {{ branchLabel }}</span>
     </PageHeader>
@@ -367,7 +371,7 @@ onMounted(() => {
       <b>👁 Mode lihat saja.</b>
       Data pelamar dikelola Receptionist. Anda bisa mencari dan memfilter, tetapi tidak
       mengubah, memverifikasi, mencatat kehadiran, atau menghapus data. Verifikasi
-      kehadiran calon karyawan ada di menu <router-link to="/first-work">Absensi FirstWork</router-link>.
+      kehadiran calon karyawan ada di tab <router-link to="/recruitment?tab=firstwork">FirstWork pada menu Rekrutmen</router-link>.
     </div>
 
     <div class="card card-pad" style="margin-bottom:16px;">

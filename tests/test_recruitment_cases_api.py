@@ -102,10 +102,14 @@ class _FakeConn:
         self.cases = [
             {'case_id': CASE_A, 'nik': NIK_A, 'nama': 'Andi',
              'first_branch': 'SBY', 'status': 'AKTIF',
-             'first_seen_at': datetime(2026, 11, 20, 10, 0)},
+             'first_seen_at': datetime(2026, 11, 20, 10, 0),
+             'tkd_score': 86.67, 'tkd_score_source': 'AUTO',
+             'tkd_score_note': None, 'tkd_passed': 1},
             {'case_id': CASE_B, 'nik': NIK_B, 'nama': 'Budi',
              'first_branch': 'JKT', 'status': 'NONAKTIF',
-             'first_seen_at': datetime(2026, 11, 22, 9, 30)},
+             'first_seen_at': datetime(2026, 11, 22, 9, 30),
+             'tkd_score': None, 'tkd_score_source': None,
+             'tkd_score_note': None, 'tkd_passed': None},
         ]
         self.branches = [
             {'case_id': CASE_A, 'branch_code': 'SBY',
@@ -211,12 +215,22 @@ class TestKontrakRespons:
         case = _get(app).get_json()['data'][0]  # first_seen_at terbaru = CASE_B
 
         assert set(case) == {'case_id', 'nik_masked', 'nama', 'first_branch',
-                             'status', 'branches', 'steps'}
+                             'status', 'branches', 'steps', 'tkd_score',
+                             'tkd_score_source', 'tkd_score_note', 'tkd_passed'}
         assert case['case_id'] == CASE_B
         assert NIK_B not in case['case_id']
         assert case['nama'] == 'Budi'
         assert case['first_branch'] == 'JKT'
         assert case['status'] == 'NONAKTIF'
+        assert case['tkd_score'] is None and case['tkd_passed'] is None
+
+    def test_skor_tkd_ikut_di_level_kasus(self, app, db, logs):
+        case = next(c for c in _get(app).get_json()['data']
+                    if c['case_id'] == CASE_A)
+
+        assert case['tkd_score'] == 86.67
+        assert case['tkd_score_source'] == 'AUTO'
+        assert case['tkd_passed'] == 1
 
     def test_riwayat_cabang_dan_langkah_termasuk(self, app, db, logs):
         case = next(c for c in _get(app).get_json()['data']
