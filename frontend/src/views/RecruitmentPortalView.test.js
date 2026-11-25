@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import RecruitmentPortalView from './RecruitmentPortalView.vue'
+import RecruitmentTkdPanel from '../components/RecruitmentTkdPanel.vue'
 import router from '../router/index'
 
 const { apiMock } = vi.hoisted(() => ({ apiMock: vi.fn() }))
@@ -12,6 +13,10 @@ const DOB = '1999-01-01'
 const STEPS = ['CV', 'TRAINING', 'TKD', 'FIRSTWORK']
 const KNOWN = { status: 'success', known: true, can_continue: true }
 const UNKNOWN = { status: 'success', known: false, can_continue: false }
+const TKD_STATUS = { status: 'success', data: {
+  state: 'BELUM', official_score: null, attempts_used: 0, max_attempts: 2,
+  active_attempt: null, can_start: true, pass_score: 70,
+  question_count: 20, duration_minutes: 25, bank_ready: true } }
 
 function card(w, step) {
   return w.find(`.rp-card[data-step="${step}"]`)
@@ -72,10 +77,28 @@ describe('RecruitmentPortalView — portal per cabang 4 kartu (Rilis A)', () => 
     }
     expect(card(w, 'CV').attributes('href')).toBe(`/app/cv-online-form?token=${TOKEN}`)
     expect(card(w, 'FIRSTWORK').attributes('href')).toBe(`/app/first-work-form?token=${TOKEN}`)
-    for (const step of ['TRAINING', 'TKD']) {
-      expect(card(w, step).text()).toContain('Segera tersedia')
-    }
+    expect(card(w, 'TRAINING').text()).toContain('Segera tersedia')
+    expect(card(w, 'TKD').text()).toContain('Buka tes →')
     expect(w.text()).not.toContain('lengkapi CV Online dulu')
+  })
+
+  it('klik kartu TKD setelah dikenal membuka panel dan mengecek status TKD', async () => {
+    const w = await mountPortal(`?token=${TOKEN}`, KNOWN)
+    await cek(w)
+
+    apiMock.mockResolvedValueOnce(TKD_STATUS)
+    await card(w, 'TKD').trigger('click')
+    await flushPromises()
+
+    expect(card(w, 'TKD').element.tagName).toBe('BUTTON')
+    expect(apiMock).toHaveBeenLastCalledWith('/api/recruitment/tkd/status', {
+      method: 'POST', body: { nik: NIK, dob: DOB, token: TOKEN },
+    })
+    const panel = w.findComponent(RecruitmentTkdPanel)
+    expect(panel.exists()).toBe(true)
+    expect(panel.props()).toMatchObject({ token: TOKEN, nik: NIK, dob: DOB })
+    expect(panel.text()).toContain('20 soal')
+    expect(panel.text()).toContain('30.000')
   })
 
   it('known=false tidak membuka kartu selain CV', async () => {
@@ -88,6 +111,9 @@ describe('RecruitmentPortalView — portal per cabang 4 kartu (Rilis A)', () => 
       expect(card(w, step).attributes('data-locked')).toBe('true')
       expect(card(w, step).text()).toContain('lengkapi CV Online dulu')
     }
+    expect(card(w, 'TKD').element.tagName).toBe('DIV')
+    await card(w, 'TKD').trigger('click')
+    expect(w.findComponent(RecruitmentTkdPanel).exists()).toBe(false)
   })
 
   it('NIK bukan 16 digit atau tanggal lahir invalid tidak memanggil lookup', async () => {

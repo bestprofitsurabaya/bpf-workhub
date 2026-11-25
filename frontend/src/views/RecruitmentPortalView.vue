@@ -10,6 +10,7 @@
  */
 import { ref } from 'vue'
 import { api } from '../api'
+import RecruitmentTkdPanel from '../components/RecruitmentTkdPanel.vue'
 
 const brandIcon = '/static/icon-192.png'
 
@@ -37,7 +38,8 @@ const STEPS = [
     label: 'Test Kemampuan Dasar',
     desc: 'Penilaian kemampuan dasar peserta.',
     href: '',
-    future: true,
+    future: false,
+    action: 'tkd',
   },
   {
     type: 'FIRSTWORK',
@@ -53,6 +55,9 @@ const dob = ref('')
 const error = ref('')
 const checking = ref(false)
 const known = ref(false)
+const tkdOpen = ref(false)
+const tkdNik = ref('')
+const tkdDob = ref('')
 
 function onNik(event) {
   nik.value = String(event.target.value || '').replace(/\D/g, '').slice(0, 16)
@@ -69,6 +74,25 @@ function isLocked(step) {
   return step.type !== 'CV' && !known.value
 }
 
+// TKD terbuka setelah lookup, tetapi bukan tautan: ia membuka panel ujian.
+function tkdCardOpen(step) {
+  return step.action === 'tkd' && !isLocked(step)
+}
+
+function cardTag(step) {
+  if (tkdCardOpen(step)) return 'button'
+  return step.href && !isLocked(step) ? 'a' : 'div'
+}
+
+function cardAttrs(step) {
+  if (tkdCardOpen(step)) return { type: 'button' }
+  return step.href && !isLocked(step) ? { href: step.href } : {}
+}
+
+function onCardClick(step) {
+  if (tkdCardOpen(step)) tkdOpen.value = true
+}
+
 async function check() {
   error.value = ''
   if (nik.value.length !== 16) {
@@ -82,6 +106,9 @@ async function check() {
 
   // Cek ulang dengan NIK lain tidak boleh mewarisi status kartu sebelumnya.
   known.value = false
+  tkdOpen.value = false
+  tkdNik.value = ''
+  tkdDob.value = ''
   checking.value = true
   try {
     const result = await api('/api/recruitment/lookup', {
@@ -90,6 +117,10 @@ async function check() {
     // Hanya boolean yang dipakai. Field lain (bola-bali response) diabaikan
     // dan tidak pernah masuk ke state/render.
     known.value = Boolean(result && result.known === true)
+    if (known.value) {
+      tkdNik.value = nik.value
+      tkdDob.value = dob.value
+    }
     if (!known.value) {
       error.value = 'NIK belum dikenal. Lengkapi CV Online terlebih dahulu.'
     }
@@ -143,22 +174,32 @@ async function check() {
       <component
         v-for="(step, index) in STEPS"
         :key="step.type"
-        :is="step.href && !isLocked(step) ? 'a' : 'div'"
+        :is="cardTag(step)"
         class="rp-card"
         :class="{ 'rp-card--locked': isLocked(step) }"
         :data-step="step.type"
         :data-locked="isLocked(step) ? 'true' : 'false'"
         :aria-disabled="isLocked(step) ? 'true' : undefined"
-        v-bind="step.href && !isLocked(step) ? { href: step.href } : {}"
+        v-bind="cardAttrs(step)"
+        @click="onCardClick(step)"
       >
         <span class="rp-step-no">{{ index + 1 }}</span>
         <h2 class="rp-card-title">{{ step.label }}</h2>
         <p class="rp-card-desc">{{ step.desc }}</p>
         <p v-if="isLocked(step)" class="rp-lock-hint">lengkapi CV Online dulu</p>
         <p v-else-if="step.future" class="rp-soon">Segera tersedia</p>
+        <p v-else-if="tkdCardOpen(step)" class="rp-open">Buka tes →</p>
         <p v-else class="rp-open">Buka langkah →</p>
       </component>
     </section>
+
+    <RecruitmentTkdPanel
+      v-if="tkdOpen"
+      :token="branchToken"
+      :nik="tkdNik"
+      :dob="tkdDob"
+      @close="tkdOpen = false"
+    />
   </main>
 </template>
 
@@ -220,6 +261,10 @@ async function check() {
   color: inherit;
   min-height: 140px;
   box-sizing: border-box;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
 }
 .rp-card--locked { background: #f9fafb; border-color: #e5e7eb; opacity: 0.65; }
 .rp-step-no {
