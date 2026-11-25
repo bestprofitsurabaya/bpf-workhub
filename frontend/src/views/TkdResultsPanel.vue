@@ -131,12 +131,13 @@ function buildParams(source) {
 async function load() {
   loading.value = true
   err.value = ''
+  msg.value = ''
   try {
     const data = await api('/api/recruitment/tkd/attempts', { params: buildParams(applied) })
     rows.value = Array.isArray(data?.data) ? data.data : []
   } catch (e) {
     rows.value = []
-    err.value = messageOf(e, 'Gagal memuat hasil TKD.')
+    err.value = safeText(messageOf(e, 'Gagal memuat hasil TKD.'))
   } finally {
     loading.value = false
   }
@@ -157,6 +158,7 @@ function resetFilters() {
 
 async function openDetail(id) {
   if (!id) return
+  msg.value = ''
   scoreOpen.value = false
   manualOpen.value = false
   detailOpen.value = true
@@ -168,7 +170,7 @@ async function openDetail(id) {
     detail.value = resp?.data || null
     if (!detail.value) detailErr.value = 'Detail tidak ditemukan.'
   } catch (e) {
-    detailErr.value = messageOf(e, 'Gagal memuat detail hasil.')
+    detailErr.value = safeText(messageOf(e, 'Gagal memuat detail hasil.'))
   } finally {
     detailLoading.value = false
   }
@@ -179,6 +181,7 @@ function closeDetail() {
 }
 
 function openScore(caseId, nama = '') {
+  msg.value = ''
   detailOpen.value = false
   manualOpen.value = false
   scoreCaseId.value = String(caseId || '').trim()
@@ -194,14 +197,29 @@ function closeScore() {
   if (!savingScore.value) scoreOpen.value = false
 }
 
+/** Terima "75.5" dan "75,5" seperti parse_numeric() di backend. */
+function parseScore(value) {
+  const text = String(value ?? '').trim()
+  if (!text) return null
+  let normalized = text
+  if (text.includes(',') && text.includes('.')) {
+    normalized = text.replace(/\./g, '').replace(',', '.')
+  } else if (text.includes(',')) {
+    normalized = text.replace(',', '.')
+  }
+  if (!/^\d+(?:\.\d+)?$/.test(normalized)) return null
+  const score = Number(normalized)
+  return Number.isFinite(score) ? score : null
+}
+
 function validateScore() {
   const errors = []
   const raw = String(scoreForm.score ?? '').trim()
   if (!raw) {
     errors.push('Skor wajib diisi.')
   } else {
-    const score = Number(raw)
-    if (!Number.isFinite(score) || score < 0 || score > 100) {
+    const score = parseScore(raw)
+    if (score === null || score < 0 || score > 100) {
       errors.push('Skor harus antara 0 dan 100.')
     }
   }
@@ -223,7 +241,7 @@ async function saveScore() {
   }
   const body = {
     case_id: caseId,
-    score: Number(scoreForm.score),
+    score: parseScore(scoreForm.score),
     reason: String(scoreForm.reason).trim(),
   }
   savingScore.value = true
@@ -235,16 +253,17 @@ async function saveScore() {
     searchResults.value = []
     searchDone.value = false
     nikQuery.value = ''
-    msg.value = 'Skor berhasil dikoreksi.'
     await load()
+    msg.value = 'Skor berhasil dikoreksi.'
   } catch (e) {
-    scoreErr.value = messageOf(e, 'Gagal menyimpan koreksi skor.')
+    scoreErr.value = safeText(messageOf(e, 'Gagal menyimpan koreksi skor.'))
   } finally {
     savingScore.value = false
   }
 }
 
 function openManual() {
+  msg.value = ''
   detailOpen.value = false
   scoreOpen.value = false
   nikQuery.value = ''
@@ -277,7 +296,7 @@ async function doSearch() {
     searchDone.value = true
     if (!searchResults.value.length) searchErr.value = 'Kasus tidak ditemukan.'
   } catch (e) {
-    searchErr.value = messageOf(e, 'Gagal mencari kasus.')
+    searchErr.value = safeText(messageOf(e, 'Gagal mencari kasus.'))
   } finally {
     searching.value = false
   }
@@ -437,7 +456,7 @@ onMounted(load)
           Kasus: <b>{{ safeText(scoreNama || scoreCaseId) }}</b> ({{ safeText(scoreCaseId) }})
         </p>
         <label class="tk-results-field">Skor (0–100)
-          <input class="input" type="number" step="any" min="0" max="100"
+          <input class="input" type="text" inputmode="decimal"
                  data-field="score" v-model="scoreForm.score" placeholder="0–100" />
         </label>
         <label class="tk-results-field">Alasan koreksi
