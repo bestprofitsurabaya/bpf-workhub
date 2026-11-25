@@ -26,6 +26,8 @@ function emptyForm() {
 const form = reactive(emptyForm())
 const readiness = ref({ ready: false, active_valued: 0, quota_ok: {}, tier_ok: {}, reasons: [] })
 const loading = ref(true)
+const loadFailed = ref(false)
+const loadedQuestionCount = ref(null)
 const saving = ref(false)
 const err = ref('')
 const errReasons = ref([])
@@ -54,6 +56,10 @@ function toNumber(value) {
   return Number.isFinite(number) ? number : 0
 }
 
+function toQuota(value) {
+  return Math.max(0, Math.round(toNumber(value)))
+}
+
 async function load() {
   loading.value = true
   err.value = ''
@@ -70,6 +76,8 @@ async function load() {
     })
     form.shuffle_options = data.shuffle_options === true || Number(data.shuffle_options) === 1
     form.active = data.active === true || Number(data.active) === 1
+    loadedQuestionCount.value = data.question_count ?? ''
+    loadFailed.value = false
     const current = data.readiness || {}
     readiness.value = {
       ready: current.ready === true,
@@ -81,6 +89,7 @@ async function load() {
     return true
   } catch (e) {
     err.value = messageOf(e, 'Gagal memuat pengaturan.')
+    loadFailed.value = true
     return false
   } finally {
     loading.value = false
@@ -88,14 +97,14 @@ async function load() {
 }
 
 async function save() {
-  if (!isAdmin.value || saving.value || loading.value) return
+  if (!isAdmin.value || saving.value || loading.value || loadFailed.value) return
   const body = {
     question_count: toNumber(form.question_count),
     duration_minutes: toNumber(form.duration_minutes),
     pass_score: toNumber(form.pass_score),
     max_attempts: 2,
     quota: Object.fromEntries(CATEGORIES.map((category) =>
-      [category, toNumber(form.quota[category])])),
+      [category, toQuota(form.quota[category])])),
     shuffle_options: form.shuffle_options === true,
     active: form.active === true,
   }
@@ -119,7 +128,11 @@ onMounted(load)
 
 <template>
   <div class="tks-panel">
-    <div v-if="err" class="alert alert-error" data-alert="error">{{ err }}</div>
+    <div v-if="err" class="alert alert-error" data-alert="error">
+      {{ err }}
+      <button v-if="loadFailed" class="btn btn-sm" type="button"
+              data-action="reload" @click="load">Coba lagi</button>
+    </div>
     <div v-if="msg" class="alert alert-success" data-alert="success">{{ msg }}</div>
 
     <div class="card card-pad">
@@ -127,6 +140,7 @@ onMounted(load)
       <p class="muted tks-sub">Atur durasi, ambang kelulusan, dan komposisi soal.</p>
 
       <div v-if="loading" class="tks-empty">⏳ Memuat pengaturan…</div>
+      <div v-else-if="loadFailed" class="tks-empty">Pengaturan tidak dapat ditampilkan.</div>
       <template v-else>
         <div class="tks-grid">
           <label class="tks-field">Jumlah soal
@@ -181,10 +195,10 @@ onMounted(load)
       </template>
     </div>
 
-    <div class="card card-pad tks-readiness-card">
+    <div v-if="!loading && !loadFailed" class="card card-pad tks-readiness-card">
       <h3>📈 Kesiapan bank soal</h3>
       <div class="tks-readiness" data-readiness>
-        <span><b>Soal aktif:</b> {{ readiness.active_valued }}/{{ form.question_count }}</span>
+        <span><b>Soal aktif:</b> {{ readiness.active_valued }}/{{ loadedQuestionCount ?? '—' }}</span>
         <span v-for="category in CATEGORIES" :key="category" :data-quota-status="category">
           {{ category }} {{ flag(readiness.quota_ok?.[category]) }}
         </span>
@@ -208,7 +222,7 @@ onMounted(load)
         Hanya admin dapat mengubah pengaturan.
       </p>
       <button class="btn btn-primary" type="button" data-action="save"
-              :disabled="!isAdmin || saving || loading" @click="save">
+              :disabled="!isAdmin || saving || loading || loadFailed" @click="save">
         {{ saving ? 'Menyimpan…' : 'Simpan pengaturan' }}
       </button>
     </div>
