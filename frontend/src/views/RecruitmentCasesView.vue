@@ -348,6 +348,16 @@ onMounted(load)
                                   @click="submitEvidence(row, step)">Simpan bukti</button>
                         </div>
                       </div>
+                      <div v-if="type === 'TRAINING' && (row.training || []).length"
+                           class="rc-training-days">
+                        <div v-for="t in row.training" :key="'tr' + t.day"
+                             class="fw-sub" :data-training-day="t.day">
+                          <b>Hari {{ t.day }}</b>: {{ fmtDT(t.attended_at) }} ·
+                          {{ t.link_status === 'linked'
+                            ? 'terhubung ke Pelamar'
+                            : 'belum terhubung ke Pelamar' }}
+                        </div>
+                      </div>
                     </div>
                   </div>
 

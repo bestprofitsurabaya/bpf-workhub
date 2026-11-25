@@ -1070,6 +1070,27 @@ CREATE TABLE IF NOT EXISTS case_branch_history (
     KEY idx_cbh_case (case_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Absensi training portal (2 hari): bukti kehadiran dari form publik.
+-- Sama dengan DDL di modules/training_schema.py (drift check CI).
+CREATE TABLE IF NOT EXISTS training_attendance (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    case_id VARCHAR(40) NOT NULL,
+    nik CHAR(16) NOT NULL,
+    branch_code VARCHAR(10) NOT NULL,
+    day TINYINT NOT NULL,
+    nama VARCHAR(150) NOT NULL DEFAULT '',
+    attended_at DATETIME NOT NULL,
+    applicant_id INT NULL,
+    link_status ENUM('linked','unlinked','ambiguous') NOT NULL DEFAULT 'unlinked',
+    ip VARCHAR(45) NOT NULL DEFAULT '',
+    user_agent VARCHAR(255) NOT NULL DEFAULT '',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_ta_case_branch_day (case_id, branch_code, day),
+    KEY idx_ta_nik (nik),
+    KEY idx_ta_applicant (applicant_id),
+    KEY idx_ta_branch_date (branch_code, attended_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- ============================================================
 -- TKD online (Rilis C): bank soal, pengaturan, attempt, dan jawaban.
 -- Sama dengan DDL di modules/tkd_schema.py (drift check CI).

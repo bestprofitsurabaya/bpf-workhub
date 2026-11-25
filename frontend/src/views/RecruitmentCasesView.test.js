@@ -24,6 +24,10 @@ const CASES = [
       { branch_code: 'JKT', first_seen_at: '2026-11-21 11:00:00', last_seen_at: '2026-11-21 11:00:00' },
       { branch_code: 'SBY', first_seen_at: '2026-11-20 10:00:00', last_seen_at: '2026-11-21 09:00:00' },
     ],
+    training: [
+      { day: 1, attended_at: '2026-11-24 09:12:00', link_status: 'linked' },
+      { day: 2, attended_at: '2026-11-25 09:05:00', link_status: 'unlinked' },
+    ],
     steps: [
       { id: 11, step_type: 'CV', status: 'SELESAI', branch_code: 'SBY', exception_reason: '', completed_at: '2026-11-20 10:05:00' },
       { id: 12, step_type: 'TRAINING', status: 'PENDING', branch_code: 'JKT', exception_reason: '', completed_at: null },
@@ -270,5 +274,20 @@ describe('RecruitmentCasesView (Dashboard kasus staff)', () => {
     expect(embedded.find('.page-header').exists()).toBe(false)
     expect(embedded.text()).toContain('Andi Saputra')
     embedded.unmount()
+  })
+})
+
+
+describe('RecruitmentCasesView — absensi training portal', () => {
+  it('menampilkan Training Hari 1 dan Hari 2 beserta status tautan Pelamar', async () => {
+    const w = await mountRole('traineer')
+    await openDetail(w)
+
+    const hari1 = w.find('[data-training-day="1"]')
+    const hari2 = w.find('[data-training-day="2"]')
+    expect(hari1.exists()).toBe(true)
+    expect(hari1.text()).toContain('Hari 1')
+    expect(hari1.text()).toContain('terhubung ke Pelamar')
+    expect(hari2.text()).toContain('belum terhubung ke Pelamar')
   })
 })

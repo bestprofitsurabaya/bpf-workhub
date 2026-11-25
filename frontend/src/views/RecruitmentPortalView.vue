@@ -29,9 +29,9 @@ const STEPS = [
   {
     type: 'TRAINING',
     label: 'Training Absensi',
-    desc: 'Latihan dan absensi peserta.',
-    href: '',
-    future: true,
+    desc: 'Absensi Hari 1 dan Hari 2 training.',
+    href: formHref('training-form'),
+    future: false,
   },
   {
     type: 'TKD',

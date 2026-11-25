@@ -86,6 +86,12 @@ class _FakeCursor:
                           if s['case_id'] in ids]
             return
 
+        if 'FROM TRAINING_ATTENDANCE' in upper:
+            ids = set(params)
+            self._rows = [t for t in self.conn.training
+                          if t['case_id'] in ids]
+            return
+
         self._rows = []
 
     def fetchall(self):
@@ -128,6 +134,14 @@ class _FakeConn:
              'status': 'DIKECUALIKAN', 'branch_code': 'JKT',
              'exception_reason': 'Tidak hadir',
              'completed_at': datetime(2026, 11, 21, 11, 0)},
+        ]
+        self.training = [
+            {'case_id': CASE_A, 'branch_code': 'SBY', 'day': 1,
+             'attended_at': datetime(2026, 11, 24, 9, 12),
+             'link_status': 'linked'},
+            {'case_id': CASE_A, 'branch_code': 'SBY', 'day': 2,
+             'attended_at': datetime(2026, 11, 25, 9, 5),
+             'link_status': 'unlinked'},
         ]
         self.statements = []
         self.closed = False
@@ -217,7 +231,8 @@ class TestKontrakRespons:
         case = _get(app).get_json()['data'][0]  # first_seen_at terbaru = CASE_B
 
         assert set(case) == {'case_id', 'nik_masked', 'nama', 'first_branch',
-                             'status', 'branches', 'steps', 'tkd_score',
+                             'status', 'branches', 'steps', 'training',
+                             'tkd_score',
                              'tkd_score_source', 'tkd_score_note', 'tkd_passed'}
         assert case['case_id'] == CASE_B
         assert NIK_B not in case['case_id']
@@ -406,3 +421,12 @@ class TestAuditView:
 
         assert response.status_code == 200
         assert len(response.get_json()['data']) == 2
+
+
+def test_cases_memuat_training_dua_hari_tanpa_nik(app, db, logs):
+    res = _get(app)
+    assert res.status_code == 200
+    row = next(r for r in res.get_json()['data'] if r['case_id'] == CASE_A)
+    assert [t['day'] for t in row['training']] == [1, 2]
+    assert row['training'][0]['link_status'] == 'linked'
+    assert NIK_A not in res.get_data(as_text=True)

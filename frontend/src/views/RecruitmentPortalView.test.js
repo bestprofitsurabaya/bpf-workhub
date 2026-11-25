@@ -77,7 +77,8 @@ describe('RecruitmentPortalView — portal per cabang 4 kartu (Rilis A)', () => 
     }
     expect(card(w, 'CV').attributes('href')).toBe(`/app/cv-online-form?token=${TOKEN}`)
     expect(card(w, 'FIRSTWORK').attributes('href')).toBe(`/app/first-work-form?token=${TOKEN}`)
-    expect(card(w, 'TRAINING').text()).toContain('Segera tersedia')
+    expect(card(w, 'TRAINING').attributes('href')).toBe(`/app/training-form?token=${TOKEN}`)
+    expect(card(w, 'TRAINING').text()).not.toContain('Segera tersedia')
     expect(card(w, 'TKD').text()).toContain('Buka tes →')
     expect(w.text()).not.toContain('lengkapi CV Online dulu')
   })

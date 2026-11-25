@@ -62,3 +62,6 @@ agent/subsiditepat/profile/
 agent/subsiditepat/data/*
 agent/subsiditepat/artifacts/*
 agent/subsiditepat/node_modules/
+
+# Superpowers SDD scratch (ledger, briefs, review packages)
+.superpowers/

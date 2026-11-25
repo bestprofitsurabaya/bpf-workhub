@@ -370,6 +370,7 @@ def register_recruitment_routes(app):
                     rows = cursor.fetchall() or []
 
                     branches_by_case, steps_by_case = {}, {}
+                    training_by_case = {}
                     case_ids = [row['case_id'] for row in rows]
                     if case_ids:
                         # Dua query massal, bukan N+1; placeholder dibangun dari
@@ -403,6 +404,25 @@ def register_recruitment_routes(app):
                                     s.get('exception_reason')),
                                 'completed_at': _as_text(s.get('completed_at')),
                             })
+                        # Absensi training portal (2 hari) — bukti per kasus.
+                        # Tabel bisa belum ada di DB lama; dashboard tetap jalan.
+                        try:
+                            cursor.execute(
+                                'SELECT case_id, day, attended_at, link_status '
+                                'FROM training_attendance '
+                                f'WHERE case_id IN ({marks}) ORDER BY day',
+                                tuple(case_ids))
+                            for t in cursor.fetchall() or []:
+                                training_by_case.setdefault(
+                                    t['case_id'], []).append({
+                                        'day': _as_int(t.get('day')),
+                                        'attended_at': _as_text(
+                                            t.get('attended_at')),
+                                        'link_status': str(
+                                            t.get('link_status') or ''),
+                                    })
+                        except Exception:
+                            training_by_case = {}
 
                     data = []
                     for r in rows:
@@ -420,6 +440,8 @@ def register_recruitment_routes(app):
                             'status': str(r.get('status') or ''),
                             'branches': branches,
                             'steps': steps,
+                            'training': training_by_case.get(
+                                r['case_id'], []),
                             'tkd_score': (_as_float(r.get('tkd_score'))
                                           if show_tkd else None),
                             'tkd_score_source': (_as_text(r.get('tkd_score_source'))
