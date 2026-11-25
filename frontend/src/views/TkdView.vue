@@ -1,7 +1,8 @@
 <script setup>
-import { computed, h, ref } from 'vue'
+import { computed, ref } from 'vue'
 import TkdBankPanel from './TkdBankPanel.vue'
 import TkdResultsPanel from './TkdResultsPanel.vue'
+import TkdSettingsPanel from './TkdSettingsPanel.vue'
 
 // Dipakai sebagai tab di hub rekrutmen: PageHeader tidak dirender di sini.
 defineProps({ embedded: { type: Boolean, default: false } })
@@ -12,15 +13,10 @@ const TABS = [
   { id: 'pengaturan', label: 'Pengaturan' },
 ]
 
-// Placeholder untuk panel pengaturan (diganti Task 18).
-const PlaceholderPanel = {
-  render: () => h('div', { class: 'card card-pad' }, [h('p', 'Segera tersedia.')]),
-}
-
 const PANELS = {
   bank: TkdBankPanel,
   hasil: TkdResultsPanel,
-  pengaturan: PlaceholderPanel,
+  pengaturan: TkdSettingsPanel,
 }
 
 const activeTab = ref('bank')
