@@ -7,6 +7,28 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.135.0 — 25 November 2026 (Absensi training portal, 2 hari)
+
+- Portal rekrutmen kini punya langkah **Training Absensi** yang benar-benar
+  aktif. Peserta cukup memasukkan NIK dan tanggal lahir, memilih **Hari 1**
+  atau **Hari 2**, lalu menandai kehadiran — tanpa PIN dan tanpa unggah
+  berkas.
+- **Hari 2 terkunci** sampai Hari 1 tercatat. Penjagaan ada di server, jadi
+  tidak bisa dilewati dari browser.
+- Setiap absensi disimpan sebagai bukti di tabel `training_attendance`
+  (satu baris per orang, per cabang, per hari). Langkah `TRAINING` pada kasus
+  berubah menjadi `PENDING` setelah Hari 1 dan `SELESAI` setelah Hari 2.
+- Bila nama dan nomor HP peserta sama persis dengan data Pelamar milik
+  receptionist, kehadiran otomatis mengisi kolom **H1/H2** di dashboard
+  Pelamar. Bila belum ada yang cocok, absensi tetap tercatat dan ditandai
+  “belum terhubung ke Pelamar”.
+- Detail kasus di hub menampilkan Hari 1/Hari 2 beserta waktu dan status
+  tautannya. Tidak ada NIK penuh yang dikirim ke browser.
+- Cabang selalu diambil dari token portal; token tidak valid atau nonaktif
+  ditolak, dan percobaan berulang dibatasi per IP.
+
+---
+
 ## v2.134.0 — 25 November 2026 (Hub rekrutmen dan TKD online)
 
 - Satu menu **Rekrutmen** berisi tab `pelamar | kasus | cv | firstwork | tkd |
