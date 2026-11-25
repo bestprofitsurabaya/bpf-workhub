@@ -137,6 +137,36 @@ def _as_int(value):
     return int(number) if number is not None else None
 
 
+def _case_scope_ok(cursor, case_id, scope):
+    """Aturan scope kasus yang sama dengan endpoint skor TKD.
+
+    Impor lokal menghindari siklus modul: `routes_tkd` mengimpor `_mask_nik`
+    dari modul ini.
+    """
+    from modules.routes_tkd import _case_in_scope
+    return _case_in_scope(cursor, case_id, scope)
+
+
+def _tkd_visible_for(scope, row, branches, steps):
+    """True bila skor TKD kasus boleh tampil untuk staff bercabang `scope`.
+
+    Daftar kasus tetap global seperti sebelumnya; hanya field skor TKD yang
+    dibatasi ke cabang asal/riwayat/langkah milik staff.
+    """
+    if scope is None:
+        return True
+    first = str((row or {}).get('first_branch') or '').strip().upper()[:10]
+    if first == scope:
+        return True
+    for branch in branches or []:
+        if str((branch or {}).get('branch_code') or '').strip().upper()[:10] == scope:
+            return True
+    for step in steps or []:
+        if str((step or {}).get('branch_code') or '').strip().upper()[:10] == scope:
+            return True
+    return False
+
+
 def _portal_scope_branch(conn):
     """None hanya untuk Admin Pusat; selain itu cabang sesi (fail-closed)."""
     if session.get('user_role') == 'admin':
@@ -309,6 +339,7 @@ def register_recruitment_routes(app):
                 conn = get_master_connection()
                 if not conn:
                     return jsonify({'status': 'error', 'msg': 'DB error'}), 500
+                scope = _portal_scope_branch(conn)
                 cursor = conn.cursor(dictionary=True)
                 try:
                     conditions, params = [], []
@@ -373,19 +404,31 @@ def register_recruitment_routes(app):
                                 'completed_at': _as_text(s.get('completed_at')),
                             })
 
-                    data = [{
-                        'case_id': str(r.get('case_id') or ''),
-                        'nik_masked': _mask_nik(r.get('nik')),
-                        'nama': str(r.get('nama') or ''),
-                        'first_branch': str(r.get('first_branch') or ''),
-                        'status': str(r.get('status') or ''),
-                        'branches': branches_by_case.get(r['case_id'], []),
-                        'steps': steps_by_case.get(r['case_id'], []),
-                        'tkd_score': _as_float(r.get('tkd_score')),
-                        'tkd_score_source': _as_text(r.get('tkd_score_source')),
-                        'tkd_score_note': _as_text(r.get('tkd_score_note')),
-                        'tkd_passed': _as_int(r.get('tkd_passed')),
-                    } for r in rows]
+                    data = []
+                    for r in rows:
+                        branches = branches_by_case.get(r['case_id'], [])
+                        steps = steps_by_case.get(r['case_id'], [])
+                        # Skor TKD resmi hanya untuk kasus dalam cakupan staff;
+                        # kasus di luar cakupan tetap tampil tanpa skor (field
+                        # kontrak dipertahankan bernilai null).
+                        show_tkd = _tkd_visible_for(scope, r, branches, steps)
+                        data.append({
+                            'case_id': str(r.get('case_id') or ''),
+                            'nik_masked': _mask_nik(r.get('nik')),
+                            'nama': str(r.get('nama') or ''),
+                            'first_branch': str(r.get('first_branch') or ''),
+                            'status': str(r.get('status') or ''),
+                            'branches': branches,
+                            'steps': steps,
+                            'tkd_score': (_as_float(r.get('tkd_score'))
+                                          if show_tkd else None),
+                            'tkd_score_source': (_as_text(r.get('tkd_score_source'))
+                                                 if show_tkd else None),
+                            'tkd_score_note': (_as_text(r.get('tkd_score_note'))
+                                               if show_tkd else None),
+                            'tkd_passed': (_as_int(r.get('tkd_passed'))
+                                           if show_tkd else None),
+                        })
                 finally:
                     cursor.close()
             except Exception:
@@ -520,6 +563,7 @@ def register_recruitment_routes(app):
                 return jsonify({'status': 'error', 'msg': 'DB error'}), 500
             cursor = conn.cursor(dictionary=True)
             try:
+                scope = _portal_scope_branch(conn)
                 if lazy:
                     cursor.execute(
                         'SELECT case_id, first_branch FROM recruitment_cases '
@@ -528,6 +572,9 @@ def register_recruitment_routes(app):
                     if not case_row:
                         return jsonify({'status': 'error',
                                         'msg': 'Kasus tidak ditemukan'}), 404
+                    if not _case_scope_ok(cursor, case_id, scope):
+                        return jsonify({'status': 'error',
+                                        'msg': 'Kasus di luar cabang Anda.'}), 403
                     branch = _latest_branch_code(
                         cursor, case_id, case_row.get('first_branch'))
                     cursor.execute("""
@@ -552,6 +599,9 @@ def register_recruitment_routes(app):
                 if not row:
                     return jsonify({'status': 'error',
                                     'msg': 'Langkah tidak ditemukan'}), 404
+                if not _case_scope_ok(cursor, row.get('case_id'), scope):
+                    return jsonify({'status': 'error',
+                                    'msg': 'Kasus di luar cabang Anda.'}), 403
                 if row.get('step_type') not in _EVIDENCE_STEP_TYPES:
                     return jsonify({'status': 'error',
                                     'msg': 'Langkah ini tidak menerima bukti manual'}), 409

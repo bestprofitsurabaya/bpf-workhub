@@ -58,6 +58,20 @@ const detailTier = computed(() =>
   detail.value?.modal_tier || detailAttempt.value.modal_tier || '—')
 const profileAnswer = computed(() => detail.value?.profile_text_answer)
 
+const summary = computed(() => {
+  const scores = rows.value
+    .map((row) => Number(row.score))
+    .filter((score) => Number.isFinite(score))
+  const sameCase = rows.value.length > 0
+    && rows.value.every((row) => row.case_id === rows.value[0].case_id)
+  const official = sameCase ? rows.value[0]?.official_score : null
+  return {
+    attempts: rows.value.length,
+    best: scores.length ? Math.max(...scores) : null,
+    official: official === null || official === undefined ? null : official,
+  }
+})
+
 function messageOf(e, fallback) {
   const text = e?.message || e?.msg || e?.data?.msg || e?.data?.error
   return typeof text === 'string' && text ? text : fallback
@@ -356,7 +370,12 @@ onMounted(load)
       <div v-else-if="!rows.length" class="tk-results-empty">
         Belum ada hasil untuk filter ini.
       </div>
-      <div v-else class="tk-results-table-wrap">
+      <div v-if="!loading && rows.length" class="tk-results-summary" data-summary>
+        <span>Percobaan: <b>{{ summary.attempts }}</b></span>
+        <span>Skor terbaik: <b>{{ summary.best ?? '—' }}</b></span>
+        <span>Skor resmi: <b>{{ summary.official ?? '—' }}</b></span>
+      </div>
+      <div v-if="!loading && rows.length" class="tk-results-table-wrap">
         <table class="tk-results-table">
           <thead>
             <tr>
@@ -406,7 +425,9 @@ onMounted(load)
           <span><b>Kasus:</b> {{ safeText(detailCase.case_id || detailAttempt.case_id) }}</span>
           <span><b>Attempt:</b> {{ detailAttempt.attempt_no ?? '—' }}</span>
           <span><b>Status:</b> {{ safeText(detailAttempt.status) }}</span>
-          <span><b>Skor:</b> {{ detail.score ?? '—' }}</span>
+          <span><b>Skor percobaan:</b> {{ detail.score ?? '—' }}</span>
+          <span><b>Skor resmi:</b> {{ detailCase.tkd_score ?? '—' }}</span>
+          <span><b>Sumber skor resmi:</b> {{ safeText(detailCase.tkd_score_source) }}</span>
           <span><b>Tier modal:</b> {{ safeText(detailTier) }}</span>
         </div>
         <p v-if="detailAttempt.pass_score_snapshot !== undefined"
@@ -508,6 +529,11 @@ onMounted(load)
 .tk-results-field { display: grid; gap: 4px; font-size: 12px; color: var(--text-2); }
 .tk-results-filters .input, .tk-results-filters .select { flex: 1 1 140px; min-width: 120px; }
 .tk-results-empty { padding: 26px; text-align: center; color: var(--text-3); font-size: 12px; }
+.tk-results-summary {
+  display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 0 0 12px;
+  padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px;
+  background: var(--bg); font-size: 12px;
+}
 .tk-results-table-wrap { overflow-x: auto; }
 .tk-results-table { width: 100%; border-collapse: collapse; font-size: 12px; }
 .tk-results-table th {

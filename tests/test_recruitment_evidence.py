@@ -44,7 +44,12 @@ class _FakeCursor:
         self.conn.statements.append((upper, tuple(params)))
 
         if upper.startswith('SELECT') and 'FROM RECRUITMENT_STEPS' in upper:
-            if ' WHERE ID=%S' in upper:
+            if 'SELECT 1 ' in upper:
+                # Dipakai _case_in_scope: filter case + cabang.
+                self._rows = [s for s in self.conn.steps.values()
+                              if s.get('case_id') == params[0]
+                              and s.get('branch_code') == params[1]][:1]
+            elif ' WHERE ID=%S' in upper:
                 step = self.conn.steps.get(params[0])
                 self._rows = [step] if step else []
             else:
@@ -60,6 +65,12 @@ class _FakeCursor:
             return
 
         if upper.startswith('SELECT') and 'FROM CASE_BRANCH_HISTORY' in upper:
+            if 'SELECT 1 ' in upper:
+                # Dipakai _case_in_scope: filter case + cabang.
+                self._rows = [b for b in self.conn.branches
+                              if b['case_id'] == params[0]
+                              and b['branch_code'] == params[1]][:1]
+                return
             branches = [b for b in self.conn.branches
                         if b['case_id'] == params[0]]
             branches.sort(key=lambda b: (b.get('last_seen_at') or '',
@@ -175,12 +186,14 @@ def logs(monkeypatch):
     return captured
 
 
-def _post(app, body=None, step_id=7, role='traineer', name='petugas1', raw=False):
+def _post(app, body=None, step_id=7, role='traineer', name='petugas1',
+          branch='SBY', raw=False):
     client = app.test_client()
     if role is not None:
         with client.session_transaction() as sess:
             sess['user_role'] = role
             sess['user_name'] = name
+            sess['branch_code'] = branch
     if raw:
         return client.post(f'/api/recruitment/steps/{step_id}/evidence')
     return client.post(f'/api/recruitment/steps/{step_id}/evidence', json=body)
@@ -261,6 +274,41 @@ class TestTulisBukti:
 
         assert _post(app, body=VALID_BODY).status_code == 200
         assert db.steps[7]['exception_reason'] == 'Lulus pelatihan'
+
+
+class TestScopeCabang:
+    def test_langkah_luar_cabang_ditolak_403_tanpa_tulis(self, app, db, logs):
+        response = _post(app, body=VALID_BODY, branch='BDG')
+
+        assert response.status_code == 403
+        assert db.updates == []
+        assert db.commits == 0
+        assert logs == []
+
+    def test_langkah_baru_luar_cabang_ditolak_403_tanpa_insert(self, app, db, logs):
+        body = dict(VALID_BODY, case_id=CASE_A, step_type='TKD')
+
+        response = _post(app, body=body, step_id=0, branch='BDG')
+
+        assert response.status_code == 403
+        assert db.inserts == []
+        assert db.updates == []
+        assert db.commits == 0
+        assert logs == []
+
+    def test_admin_pusat_tanpa_cabang_tetap_boleh_menulis(self, app, db, logs):
+        response = _post(app, body=VALID_BODY, role='admin', name='admin',
+                         branch='')
+
+        assert response.status_code == 200
+        assert db.commits == 1
+
+    def test_non_admin_tanpa_cabang_ditolak_403(self, app, db, logs):
+        response = _post(app, body=VALID_BODY, branch='')
+
+        assert response.status_code == 403
+        assert db.updates == []
+        assert db.commits == 0
 
 
 class TestAudit:

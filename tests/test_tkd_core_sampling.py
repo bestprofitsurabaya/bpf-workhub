@@ -79,6 +79,19 @@ def test_state_publik_lulus_habis_dan_dikecualikan():
     steps = [{'step_type': 'TKD', 'status': 'DIKECUALIKAN'}]
     assert public_state(case, [], steps, SETTINGS)['state'] == 'DIKECUALIKAN'
 
+def test_state_publik_memakai_flag_lulus_tersimpan_bukan_ambang_baru():
+    # Ambang diturunkan: percobaan lama yang gagal tidak boleh berubah LULUS.
+    case = {'tkd_score': 85, 'tkd_score_source': 'AUTO', 'tkd_passed': 0}
+    attempts = [{'id': 'TKD-1', 'status': 'SELESAI', 'score': 85}]
+    lower = dict(SETTINGS, pass_score=60)
+    assert public_state(case, attempts, [], lower)['state'] == 'BISA_COBA'
+
+    # Ambang dinaikkan: percobaan lama yang lulus tetap LULUS.
+    case = {'tkd_score': 65, 'tkd_score_source': 'AUTO', 'tkd_passed': 1}
+    higher = dict(SETTINGS, pass_score=90)
+    assert public_state(case, attempts, [], higher)['state'] == 'LULUS'
+
+
 def test_state_publik_belum_berlangsung_dan_bisa_coba():
     empty = {'tkd_score': None, 'tkd_score_source': None, 'tkd_passed': None}
     assert public_state(empty, [], [], SETTINGS)['state'] == 'BELUM'

@@ -477,7 +477,8 @@ def _fetch_attempt_rows(cursor, scope, params):
         values.append(f'%{search}%')
     sql = ('SELECT a.id, a.case_id, c.nama, c.nik, a.branch_code, '
            'a.attempt_no, a.status, a.score, a.passed, a.started_at, '
-           'a.submitted_at, c.tkd_score_source AS score_source '
+           'a.submitted_at, c.tkd_score_source AS score_source, '
+           'c.tkd_score AS official_score '
            'FROM tkd_attempts a JOIN recruitment_cases c ON c.case_id=a.case_id')
     if clauses:
         sql += ' WHERE ' + ' AND '.join(clauses)
@@ -502,6 +503,7 @@ def _attempt_row_payload(row):
         'started_at': _as_iso(row.get('started_at')),
         'submitted_at': _as_iso(row.get('submitted_at')),
         'score_source': row.get('score_source'),
+        'official_score': parse_numeric(row.get('official_score')),
     }
 
 

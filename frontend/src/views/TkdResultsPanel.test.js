@@ -11,7 +11,7 @@ vi.mock('../stores/auth', () => ({ useAuthStore: () => authMock }))
 const ROWS = [{ id: 'TKD-1', case_id: 'RC-1', nama: 'Andi', nik_masked: '****0001',
   branch_code: 'SBY', attempt_no: 1, status: 'SELESAI', score: 60, passed: 0,
   started_at: '2026-11-24 10:00:00', submitted_at: '2026-11-24 10:20:00',
-  score_source: 'AUTO' }]
+  score_source: 'AUTO', official_score: 60 }]
 
 const REVIEW = {
   attempt: { id: 'TKD-1', modal_tier: '30k', score: 60 },
@@ -50,7 +50,16 @@ describe('TkdResultsPanel', () => {
     expect(w.text()).not.toContain('3573010101990001')
   })
 
-  it('detail menampilkan jawaban, kunci, dan poin', async () => {
+  it('menampilkan ringkasan percobaan, skor terbaik, dan skor resmi', async () => {
+    const w = await mountPanel()
+    const summary = w.find('[data-summary]').text()
+
+    expect(summary).toContain('Percobaan: 1')
+    expect(summary).toContain('Skor terbaik: 60')
+    expect(summary).toContain('Skor resmi: 60')
+  })
+
+  it('detail menampilkan jawaban, kunci, poin, dan skor resmi', async () => {
     const w = await mountPanel()
     await w.find('button[data-review="TKD-1"]').trigger('click')
     await flushPromises()
@@ -62,6 +71,8 @@ describe('TkdResultsPanel', () => {
     expect(cells[5].text()).toBe('0')
     expect(w.find('[data-profile-answer]').text()).toBe('Saya teliti dan cepat')
     expect(w.text()).toContain('Tier modal: 30k')
+    expect(w.text()).toContain('Skor resmi: 60')
+    expect(w.text()).toContain('Sumber skor resmi: AUTO')
   })
 
   it('koreksi mewajibkan alasan dan mengirim skor', async () => {

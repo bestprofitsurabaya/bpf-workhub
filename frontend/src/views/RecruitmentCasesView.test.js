@@ -16,6 +16,10 @@ const CASES = [
     nama: 'Andi Saputra',
     first_branch: 'SBY',
     status: 'AKTIF',
+    tkd_score: 86.67,
+    tkd_score_source: 'AUTO',
+    tkd_score_note: null,
+    tkd_passed: 1,
     branches: [
       { branch_code: 'JKT', first_seen_at: '2026-11-21 11:00:00', last_seen_at: '2026-11-21 11:00:00' },
       { branch_code: 'SBY', first_seen_at: '2026-11-20 10:00:00', last_seen_at: '2026-11-21 09:00:00' },
@@ -73,6 +77,14 @@ describe('RecruitmentCasesView (Dashboard kasus staff)', () => {
     expect(txt).toContain('SBY')
     expect(txt).toContain('AKTIF')
     expect(txt).not.toContain('3573010101990001')
+  })
+
+  it('menampilkan skor TKD level kasus di kolom TKD', async () => {
+    const w = await mountRole()
+    const cell = w.find('[data-tkd-cell]').text()
+
+    expect(cell).toContain('86.67')
+    expect(cell).toContain('Lulus')
   })
 
   it('filter NIK/nama, cabang, dan status dikirim ke API dengan nama parameter yang benar', async () => {

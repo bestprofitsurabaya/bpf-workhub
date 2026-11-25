@@ -32,6 +32,8 @@ const submitting = ref(false)
 const result = ref(null)
 const now = ref(Date.now())
 const expiresMs = ref(0)
+const closeBtn = ref(null)
+let lastFocus = null
 
 const TIERS = [
   { value: '30k', label: '$30.000' },
@@ -147,11 +149,20 @@ function clearSave() {
 }
 
 function seedExpiry(data) {
-  const rawExpiry = String(data?.expires_at || '').replace(' ', 'T')
-  const parsed = Date.parse(rawExpiry)
-  expiresMs.value = Number.isFinite(parsed)
-    ? parsed
-    : Date.now() + Number(data?.remaining_seconds || 0) * 1000
+  // `remaining_seconds` adalah sumber waktu resmi dari server. `expires_at`
+  // tidak membawa zona waktu, jadi jangan dipakai lebih dulu: perangkat di
+  // zona lain bisa menghitung sisa waktu yang salah.
+  const rawRemaining = data?.remaining_seconds
+  const remaining = Number(rawRemaining)
+  const hasRemaining = rawRemaining !== undefined && rawRemaining !== null
+    && rawRemaining !== ''
+  if (hasRemaining && Number.isFinite(remaining) && remaining >= 0) {
+    expiresMs.value = Date.now() + remaining * 1000
+  } else {
+    const rawExpiry = String(data?.expires_at || '').replace(' ', 'T')
+    const parsed = Date.parse(rawExpiry)
+    expiresMs.value = Number.isFinite(parsed) ? parsed : 0
+  }
   startTicker()
 }
 
@@ -413,12 +424,17 @@ async function close() {
 }
 
 onMounted(async () => {
+  lastFocus = document.activeElement
+  // Panel bukan modal (dirender inline di portal), jadi Tab tidak ditahan.
+  // Fokus dipindah ke tombol tutup; Escape ditangani di elemen section.
+  closeBtn.value?.focus?.()
   await loadStatus()
   if (mode.value === 'loading') mode.value = 'intro'
 })
 
 onBeforeUnmount(() => {
   disposed = true
+  lastFocus?.focus?.()
   stopTicker()
   const queued = [...pendingSaves.entries()]
   clearSave()
@@ -428,10 +444,12 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <section class="tkd-panel" role="dialog" aria-modal="true" aria-label="Tes Kemampuan Dasar">
+  <section class="tkd-panel" role="dialog" aria-label="Tes Kemampuan Dasar"
+           @keydown.esc.prevent="close">
     <header class="tkd-head">
       <h2>Tes Kemampuan Dasar</h2>
-      <button type="button" class="tkd-close" data-action="close" aria-label="Tutup" @click="close">
+      <button ref="closeBtn" type="button" class="tkd-close" data-action="close"
+              aria-label="Tutup" @click="close">
         Tutup ✕
       </button>
     </header>

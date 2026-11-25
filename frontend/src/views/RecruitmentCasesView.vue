@@ -264,6 +264,7 @@ onMounted(load)
               <th>NIK</th>
               <th>Nama</th>
               <th>Cabang Asal</th>
+              <th>TKD</th>
               <th>Status</th>
               <th></th>
             </tr>
@@ -274,6 +275,13 @@ onMounted(load)
               <td class="nowrap">{{ row.nik_masked }}</td>
               <td><b>{{ row.nama }}</b></td>
               <td class="nowrap">{{ row.first_branch || '—' }}</td>
+              <td class="nowrap" data-tkd-cell>
+                <template v-if="row.tkd_score !== null && row.tkd_score !== undefined">
+                  <b>{{ row.tkd_score }}</b>
+                  <span class="fw-sub">{{ row.tkd_passed ? 'Lulus' : 'Tidak lulus' }}</span>
+                </template>
+                <span v-else>—</span>
+              </td>
               <td><span class="fw-badge" :class="statusBadge(row.status)">{{ row.status }}</span></td>
               <td>
                 <button class="btn btn-sm" :aria-expanded="expanded === row.case_id"
@@ -283,7 +291,7 @@ onMounted(load)
               </td>
             </tr>
             <tr v-if="expanded === row.case_id" class="rc-detail-row">
-              <td colspan="6">
+              <td colspan="7">
                 <div class="rc-detail">
                   <div class="rc-branch-summary">
                     Cabang asal: <b>{{ row.first_branch || '—' }}</b>

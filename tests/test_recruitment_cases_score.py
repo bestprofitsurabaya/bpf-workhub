@@ -40,6 +40,7 @@ def _client(app):
     c = app.test_client()
     with c.session_transaction() as s:
         s['user_role'] = 'traineer'; s['user_name'] = 'petugas'
+        s['branch_code'] = 'SBY'
     return c
 
 def test_bukti_tkd_dengan_skor_menulis_manual(app, monkeypatch):

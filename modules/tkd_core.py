@@ -431,7 +431,10 @@ def public_state(case: dict, attempts: list[dict], steps: list[dict],
         state = 'BERLANGSUNG'
     elif score_number is None and step_completed:
         state = 'SKOR_BELUM_TERCATAT'
-    elif passed_flag or (score_number is not None and score_number >= pass_score):
+    elif passed_flag:
+        # `tkd_passed` adalah keputusan saat skor dihitung. Jangan menghitung
+        # ulang dengan ambang saat ini: perubahan `pass_score` tidak boleh
+        # membalik status historis (spec §5.2/§6.3).
         state = 'LULUS'
     elif attempts_used >= max_attempts:
         state = 'HABIS'
@@ -511,7 +514,7 @@ def _tolerance_value(answer):
 
 
 def _validate_options(options, errors):
-    if not 2 <= len(options) <= 6:
+    if not 2 <= len(options) <= 5:
         errors.append('MCQ harus memiliki 2–5 opsi')
     seen = set()
     for index, option in enumerate(options, 1):

@@ -25,6 +25,7 @@ NIK_B = '3573010101990002'
 # Fix round 2: case_id bersifat opaque (bukan RC-<NIK>) dan tidak dimasker.
 CASE_A = 'RC-a1b2c3d4e5f6'
 CASE_B = 'RC-f6e5d4c3b2a1'
+CASE_C = 'RC-001122334455'
 
 
 class _FakeCursor:
@@ -168,12 +169,13 @@ def logs(monkeypatch):
     return captured
 
 
-def _get(app, role='traineer', name='petugas1', **query):
+def _get(app, role='traineer', name='petugas1', branch='SBY', **query):
     client = app.test_client()
     if role is not None:
         with client.session_transaction() as sess:
             sess['user_role'] = role
             sess['user_name'] = name
+            sess['branch_code'] = branch
     return client.get('/api/recruitment/cases', query_string=query)
 
 
@@ -231,6 +233,51 @@ class TestKontrakRespons:
         assert case['tkd_score'] == 86.67
         assert case['tkd_score_source'] == 'AUTO'
         assert case['tkd_passed'] == 1
+
+    def test_skor_tkd_kasus_luar_cabang_tidak_dibocorkan(self, app, db, logs):
+        db.cases.append({
+            'case_id': CASE_C, 'nik': '3573010101990003', 'nama': 'Citra',
+            'first_branch': 'BDG', 'status': 'AKTIF',
+            'first_seen_at': datetime(2026, 11, 23, 8, 0),
+            'tkd_score': 90.5, 'tkd_score_source': 'MANUAL',
+            'tkd_score_note': 'Koreksi BDG', 'tkd_passed': 1,
+        })
+
+        sby = next(c for c in _get(app, branch='SBY').get_json()['data']
+                   if c['case_id'] == CASE_C)
+        assert sby['tkd_score'] is None
+        assert sby['tkd_score_source'] is None
+        assert sby['tkd_score_note'] is None
+        assert sby['tkd_passed'] is None
+
+        bdg = next(c for c in _get(app, branch='BDG').get_json()['data']
+                   if c['case_id'] == CASE_C)
+        assert bdg['tkd_score'] == 90.5
+        assert bdg['tkd_score_source'] == 'MANUAL'
+        assert bdg['tkd_passed'] == 1
+
+    def test_admin_pusat_melihat_semua_skor_tkd(self, app, db, logs):
+        db.cases.append({
+            'case_id': CASE_C, 'nik': '3573010101990003', 'nama': 'Citra',
+            'first_branch': 'BDG', 'status': 'AKTIF',
+            'first_seen_at': datetime(2026, 11, 23, 8, 0),
+            'tkd_score': 90.5, 'tkd_score_source': 'MANUAL',
+            'tkd_score_note': 'Koreksi BDG', 'tkd_passed': 1,
+        })
+
+        citra = next(c for c in _get(app, role='admin', name='admin',
+                                     branch='').get_json()['data']
+                     if c['case_id'] == CASE_C)
+        assert citra['tkd_score'] == 90.5
+        assert citra['tkd_score_note'] == 'Koreksi BDG'
+
+    def test_tanpa_cabang_semua_skor_tkd_disembunyikan(self, app, db, logs):
+        # Non-HO tanpa cabang = sentinel fail-closed, bukan "semua cabang".
+        case = next(c for c in _get(app, branch='').get_json()['data']
+                    if c['case_id'] == CASE_A)
+        assert case['tkd_score'] is None
+        assert case['tkd_score_source'] is None
+        assert case['tkd_passed'] is None
 
     def test_riwayat_cabang_dan_langkah_termasuk(self, app, db, logs):
         case = next(c for c in _get(app).get_json()['data']

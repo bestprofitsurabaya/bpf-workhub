@@ -152,6 +152,31 @@ describe('RecruitmentTkdPanel', () => {
     expect(w.find('input[value="b"]').element.checked).toBe(true)
   })
 
+  it('memakai remaining_seconds, bukan expires_at tanpa zona waktu', async () => {
+    vi.useFakeTimers()
+    const w = await mountPanel({ status: 'success', data: {
+      ...BELUM.data, state: 'BERLANGSUNG', can_start: false,
+      active_attempt: { id: 'TKD-8', remaining_seconds: 900,
+        expires_at: '2000-01-01T00:00:00' } } })
+
+    expect(w.find('[data-timer]').text()).toBe('15:00')
+    vi.advanceTimersByTime(2000)
+    await flushPromises()
+    expect(apiMock.mock.calls.some(([path]) => path.endsWith('/submit'))).toBe(false)
+    w.unmount()
+  })
+
+  it('Escape menutup panel dan tidak mengaku sebagai modal', async () => {
+    const w = await mountPanel()
+
+    expect(w.find('.tkd-panel').attributes('aria-modal')).toBeUndefined()
+    await w.find('.tkd-panel').trigger('keydown', { key: 'Escape' })
+    await flushPromises()
+
+    expect(w.emitted('close')).toBeTruthy()
+    w.unmount()
+  })
+
   it('start ditolak 409 menampilkan pesan server dan menyegarkan status', async () => {
     const w = await mountPanel()
     apiMock.mockRejectedValueOnce(Object.assign(new Error('Kesempatan habis.'), { status: 409 }))

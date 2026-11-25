@@ -175,6 +175,7 @@ def test_attempts_memakai_scope_dan_filter_nik_asli(real_app, monkeypatch):
             'id': 'TKD-1', 'case_id': 'RC-1', 'nama': 'Andi', 'nik': _NIK,
             'branch_code': 'SBY', 'attempt_no': 1, 'status': 'SELESAI',
             'score': 60, 'passed': 0, 'score_source': 'AUTO',
+            'official_score': 60,
             'started_at': datetime(2026, 11, 24, 10, 0),
             'submitted_at': datetime(2026, 11, 24, 10, 20),
         }],
@@ -191,6 +192,7 @@ def test_attempts_memakai_scope_dan_filter_nik_asli(real_app, monkeypatch):
     assert r.status_code == 200
     row = r.get_json()['data'][0]
     assert row['nik_masked'] == '****0001' and 'nik' not in row
+    assert row['official_score'] == 60
     assert _NIK not in r.get_data(as_text=True)
     sql, params = next((s, p) for s, p in conn.statements
                        if 'FROM TKD_ATTEMPTS A JOIN' in s)
