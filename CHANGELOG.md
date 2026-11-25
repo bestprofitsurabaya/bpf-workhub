@@ -7,6 +7,18 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.135.1 — 26 November 2026 (Absensi training: H1/H2 di DB cabang)
+
+- Perbaikan hasil audit setelah uji langsung di NAS: bila data Pelamar sebuah
+  cabang disimpan di database cabang (bukan master), absensi training kini
+  mencari dan menulis H1/H2 ke database cabang itu. Sebelumnya pencarian
+  selalu ke master, sehingga cabang non-SBY tidak akan pernah terhubung.
+- Bila penulisan ke database cabang gagal, bukti absensi tetap tersimpan dan
+  ditandai “belum terhubung ke Pelamar” — tidak ada klaim palsu bahwa H1/H2
+  sudah terisi.
+- Tidak ada perubahan pada alur peserta: NIK + tanggal lahir, pilih hari,
+  konfirmasi.
+
 ## v2.135.0 — 25 November 2026 (Absensi training portal, 2 hari)
 
 - Portal rekrutmen kini punya langkah **Training Absensi** yang benar-benar

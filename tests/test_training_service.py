@@ -71,6 +71,13 @@ class _FakeCursor:
                 'applicant_id': applicant_id, 'stage': stage,
                 'attended_at': attended_at, 'marked_by': marked_by,
                 'note': note})
+        elif q.startswith('UPDATE TRAINING_ATTENDANCE SET APPLICANT_ID=NULL'):
+            link_status, case_id, branch, day = params
+            for r in self.conn.attendance:
+                if (r['case_id'] == case_id and r['branch_code'] == branch
+                        and int(r['day']) == int(day)):
+                    r['applicant_id'] = None
+                    r['link_status'] = link_status
         elif 'INSERT INTO RECRUITMENT_STEPS' in q:
             self.conn.steps.append(params)
         elif 'UPDATE APPLICANTS SET STATUS' in q:
@@ -275,3 +282,37 @@ def test_submit_ulang_hari_1_tidak_menurunkan_langkah_selesai():
     record_attendance(NIK, DOB, 'SBY', 2, conn=conn)
     record_attendance(NIK, DOB, 'SBY', 1, conn=conn)
     assert conn.steps[-1][1] == 'SELESAI'
+
+
+# ------------------------------------------------------------------
+# Cabang dengan DB terpisah: Pelamar dicari di DB cabang, bukti di master
+# ------------------------------------------------------------------
+
+def test_pelamar_dicari_di_db_cabang_bukan_master():
+    from modules.training_service import record_attendance
+    master = _FakeConn()                       # tanpa Pelamar
+    cabang = _FakeConn(applicants=[_pelamar(77)])
+    data = record_attendance(NIK, DOB, 'BDG', 1, conn=master, app_conn=cabang)
+    assert data['link_status'] == 'linked'
+    assert data['applicant_id'] == 77
+    assert master.attendance[0]['link_status'] == 'linked'
+    assert master.attendance[0]['applicant_id'] == 77
+    assert cabang.applicant_attendance[0]['stage'] == 'training_1'
+    assert cabang.status_updates == [('training_1', 77)]
+    assert master.status_updates == []
+
+
+def test_gagal_tulis_db_cabang_jadi_unlinked_tanpa_menipu():
+    from modules.training_service import record_attendance
+
+    class _Broken(_FakeConn):
+        def commit(self):
+            raise RuntimeError('db cabang mati')
+
+    master = _FakeConn()
+    cabang = _Broken(applicants=[_pelamar(77)])
+    data = record_attendance(NIK, DOB, 'BDG', 1, conn=master, app_conn=cabang)
+    assert data['link_status'] == 'unlinked'
+    assert data['applicant_id'] is None
+    assert master.attendance[0]['link_status'] == 'unlinked'
+    assert master.attendance[0]['applicant_id'] is None

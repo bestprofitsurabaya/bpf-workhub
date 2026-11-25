@@ -172,8 +172,27 @@ def _bump_applicant_status(cursor, applicant_id, stage):
             (stage, applicant_id))
 
 
+def _applicant_conn(branch, master_conn, app_conn=None):
+    """Koneksi DB tempat tabel `applicants` berada (master atau DB cabang).
+
+    Sejak pemisahan DB, Pelamar sebuah cabang bisa hidup di DB cabang, bukan
+    master. Bukti training tetap di master (sama seperti kasus rekrutmen),
+    tetapi penautan H1/H2 harus menulis ke DB yang dibaca dashboard Pelamar.
+    """
+    if app_conn is not None:
+        return app_conn, False
+    try:
+        from modules.config import (DB_CONFIG, get_db_connection,
+                                    resolve_db_name)
+        if resolve_db_name(branch) == DB_CONFIG['database']:
+            return master_conn, False
+        return get_db_connection(branch_code=branch), True
+    except Exception:
+        return None, False
+
+
 def record_attendance(nik, dob, branch_code, day, ip='', user_agent='',
-                      conn=None):
+                      conn=None, app_conn=None):
     """Catat satu hari absensi; kunci Hari 2 sampai Hari 1 tercatat."""
     try:
         day = int(day)
@@ -189,6 +208,8 @@ def record_attendance(nik, dob, branch_code, day, ip='', user_agent='',
     if not conn:
         return {'ok': False, 'error': 'db'}
     cursor = conn.cursor(dictionary=True)
+    app_conn, own_app = _applicant_conn(branch, conn, app_conn)
+    app_cursor = app_conn.cursor(dictionary=True) if app_conn else None
     try:
         case = _case_for(cursor, nik, dob)
         if not case:
@@ -198,7 +219,9 @@ def record_attendance(nik, dob, branch_code, day, ip='', user_agent='',
         if day == 2 and days.get(1) is None:
             return {'ok': False, 'error': 'day2_locked'}
 
-        applicant_id, link_status = _resolve_applicant(cursor, nik)
+        applicant_id, link_status = (None, 'unlinked')
+        if app_cursor is not None:
+            applicant_id, link_status = _resolve_applicant(app_cursor, nik)
         now = datetime.now()
         cursor.execute(
             """INSERT INTO training_attendance
@@ -241,17 +264,34 @@ def record_attendance(nik, dob, branch_code, day, ip='', user_agent='',
                ON DUPLICATE KEY UPDATE last_seen_at=VALUES(last_seen_at)""",
             (case_id, branch, now, now))
 
-        if applicant_id:
-            stage = STAGE_FOR_DAY[day]
-            cursor.execute(
-                """INSERT INTO applicant_attendance
-                       (applicant_id, stage, attended_at, marked_by, note)
-                   VALUES (%s,%s,%s,%s,%s)
-                   ON DUPLICATE KEY UPDATE attended_at=VALUES(attended_at),
-                       marked_by=VALUES(marked_by), note=VALUES(note)""",
-                (applicant_id, stage, now, 'Portal Training',
-                 f'Absensi portal {ATTENDANCE_LABEL[day]}'))
-            _bump_applicant_status(cursor, applicant_id, stage)
+        if applicant_id and app_cursor is not None:
+            try:
+                stage = STAGE_FOR_DAY[day]
+                app_cursor.execute(
+                    """INSERT INTO applicant_attendance
+                           (applicant_id, stage, attended_at, marked_by, note)
+                       VALUES (%s,%s,%s,%s,%s)
+                       ON DUPLICATE KEY UPDATE attended_at=VALUES(attended_at),
+                           marked_by=VALUES(marked_by), note=VALUES(note)""",
+                    (applicant_id, stage, now, 'Portal Training',
+                     f'Absensi portal {ATTENDANCE_LABEL[day]}'))
+                _bump_applicant_status(app_cursor, applicant_id, stage)
+                # Koneksi terpisah = transaksi terpisah (master vs DB cabang).
+                if app_conn is not conn:
+                    app_conn.commit()
+            except Exception:
+                # Bukti tetap sah, tetapi jangan mengklaim Pelamar terhubung
+                # bila H1/H2 gagal ditulis (mis. DB cabang sedang mati).
+                try:
+                    if app_conn is not conn:
+                        app_conn.rollback()
+                except Exception:
+                    pass
+                applicant_id, link_status = None, 'unlinked'
+                cursor.execute(
+                    'UPDATE training_attendance SET applicant_id=NULL, '
+                    'link_status=%s WHERE case_id=%s AND branch_code=%s '
+                    'AND day=%s', (link_status, case_id, branch, day))
 
         if own:
             conn.commit()
@@ -271,13 +311,19 @@ def record_attendance(nik, dob, branch_code, day, ip='', user_agent='',
                 pass
         return {'ok': False, 'error': 'db'}
     finally:
-        try:
-            cursor.close()
-        except Exception:
-            pass
+        for cur in (app_cursor, cursor):
+            if cur is not None:
+                try:
+                    cur.close()
+                except Exception:
+                    pass
+        if own_app and app_conn:
+            try:
+                app_conn.close()
+            except Exception:
+                pass
         if own:
             try:
                 conn.close()
             except Exception:
                 pass
-
