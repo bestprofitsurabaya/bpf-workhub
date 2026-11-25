@@ -10,6 +10,16 @@ const BELUM = { status: 'success', data: {
   state: 'BELUM', official_score: null, score_source: null, attempts_used: 0,
   max_attempts: 2, active_attempt: null, can_start: true, pass_score: 70,
   question_count: 20, duration_minutes: 25, bank_ready: true } }
+const MCQ_ONE = [{ position: 1, type: 'MCQ', prompt: 'Pilih satu',
+  options: [{ id: 'a', text: 'A' }, { id: 'b', text: 'B' }] }]
+
+function examData(attemptId, questions, overrides = {}) {
+  return { status: 'success', data: {
+    attempt_id: attemptId, attempt_no: 1, modal_tier: '30k',
+    expires_at: new Date(Date.now() + 1500000).toISOString(),
+    remaining_seconds: 1500, duration_minutes: 25,
+    questions, answers: {}, ...overrides } }
+}
 
 async function mountPanel(status = BELUM) {
   apiMock.mockResolvedValueOnce(status)
@@ -18,9 +28,33 @@ async function mountPanel(status = BELUM) {
   return w
 }
 
+async function enterExam(w, attemptId, questions, overrides) {
+  apiMock.mockResolvedValueOnce(examData(attemptId, questions, overrides))
+  await w.find('[data-action="start"]').trigger('click')
+  await flushPromises()
+}
+
+async function finishExam(result, refreshedStatus) {
+  const w = await mountPanel()
+  await enterExam(w, 'TKD-R', MCQ_ONE)
+  apiMock.mockResolvedValueOnce({ status: 'success', data: result })
+  if (refreshedStatus) apiMock.mockResolvedValueOnce({ status: 'success', data: refreshedStatus })
+  await w.find('[data-action="submit"]').trigger('click')
+  await flushPromises()
+  await flushPromises()
+  return w
+}
+
+function putCalls() {
+  return apiMock.mock.calls.filter(([, opts]) => opts?.method === 'PUT')
+}
+
 describe('RecruitmentTkdPanel', () => {
   beforeEach(() => vi.clearAllMocks())
-  afterEach(() => vi.useRealTimers())
+  afterEach(() => {
+    vi.useRealTimers()
+    apiMock.mockReset()
+  })
 
   it('status BELUM menampilkan aturan dan pilihan modal', async () => {
     const w = await mountPanel()
@@ -186,5 +220,213 @@ describe('RecruitmentTkdPanel', () => {
     expect(w.text()).toContain('Aman?')
     expect(w.text()).not.toContain('rahasia')
     expect(w.text()).not.toContain('Kunci')
+  })
+
+  it('pindah soal dalam jendela debounce tetap menyimpan jawaban kedua posisi', async () => {
+    vi.useFakeTimers()
+    const w = await mountPanel()
+    const questions = [
+      { position: 1, type: 'MCQ', prompt: 'Satu',
+        options: [{ id: 'a', text: 'A' }, { id: 'b', text: 'B' }] },
+      { position: 2, type: 'MCQ', prompt: 'Dua',
+        options: [{ id: 'a', text: 'A' }, { id: 'b', text: 'B' }] },
+    ]
+    await enterExam(w, 'TKD-8', questions)
+
+    await w.find('input[value="b"]').setValue(true)
+    await w.find('[data-action="next"]').trigger('click')
+    await flushPromises()
+    expect(w.text()).toContain('Soal 2 dari 2')
+
+    await w.find('input[value="a"]').setValue(true)
+    vi.advanceTimersByTime(600)
+    await flushPromises()
+
+    expect(putCalls()).toEqual([
+      ['/api/recruitment/tkd/attempts/TKD-8/answers/1', {
+        method: 'PUT', body: { answer: { option: 'b' } } }],
+      ['/api/recruitment/tkd/attempts/TKD-8/answers/2', {
+        method: 'PUT', body: { answer: { option: 'a' } } }],
+    ])
+  })
+
+  it('tombol Sebelumnya dalam jendela debounce tetap menyimpan jawaban', async () => {
+    vi.useFakeTimers()
+    const w = await mountPanel()
+    const questions = [
+      { position: 1, type: 'MCQ', prompt: 'Satu', options: [{ id: 'a', text: 'A' }] },
+      { position: 2, type: 'MCQ', prompt: 'Dua', options: [{ id: 'a', text: 'A' }] },
+    ]
+    await enterExam(w, 'TKD-9', questions)
+    await w.find('[data-action="next"]').trigger('click')
+    await flushPromises()
+    await w.find('input[value="a"]').setValue(true)
+    await w.find('[data-action="prev"]').trigger('click')
+    await flushPromises()
+
+    expect(putCalls()).toEqual([[
+      '/api/recruitment/tkd/attempts/TKD-9/answers/2',
+      { method: 'PUT', body: { answer: { option: 'a' } } },
+    ]])
+    expect(w.text()).toContain('Soal 1 dari 2')
+  })
+
+  it('Selesai menunggu PUT autosave selesai sebelum mengirim submit', async () => {
+    vi.useFakeTimers()
+    const w = await mountPanel()
+    await enterExam(w, 'TKD-5', MCQ_ONE)
+    let resolvePut
+    apiMock.mockImplementationOnce(() => new Promise((resolve) => { resolvePut = resolve }))
+    apiMock.mockResolvedValueOnce({ status: 'success', data: {
+      score: 80, passed: true, official_score: 80,
+      attempts_used: 1, max_attempts: 2, state: 'LULUS' } })
+
+    await w.find('input[value="a"]').setValue(true)
+    vi.advanceTimersByTime(600)
+    await flushPromises()
+    await w.find('[data-action="submit"]').trigger('click')
+    await flushPromises()
+
+    expect(apiMock.mock.calls.some(([path]) => path.endsWith('/submit'))).toBe(false)
+
+    resolvePut({ status: 'success' })
+    await flushPromises()
+    await flushPromises()
+
+    expect(apiMock.mock.calls.slice(0, 4).map(([path]) => path)).toEqual([
+      '/api/recruitment/tkd/status',
+      '/api/recruitment/tkd/start',
+      '/api/recruitment/tkd/attempts/TKD-5/answers/1',
+      '/api/recruitment/tkd/attempts/TKD-5/submit',
+    ])
+  })
+
+  it('PUT gagal saat flush sebelum submit membatalkan submit dan menampilkan pesan server', async () => {
+    vi.useFakeTimers()
+    const w = await mountPanel()
+    await enterExam(w, 'TKD-6', MCQ_ONE)
+    apiMock.mockImplementation(() => Promise.reject(
+      Object.assign(new Error('Jawaban ditolak server.'), { status: 500 })))
+
+    await w.find('input[value="a"]').setValue(true)
+    vi.advanceTimersByTime(600)
+    await flushPromises()
+    await w.find('[data-action="submit"]').trigger('click')
+    await flushPromises()
+    await flushPromises()
+
+    expect(apiMock.mock.calls.some(([path]) => path.endsWith('/submit'))).toBe(false)
+    expect(w.text()).toContain('Soal 1 dari 1')
+    expect(w.text()).toContain('Jawaban ditolak server.')
+  })
+
+  it('hasil LULUS tidak menawarkan Coba lagi meski status lama mengizinkan', async () => {
+    const w = await finishExam({ state: 'LULUS', score: 90, passed: true,
+      official_score: 90, attempts_used: 1, max_attempts: 2,
+      message: 'Selamat, Anda lulus TKD.' },
+    { ...BELUM.data, state: 'LULUS', can_start: true })
+
+    expect(w.find('[data-action="retry"]').exists()).toBe(false)
+    expect(w.text()).toContain('Selamat, Anda lulus TKD.')
+  })
+
+  it('hasil HABIS tidak menawarkan Coba lagi meski status lama mengizinkan', async () => {
+    const w = await finishExam({ state: 'HABIS', score: 50, passed: false,
+      attempts_used: 2, max_attempts: 2, message: 'Kesempatan habis.' },
+    { ...BELUM.data, state: 'HABIS', can_start: true })
+
+    expect(w.find('[data-action="retry"]').exists()).toBe(false)
+  })
+
+  it('hasil BISA_COBA dengan sisa kesempatan menawarkan Coba lagi', async () => {
+    const w = await finishExam({ state: 'BISA_COBA', score: 50, passed: false,
+      attempts_used: 1, max_attempts: 2, message: 'Anda masih bisa mencoba lagi.' },
+    { ...BELUM.data, state: 'BISA_COBA', can_start: false })
+
+    expect(w.find('[data-action="retry"]').exists()).toBe(true)
+    expect(w.text()).toContain('Anda masih bisa mencoba lagi.')
+  })
+
+  it('hasil BISA_COBA tanpa sisa kesempatan tidak menawarkan Coba lagi', async () => {
+    const w = await finishExam({ state: 'BISA_COBA', score: 50, passed: false,
+      attempts_used: 2, max_attempts: 2 },
+    { ...BELUM.data, state: 'BISA_COBA', can_start: true })
+
+    expect(w.find('[data-action="retry"]').exists()).toBe(false)
+  })
+
+  it('hasil BISA_COBA tanpa angka kesempatan tidak menawarkan Coba lagi', async () => {
+    const w = await finishExam({ state: 'BISA_COBA', score: 50, passed: false },
+      { ...BELUM.data, state: 'BISA_COBA', can_start: true })
+
+    expect(w.find('[data-action="retry"]').exists()).toBe(false)
+  })
+
+  it('intro BERLANGSUNG menampilkan sisa waktu dari active_attempt', async () => {
+    const w = await mountPanel({ status: 'success', data: {
+      ...BELUM.data, state: 'BERLANGSUNG', can_start: false,
+      active_attempt: { id: 'TKD-7', remaining_seconds: 900,
+        expires_at: new Date(Date.now() + 900000).toISOString() } } })
+
+    expect(w.text()).toContain('Sisa waktu:')
+    expect(w.find('[data-timer]').text()).not.toBe('00:00')
+    w.unmount()
+  })
+
+  it('Tutup dengan jawaban tertunda mengirim PUT sebelum emit close', async () => {
+    vi.useFakeTimers()
+    const w = await mountPanel()
+    await enterExam(w, 'TKD-10', MCQ_ONE)
+    let resolvePut
+    apiMock.mockImplementationOnce(() => new Promise((resolve) => { resolvePut = resolve }))
+
+    await w.find('input[value="a"]').setValue(true)
+    await w.find('[data-action="close"]').trigger('click')
+    await flushPromises()
+
+    expect(putCalls()).toHaveLength(1)
+    expect(w.emitted('close')).toBeUndefined()
+
+    resolvePut({ status: 'success' })
+    await flushPromises()
+    await flushPromises()
+
+    expect(w.emitted('close')).toHaveLength(1)
+  })
+
+  it('submit gagal saat waktu habis tidak mengulang submit otomatis', async () => {
+    vi.useFakeTimers()
+    const w = await mountPanel()
+    await enterExam(w, 'TKD-12', MCQ_ONE, {
+      expires_at: new Date(Date.now() + 1000).toISOString(),
+      remaining_seconds: 1,
+    })
+    apiMock.mockRejectedValueOnce(new Error('Gagal mengumpulkan sementara.'))
+
+    vi.advanceTimersByTime(1100)
+    await flushPromises()
+    expect(apiMock.mock.calls.filter(([path]) => path.endsWith('/submit'))).toHaveLength(1)
+    expect(w.text()).toContain('Gagal mengumpulkan sementara.')
+
+    vi.advanceTimersByTime(5000)
+    await flushPromises()
+    expect(apiMock.mock.calls.filter(([path]) => path.endsWith('/submit'))).toHaveLength(1)
+    expect(w.find('[data-action="submit"]').exists()).toBe(true)
+  })
+
+  it('unmount dengan jawaban tertunda tetap mengirim PUT', async () => {
+    vi.useFakeTimers()
+    const w = await mountPanel()
+    await enterExam(w, 'TKD-11', MCQ_ONE)
+    apiMock.mockResolvedValueOnce({ status: 'success' })
+
+    await w.find('input[value="b"]').setValue(true)
+    w.unmount()
+    await flushPromises()
+
+    expect(putCalls()).toEqual([[
+      '/api/recruitment/tkd/attempts/TKD-11/answers/1',
+      { method: 'PUT', body: { answer: { option: 'b' } } },
+    ]])
   })
 })

@@ -41,7 +41,11 @@ const TIERS = [
 
 let ticker = null
 let saveTimer = null
-let pendingSave = null
+let disposed = false
+// Satu slot pending tidak cukup: jawaban soal sebelumnya bisa tertimpa sebelum
+// sempat dikirim. Simpan satu entri per posisi soal.
+const pendingSaves = new Map()
+const inflight = new Set()
 
 const rules = computed(() => {
   const s = status.value || {}
@@ -64,12 +68,29 @@ const progress = computed(() =>
   questions.value.length ? ((index.value + 1) / questions.value.length) * 100 : 0)
 const canStart = computed(() =>
   Boolean(status.value?.can_start) && status.value?.bank_ready !== false)
-const canRetry = computed(() => Boolean(status.value?.can_start))
+
+// Angka kosong/tidak valid tidak boleh dianggap 0: lebih aman menolak.
+function attemptNumbers() {
+  const source = result.value || status.value || {}
+  const used = source.attempts_used
+  const max = source.max_attempts
+  if ([used, max].some((v) => v === undefined || v === null || v === '')) return null
+  const usedN = Number(used)
+  const maxN = Number(max)
+  if (!Number.isFinite(usedN) || !Number.isFinite(maxN)) return null
+  return { used: usedN, max: maxN }
+}
+
+// Setelah submit, hasil dari server yang berwenang menentukan kesempatan.
+// Status lama boleh basi (misal refresh gagal), jadi tidak boleh dipakai.
+const canRetry = computed(() => {
+  if (!result.value) return Boolean(status.value?.can_start)
+  const numbers = attemptNumbers()
+  return result.value.state === 'BISA_COBA' && Boolean(numbers) && numbers.used < numbers.max
+})
 const remainingAttempts = computed(() => {
-  const used = result.value?.attempts_used ?? status.value?.attempts_used
-  const max = result.value?.max_attempts ?? status.value?.max_attempts
-  if (used === undefined || used === null || max === undefined || max === null) return null
-  return Math.max(0, Number(max) - Number(used))
+  const numbers = attemptNumbers()
+  return numbers ? Math.max(0, numbers.max - numbers.used) : null
 })
 const stateLabel = computed(() => ({
   BELUM: 'Belum pernah tes',
@@ -122,7 +143,16 @@ function clearSave() {
     clearTimeout(saveTimer)
     saveTimer = null
   }
-  pendingSave = null
+  pendingSaves.clear()
+}
+
+function seedExpiry(data) {
+  const rawExpiry = String(data?.expires_at || '').replace(' ', 'T')
+  const parsed = Date.parse(rawExpiry)
+  expiresMs.value = Number.isFinite(parsed)
+    ? parsed
+    : Date.now() + Number(data?.remaining_seconds || 0) * 1000
+  startTicker()
 }
 
 async function loadStatus({ quiet = false } = {}) {
@@ -137,6 +167,13 @@ async function loadStatus({ quiet = false } = {}) {
         { status: resp.status })
     }
     status.value = resp.data || null
+    // Ujian yang masih berlangsung punya deadline di payload status. Tampilkan
+    // hitung mundurnya sejak intro; ticker tidak akan mengirim submit di intro.
+    if (status.value?.state === 'BERLANGSUNG' && status.value?.active_attempt) {
+      seedExpiry(status.value.active_attempt)
+    } else if (mode.value !== 'exam') {
+      stopTicker()
+    }
     return status.value
   } catch (e) {
     if (!quiet) {
@@ -168,12 +205,7 @@ function enterExam(data) {
   msg.value = ''
   mode.value = 'exam'
 
-  const rawExpiry = String(data?.expires_at || '').replace(' ', 'T')
-  const parsed = Date.parse(rawExpiry)
-  expiresMs.value = Number.isFinite(parsed)
-    ? parsed
-    : Date.now() + Number(data?.remaining_seconds || 0) * 1000
-  startTicker()
+  seedExpiry(data)
   if (remainingSeconds.value <= 0) void submit()
 }
 
@@ -231,35 +263,40 @@ async function resume() {
   }
 }
 
-async function persistAnswer() {
-  if (saveTimer !== null) {
-    clearTimeout(saveTimer)
-    saveTimer = null
-  }
-  const pending = pendingSave
-  pendingSave = null
-  if (!pending || !attempt.value?.attempt_id) return
-  try {
-    const resp = await api(
-      `/api/recruitment/tkd/attempts/${encodeURIComponent(attempt.value.attempt_id)}/answers/${pending.position}`,
-      { method: 'PUT', body: pending.body })
-    if (resp && resp.status && resp.status !== 'success') {
-      throw Object.assign(new Error(resp.msg || 'Jawaban gagal disimpan.'),
-        { status: resp.status, data: resp })
+// Satu PUT = satu janji yang tercatat. Menyimpan promise-nya membuat submit
+// bisa menunggu semua penulisan jawaban selesai sebelum mengeksekusi grading.
+function sendSave(position, body) {
+  const attemptId = attempt.value?.attempt_id
+  if (!attemptId) return Promise.resolve(false)
+  const task = (async () => {
+    try {
+      const resp = await api(
+        `/api/recruitment/tkd/attempts/${encodeURIComponent(attemptId)}/answers/${position}`,
+        { method: 'PUT', body })
+      if (resp && resp.status && resp.status !== 'success') {
+        throw Object.assign(new Error(resp.msg || 'Jawaban gagal disimpan.'),
+          { status: resp.status, data: resp })
+      }
+      if (resp?.data?.result) showResult(resp.data.result)
+      return true
+    } catch (e) {
+      if (e?.status === 409 && (e?.data?.data || e?.data?.result)) {
+        showResult(e.data.data || e.data.result)
+        return true
+      }
+      saveStatus.value = 'Gagal menyimpan'
+      msg.value = messageOf(e, 'Jawaban gagal disimpan.')
+      // Kembali antre supaya klik Selesai/berpindah soal berikutnya bisa retry.
+      if (!disposed && mode.value === 'exam' && attempt.value?.attempt_id === attemptId) {
+        pendingSaves.set(position, body)
+      }
+      return false
     }
-    if (resp?.data?.result) {
-      showResult(resp.data.result)
-      return
-    }
-    if (!pendingSave) saveStatus.value = 'Tersimpan'
-  } catch (e) {
-    if (e?.status === 409 && (e?.data?.data || e?.data?.result)) {
-      showResult(e.data.data || e.data.result)
-      return
-    }
-    saveStatus.value = 'Gagal menyimpan'
-    msg.value = messageOf(e, 'Jawaban gagal disimpan.')
-  }
+  })()
+  inflight.add(task)
+  const done = () => inflight.delete(task)
+  task.then(done, done)
+  return task
 }
 
 function answerOf(q) {
@@ -281,17 +318,28 @@ function setAnswer(q, value) {
   }
   answers[q.position] = body.answer
   if (saveTimer !== null) clearTimeout(saveTimer)
-  pendingSave = { position: q.position, body }
+  pendingSaves.set(q.position, body)
   saveStatus.value = 'Menyimpan…'
-  saveTimer = setTimeout(() => { void persistAnswer() }, 500)
+  saveTimer = setTimeout(() => { void flushSave() }, 500)
 }
 
+// Kirim semua posisi yang tertunda dan tunggu baik PUT lama maupun PUT baru.
+// Mengembalikan false bila ada yang gagal, sehingga submit bisa dibatalkan.
 async function flushSave() {
   if (saveTimer !== null) {
     clearTimeout(saveTimer)
     saveTimer = null
   }
-  if (pendingSave) await persistAnswer()
+  const queued = [...pendingSaves.entries()]
+  pendingSaves.clear()
+  const running = [...inflight]
+  const sends = queued.map(([position, body]) => sendSave(position, body))
+  const results = await Promise.allSettled([...running, ...sends])
+  const ok = results.every((r) => r.status === 'fulfilled' && r.value !== false)
+  if (ok && pendingSaves.size === 0 && (queued.length || running.length)) {
+    saveStatus.value = 'Tersimpan'
+  }
+  return ok
 }
 
 async function submit() {
@@ -300,7 +348,15 @@ async function submit() {
   if (submitting.value || mode.value !== 'exam' || !attempt.value?.attempt_id) return
   submitting.value = true
   stopTicker()
-  await flushSave()
+  const saved = await flushSave()
+  if (!saved) {
+    // Jangan grading dari jawaban yang belum tersimpan di server.
+    msg.value = msg.value || 'Gagal menyimpan jawaban. Coba lagi.'
+    saveStatus.value = 'Gagal menyimpan'
+    submitting.value = false
+    if (mode.value === 'exam' && remainingSeconds.value > 0) startTicker()
+    return
+  }
   if (mode.value !== 'exam') {
     submitting.value = false
     return
@@ -322,7 +378,8 @@ async function submit() {
     } else {
       msg.value = messageOf(e, 'Ujian gagal dikumpulkan. Coba lagi.')
       submitting.value = false
-      if (mode.value === 'exam') startTicker()
+      // Pada nol detik tidak ada auto-submit lagi: pelamar klik Selesai sendiri.
+      if (mode.value === 'exam' && remainingSeconds.value > 0) startTicker()
       return
     }
   }
@@ -335,8 +392,24 @@ async function retry() {
   await loadStatus()
 }
 
-function close() {
-  emit('close')
+async function goPrev() {
+  if (index.value === 0) return
+  await flushSave()
+  if (mode.value === 'exam') index.value -= 1
+}
+
+async function goNext() {
+  if (index.value >= questions.value.length - 1) return
+  await flushSave()
+  if (mode.value === 'exam') index.value += 1
+}
+
+async function close() {
+  try {
+    await flushSave()
+  } finally {
+    emit('close')
+  }
 }
 
 onMounted(async () => {
@@ -345,8 +418,12 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  disposed = true
   stopTicker()
+  const queued = [...pendingSaves.entries()]
   clearSave()
+  // Best effort: PUT tetap dikirim walau komponen sudah tidak dirender.
+  for (const [position, body] of queued) void sendSave(position, body)
 })
 </script>
 
@@ -430,11 +507,11 @@ onBeforeUnmount(() => {
       <p v-if="msg" class="tkd-msg" role="alert">{{ msg }}</p>
 
       <nav class="tkd-nav">
-        <button type="button" data-action="prev" :disabled="index === 0" @click="index -= 1">
+        <button type="button" data-action="prev" :disabled="index === 0" @click="goPrev">
           Sebelumnya
         </button>
         <button v-if="index < questions.length - 1" type="button" data-action="next"
-          @click="index += 1">
+          @click="goNext">
           Berikutnya
         </button>
         <button v-else type="button" data-action="submit" :disabled="submitting" @click="submit">
@@ -455,7 +532,7 @@ onBeforeUnmount(() => {
         {{ result?.passed ? 'Lulus' : 'Tidak lulus' }}
       </p>
       <p v-if="remainingAttempts !== null">Sisa kesempatan: {{ remainingAttempts }}</p>
-      <p v-if="result?.msg">{{ result.msg }}</p>
+      <p v-if="result?.message || result?.msg">{{ result?.message || result?.msg }}</p>
       <button v-if="canRetry" type="button" data-action="retry" @click="retry">Coba lagi</button>
       <p v-else>Hubungi Traineer cabang.</p>
     </div>
