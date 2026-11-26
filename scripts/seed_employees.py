@@ -133,8 +133,7 @@ def main(argv=None):
                 continue
             try:
                 c = conn.cursor(dictionary=True)
-                c.execute('SELECT DISTINCT nama, jabatan, created_at '
-                          'FROM employee_inout')
+                c.execute('SELECT DISTINCT nama, jabatan FROM employee_inout')
                 for r in c.fetchall() or []:
                     item = dict(r)
                     item['branch_code'] = code
