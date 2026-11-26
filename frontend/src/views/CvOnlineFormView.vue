@@ -8,8 +8,11 @@ const STEPS = ['Sumber & Undangan', 'Data Pribadi', 'Pendidikan & Pengalaman', '
 const linkParams = new URLSearchParams(window.location.search)
 const linkBranch = (linkParams.get('cabang') || linkParams.get('branch') || '').trim().toUpperCase()
 const linkToken = (linkParams.get('t') || linkParams.get('token') || '').trim()
+const portalSession = (linkParams.get('s') || '').trim()
+const sessionMode = computed(() => Boolean(portalSession))
 
 const branchLabel = ref('')
+const maskedNik = ref('')
 const resolvedBranch = ref(linkBranch)
 const linkState = ref('loading')
 const linkError = ref('')
@@ -122,6 +125,7 @@ async function loadMeta() {
     const params = new URLSearchParams()
     if (linkBranch) params.set('cabang', linkBranch)
     if (linkToken) params.set('t', linkToken)
+    if (portalSession) params.set('s', portalSession)
     const query = params.toString() ? `?${params.toString()}` : ''
     const response = await fetch('/api/cv-online/form-meta' + query,
       { headers: { Accept: 'application/json' } })
@@ -133,6 +137,8 @@ async function loadMeta() {
     }
     branchLabel.value = data.branch_name || ''
     resolvedBranch.value = data.branch || linkBranch
+    maskedNik.value = data.nik_masked || ''
+    if (sessionMode.value && data.nama && !form.nama) form.nama = data.nama
     Object.assign(options, data.options || {})
     linkState.value = 'ok'
   } catch {
@@ -150,12 +156,12 @@ function stepError(index) {
     if (!form.kontak_tidak_serumah.trim()) return 'Kontak tidak serumah wajib diisi.'
   }
   if (index === 1) {
-    if (!nikInfo.value.valid) return 'NIK sesuai KTP wajib 16 digit angka.'
+    if (!sessionMode.value && !nikInfo.value.valid) return 'NIK sesuai KTP wajib 16 digit angka.'
     if (form.nama.trim().length < 3) return 'Nama Lengkap sesuai KTP wajib diisi (min. 3 karakter).'
     if (!form.tempat_lahir.trim()) return 'Tempat Lahir wajib diisi.'
-    if (!form.tanggal_lahir) return 'Tanggal Lahir wajib diisi.'
-    if (form.tanggal_lahir > today) return 'Tanggal Lahir tidak boleh di masa depan.'
-    if (!form.jenis_kelamin) return 'Jenis Kelamin wajib dipilih.'
+    if (!sessionMode.value && !form.tanggal_lahir) return 'Tanggal Lahir wajib diisi.'
+    if (!sessionMode.value && form.tanggal_lahir > today) return 'Tanggal Lahir tidak boleh di masa depan.'
+    if (!sessionMode.value && !form.jenis_kelamin) return 'Jenis Kelamin wajib dipilih.'
     if (!form.domisili) return 'Domisili wajib dipilih.'
     if (!form.alamat.trim()) return 'Alamat sesuai KTP wajib diisi.'
     if (!form.no_hp.trim()) return 'Nomor Handphone wajib diisi.'
@@ -204,13 +210,15 @@ async function submit() {
     return
   }
   error.value = ''
-  // NIK selalu dikirim sebagai 16 digit (sama seperti normalisasi server).
-  form.nik = nikInfo.value.digits.slice(0, 16)
+  // Tanpa sesi: NIK diketik pengguna dan dinormalisasi di sini. Dengan sesi,
+  // NIK/DOB/jenis kelamin berasal dari token dan tidak dikirim dari form.
+  if (!sessionMode.value) form.nik = nikInfo.value.digits.slice(0, 16)
   const payload = new FormData()
   Object.entries(form).forEach(([key, value]) => payload.append(key, String(value ?? '').trim()))
   payload.append('no_hp', hpInfo.value.hp || form.no_hp)
   payload.append('branch', resolvedBranch.value)
   if (linkToken) payload.append('t', linkToken)
+  if (portalSession) payload.append('s', portalSession)
   payload.append('consent', '1')
 
   submitting.value = true
@@ -368,7 +376,11 @@ onBeforeUnmount(() => { /* tidak ada timer/stream yang perlu dibersihkan */ })
 
           <!-- Langkah 2: data pribadi -->
           <template v-else-if="step === 1">
-            <div class="cv-field">
+            <div v-if="sessionMode" class="cv-field">
+              <label>NIK</label>
+              <p class="cv-hint">{{ maskedNik || 'NIK dari tautan portal' }} — tidak perlu diketik ulang.</p>
+            </div>
+            <div v-else class="cv-field">
               <label>NIK sesuai KTP <span class="req">*</span></label>
               <input class="input" :value="form.nik" aria-label="NIK sesuai KTP"
                      inputmode="numeric" autocomplete="off" maxlength="16"
@@ -393,13 +405,13 @@ onBeforeUnmount(() => { /* tidak ada timer/stream yang perlu dibersihkan */ })
                      placeholder="Isilah sesuai KTP" />
             </div>
 
-            <div class="cv-field">
+            <div v-if="!sessionMode" class="cv-field">
               <label>Tanggal Lahir <span class="req">*</span></label>
               <input class="input" type="date" v-model="form.tanggal_lahir" :max="today" />
               <small class="cv-hint">Isilah sesuai KTP.</small>
             </div>
 
-            <div class="cv-field">
+            <div v-if="!sessionMode" class="cv-field">
               <label>Jenis Kelamin <span class="req">*</span></label>
               <select class="select" v-model="form.jenis_kelamin">
                 <option value="">— Pilih —</option>
@@ -497,7 +509,7 @@ onBeforeUnmount(() => { /* tidak ada timer/stream yang perlu dibersihkan */ })
           <template v-else>
             <div class="cv-review">
               <h4>Ringkasan</h4>
-              <div><span>NIK</span><b>{{ maskNik(form.nik) || '—' }}</b></div>
+              <div><span>NIK</span><b>{{ (sessionMode ? maskedNik : maskNik(form.nik)) || '—' }}</b></div>
               <div><span>Nama</span><b>{{ form.nama || '—' }}</b></div>
               <div><span>Tempat / Tanggal Lahir</span><b>{{ form.tempat_lahir || '—' }}<template v-if="form.tanggal_lahir">, {{ form.tanggal_lahir }}</template></b></div>
               <div><span>Jenis Kelamin</span><b>{{ form.jenis_kelamin || '—' }}</b></div>

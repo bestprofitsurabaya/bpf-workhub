@@ -5,7 +5,7 @@ import RecruitmentTkdPanel from './RecruitmentTkdPanel.vue'
 const { apiMock } = vi.hoisted(() => ({ apiMock: vi.fn() }))
 vi.mock('../api', () => ({ api: apiMock }))
 
-const PROPS = { token: 'tok', nik: '3573010101990001', dob: '1999-01-01' }
+const PROPS = { token: 'tok', session: 'session-token' }
 const BELUM = { status: 'success', data: {
   state: 'BELUM', official_score: null, score_source: null, attempts_used: 0,
   max_attempts: 2, active_attempt: null, can_start: true, pass_score: 70,
@@ -59,7 +59,7 @@ describe('RecruitmentTkdPanel', () => {
   it('status BELUM menampilkan aturan dan pilihan modal', async () => {
     const w = await mountPanel()
     expect(apiMock).toHaveBeenCalledWith('/api/recruitment/tkd/status', {
-      method: 'POST', body: { nik: PROPS.nik, dob: PROPS.dob, token: PROPS.token } })
+      method: 'POST', body: { token: PROPS.token, s: PROPS.session } })
     const text = w.text()
     expect(text).toContain('20 soal')
     expect(text).toContain('25 menit')
@@ -100,7 +100,7 @@ describe('RecruitmentTkdPanel', () => {
     await w.find('[data-action="start"]').trigger('click')
     await flushPromises()
     expect(apiMock).toHaveBeenLastCalledWith('/api/recruitment/tkd/start', {
-      method: 'POST', body: { nik: PROPS.nik, dob: PROPS.dob, token: PROPS.token, modal_tier: '30k' } })
+      method: 'POST', body: { token: PROPS.token, s: PROPS.session, modal_tier: '30k' } })
     expect(w.text()).toContain('Pertanyaan 1')
     expect(w.text()).not.toContain('kunci')
   })

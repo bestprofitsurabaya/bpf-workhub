@@ -29,6 +29,8 @@ from modules.helpers import (role_required, log_activity_async, client_ip,
 # Rilis A: kasus/langkah rekrutmen ditulis di transaksi submit yang sama.
 from modules.recruitment_service import upsert_case_step
 from modules.recruitment_events import record_event
+from modules.portal_token import verify_session_token
+from modules.nik_utils import birth_date_from_nik, gender_from_nik
 
 # ================================================================
 # KONSTANTA
@@ -251,11 +253,37 @@ def _form_path(branch_code, token=''):
 # ================================================================
 # VALIDASI & NOMOR REGISTRASI
 # ================================================================
-def validate_payload(form):
+def _session_from_request():
+    """Ambil sesi portal dari `s` (query/body); tidak pernah membaca DOB."""
+    raw = str(request.args.get('s') or request.form.get('s') or '').strip()
+    if not raw:
+        return None, ''
+    data = verify_session_token(raw)
+    if not data:
+        return None, 'Sesi portal tidak valid atau kedaluwarsa.'
+    return data, ''
+
+
+def _masked(nik):
+    text = str(nik or '')
+    return ('****' + text[-4:]) if text else '****'
+
+
+def validate_payload(form, session=None):
     """Validasi isian form publik. Return (data, error_message)."""
-    # NIK (Rilis A): kunci identitas rekrutmen. Normalisasi memakai helper yang
-    # SAMA dengan FirstWork — 16 digit angka, KTP, bukan notasi ilmiah.
-    nik, nik_raw = normalize_nik(form.get('nik'))
+    # Rilis C: bila sesi portal sah, NIK/DOB/jenis kelamin tidak dipercaya
+    # dari form — semuanya berasal dari token sesi dan NIK itu sendiri.
+    if session:
+        nik = str(session.get('nik') or '')
+        nik_raw = nik
+        tanggal_lahir = birth_date_from_nik(nik) or ''
+        gender = gender_from_nik(nik)
+        jenis_kelamin = ('Wanita' if gender == 'P' else
+                         'Pria' if gender == 'L' else '')
+    else:
+        nik, nik_raw = normalize_nik(form.get('nik'))
+        tanggal_lahir = _clean(form.get('tanggal_lahir'), 10)
+        jenis_kelamin = _clean(form.get('jenis_kelamin'), 10)
 
     data = {
         'nik': nik,
@@ -267,8 +295,8 @@ def validate_payload(form):
         'user_ef': _clean(form.get('user_ef'), 20),
         'nama': re.sub(r'\s+', ' ', _clean(form.get('nama'), 150)),
         'tempat_lahir': _clean(form.get('tempat_lahir'), 100),
-        'tanggal_lahir': _clean(form.get('tanggal_lahir'), 10),
-        'jenis_kelamin': _clean(form.get('jenis_kelamin'), 10),
+        'tanggal_lahir': tanggal_lahir,
+        'jenis_kelamin': jenis_kelamin,
         'domisili': _clean(form.get('domisili'), 50),
         'alamat': _clean(form.get('alamat'), 2000),
         'no_hp': _clean(form.get('no_hp'), 30),
@@ -285,7 +313,7 @@ def validate_payload(form):
     if not nik:
         return None, 'NIK sesuai KTP wajib diisi dan harus 16 digit angka.'
 
-    required = (
+    required = [
         ('sumber_informasi', 'Sumber Informasi wajib diisi'),
         ('diundang_oleh', 'Diundang Oleh wajib diisi'),
         ('kontak_serumah', 'Kontak serumah wajib diisi'),
@@ -299,7 +327,10 @@ def validate_payload(form):
         ('alamat', 'Alamat sesuai KTP wajib diisi'),
         ('no_hp', 'Nomor Handphone wajib diisi'),
         ('pendidikan_terakhir', 'Pendidikan Terakhir wajib dipilih'),
-    )
+    ]
+    if session:
+        required = [item for item in required
+                    if item[0] not in ('tanggal_lahir', 'jenis_kelamin')]
     for key, message in required:
         if not data[key]:
             return None, message
@@ -392,7 +423,10 @@ def register_cv_online_routes(app):
             if token_error:
                 return jsonify({'error': token_error}), 403
             info = next((b for b in branches if b['code'] == branch), None)
-            return jsonify({
+            session, session_error = _session_from_request()
+            if session_error:
+                return jsonify({'error': session_error}), 403
+            result = {
                 'branch': branch,
                 'branch_name': (info or {}).get('name') or branch,
                 'options': {
@@ -402,7 +436,21 @@ def register_cv_online_routes(app):
                     'jenis_kelamin': GENDER_OPTIONS,
                     'lama': LAMA_OPTIONS,
                 },
-            })
+            }
+            if session:
+                if str(session.get('branch') or '') != branch:
+                    return jsonify({'error': 'Sesi portal tidak cocok dengan cabang tautan.'}), 403
+                cursor = conn.cursor(dictionary=True)
+                try:
+                    cursor.execute('SELECT nama FROM recruitment_cases WHERE nik=%s',
+                                   (session.get('nik'),))
+                    case = cursor.fetchone() or {}
+                finally:
+                    cursor.close()
+                result['nama'] = case.get('nama') or ''
+                result['nik_masked'] = _masked(session.get('nik'))
+                result['branch_code'] = branch
+            return jsonify(result)
         except Exception as e:
             return jsonify({'error': str(e)}), 500
         finally:
@@ -422,7 +470,10 @@ def register_cv_online_routes(app):
                                 'msg': 'Terlalu banyak pengiriman dari perangkat ini. '
                                        'Coba lagi beberapa saat.'}), 429
 
-            data, error = validate_payload(request.form)
+            session_data, session_error = _session_from_request()
+            if session_error:
+                return jsonify({'status': 'error', 'msg': session_error}), 403
+            data, error = validate_payload(request.form, session=session_data)
             if error:
                 return jsonify({'status': 'error', 'msg': error}), 400
 
@@ -443,6 +494,9 @@ def register_cv_online_routes(app):
             token_error = _enforce_branch_token(conn, branch_code)
             if token_error:
                 return jsonify({'status': 'error', 'msg': token_error}), 403
+            if session_data and str(session_data.get('branch') or '') != branch_code:
+                return jsonify({'status': 'error',
+                                'msg': 'Sesi portal tidak cocok dengan cabang tautan.'}), 403
 
             submitted_at = datetime.now()
 

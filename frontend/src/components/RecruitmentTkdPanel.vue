@@ -11,6 +11,8 @@ import { api } from '../api'
 
 const props = defineProps({
   token: { type: String, default: '' },
+  session: { type: String, default: '' },
+  // Fallback untuk tautan langsung tanpa sesi portal (Rilis A).
   nik: { type: String, default: '' },
   dob: { type: String, default: '' },
 })
@@ -119,7 +121,14 @@ function messageOf(e, fallback) {
 }
 
 function identity() {
-  return { nik: props.nik, dob: props.dob, token: props.token }
+  const body = { token: props.token }
+  if (props.session) {
+    body.s = props.session
+  } else {
+    body.nik = props.nik
+    body.dob = props.dob
+  }
+  return body
 }
 
 function stopTicker() {
