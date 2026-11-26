@@ -294,53 +294,16 @@ def register_applicant_routes(app):
     # ================================================================
     @app.route('/api/applicants', methods=['POST'])
     def api_apply_submit():
+        # Rilis C: intake publik tanpa NIK dipensiunkan. Tidak ada rate limit
+        # maupun akses DB pada jalur ini; pendaftaran memakai portal cabang.
         try:
-            ip = client_ip() or '?'
-            if not _rate_ok(ip):
-                return jsonify({'status': 'error',
-                                'msg': 'Terlalu banyak pendaftaran dari perangkat ini. '
-                                       'Coba lagi beberapa saat.'}), 429
-            data = request.get_json(silent=True) or {}
-            nama = str(data.get('nama_lengkap', '') or '').strip()
-            pendidikan = str(data.get('pendidikan', '') or '').strip()[:100]
-            no_hp = str(data.get('no_hp', '') or '').strip()[:30]
-            upline = str(data.get('upline', '') or '').strip()[:100]
-            user_field = str(data.get('user', '') or '').strip()[:100]
-            posisi = str(data.get('posisi', '') or '').strip()[:100]
+            log_activity_async(None, 'apply_retired_hit', 'public', 'system',
+                               new_data={}, ip=client_ip())
+        except Exception:
+            pass
+        return jsonify({'status': 'error',
+                        'msg': 'Pendaftaran publik dipindahkan ke portal rekrutmen cabang.'}), 410
 
-            if not nama:
-                return jsonify({'status': 'error', 'msg': 'Nama Lengkap wajib diisi'}), 400
-            if not no_hp:
-                return jsonify({'status': 'error', 'msg': 'Nomor Telepon/HP wajib diisi'}), 400
-            if len(nama) > 150:
-                return jsonify({'status': 'error', 'msg': 'Nama maksimal 150 karakter'}), 400
-
-            conn = get_db_connection()
-            if not conn:
-                return jsonify({'status': 'error', 'msg': 'DB error'}), 500
-            cursor = conn.cursor(dictionary=True)
-            display_id = generate_display_id('PLM', conn)
-            now = datetime.now()
-            cursor.execute(
-                """INSERT INTO applicants
-                   (display_id, nama_lengkap, pendidikan, no_hp, upline, user_field,
-                    posisi, interview_at, status)
-                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,'interview')""",
-                (display_id, nama, pendidikan, no_hp, upline, user_field,
-                 posisi, now))
-            conn.commit()
-            log_activity_async(None, 'applicant_submit', 'public', nama,
-                               new_data={'display_id': display_id}, ip=ip)
-            cursor.close()
-            conn.close()
-            return jsonify({
-                'status': 'success',
-                'msg': 'Pendaftaran berhasil! Interview Anda tercatat otomatis.',
-                'display_id': display_id,
-                'interview_at': now.strftime('%Y-%m-%d %H:%M:%S'),
-            })
-        except Exception as e:
-            return jsonify({'status': 'error', 'msg': str(e)}), 500
 
     # ================================================================
     # META — pilihan filter (upline, user, status)
