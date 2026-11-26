@@ -53,6 +53,22 @@ ROW = {
     'berlaku_hingga': '2030-01-19',
 }
 
+# Kasus rekrutmen portal untuk kartu: CV selesai, Training berikutnya.
+CASE = {'case_id': 'RC-uji-1', 'nama': 'Contoh Pendaftar'}
+STEPS = [
+    {'step_type': 'CV', 'status': 'SELESAI',
+     'completed_at': '2026-11-25 10:00:00', 'branch_code': 'SBY'},
+    {'step_type': 'TRAINING', 'status': 'BELUM',
+     'completed_at': None, 'branch_code': 'SBY'},
+    {'step_type': 'TKD', 'status': 'BELUM',
+     'completed_at': None, 'branch_code': 'SBY'},
+    {'step_type': 'FIRSTWORK', 'status': 'BELUM',
+     'completed_at': None, 'branch_code': 'SBY'},
+]
+# Bentuk yang dikirim portal_summary ke PDF (bukan baris DB).
+STAGES = [{'type': step['step_type'], 'status': step['status']}
+          for step in STEPS]
+
 
 class FakeCursor:
     def __init__(self, conn, dictionary=False):
@@ -76,8 +92,10 @@ class FakeCursor:
 
 
 class FakeConn:
-    def __init__(self, row=None):
+    def __init__(self, row=None, case=None, steps=None):
         self.row = dict(row) if row else None
+        self.case = dict(case) if case else None
+        self.steps = [dict(step) for step in (steps or [])]
 
     def cursor(self, dictionary=False):
         return FakeCursor(self, dictionary)
@@ -93,6 +111,15 @@ class FakeConn:
             if self.row and params and params[0] == self.row['id']:
                 return [dict(self.row)]
             return []
+        if 'FROM recruitment_cases WHERE nik=%s' in q:
+            return [dict(self.case)] if self.case else []
+        if 'FROM recruitment_steps WHERE case_id=%s' in q:
+            rows = list(self.steps)
+            if 'BRANCH_CODE=%S' in q.upper():
+                branch = params[1] if len(params) > 1 else ''
+                rows = [step for step in rows
+                        if str(step.get('branch_code') or '') == str(branch)]
+            return rows
         return []  # users / system_config untuk scope admin — tidak dipakai
 
 
@@ -109,8 +136,9 @@ def _identity_tanpa_db(monkeypatch):
                         lambda *a, **k: dict(IDENTITY_DEFAULTS))
 
 
-def _card(monkeypatch, role='traineer', row=None, branch='SBY', submission_id=None):
-    conn = FakeConn(row if row is not None else ROW)
+def _card(monkeypatch, role='traineer', row=None, branch='SBY',
+          submission_id=None, case=None, steps=None):
+    conn = FakeConn(row if row is not None else ROW, case=case, steps=steps)
     monkeypatch.setattr(fw, 'get_master_connection', lambda: conn)
     logged = []
     monkeypatch.setattr(fw, 'log_activity_async',
@@ -284,3 +312,54 @@ def test_render_pdftoppm(tmp_path):
     assert out.exists() and out.stat().st_size > 1000
     with Image.open(out) as img:
         assert img.size[0] > 400 and img.size[1] > 400
+
+
+# ================================================================
+# Ringkasan empat tahap portal (v2.135.10)
+# ================================================================
+def test_ringkasan_status_rekrutmen_di_kartu(monkeypatch):
+    response, _ = _card(monkeypatch, case=CASE, steps=STEPS)
+    assert response.status_code == 200
+    text = pdf_text(response.get_data())
+
+    assert 'STATUS REKRUTMEN' in text
+    for label in ('CV Online', 'Training', 'TKD', 'First Work'):
+        assert label in text, label
+    assert 'Selesai' in text
+    assert 'Berikutnya' in text
+    assert 'Belum' in text
+    assert NIK not in text
+
+
+def test_ringkasan_hanya_menghitung_cabang_kartu(monkeypatch):
+    """Langkah cabang lain tidak boleh tampil sebagai capaian cabang ini."""
+    steps = [
+        {'step_type': 'CV', 'status': 'SELESAI',
+         'completed_at': '2026-11-20 08:00:00', 'branch_code': 'MLG'},
+        {'step_type': 'CV', 'status': 'BELUM',
+         'completed_at': None, 'branch_code': 'SBY'},
+        {'step_type': 'TRAINING', 'status': 'BELUM',
+         'completed_at': None, 'branch_code': 'SBY'},
+    ]
+    response, _ = _card(monkeypatch, case=CASE, steps=steps)
+    text = pdf_text(response.get_data())
+
+    assert 'STATUS REKRUTMEN' in text
+    assert 'Selesai' not in text
+    assert 'Berikutnya' in text
+
+
+def test_tanpa_kasus_blok_status_tidak_tampil():
+    text = pdf_text(_generate())
+    assert 'STATUS REKRUTMEN' not in text
+
+
+def test_ringkasan_tahap_unit_tanpa_nik_penuh():
+    pdf = pg.FirstWorkCardPDF()
+    pdf.generate(dict(ROW), stages=STAGES, next_action='TRAINING')
+    text = pdf_text(bytes(pdf.output()))
+
+    assert 'STATUS REKRUTMEN' in text
+    assert 'CV Online' in text and 'First Work' in text
+    assert NIK not in text
+    assert pdf_page_count(bytes(pdf.output())) == 1

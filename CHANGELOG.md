@@ -7,6 +7,19 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.135.10 — 26 November 2026 (Kartu First Work selaras portal)
+
+- Kartu BPF First Work menampilkan blok **Status Rekrutmen**: empat simpul
+  (CV Online, Training, TKD, First Work) dengan garis penghubung dan status
+  satu kata **Selesai / Berikutnya / Belum**.
+- Simpul selesai memakai ✓ hijau; ruas garis setelahnya hijau redup. Simpul
+  berikutnya memakai aksen merah, sama dengan portal.
+- Ringkasan diambil dari kasus rekrutmen dan dibatasi ke cabang kartu,
+  sehingga capaian cabang lain tidak ikut tercetak.
+- Tanpa kasus rekrutmen, kartu tetap dicetak seperti biasa (tanpa blok).
+- NIK lengkap, nomor HP, dan token tetap tidak muncul di PDF.
+- Hanya kartu First Work yang berubah; laporan pelamar lama tidak diubah.
+
 ## v2.135.9 — 26 November 2026 (Empat tahap portal seragam)
 
 - Empat tahap memakai satu anatomi: simpul, judul + badge, baris status,

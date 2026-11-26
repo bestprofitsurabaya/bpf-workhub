@@ -14,7 +14,7 @@ from modules.company_identity import get_company_identity, IDENTITY_DEFAULTS  # 
 # ============================================================
 COMPANY_NAME = 'PT BESTPROFIT FUTURES'
 COMPANY_SUBTITLE = 'Kantor Pusat | Jakarta'
-SYSTEM_VERSION = 'BPF WorkHub v2.135.9'
+SYSTEM_VERSION = 'BPF WorkHub v2.135.10'
 LOGO_FILENAMES = ['icon-512.png', 'icon-192.png']
 PHOTO_FIELDS = [
     ('foto_odo_sebelum', 'ODO Sebelum'),
@@ -54,6 +54,7 @@ HEADER_FILL = (241, 245, 249)    # isian header tabel & kotak selesai
 ZEBRA_FILL = (248, 250, 252)     # strip zebra sangat tipis
 RULE = (71, 85, 105)             # garis kop surat / underlining
 GREEN_OK = (21, 110, 55)         # teks status cocok (rekonsiliasi Subsidi Tepat)
+ACCENT = (179, 18, 46)           # merah aksen portal (langkah berikutnya)
 RED_WARN = (185, 28, 28)         # teks selisih / peringatan rekonsiliasi
 AMBER_WARN = (180, 83, 9)        # marker pengisian beruntun (multifill) di rekap
 
@@ -2944,7 +2945,83 @@ class FirstWorkCardPDF(BPFBasePDF):
         self.cell(value_w, row_h, value_text,
                   new_x='LMARGIN', new_y='NEXT')
 
-    def generate(self, row):
+    _STAGE_LABELS = (
+        ('CV', 'CV Online'),
+        ('TRAINING', 'Training'),
+        ('TKD', 'TKD'),
+        ('FIRSTWORK', 'First Work'),
+    )
+
+    def _stage_summary(self, stages, next_action=None):
+        """Empat simpul status, sejajar bahasa visual portal (v2.135.10).
+
+        Hanya digambar bila ada data kasus. Warna dan kata status mengikuti
+        portal: hijau Selesai, merah Berikutnya, abu Belum.
+        """
+        by_type = {}
+        for step in stages or []:
+            kind = str(step.get('type') or '')
+            if kind:
+                by_type[kind] = step
+        if not by_type:
+            return
+
+        self.section_title('STATUS REKRUTMEN')
+        usable = self.w - self.l_margin - self.r_margin
+        col_w = usable / len(self._STAGE_LABELS)
+        node_y = self.get_y() + 3.2
+        radius = 2.6
+        centers = [self.l_margin + col_w * (i + 0.5)
+                   for i in range(len(self._STAGE_LABELS))]
+        done = [str((by_type.get(kind) or {}).get('status') or '') == 'SELESAI'
+                for kind, _label in self._STAGE_LABELS]
+
+        # Garis dasar abu, lalu ruas setelah simpul selesai hijau redup.
+        self.set_line_width(0.4)
+        self.set_draw_color(*BORDER)
+        self.line(centers[0], node_y, centers[-1], node_y)
+        self.set_draw_color(191, 220, 203)
+        for i in range(len(centers) - 1):
+            if done[i]:
+                self.line(centers[i], node_y, centers[i + 1], node_y)
+
+        for i, (kind, label) in enumerate(self._STAGE_LABELS):
+            status = str((by_type.get(kind) or {}).get('status') or 'BELUM')
+            is_done = status == 'SELESAI'
+            is_next = not is_done and kind == next_action
+            if is_done:
+                fill, ink, word = (232, 243, 236), GREEN_OK, 'Selesai'
+            elif is_next:
+                fill, ink, word = (251, 234, 236), ACCENT, 'Berikutnya'
+            else:
+                fill, ink, word = HEADER_FILL, GRAY_LABEL, 'Belum'
+
+            cx = centers[i]
+            self.set_fill_color(*fill)
+            self.set_draw_color(*ink)
+            self.ellipse(cx - radius, node_y - radius, radius * 2,
+                         radius * 2, style='DF')
+            self.set_font(self._font(), 'B', 7.5)
+            self.set_text_color(*ink)
+            self.set_xy(cx - radius, node_y - 1.9)
+            self.cell(radius * 2, 3.8, '✓' if is_done else str(i + 1),
+                      align='C')
+
+            self.set_xy(self.l_margin + col_w * i, node_y + radius + 1.6)
+            self.set_font(self._font(), 'B', 7.2)
+            self.set_text_color(*INK)
+            self.cell(col_w, 3.6, label, align='C')
+
+            self.set_xy(self.l_margin + col_w * i, node_y + radius + 5.2)
+            self.set_font(self._font(), '', 6.8)
+            self.set_text_color(*ink)
+            self.cell(col_w, 3.2, word, align='C')
+
+        self.set_y(node_y + radius + 9.2)
+        self.set_text_color(*INK)
+        self.ln(2)
+
+    def generate(self, row, stages=None, next_action=None):
         row = dict(row or {})
         self.add_page()
         f = self._font()
@@ -2976,6 +3053,8 @@ class FirstWorkCardPDF(BPFBasePDF):
         self._line('Cabang', row.get('branch_code') or '')
         self._line('No. Registrasi', registration_no)
         self.ln(2)
+
+        self._stage_summary(stages, next_action)
 
         self.section_title('DATA DEMOGRAFI (KTP)')
         col_w = (self.w - self.l_margin - self.r_margin) / 2

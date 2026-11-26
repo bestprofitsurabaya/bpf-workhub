@@ -2952,11 +2952,34 @@ def register_first_work_routes(app):
             if not _row_allowed(row, conn):
                 return jsonify({'error': 'Data di luar cabang Anda'}), 403
 
+            # Ringkasan empat tahap portal (best-effort). Dibatasi ke cabang
+            # submission agar capaian cabang lain tidak ikut tercetak. Tanpa
+            # kasus rekrutmen, kartu tetap dicetak sebagai kartu identitas.
+            summary = None
+            try:
+                nik, _ = normalize_nik(row.get('nik') or row.get('nik_raw') or '')
+                if len(nik) == 16:
+                    from modules.routes_recruitment import portal_summary
+                    ringkas_cursor = conn.cursor(dictionary=True)
+                    try:
+                        ringkas = portal_summary(
+                            ringkas_cursor, nik, known=True,
+                            branch_code=(row.get('branch_code') or '')
+                            .strip().upper() or None)
+                    finally:
+                        ringkas_cursor.close()
+                    if ringkas and ringkas.get('nama_masked'):
+                        summary = ringkas
+            except Exception:
+                summary = None
+
             from modules.pdf_generator import FirstWorkCardPDF
             # Kop mengikuti identitas global (BPFBasePDF) — tidak membuka
             # koneksi DB tambahan hanya untuk mengambil identitas cabang.
             pdf = FirstWorkCardPDF()
-            pdf.generate(row)
+            pdf.generate(row,
+                         stages=(summary or {}).get('stages'),
+                         next_action=(summary or {}).get('next_action'))
             buf = io.BytesIO()
             pdf.output(buf)
             buf.seek(0)

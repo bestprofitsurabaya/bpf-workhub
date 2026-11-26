@@ -222,17 +222,26 @@ def _masked_name(value):
     return f'{parts[0]} {parts[1][0]}.'
 
 
-def portal_summary(cursor, nik, known=False):
-    """Ringkasan empat tahap untuk satu NIK — tanpa data pribadi lengkap."""
+def portal_summary(cursor, nik, known=False, branch_code=None):
+    """Ringkasan empat tahap untuk satu NIK — tanpa data pribadi lengkap.
+
+    `branch_code` opsional membatasi langkah ke satu cabang. Portal publik
+    memakai semua langkah (NIK global); dokumen cabang (kartu First Work)
+    memakai cabang baris agar capaian cabang lain tidak ikut tampil.
+    """
     cursor.execute('SELECT case_id, nama FROM recruitment_cases WHERE nik=%s',
                    (nik,))
     case = cursor.fetchone() or {}
     case_id = case.get('case_id') or ''
     steps = []
     if case_id:
-        cursor.execute(
-            'SELECT step_type, status, completed_at, branch_code '
-            'FROM recruitment_steps WHERE case_id=%s', (case_id,))
+        sql = ('SELECT step_type, status, completed_at, branch_code '
+               'FROM recruitment_steps WHERE case_id=%s')
+        params = [case_id]
+        if branch_code:
+            sql += ' AND branch_code=%s'
+            params.append(branch_code)
+        cursor.execute(sql, tuple(params))
         # WHERE sudah membatasi ke case_id; jangan memfilter ulang di Python
         # karena kolom case_id sengaja tidak ikut di-SELECT.
         steps = cursor.fetchall() or []
