@@ -7,6 +7,17 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.135.2 — 26 November 2026 (Portal rekrutmen: status tahap)
+
+- `GET /api/recruitment/lookup` tetap satu kali cek NIK+DOB+token cabang,
+  kini mengembalikan status CV/Training/TKD/FirstWork dari `recruitment_steps`,
+  waktu selesai, `nama_masked`, dan `next_action`. Kunci lama dipertahankan.
+- Kartu tahap selesai ditandai `✓ Selesai · waktu · tidak perlu diulang`,
+  tampil redup, dan tidak bisa dibuka atau diisi ulang dari portal. Tahap
+  yang belum selesai memuat pesan konfirmasi singkat dan tetap bisa diisi.
+- Tambah pesan konfirmasi humanis untuk tiap kondisi: data cocok, NIK belum
+  dikenal, tanggal lahir tidak cocok, tautan cabang mati, dan batas cek.
+
 ## v2.135.1 — 26 November 2026 (Absensi training: H1/H2 di DB cabang)
 
 - **Rollback 26 Nov:** kode dikembalikan ke titik ini dari v2.136.0 sesuai
