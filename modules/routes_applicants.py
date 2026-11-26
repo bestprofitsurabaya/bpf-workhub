@@ -27,6 +27,7 @@ from modules.pdf_generator import ApplicantReportPDF
 from modules.stepup import stepup_required
 from modules.recruitment_service import ensure_case
 from modules.recruitment_events import record_event
+from modules.employee_service import promote_to_employee
 
 VALID_STAGES = ('interview', 'training_1', 'training_2', 'training_3', 'training_4')
 TRAINING_STAGES = ('training_1', 'training_2', 'training_3', 'training_4')
@@ -877,6 +878,13 @@ def register_applicant_routes(app):
                 return jsonify({'status': 'error',
                                 'msg': 'Alasan mengundurkan diri WAJIB diisi'}), 400
 
+            if status == 'lulus':
+                nik, _raw = normalize_nik(row.get('nik'))
+                if len(nik) != 16:
+                    cursor.close(); conn.close()
+                    return jsonify({'status': 'error',
+                                    'msg': 'Lengkapi NIK sebelum menjadikan karyawan.'}), 409
+
             user = _current_user()
             if status == 'resigned':
                 cursor.execute("UPDATE applicants SET status='resigned', resign_reason=%s, "
@@ -903,11 +911,30 @@ def register_applicant_routes(app):
                              note=reason)
             except Exception:
                 pass
+            employee_created = False
+            employee_no = None
+            warning = ''
+            if status == 'lulus':
+                try:
+                    promoted = promote_to_employee(
+                        case_id, branch_code=str(session.get('branch_code') or ''),
+                        actor=user['full_name'], actor_role=user['role']) or {}
+                    employee_created = bool(promoted.get('created'))
+                    employee_no = promoted.get('employee_no')
+                except Exception as exc:
+                    warning = str(exc)[:160]
             log_activity_async(None, 'applicant_status', user['role'], user['full_name'],
-                               new_data={'status': status, 'reason': reason},
+                               new_data={'status': status, 'reason': reason,
+                                         'employee_created': employee_created},
                                ip=client_ip())
             cursor.close(); conn.close()
-            return jsonify({'status': 'success', 'msg': f'Status menjadi {applicant_status_label(status)}'})
+            response = {'status': 'success',
+                        'msg': f'Status menjadi {applicant_status_label(status)}',
+                        'employee_created': employee_created,
+                        'employee_no': employee_no}
+            if warning:
+                response['warning'] = warning
+            return jsonify(response)
         except Exception as e:
             return jsonify({'status': 'error', 'msg': str(e)}), 500
 
