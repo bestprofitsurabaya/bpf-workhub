@@ -47,6 +47,8 @@ _LOOKUP_PREFIX = 'recruitment'
 # Sumber keberadaan NIK — DB master, tanpa filter cabang.
 _NIK_TABLES = ('recruitment_cases', 'cv_online_submissions',
                'first_work_submissions')
+_STAGE_TYPES = ('CV', 'TRAINING', 'TKD', 'FIRSTWORK')
+_STATUS_RANK = {'BELUM': 1, 'PENDING': 2, 'DIKECUALIKAN': 3, 'SELESAI': 4}
 
 # Peran staff rekrutmen (dashboard + exception langkah).
 _STAFF_ROLES = ['traineer', 'ga_hr', 'admin']
@@ -210,6 +212,67 @@ def _nik_known(cursor, nik):
     return False
 
 
+def _masked_name(value):
+    """Nama depan + inisial kata kedua; tidak mengandung NIK/DOB/alamat."""
+    parts = str(value or '').split()
+    if not parts:
+        return ''
+    if len(parts) == 1:
+        return parts[0]
+    return f'{parts[0]} {parts[1][0]}.'
+
+
+def portal_summary(cursor, nik, known=False):
+    """Ringkasan empat tahap untuk satu NIK — tanpa data pribadi lengkap."""
+    cursor.execute('SELECT case_id, nama FROM recruitment_cases WHERE nik=%s',
+                   (nik,))
+    case = cursor.fetchone() or {}
+    case_id = case.get('case_id') or ''
+    steps = []
+    if case_id:
+        cursor.execute(
+            'SELECT step_type, status, completed_at, branch_code '
+            'FROM recruitment_steps WHERE case_id=%s', (case_id,))
+        steps = [row for row in (cursor.fetchall() or [])
+                 if str(row.get('case_id') or '') == case_id]
+
+    best = {}
+    for step in steps:
+        kind = str(step.get('step_type') or '')
+        if kind not in _STAGE_TYPES:
+            continue
+        status = str(step.get('status') or 'BELUM')
+        previous = best.get(kind)
+        if not previous or _STATUS_RANK.get(status, 0) > \
+                _STATUS_RANK.get(previous['status'], 0):
+            best[kind] = {'status': status,
+                          'completed_at': step.get('completed_at')}
+        elif (status == 'SELESAI' and step.get('completed_at') and
+              not previous.get('completed_at')):
+            previous['completed_at'] = step.get('completed_at')
+
+    stages = []
+    for kind in _STAGE_TYPES:
+        info = best.get(kind, {})
+        status = info.get('status', 'BELUM')
+        stages.append({
+            'type': kind,
+            'status': status,
+            'completed_at': info.get('completed_at'),
+            'can_open': (False if status == 'SELESAI' else
+                         True if kind == 'CV' else bool(known)),
+        })
+
+    next_action = 'DONE'
+    for kind in _STAGE_TYPES:
+        if best.get(kind, {}).get('status') != 'SELESAI':
+            next_action = kind
+            break
+
+    return {'nama_masked': _masked_name(case.get('nama')),
+            'stages': stages, 'next_action': next_action}
+
+
 def register_recruitment_routes(app):
     @app.route('/api/recruitment/lookup', methods=['GET'])
     def api_recruitment_lookup():
@@ -234,12 +297,20 @@ def register_recruitment_routes(app):
             if not conn:
                 return _response({'status': 'error', 'msg': 'DB error'}, 500)
             cursor = conn.cursor(dictionary=True)
+            payload = None
             try:
                 known = _nik_known(cursor, nik)
+                try:
+                    payload = portal_summary(cursor, nik, known)
+                except Exception:
+                    payload = None  # best-effort: kontrak lama tetap dipakai
             finally:
                 cursor.close()
-            return _response({'status': 'success',
-                              'known': known, 'can_continue': known})
+            result = {'status': 'success', 'known': known,
+                      'can_continue': known}
+            if payload:
+                result.update(payload)
+            return _response(result)
         except Exception:
             # Jangan kembalikan str(e): detail DB bisa membocorkan skema/PII.
             return _response({'status': 'error', 'msg': 'DB error'}, 500)

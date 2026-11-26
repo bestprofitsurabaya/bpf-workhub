@@ -65,7 +65,7 @@ def test_lookup_menyertakan_status_tahap(client, db):
     assert data['stages'][2]['can_open'] is False
     assert data['stages'][1]['can_open'] is True
     assert data['next_action'] == 'TRAINING'
-    assert data['nama_masked'] == 'Bili S.'
+    assert data['nama_masked'] == 'Bili D.'
 ```
 
 - [ ] **Step 2: Tulis tes kasus tepi**
@@ -146,7 +146,7 @@ Tambahkan ke `frontend/src/views/RecruitmentPortalView.test.js` dengan mock look
 
 ```js
 const LOOKUP_DONE = { status: 'success', known: true, can_continue: true,
-  nama_masked: 'Bili S.', next_action: 'TRAINING',
+  nama_masked: 'Bili D.', next_action: 'TRAINING',
   stages: [
     { type: 'CV', status: 'SELESAI', completed_at: '2026-11-25 19:28:30' },
     { type: 'TRAINING', status: 'BELUM', completed_at: null },

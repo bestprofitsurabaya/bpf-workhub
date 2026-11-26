@@ -24,7 +24,8 @@ ROOT = Path(__file__).resolve().parents[1]
 NIK = '3573010101990001'
 NIK_LAIN = '3573010101990002'
 DOB = '1999-01-01'
-TABLES = ('recruitment_cases', 'cv_online_submissions', 'first_work_submissions')
+TABLES = ('recruitment_cases', 'cv_online_submissions', 'first_work_submissions',
+          'recruitment_steps')
 
 
 @pytest.fixture(autouse=True)
@@ -43,7 +44,15 @@ class _FakeCursor:
         self.conn.statements.append(upper)
         params = tuple(params or ())
         table = next((t for t in TABLES if t.upper() in upper), None)
-        if not upper.startswith('SELECT') or not table or 'NIK=%S' not in upper:
+        if not upper.startswith('SELECT') or not table:
+            self._rows = None
+            return
+        if table == 'recruitment_steps' and 'CASE_ID=%S' in upper:
+            case_id = params[0] if params else ''
+            self._rows = [row for row in self.conn.tables[table]
+                          if str(row.get('case_id') or '') == str(case_id)]
+            return
+        if 'NIK=%S' not in upper:
             self._rows = None
             return
         nik = params[0] if params else ''
@@ -117,7 +126,8 @@ class TestLookupBooleanOnly:
         response = _lookup(client)
 
         assert response.status_code == 200
-        assert response.get_json() == {
+        data = response.get_json()
+        assert {key: data[key] for key in ('status', 'known', 'can_continue')} == {
             'status': 'success', 'known': False, 'can_continue': False,
         }
         assert response.headers['Cache-Control'] == 'no-store'
@@ -145,7 +155,8 @@ class TestLookupBooleanOnly:
 
         data = _lookup(client).get_json()
 
-        assert data == {'status': 'success', 'known': True, 'can_continue': True}
+        assert {key: data[key] for key in ('status', 'known', 'can_continue')} == {
+            'status': 'success', 'known': True, 'can_continue': True}
 
     def test_nik_di_recruitment_cases_dikenali(self, client, db):
         db.tables['recruitment_cases'].append(db.baris(NIK, 'JKT'))
@@ -181,9 +192,11 @@ class TestLookupBooleanOnly:
 
         data = _lookup(client, nik=nik).get_json()
 
-        assert set(data) == {'status', 'known', 'can_continue'}
-        assert data == {'status': 'success', 'known': expected_known,
-                        'can_continue': expected_known}
+        assert data['status'] == 'success'
+        assert data['known'] is expected_known
+        assert data['can_continue'] is expected_known
+        if nik == '12345':
+            assert set(data) == {'status', 'known', 'can_continue'}
 
 
 class TestLookupBacaSaja:
@@ -247,3 +260,52 @@ def test_route_didaftarkan_di_app():
     source = (ROOT / 'app.py').read_text(encoding='utf-8')
     assert 'from modules.routes_recruitment import register_recruitment_routes' in source
     assert 'register_recruitment_routes(app)' in source
+
+
+def test_lookup_menyertakan_status_tahap(client, db):
+    db.tables['recruitment_cases'].append({
+        'case_id': 'RC-1', 'nik': NIK, 'nama': 'Bili Darnanto Susilo'})
+    db.tables['recruitment_steps'] = [
+        {'case_id': 'RC-1', 'step_type': 'CV', 'status': 'SELESAI',
+         'completed_at': '2026-11-25 19:28:30', 'branch_code': 'SBY'},
+        {'case_id': 'RC-1', 'step_type': 'TKD', 'status': 'SELESAI',
+         'completed_at': '2026-11-25 19:24:47', 'branch_code': 'SBY'},
+    ]
+    data = _lookup(client).get_json()
+    assert [s['type'] for s in data['stages']] == ['CV', 'TRAINING', 'TKD', 'FIRSTWORK']
+    assert data['stages'][0]['status'] == 'SELESAI'
+    assert data['stages'][0]['completed_at'] == '2026-11-25 19:28:30'
+    assert data['stages'][2]['completed_at'] == '2026-11-25 19:24:47'
+    assert data['stages'][1]['status'] == 'BELUM'
+    assert data['stages'][0]['can_open'] is False
+    assert data['stages'][2]['can_open'] is False
+    assert data['stages'][1]['can_open'] is True
+    assert data['next_action'] == 'TRAINING'
+    assert data['nama_masked'] == 'Bili D.'
+
+
+def test_lookup_nik_terkenal_tanpa_kasus(client, db):
+    db.tables['cv_online_submissions'].append(db.baris(NIK))
+    data = _lookup(client).get_json()
+    assert data['known'] is True
+    assert {s['status'] for s in data['stages']} == {'BELUM'}
+    assert data['next_action'] == 'CV'
+
+
+def test_agregasi_status_memilih_selesai(client, db):
+    db.tables['recruitment_cases'].append({'case_id': 'RC-1', 'nik': NIK,
+                                           'nama': 'Budi Santoso'})
+    db.tables['recruitment_steps'] = [
+        {'case_id': 'RC-1', 'step_type': 'CV', 'status': 'PENDING',
+         'completed_at': None},
+        {'case_id': 'RC-1', 'step_type': 'CV', 'status': 'SELESAI',
+         'completed_at': '2026-11-25 19:28:30'},
+    ]
+    data = _lookup(client).get_json()
+    assert data['stages'][0]['status'] == 'SELESAI'
+    assert data['stages'][0]['completed_at'] == '2026-11-25 19:28:30'
+
+
+def test_lookup_invalid_tetap_kontrak_lama(client, db):
+    data = _lookup(client, nik='12345').get_json()
+    assert set(data) == {'status', 'known', 'can_continue'}

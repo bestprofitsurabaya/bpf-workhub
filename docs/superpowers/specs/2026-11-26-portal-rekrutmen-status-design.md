@@ -64,7 +64,7 @@ Tambahkan (semua opsional untuk klien lama):
   "status": "success",
   "known": true,
   "can_continue": true,
-  "nama_masked": "Bili S.",
+  "nama_masked": "Bili D.",
   "next_action": "TRAINING",
   "stages": [
     {"type": "CV",        "status": "SELESAI", "completed_at": "2026-11-25 19:28:30", "can_open": false},
