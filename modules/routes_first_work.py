@@ -36,7 +36,8 @@ from modules.config import get_master_connection
 # Rilis A: kasus/langkah rekrutmen ditulis di transaksi submit yang sama.
 from modules.recruitment_service import upsert_case_step
 from modules.recruitment_events import record_event
-from modules.portal_token import issue_card_token, verify_session_token
+from modules.portal_token import (issue_card_token, verify_card_token,
+                                  verify_session_token)
 from modules.nik_utils import birth_date_from_nik, gender_from_nik
 # v2.85.0: import counter Redis (lihat helpers.redis_rate_hit — kini memakai
 # helper ini untuk limit submit & cek NIK).
@@ -2976,8 +2977,23 @@ def register_first_work_routes(app):
 
     # ---------------- KARTU BPF (Rilis B Task 3) ----------------
     @app.route('/api/first-work/card/<int:submission_id>.pdf')
-    @role_required(VIEW_ROLES)
     def api_first_work_card_pdf(submission_id):
+        # Rilis C: kartu publik dengan token unsigned-purpose yang cocok;
+        # tanpa token tetap khusus staff dengan peran VIEW_ROLES.
+        card_token = str(request.args.get('t') or '').strip()
+        via_link = False
+        if card_token:
+            verified = verify_card_token(card_token)
+            if (not verified or
+                    int(verified.get('submission_id') or 0) != submission_id):
+                return jsonify({'error': 'Token kartu tidak valid'}), 403
+            via_link = True
+        else:
+            role = session.get('user_role') or ''
+            if not role:
+                return jsonify({'error': 'Login diperlukan'}), 401
+            if role not in VIEW_ROLES:
+                return jsonify({'error': 'Akses ditolak'}), 403
         """Cetak kartu BPF satu pendaftar (nama, 4 digit NIK, cabang, reg. no, QR).
 
         Kartu sengaja tidak menaruh NIK lengkap, dan QR hanya berisi nomor
@@ -3002,10 +3018,10 @@ def register_first_work_routes(app):
             if not _row_allowed(row, conn):
                 return jsonify({'error': 'Data di luar cabang Anda'}), 403
 
-            from modules.pdf_generator import FirstWorkCardPDF
+            from modules.pdf_generator import BusinessConsultantCardPDF
             # Kop mengikuti identitas global (BPFBasePDF) — tidak membuka
             # koneksi DB tambahan hanya untuk mengambil identitas cabang.
-            pdf = FirstWorkCardPDF()
+            pdf = BusinessConsultantCardPDF()
             pdf.generate(row)
             buf = io.BytesIO()
             pdf.output(buf)
@@ -3021,8 +3037,9 @@ def register_first_work_routes(app):
             # Kartu berisi data pribadi — jangan di-cache.
             response.headers['Cache-Control'] = 'no-store'
             log_activity_async(None, 'first_work_card_pdf',
-                               session.get('user_role', ''),
-                               session.get('full_name') or session.get('user_name') or '',
+                               'link' if via_link else session.get('user_role', ''),
+                               ('tautan kartu' if via_link else
+                                session.get('full_name') or session.get('user_name') or ''),
                                new_data={'submission_id': submission_id,
                                          'registration_no': row.get('registration_no')},
                                ip=client_ip())

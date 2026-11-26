@@ -2997,3 +2997,62 @@ class FirstWorkCardPDF(BPFBasePDF):
                         'Scan QR untuk pencocokan nomor registrasi.',
                   new_x='LMARGIN', new_y='NEXT')
         self.set_text_color(*INK)
+
+
+class BusinessConsultantCardPDF(BPFBasePDF):
+    """Kartu identitas resmi Business Consultant (A6 landscape, satu halaman).
+
+    Sengaja tidak memuat NIK lengkap: hanya empat digit terakhir. QR berisi
+    nomor registrasi (`BPF-FW:<registration_no>`) agar tidak membuka data
+    pribadi tambahan saat dipindai.
+    """
+
+    def __init__(self):
+        # fpdf2 tidak mengenal nama A6; pakai ukuran eksplisit dalam mm.
+        super().__init__(orientation='L', unit='mm', format=(105, 148))
+        self.set_auto_page_break(auto=False)
+        self.set_margins(10, 8, 10)
+
+    def generate(self, row):
+        row = dict(row or {})
+        self.add_page()
+        font = self._font()
+        registration_no = self.clean_text(str(row.get('registration_no') or '-'))
+        nama = self.clean_text(str(row.get('nama') or ''))[:48]
+        branch = self.clean_text(str(row.get('branch_code') or ''))
+        digits = re.sub(r'\D', '', str(row.get('nik') or row.get('nik_raw') or ''))
+        last4 = digits[-4:] if len(digits) >= 4 else ''
+
+        self.set_text_color(*INK)
+        self.set_font(font, 'B', 11)
+        self.cell(0, 6, 'Kartu BPF', align='L',
+                  new_x='LMARGIN', new_y='NEXT')
+        self.set_font(font, '', 7.5)
+        self.set_text_color(*GRAY_LABEL)
+        self.cell(0, 4, 'Identitas resmi rekrutmen',
+                  new_x='LMARGIN', new_y='NEXT')
+
+        self.set_text_color(*INK)
+        self.ln(3)
+        self.set_font(font, 'B', 14)
+        self.cell(0, 8, nama, new_x='LMARGIN', new_y='NEXT')
+        self.set_font(font, '', 10)
+        self.cell(0, 6, 'Business Consultant',
+                  new_x='LMARGIN', new_y='NEXT')
+        self.ln(1)
+        self.set_font(font, '', 8)
+        self.cell(0, 5, f'Cabang {branch}',
+                  new_x='LMARGIN', new_y='NEXT')
+        self.cell(0, 5, f'No. registrasi {registration_no}',
+                  new_x='LMARGIN', new_y='NEXT')
+        if last4:
+            self.cell(0, 5, f'NIK ****{last4}',
+                      new_x='LMARGIN', new_y='NEXT')
+
+        self.image(
+            render_fw_qr(registration_no),
+            x=self.w - self.r_margin - 18,
+            y=self.t_margin + 4,
+            w=18,
+            h=18,
+        )
