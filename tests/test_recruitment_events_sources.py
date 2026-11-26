@@ -57,15 +57,14 @@ def test_training_hari1_dan_hari2_menulis_event_berbeda(monkeypatch,
     _capture(monkeypatch, tr, events)
     monkeypatch.setattr(
         tr, 'record_attendance',
-        lambda nik, dob, branch, day, **k: {
+        lambda nik, branch, day, **k: {
             'ok': True, 'day': day, 'link_status': 'linked', 'days': {},
             'case_id': 'RC-1', 'attendance_id': 42})
 
     for day in (1, 2):
         res = training_client.post('/api/recruitment/training/attendance',
                                    json={'token': TRAINING_TOKEN, 'nik': NIK,
-                                         'dob': '1990-01-01', 'day': day,
-                                         'consent': True})
+                                         'day': day, 'consent': True})
         assert res.status_code == 200, res.get_json()
     assert {e['event_type'] for e in events} == {
         'TRAINING_PORTAL_D1', 'TRAINING_PORTAL_D2'}
