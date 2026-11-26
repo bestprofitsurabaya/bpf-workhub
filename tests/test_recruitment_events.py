@@ -97,6 +97,13 @@ def conn():
     return _FakeConn()
 
 
+def test_sql_insert_jumlah_nilai_sama_dengan_kolom():
+    from modules.recruitment_events import _INSERT_SQL
+    columns = re.search(r'\(([^)]*)\)', _INSERT_SQL).group(1).split(',')
+    values = _INSERT_SQL.split('VALUES', 1)[1]
+    assert values.count('%(') == len(columns)
+
+
 def test_event_idempoten_dan_nik_tidak_masuk_log(conn, capsys):
     from modules.recruitment_events import record_event
     kwargs = dict(case_id='RC-1', nik=NIK, event_type='VERIFIED',

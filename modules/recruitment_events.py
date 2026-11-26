@@ -27,7 +27,8 @@ _INSERT_SQL = """
         (case_id, nik, event_type, event_at, branch_code, actor_role,
          actor_name, source_module, source_id, note, metadata_json)
     VALUES
-        (%(case_id)s, %(nik)s, COALESCE(%(event_at)s, NOW()), %(branch_code)s,
+        (%(case_id)s, %(nik)s, %(event_type)s,
+         COALESCE(%(event_at)s, NOW()), %(branch_code)s,
          %(actor_role)s, %(actor_name)s, %(source_module)s, %(source_id)s,
          %(note)s, %(metadata_json)s)
 """
