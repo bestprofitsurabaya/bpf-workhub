@@ -2,8 +2,8 @@
 
 NIK Indonesia: 6 digit kode wilayah + DDMMYY + 4 digit nomor urut. Tanggal
 lahir perempuan ditandai dengan DD + 40 (mis. 41 = tanggal 1 dan seterusnya).
-Tahun 2 digit dipetakan dengan ambang 30: `yy <= 30` -> 2000+yy, selain itu
-1900+yy.
+Pivot abad mengikuti tahun berjalan, sama seperti `tkd_core.derive_dob_from_nik`:
+`yy > (tahun berjalan % 100)` -> 1900+yy, selain itu 2000+yy.
 
 Modul ini murni: tidak menyentuh DB maupun Flask, dan tidak pernah mencetak
 NIK ke log. Pemanggil yang butuh tanggal lahir (CV Online, FirstWork, detail
@@ -11,22 +11,18 @@ rekrutmen) cukup memakai `birth_date_from_nik` / `gender_from_nik`.
 """
 from datetime import date
 
-AMBANG_TAHUN = 30
+from modules.helpers import normalize_nik as _normalize_nik
+
 SELISIH_HARI_PEREMPUAN = 40
 
 
 def normalize_nik(value):
-    """Ambil 16 digit dari input apa pun; '' bila jumlah digit bukan 16.
+    """Ambil 16 digit dari input; '' bila tidak valid.
 
-    Spasi dan pemisah lain dibuang sehingga NIK berformat
-    '3573 0101 0190 0001' tetap diterima. Digit non-ASCII (mis. '²') dan
-    notasi ilmiah spreadsheet tidak lolos karena hasilnya bukan 16 digit.
+    Memakai satu parser bersama dengan FirstWork dan CV Online, sehingga
+    notasi ilmiah/koma dari spreadsheet tetap ditolak.
     """
-    if value is None:
-        return ''
-    digits = ''.join(
-        ch for ch in str(value) if ch.isascii() and ch.isdigit())
-    return digits if len(digits) == 16 else ''
+    return _normalize_nik(value)[0]
 
 
 def _tidak_valid():
@@ -40,13 +36,14 @@ def _tidak_valid():
     }
 
 
-def parse_nik(nik):
+def parse_nik(nik, today=None):
     """Urai NIK menjadi dict; input apa pun tidak pernah melempar error.
 
     Return `{valid, tanggal_lahir, jenis_kelamin, kode_wilayah, urut}` dengan
     `tanggal_lahir` berformat 'YYYY-MM-DD' dan `jenis_kelamin` 'L'/'P'.
     Tanggal mustahil (bulan 00/13+, hari 00/32+, 30 Februari, dst.) membuat
-    seluruh field bernilai None dan `valid=False`.
+    seluruh field bernilai None dan `valid=False`. `today` opsional hanya
+    untuk tes deterministik.
     """
     digits = normalize_nik(nik)
     if not digits:
@@ -61,8 +58,9 @@ def parse_nik(nik):
     jenis_kelamin = 'P' if hari > SELISIH_HARI_PEREMPUAN else 'L'
     if jenis_kelamin == 'P':
         hari -= SELISIH_HARI_PEREMPUAN
-    tahun = (2000 + tahun_2digit if tahun_2digit <= AMBANG_TAHUN
-             else 1900 + tahun_2digit)
+    tahun_pivot = (today or date.today()).year % 100
+    tahun = (1900 + tahun_2digit if tahun_2digit > tahun_pivot
+             else 2000 + tahun_2digit)
 
     try:
         tanggal_lahir = date(tahun, bulan, hari).isoformat()
@@ -78,9 +76,9 @@ def parse_nik(nik):
     }
 
 
-def birth_date_from_nik(nik):
+def birth_date_from_nik(nik, today=None):
     """Tanggal lahir 'YYYY-MM-DD' dari NIK, atau None bila NIK tidak valid."""
-    return parse_nik(nik)['tanggal_lahir']
+    return parse_nik(nik, today=today)['tanggal_lahir']
 
 
 def gender_from_nik(nik):

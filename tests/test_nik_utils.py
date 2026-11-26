@@ -1,11 +1,14 @@
 """Regresi util NIK (Rilis C — Task C1b).
 
 NIK 16 digit: 6 digit kode wilayah + DDMMYY + 4 digit urut. Tanggal lahir
-perempuan ditandai dengan DD + 40. Tahun 2 digit dipetakan dengan ambang 30
-(`yy <= 30` -> 2000+yy, selain itu 1900+yy). Semua fungsi murni: tanpa DB,
-Flask, dan tanpa mencetak NIK ke log.
+perempuan ditandai dengan DD + 40. Tahun 2 digit mengikuti pivot tahun
+berjalan (sama seperti `tkd_core.derive_dob_from_nik`). Semua fungsi murni:
+tanpa DB, Flask, dan tanpa mencetak NIK ke log.
 """
+from datetime import date
 from pathlib import Path
+
+HARI_INI = date(2026, 11, 26)
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -102,12 +105,20 @@ def test_parse_nik_menerima_nik_berformat():
     assert data['jenis_kelamin'] == 'L'
 
 
-def test_ambang_tahun_dua_digit_30():
+def test_pivot_abad_mengikuti_tahun_berjalan():
     from modules.nik_utils import birth_date_from_nik
-    assert birth_date_from_nik('3573010101000001') == '2000-01-01'
-    assert birth_date_from_nik('3573010101300001') == '2030-01-01'
-    assert birth_date_from_nik('3573010101310001') == '1931-01-01'
-    assert birth_date_from_nik('3573010101990001') == '1999-01-01'
+    # Tahun 2026: yy 27 tidak mungkin kelahiran 2027 -> 1927.
+    assert birth_date_from_nik('3573010101270001', today=HARI_INI) == '1927-01-01'
+    assert birth_date_from_nik('3573010101260001', today=HARI_INI) == '2026-01-01'
+    assert birth_date_from_nik('3573010101300001', today=HARI_INI) == '1930-01-01'
+    assert birth_date_from_nik('3573010101000001', today=HARI_INI) == '2000-01-01'
+    assert birth_date_from_nik('3573010101990001', today=HARI_INI) == '1999-01-01'
+
+
+def test_normalize_nik_menolak_notasi_spreadsheet():
+    from modules.nik_utils import normalize_nik
+    assert normalize_nik('1,23E+15') == ''
+    assert normalize_nik('3573,0101,0190,0001') == ''
 
 
 def test_modul_murni_tanpa_flask_db_dan_tanpa_mencetak_nik(capsys):
