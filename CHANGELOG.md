@@ -7,6 +7,16 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.135.4 — 26 November 2026 (Portal rekrutmen ramah HP)
+
+- Kartu tahap jadi ringkas: badge status, ringkasan satu baris, dan tombol
+  native `Lihat keterangan` untuk pesan humanis lengkap. Urutan kartu tetap
+  CV → Training → TKD → FirstWork.
+- Header dipadatkan, tombol/input minimal 44 px, satu kolom di layar < 640 px,
+  serta padding bawah mengikuti safe-area HP.
+- Kartu selesai tetap redup, tanpa tautan, dan tidak menampilkan ajakan
+  "Buka langkah"; kartu langkah berikutnya diberi border biru tipis.
+
 ## v2.135.3 — 26 November 2026 (Perbaikan status tahap portal)
 
 - Perbaikan bug pada `portal_summary`: baris `recruitment_steps` difilter ulang
