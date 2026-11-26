@@ -129,6 +129,37 @@ describe('RecruitmentPortalView — portal per cabang 4 kartu (Rilis A)', () => 
     expect(apiMock).not.toHaveBeenCalled()
   })
 
+  const LOOKUP_DONE = {
+    status: 'success', known: true, can_continue: true,
+    nama_masked: 'Bili D.', next_action: 'TRAINING',
+    stages: [
+      { type: 'CV', status: 'SELESAI', completed_at: '2026-11-25 19:28:30' },
+      { type: 'TRAINING', status: 'BELUM', completed_at: null },
+      { type: 'TKD', status: 'SELESAI', completed_at: '2026-11-25 19:24:47' },
+      { type: 'FIRSTWORK', status: 'BELUM', completed_at: null },
+    ],
+  }
+
+  it('kartu selesai menampilkan centang, waktu, redup, dan tidak bisa dibuka', async () => {
+    const w = await mountPortal(`?token=${TOKEN}`, LOOKUP_DONE)
+    await cek(w, '3509190102960003', '1996-02-01')
+    const cv = card(w, 'CV')
+    expect(cv.text()).toContain('✓ Selesai')
+    expect(cv.text()).toContain('2026-11-25 19:28:30')
+    expect(cv.text()).toContain('tidak perlu diulang')
+    expect(cv.classes()).toContain('rp-card--done')
+    expect(cv.element.tagName).toBe('DIV')
+    expect(cv.attributes('href')).toBeUndefined()
+    expect(card(w, 'TRAINING').classes()).not.toContain('rp-card--done')
+    expect(card(w, 'TRAINING').attributes('href')).toBeTruthy()
+  })
+
+  it('langkah berikutnya tampil dari respons lookup', async () => {
+    const w = await mountPortal(`?token=${TOKEN}`, LOOKUP_DONE)
+    await cek(w, '3509190102960003', '1996-02-01')
+    expect(w.text()).toContain('Langkah berikutnya: Training Absensi')
+  })
+
   it('lookup hanya GET dan tidak menampilkan cabang/langkah/data pribadi dari respons', async () => {
     const bocor = {
       ...KNOWN,
