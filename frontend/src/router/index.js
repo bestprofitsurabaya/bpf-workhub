@@ -83,9 +83,8 @@ const routes = [
       // Rilis A (Task 6) — dashboard kasus rekrutmen: NIK termasker, empat
       // langkah, riwayat cabang, dan pengecualian langkah untuk staff.
       { path: 'recruitment-cases', redirect: { path: '/recruitment', query: { tab: 'kasus' } } },
-      // Rilis D: master karyawan menggantikan In-Out; tautan lama jadi arsip.
-      { path: 'employees', name: 'employees', component: () => import('../views/EmployeesView.vue'), meta: { roles: ['receptionist', 'ga_hr', 'admin'] } },
-      { path: 'inout', redirect: { path: '/employees', query: { archive: '1' } }, meta: { roles: ['receptionist', 'ga_hr', 'admin'] } },
+      // In-Out Karyawan (v2.41.0) — catatan keluar-masuk (read-only, sync sheet)
+      { path: 'inout', name: 'inout', component: () => import('../views/dashboard/EmployeeInOutView.vue'), meta: { roles: ['receptionist', 'admin'] } },
       // Absensi FirstWork (v2.80.0) — verifikasi Traineer, lihat Finance, kelola Admin
       { path: 'first-work', name: 'first-work', component: () => import('../views/FirstWorkView.vue'), meta: { roles: ['traineer', 'finance', 'ga_hr', 'admin'], title: 'Absensi FirstWork' } },
       // Registrasi CV Online (v2.113.0) — data pelamar kini menjadi tab di hub;

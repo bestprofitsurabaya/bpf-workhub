@@ -51,11 +51,12 @@ function label(row) {
 }
 
 function open(row) {
-  selected.value = { ...row }
-}
-
-function stageLabel(row, type) {
-  return row.stages?.[type] || '—'
+  if (!row.case_id) {
+    selected.value = { case_id: null, display_id: row.display_id,
+                       nama: row.nama, nik_masked: row.nik_masked }
+    return
+  }
+  selected.value = row
 }
 </script>
 
@@ -83,9 +84,7 @@ function stageLabel(row, type) {
     <p v-if="error" class="rp-error" role="alert">{{ error }}</p>
 
     <table class="rp-table">
-      <thead><tr><th>Nama</th><th>NIK</th><th>Cabang</th><th>Tahap</th>
-        <th>CV</th><th>Training</th><th>TKD</th><th>FirstWork</th>
-        <th>Status</th><th>Kejadian terakhir</th><th>Aksi</th></tr></thead>
+      <thead><tr><th>Nama</th><th>NIK</th><th>Cabang</th><th>Tahap</th><th>Status</th><th>Kejadian terakhir</th></tr></thead>
       <tbody>
         <tr v-for="row in rows" :key="row.case_id || row.display_id"
             tabindex="0" @click="open(row)" @keydown.enter="open(row)">
@@ -93,27 +92,15 @@ function stageLabel(row, type) {
           <td>{{ row.nik_masked || '—' }}</td>
           <td>{{ row.branch_code }}</td>
           <td>{{ row.stage }}</td>
-          <td>{{ stageLabel(row, 'CV') }}</td>
-          <td>{{ stageLabel(row, 'TRAINING') }}</td>
-          <td>{{ stageLabel(row, 'TKD') }}</td>
-          <td>{{ stageLabel(row, 'FIRSTWORK') }}</td>
           <td>{{ row.status }}</td>
           <td>{{ row.last_event || '—' }}</td>
-          <td>
-            <button type="button" class="btn btn-sm" data-action="detail"
-                    @click.stop="open(row)">Detail</button>
-            <button v-if="!readOnly && row.id" type="button" class="btn btn-sm"
-                    data-action="verify" @click.stop="open(row)">Verifikasi</button>
-            <button v-if="!readOnly && !row.nik_masked" type="button" class="btn btn-sm"
-                    data-action="link" @click.stop="open(row)">Tautkan NIK</button>
-          </td>
         </tr>
       </tbody>
     </table>
     <p v-if="!loading && !rows.length" class="rp-empty">Belum ada data. Mulai dari CV Online atau tautkan NIK pelamar lama.</p>
 
     <RecruitmentPersonDetail v-if="selected" :person="selected" :read-only="readOnly"
-                             :view="view" @close="selected = null" @saved="load" />
+                             @close="selected = null" @saved="load" />
   </section>
 </template>
 

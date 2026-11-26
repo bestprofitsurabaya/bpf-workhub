@@ -343,12 +343,6 @@ def _case_map(cursor, nik='', q='', branch_code='', stage='', status='',
             if not branches:
                 continue
         case_steps = [s for s in steps if s.get('case_id') == case_id]
-        stages = {}
-        for step in case_steps:
-            kind = str(step.get('step_type') or '')
-            status = str(step.get('status') or 'BELUM')
-            if kind not in stages or status == 'SELESAI':
-                stages[kind] = status
         done = [str(s.get('step_type') or '') for s in case_steps
                 if str(s.get('status') or '').upper() == 'SELESAI']
         current_stage = next((s for s in reversed(_STAGE_ORDER) if s in done), 'BELUM')
@@ -362,7 +356,6 @@ def _case_map(cursor, nik='', q='', branch_code='', stage='', status='',
                 'nama': str(case.get('nama') or ''),
                 'branch_code': code, 'stage': current_stage,
                 'status': str(case.get('status') or ''),
-                'stages': stages,
                 'last_event': last_event, 'link_status': 'linked',
                 'display_id': '', 'source': 'case',
             })
@@ -398,12 +391,11 @@ def _unlinked_applicants(scope, q='', link=''):
                     if q and q.lower() not in name.lower():
                         continue
                     rows.append({
-                        'case_id': None, 'id': row.get('id'),
-                        'nik': str(row.get('nik') or ''),
+                        'case_id': None, 'nik': str(row.get('nik') or ''),
                         'nama': name, 'branch_code': code,
                         'stage': str(row.get('status') or 'BELUM'),
                         'status': str(row.get('status') or ''),
-                        'stages': {}, 'last_event': '', 'link_status':
+                        'last_event': '', 'link_status':
                             str(row.get('link_status') or 'unlinked'),
                         'display_id': str(row.get('display_id') or ''),
                         'source': 'applicants',
@@ -432,13 +424,10 @@ def _person_detail(cursor, case_id):
     fw = cursor.fetchone() or {}
     cursor.execute('SELECT * FROM training_attendance WHERE case_id=%s', (case_id,))
     training = cursor.fetchall() or []
-    cursor.execute('SELECT * FROM tkd_attempts WHERE case_id=%s '
-                   'ORDER BY attempt_no DESC LIMIT 1', (case_id,))
-    tkd = cursor.fetchone() or {}
     card_token = issue_card_token(fw['id']) if fw.get('id') else None
     return {'case': case, 'steps': steps, 'branches': branches,
             'timeline': timeline, 'cv': cv, 'first_work': fw,
-            'training': training, 'tkd': tkd, 'card_token': card_token}
+            'training': training, 'card_token': card_token}
 
 
 def register_recruitment_routes(app):
@@ -801,9 +790,6 @@ def register_recruitment_routes(app):
     @role_required(_PEOPLE_ROLES)
     def api_recruitment_person_detail(case_id):
         role = session.get('user_role') or ''
-        if role == 'finance' and (request.args.get('view') or '') != 'firstwork':
-            return jsonify({'status': 'error',
-                            'msg': 'Finance hanya melihat ringkasan FirstWork.'}), 403
         conn = None
         try:
             conn = get_master_connection()
@@ -829,18 +815,10 @@ def register_recruitment_routes(app):
             if scope not in codes:
                 return jsonify({'status': 'error',
                                 'msg': 'Kasus di luar cabang Anda'}), 403
-        if role == 'finance':
-            # Finance tidak melihat identitas, tahap, linimasa, atau CV.
-            detail = {'first_work': detail['first_work'],
-                      'card_token': detail['card_token']}
-        elif role not in ('ga_hr', 'admin'):
-            # Traineer melihat seluruh data rekrutmen, tetapi NIK tetap termasker.
-            for key in ('case', 'cv', 'first_work', 'tkd'):
+        if role not in ('ga_hr', 'admin'):
+            for key in ('case', 'cv', 'first_work'):
                 if isinstance(detail[key], dict):
                     detail[key].pop('nik', None)
-            for row in detail['training']:
-                if isinstance(row, dict):
-                    row.pop('nik', None)
         return jsonify({'data': detail})
 
     @app.route('/api/recruitment/people/<case_id>/timeline', methods=['GET'])

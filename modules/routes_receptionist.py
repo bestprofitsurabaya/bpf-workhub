@@ -41,7 +41,6 @@ from modules.helpers import (role_required, log_activity_async,
 from modules.stepup import stepup_required
 from modules.recruitment_service import ensure_case
 from modules.recruitment_events import record_event
-from modules.employee_service import promote_to_employee
 from modules.realtime import emit_event
 from modules.overtime_helpers import clean, parse_date_mdy, parse_time_any
 from modules.routes_overtime import _fetch_sheet_rows
@@ -1128,12 +1127,9 @@ def register_receptionist_routes(app):
     @app.route('/api/applicants/<int:appt_id>/register-employee', methods=['POST'])
     @role_required(['receptionist', 'admin'])
     def api_applicant_register_employee(appt_id):
-        """Alias lama: lulus -> master karyawan (tanpa employee_inout baru)."""
         try:
             data = request.get_json(silent=True) or {}
-            jabatan = clean(str(data.get('jabatan', '') or ''))[:100] or 'Business Consultant'
-            from modules.helpers import normalize_nik
-            nik, _raw = normalize_nik((data.get('nik')) or None)
+            jabatan = clean(str(data.get('jabatan', '') or ''))[:100]
             conn = get_db_connection()
             if not conn:
                 return jsonify({'status': 'error', 'msg': 'DB error'}), 500
@@ -1143,46 +1139,58 @@ def register_receptionist_routes(app):
             if not appt:
                 cursor.close(); conn.close()
                 return jsonify({'status': 'error', 'msg': 'Pelamar tidak ditemukan'}), 404
-            nik = nik or normalize_nik(appt.get('nik'))[0]
-            if len(nik) != 16:
+            if appt['status'] == 'lulus':
                 cursor.close(); conn.close()
                 return jsonify({'status': 'error',
-                                'msg': 'Lengkapi NIK sebelum menjadikan karyawan.'}), 409
-            case_id = ''
-            try:
-                case_id = ensure_case(nik, appt.get('nama_lengkap'),
-                                      session.get('branch_code', ''),
-                                      source='manual') or ''
-            except Exception as exc:
-                print('[register-employee] gagal kasus: ' + str(exc)[:120])
-            cursor.execute("UPDATE applicants SET status='lulus', updated_at=NOW() "
-                           "WHERE id=%s", (appt_id,))
+                                'msg': 'Pelamar ini sudah menjadi karyawan'}), 409
+            if appt['status'] in ('rejected', 'resigned'):
+                cursor.close(); conn.close()
+                return jsonify({'status': 'error',
+                                'msg': f'Pelamar berstatus {appt["status"]} — '
+                                       f'ubah status dulu bila memang lulus'}), 409
+            nama = appt['nama_lengkap']
+            now = datetime.now()
+            # Sama hari: apakah sudah ada catatan keluar terbuka utk nama ini?
+            cursor.execute(
+                "SELECT id FROM employee_inout WHERE nama=%s AND pergi=1 AND datang=0 "
+                "AND DATE(waktu_pergi)=%s ORDER BY id DESC LIMIT 1",
+                (nama, now.strftime('%Y-%m-%d')))
+            open_row = cursor.fetchone()
+            cursor.execute(
+                """UPDATE applicants SET status='lulus', updated_at=NOW()
+                   WHERE id=%s""",
+                (appt_id,))
+            if open_row:
+                inout_id = open_row['id']
+            else:
+                cursor.execute(
+                    """INSERT INTO employee_inout
+                       (source_uid, nama, jabatan, pergi, datang, keterangan,
+                        source, locked, created_by, created_at, updated_at, applicant_id)
+                       VALUES (%s,%s,%s,0,0,%s,'registrasi',1,%s,%s,%s,%s)""",
+                    ('io-reg-' + hashlib.md5(
+                        f"{appt['display_id']}|{nama}".encode('utf-8')).hexdigest()[:32],
+                     nama, jabatan, 'Registrasi karyawan baru (lulus training)',
+                     session.get('user_name', ''), now, now, appt_id))
+                inout_id = cursor.lastrowid
+            _log_inout_event(cursor, inout_id, 'registrasi',
+                             {'nama': nama, 'keterangan': 'Registrasi karyawan baru'},
+                             {'applicant_id': appt_id, 'display_id': appt['display_id'],
+                              'jabatan': jabatan})
             conn.commit()
             cursor.close(); conn.close()
-            promoted = promote_to_employee(
-                case_id, jabatan=jabatan,
-                branch_code=str(session.get('branch_code') or ''),
-                actor=session.get('user_name', '')) or {}
-            try:
-                record_event(case_id, nik, 'PASSED',
-                             branch_code=str(session.get('branch_code') or ''),
-                             source_module='applicants',
-                             source_id=appt.get('display_id', ''))
-            except Exception:
-                pass
             log_activity_async(None, 'applicant_register_employee',
                                session.get('user_role', ''),
                                session.get('full_name', session.get('user_name', '')),
-                               new_data={'applicant_id': appt_id,
-                                         'display_id': appt.get('display_id', '')},
-                               ip=request.remote_addr)
+                               new_data={'applicant_id': appt_id, 'display_id': appt['display_id'],
+                                         'nama': nama, 'jabatan': jabatan}, ip=request.remote_addr)
             return jsonify({'status': 'success',
-                            'msg': f'{appt.get("nama_lengkap", "")} terdaftar sebagai karyawan.',
-                            'employee_created': bool(promoted.get('created')),
-                            'employee_no': promoted.get('employee_no')})
+                            'msg': f'{nama} terdaftar sebagai karyawan — siap dicatat in-out.',
+                            'inout_id': inout_id})
         except Exception as e:
             return jsonify({'status': 'error', 'msg': str(e)}), 500
 
+    # ---- DAFTAR KARYAWAN (roster, v2.42.0) ---------------------------------
     @app.route('/api/receptionist/employees')
     @role_required(['receptionist', 'admin'])
     def api_receptionist_employees():

@@ -140,17 +140,6 @@ for _attempt in range(5):
         break
     _time.sleep(3)
 
-# Master karyawan (Rilis D) — API daftar/detail/absensi/administrasi HR.
-from modules.routes_employees import register_employee_routes
-register_employee_routes(app)
-
-# Master karyawan (Rilis D): tabel employees + absensi di DB master.
-from modules.employee_schema import ensure_employee_schema
-for _attempt in range(5):
-    if ensure_employee_schema():
-        break
-    _time.sleep(3)
-
 # Kolom NIK pelamar (Rilis C): applicants di setiap DB cabang. Kegagalan satu
 # cabang dicatat ke stdout dan diulang pada startup berikutnya (idempoten).
 from modules.applicant_nik_schema import ensure_applicant_nik_schema_all

@@ -7,32 +7,12 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
-## v2.137.1 — 26 November 2026 (Detail Data Rekrutment lengkap)
-
-- Data Rekrutment tidak lagi hanya menampilkan nama/NIK/cabang/tahap/status/
-  kejadian terakhir. Tabel kini memuat status CV, Training, TKD, dan
-  FirstWork serta aksi cepat; klik baris membuka panel detail lengkap:
-  identitas & kasus, riwayat cabang, CV Online, absensi H1/H2, TKD,
-  FirstWork + kartu, linimasa, dan aksi verifikasi/H1–H4/pulang/lulus/taut NIK.
-- Traineer dan GA HR mendapat seluruh bagian rekrutmen; NIK lengkap tetap
-  hanya untuk GA HR/admin. Finance tetap read-only (FirstWork saja).
-
-## v2.137.0 — 26 November 2026 (Master karyawan lengkap)
-
-- Tabel `employees`, `employee_attendance_events`, dan `employee_counters`
-  di DB master; skema aditif/idempoten, nomor `KRY-<CABANG>-<5 digit>`.
-- Pelamar lulus otomatis dipromosikan ke master karyawan (alias lama
-  `register-employee` tidak lagi menulis In-Out baru).
-- Resepsionis mencatat keluar/masuk; GA HR/admin mengoreksi event absensi,
-  menonaktifkan/aktifkan dengan alasan, mengubah field HR dan NIK (unik),
-  serta mengekspor CSV.
-- Seed idempoten dari FirstWork (termasuk 44 baris unitedw) dan 76 nama
-  In-Out lama sebagai arsip; baris tanpa NIK ditandai `needs_nik`.
-- NIK lengkap hanya untuk GA HR/admin; peran lain menerima NIK termasker.
-  Menu **Karyawan** menggantikan In-Out; `/inout` jadi arsip read-only.
-
 ## v2.136.0 — 26 November 2026 (Integrasi rekrutmen berbasis NIK)
 
+- **Rollback 26 Nov:** kode dikembalikan dari v2.137.1 ke Titik stabil v2.136.0
+  (commit `9f8e270`, termasuk perbaikan event/token kartu). Modul Rilis D
+  (master karyawan, halaman Karyawan, seed) dihapus dari kode. Data hasil seed
+  sengaja **tidak dihapus** menunggu keputusan lebih lanjut.
 - **Satu tulang punggung NIK:** satu `recruitment_cases` per NIK lintas cabang;
   `recruitment_events` mencatat linimasa `RECEPTIONIST_CREATED`, `VERIFIED`,
   `INTERVIEW`, H1–H4, `PASSED`, `RESIGNED`, `CV_SUBMITTED`, training portal,

@@ -67,8 +67,6 @@ def master():
             {'id': 7, 'nik': NIK, 'registration_no': 'FW-SBY-1',
              'submitted_at': '2026-11-26 09:00:00'}],
         'training_attendance': [],
-        'tkd_attempts': [{'id': 'TKD-1', 'attempt_no': 1, 'status': 'SELESAI',
-                          'score': 82, 'nik': NIK}],
         'branches': [{'code': 'SBY'}, {'code': 'JKT'}],
     })
 
@@ -108,8 +106,6 @@ def test_people_menggabungkan_kasus_dan_pelamar_belum_tertaut(app):
     data = _client(app).get('/api/recruitment/people').get_json()['data']
     assert {row['case_id'] for row in data} >= {CASE, None}
     assert next(r for r in data if r['case_id'] is None)['link_status'] == 'unlinked'
-    case_row = next(r for r in data if r['case_id'] == CASE)
-    assert case_row['stages']['CV'] == 'SELESAI'
 
 
 def test_people_masking_nik_untuk_resepsionis(app):
@@ -144,30 +140,8 @@ def test_detail_dan_timeline(app):
     body = detail.get_json()['data']
     assert body['card_token']
     assert body['steps'][0]['step_type'] == 'CV'
-    for section in ('case', 'cv', 'first_work', 'training', 'tkd',
-                    'branches', 'timeline'):
-        assert section in body
-    assert body['tkd']['score'] == 82
     timeline = client.get(f'/api/recruitment/people/{CASE}/timeline')
     assert timeline.status_code == 200
     assert timeline.get_json()['data'][0]['event_type'] == 'CV_SUBMITTED'
     alias = client.get(f'/api/recruitment/cases/{CASE}/timeline')
     assert alias.get_json() == timeline.get_json()
-
-
-def test_traineer_melihat_data_lengkap_tanpa_nik(app):
-    res = _client(app, role='traineer').get(f'/api/recruitment/people/{CASE}')
-    assert res.status_code == 200
-    body = res.get_json()['data']
-    for section in ('cv', 'first_work', 'training', 'tkd', 'timeline', 'branches'):
-        assert section in body
-    assert NIK not in str(body)
-
-
-def test_finance_detail_hanya_firstwork(app):
-    client = _client(app, role='finance')
-    assert client.get(f'/api/recruitment/people/{CASE}').status_code == 403
-    res = client.get(f'/api/recruitment/people/{CASE}',
-                     query_string={'view': 'firstwork'})
-    assert res.status_code == 200
-    assert set(res.get_json()['data']) == {'first_work', 'card_token'}
