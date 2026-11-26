@@ -14,6 +14,7 @@ Alur bisnis (menggantikan Google Form + Google Sheet):
 """
 from modules.integrity import note
 import io
+import re
 import time
 from datetime import datetime, date
 
@@ -21,9 +22,11 @@ from flask import (request, jsonify, session, make_response)
 from modules.config import get_db_connection, get_master_connection
 from modules.helpers import (role_required, log_activity_async,
                              generate_display_id, applicant_stage_label,
-                             applicant_status_label, client_ip)
+                             applicant_status_label, client_ip, normalize_nik)
 from modules.pdf_generator import ApplicantReportPDF
 from modules.stepup import stepup_required
+from modules.recruitment_service import ensure_case
+from modules.recruitment_events import record_event
 
 VALID_STAGES = ('interview', 'training_1', 'training_2', 'training_3', 'training_4')
 TRAINING_STAGES = ('training_1', 'training_2', 'training_3', 'training_4')
@@ -690,6 +693,74 @@ def register_applicant_routes(app):
             return jsonify({'status': 'error', 'msg': str(e)}), 500
 
     # ================================================================
+    # TAUTAN NIK — menjadikan baris lama bagian dari kasus berbasis NIK
+    # ================================================================
+    @app.route('/api/applicants/<int:appt_id>/link-nik', methods=['POST'])
+    @role_required(['receptionist', 'ga_hr', 'admin'])
+    def api_applicants_link_nik(appt_id):
+        try:
+            data = request.get_json(silent=True) or {}
+            nik, _raw = normalize_nik(data.get('nik'))
+            if not nik:
+                return jsonify({'status': 'error',
+                                'msg': 'NIK wajib diisi dengan 16 digit angka'}), 400
+
+            conn = get_db_connection()
+            if not conn:
+                return jsonify({'status': 'error', 'msg': 'DB error'}), 500
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute("SELECT id, display_id, nama_lengkap FROM applicants "
+                           "WHERE id=%s", (appt_id,))
+            row = cursor.fetchone()
+            if not row:
+                cursor.close(); conn.close()
+                return jsonify({'status': 'error', 'msg': 'Pelamar tidak ditemukan'}), 404
+            cursor.execute("SELECT id, display_id FROM applicants "
+                           "WHERE nik=%s AND id<>%s", (nik, appt_id))
+            duplicate = cursor.fetchone()
+            if duplicate:
+                cursor.close(); conn.close()
+                return jsonify({
+                    'status': 'error',
+                    'msg': f'NIK sudah dipakai {duplicate["display_id"]}'
+                }), 409
+
+            case_id = ''
+            try:
+                case_id = ensure_case(
+                    nik, row.get('nama_lengkap'),
+                    session.get('branch_code', ''), source='manual') or ''
+            except Exception as exc:
+                aman = re.sub(r'\d{16}', '****************', str(exc))
+                print(f'[applicants] gagal membuat kasus saat taut NIK: {aman}')
+
+            cursor.execute(
+                """UPDATE applicants SET nik=%s, nik_source='manual',
+                   linked_at=NOW(), link_status='linked', updated_at=NOW()
+                   WHERE id=%s""", (nik, appt_id))
+            conn.commit()
+            cursor.close(); conn.close()
+
+            user = _current_user()
+            try:
+                record_event(case_id, nik, 'NIK_LINKED',
+                             branch_code=str(session.get('branch_code') or ''),
+                             actor_name=user['full_name'],
+                             actor_role=user['role'],
+                             source_module='applicants',
+                             source_id=row['display_id'])
+            except Exception:
+                pass
+            log_activity_async(None, 'applicant_link_nik', user['role'],
+                               user['full_name'],
+                               new_data={'display_id': row['display_id']},
+                               ip=client_ip())
+            return jsonify({'status': 'success',
+                            'msg': f'{row["display_id"]} tertaut dengan NIK'})
+        except Exception as e:
+            return jsonify({'status': 'error', 'msg': str(e)}), 500
+
+    # ================================================================
     # VERIFIKASI — resepsionis mengesahkan data pelamar
     # ================================================================
     @app.route('/api/applicants/<int:appt_id>/verify', methods=['POST'])
@@ -701,7 +772,7 @@ def register_applicant_routes(app):
             if not conn:
                 return jsonify({'status': 'error', 'msg': 'DB error'}), 500
             cursor = conn.cursor(dictionary=True)
-            cursor.execute("SELECT display_id FROM applicants WHERE id=%s", (appt_id,))
+            cursor.execute("SELECT display_id, nik FROM applicants WHERE id=%s", (appt_id,))
             row = cursor.fetchone()
             if not row:
                 cursor.close(); conn.close()
@@ -711,6 +782,18 @@ def register_applicant_routes(app):
                            "updated_at=NOW() WHERE id=%s",
                            (user['full_name'], appt_id))
             conn.commit()
+            try:
+                case_id = ''
+                if row.get('nik'):
+                    case_id = ensure_case(row['nik'], None,
+                                          session.get('branch_code', ''),
+                                          source='manual') or ''
+                record_event(case_id, row.get('nik') or '', 'VERIFIED',
+                             branch_code=str(session.get('branch_code') or ''),
+                             actor_role=user['role'], actor_name=user['full_name'],
+                             source_module='applicants', source_id=row['display_id'])
+            except Exception:
+                pass
             log_activity_async(None, 'applicant_verify', user['role'], user['full_name'],
                                new_data={'display_id': row['display_id']}, ip=client_ip())
             cursor.close(); conn.close()
@@ -772,6 +855,21 @@ def register_applicant_routes(app):
                                (new_status, appt_id))
 
             conn.commit()
+            try:
+                case_id = ''
+                if row.get('nik'):
+                    case_id = ensure_case(row['nik'], None,
+                                          session.get('branch_code', ''),
+                                          source='manual') or ''
+                event_type = ('INTERVIEW' if stage == 'interview'
+                              else 'TRAINING_H' + stage.split('_')[1])
+                record_event(case_id, row.get('nik') or '', event_type,
+                             branch_code=str(session.get('branch_code') or ''),
+                             actor_role=user['role'], actor_name=user['full_name'],
+                             source_module='applicants', source_id=row['display_id'],
+                             event_at=attended_dt, note=note[:500])
+            except Exception:
+                pass
             log_activity_async(None, 'applicant_attendance', user['role'], user['full_name'],
                                new_data={'stage': stage, 'status': new_status,
                                          'at': attended_dt.strftime('%Y-%m-%d %H:%M:%S')},
@@ -810,15 +908,11 @@ def register_applicant_routes(app):
                 cursor.close(); conn.close()
                 return jsonify({'status': 'error', 'msg': 'Status pelamar sudah final'}), 409
 
-            # Mengundurkan diri: alasan WAJIB bila pelamar sudah pernah hadir
+            # Mengundurkan diri: alasan WAJIB untuk semua pelamar (Rilis C).
             if status == 'resigned' and not reason:
-                cursor.execute("SELECT COUNT(*) c FROM applicant_attendance WHERE applicant_id=%s",
-                               (appt_id,))
-                attended = cursor.fetchone()['c']
-                if attended > 0:
-                    cursor.close(); conn.close()
-                    return jsonify({'status': 'error',
-                                    'msg': 'Alasan mengundurkan diri WAJIB diisi karena pelamar sudah pernah hadir'}), 400
+                cursor.close(); conn.close()
+                return jsonify({'status': 'error',
+                                'msg': 'Alasan mengundurkan diri WAJIB diisi'}), 400
 
             user = _current_user()
             if status == 'resigned':
@@ -831,6 +925,21 @@ def register_applicant_routes(app):
                 cursor.execute("UPDATE applicants SET status='lulus', updated_at=NOW() WHERE id=%s",
                                (appt_id,))
             conn.commit()
+            try:
+                case_id = ''
+                if row.get('nik'):
+                    case_id = ensure_case(row['nik'], None,
+                                          session.get('branch_code', ''),
+                                          source='manual') or ''
+                record_event(case_id, row.get('nik') or '',
+                             {'lulus': 'PASSED', 'resigned': 'RESIGNED',
+                              'rejected': 'REJECTED'}[status],
+                             branch_code=str(session.get('branch_code') or ''),
+                             actor_role=user['role'], actor_name=user['full_name'],
+                             source_module='applicants', source_id=row['display_id'],
+                             note=reason)
+            except Exception:
+                pass
             log_activity_async(None, 'applicant_status', user['role'], user['full_name'],
                                new_data={'status': status, 'reason': reason},
                                ip=client_ip())

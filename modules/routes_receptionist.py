@@ -35,10 +35,12 @@ from datetime import datetime
 
 from flask import request, jsonify, session, make_response
 
-from modules.config import get_db_connection
+from modules.config import get_db_connection, get_master_connection
 from modules.helpers import (role_required, log_activity_async,
-                             generate_display_id)
+                             generate_display_id, normalize_nik)
 from modules.stepup import stepup_required
+from modules.recruitment_service import ensure_case
+from modules.recruitment_events import record_event
 from modules.realtime import emit_event
 from modules.overtime_helpers import clean, parse_date_mdy, parse_time_any
 from modules.routes_overtime import _fetch_sheet_rows
@@ -251,6 +253,9 @@ APPLICANT_HEADERS = {
     'user': 'user',
     'posisiyangdilamar': 'posisi',
     'tanggalh2': 'h2',
+    'nik': 'nik',
+    'nomorindukkependudukan': 'nik',
+    'nikktp': 'nik',
 }
 
 INOUT_HEADERS = {
@@ -409,6 +414,7 @@ def normalize_applicant_row(r, idx):
         'h2_date': parse_date_mdy(g('h2')) or None,
         'tanggal_raw': g('tanggal'),
         'jam_raw': g('jam'),
+        'nik': normalize_nik(g('nik'))[0],
     }
 
 
@@ -478,6 +484,30 @@ def _get_sheet_url(conn, modul='applicants'):
         return default
 
 
+def _cv_nik_by_name_hp(nama, no_hp):
+    """NIK dari CV Online terbaru dengan nama + HP sama persis (tunggal)."""
+    if not nama or not no_hp:
+        return ''
+    conn = get_master_connection()
+    if not conn:
+        return ''
+    try:
+        cur = conn.cursor(dictionary=True)
+        cur.execute(
+            """SELECT nik FROM cv_online_submissions
+               WHERE nama=%s AND no_hp=%s
+               ORDER BY submitted_at DESC LIMIT 2""",
+            (nama, no_hp))
+        rows = cur.fetchall() or []
+        cur.close()
+        niks = {str(r.get('nik') or '') for r in rows}
+        return niks.pop() if len(niks) == 1 and niks != {''} else ''
+    except Exception:
+        return ''
+    finally:
+        conn.close()
+
+
 def _do_sync_applicants():
     """Tarik sheet pelamar lalu upsert ke `applicants` (source_uid stabil).
 
@@ -499,8 +529,17 @@ def _do_sync_applicants():
             uid = 'plm-' + hashlib.md5('|'.join(
                 [row['nama'], row['tanggal_raw'], row['jam_raw']]
             ).encode('utf-8')).hexdigest()
-            cursor.execute("SELECT id FROM applicants WHERE source_uid=%s", (uid,))
+            nik = row.get('nik') or _cv_nik_by_name_hp(row['nama'], row['no_hp'])
+            nik_source = 'sheet' if row.get('nik') else 'cv_match'
+            cursor.execute("SELECT id, nik FROM applicants WHERE source_uid=%s", (uid,))
             existing = cursor.fetchone()
+            if nik:
+                cursor.execute(
+                    "SELECT id, display_id FROM applicants WHERE nik=%s AND id<>%s",
+                    (nik, existing['id'] if existing else 0))
+                if cursor.fetchone():
+                    skipped += 1
+                    continue
             if existing:
                 # v2.42.0: pelamar yang sudah LULUS dijaga — data identitas di
                 # sheet boleh diperbarui, status final (karyawan) tidak ditimpa.
@@ -513,17 +552,37 @@ def _do_sync_applicants():
                      row['user'], row['posisi'], row['interview_at'],
                      row['h2_date'], n + 1, existing['id']))
                 updated += 1
+                if nik and not existing.get('nik'):
+                    cursor.execute(
+                        """UPDATE applicants SET nik=%s, nik_source=%s,
+                           linked_at=NOW(), link_status='linked' WHERE id=%s""",
+                        (nik, nik_source, existing['id']))
             else:
                 display_id = generate_display_id('PLM', conn)
+                columns = ['display_id', 'nama_lengkap', 'pendidikan', 'no_hp',
+                           'upline', 'user_field', 'posisi', 'interview_at',
+                           'h2_date', 'source_uid', 'sheet_row']
+                values = [display_id, row['nama'], row['pendidikan'], row['no_hp'],
+                          row['upline'], row['user'], row['posisi'],
+                          row['interview_at'], row['h2_date'], uid, n + 1]
+                if nik:
+                    columns += ['nik', 'nik_source', 'linked_at', 'link_status']
+                    values += [nik, nik_source, datetime.now(), 'linked']
                 cursor.execute(
-                    """INSERT INTO applicants
-                       (display_id, nama_lengkap, pendidikan, no_hp, upline, user_field,
-                        posisi, interview_at, h2_date, source_uid, sheet_row)
-                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
-                    (display_id, row['nama'], row['pendidikan'], row['no_hp'],
-                     row['upline'], row['user'], row['posisi'], row['interview_at'],
-                     row['h2_date'], uid, n + 1))
+                    f"INSERT INTO applicants ({', '.join(columns)}) "
+                    f"VALUES ({', '.join(['%s'] * len(columns))})",
+                    tuple(values))
                 added += 1
+            if nik:
+                case_id = ''
+                try:
+                    case_id = ensure_case(nik, row['nama'], '', source=nik_source) or ''
+                    record_event(case_id, nik, 'NIK_LINKED',
+                                 source_module='sync_sheet',
+                                 source_id=uid, note=nik_source)
+                except Exception as exc:
+                    aman = re.sub(r'\d{16}', '****************', str(exc))
+                    print(f'[sync-applicants] gagal menautkan kasus: {aman}')
             # v2.17 parity: nilai User dari sheet ikut jadi opsi dropdown form.
             if row['user']:
                 cursor.execute('INSERT IGNORE INTO applicant_user_options (name) VALUES (%s)',
@@ -924,6 +983,11 @@ def register_receptionist_routes(app):
             nama = clean(str(data.get('nama_lengkap', '') or ''))[:150]
             if not nama:
                 return jsonify({'status': 'error', 'msg': 'Nama Lengkap wajib diisi'}), 400
+            nik, _raw = normalize_nik(data.get('nik'))
+            if not nik:
+                return jsonify({'status': 'error',
+                                'msg': 'NIK wajib diisi dengan 16 digit angka'}), 400
+            verify = bool(data.get('verify'))
             pendidikan = clean(str(data.get('pendidikan', '') or ''))[:100]
             no_hp = clean(str(data.get('no_hp', '') or ''))[:30]
             upline = clean(str(data.get('upline', '') or ''))[:100]
@@ -950,15 +1014,43 @@ def register_receptionist_routes(app):
             if not conn:
                 return jsonify({'status': 'error', 'msg': 'DB error'}), 500
             cursor = conn.cursor()
+            dup_cursor = conn.cursor(dictionary=True)
+            dup_cursor.execute("SELECT id, display_id FROM applicants WHERE nik=%s", (nik,))
+            duplicate = dup_cursor.fetchone()
+            dup_cursor.close()
+            if duplicate:
+                cursor.close()
+                conn.close()
+                return jsonify({
+                    'status': 'error',
+                    'msg': f'NIK sudah terdaftar sebagai {duplicate["display_id"]}'
+                }), 409
+
+            # Kasus master best-effort: DB master mati tidak boleh menggagalkan
+            # intake cabang. ` scripts/rebuild_recruitment_events.py` memulihkan
+            # event yang hilang dari tabel sumber.
+            case_id = ''
+            try:
+                case_id = ensure_case(nik, nama, session.get('branch_code', ''),
+                                      source='manual') or ''
+            except Exception as exc:
+                aman = re.sub(r'\d{16}', '****************', str(exc))
+                print(f'[applicants] gagal membuat kasus: {aman}')
+
             display_id = generate_display_id('PLM', conn)
+            columns = ['display_id', 'nama_lengkap', 'pendidikan', 'no_hp',
+                       'upline', 'user_field', 'posisi', 'interview_at',
+                       'h2_date', 'nik', 'nik_source', 'linked_at', 'link_status']
+            values = [display_id, nama, pendidikan, no_hp, upline, user_field,
+                      posisi, interview_at, h2_date, nik, 'manual',
+                      datetime.now(), 'linked']
+            if verify:
+                columns += ['verified_by', 'verified_at']
+                values += [session.get('user_name', ''), datetime.now()]
             cursor.execute(
-                """INSERT INTO applicants
-                   (display_id, nama_lengkap, pendidikan, no_hp, upline, user_field,
-                    posisi, interview_at, h2_date, verified_by, verified_at)
-                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,NOW())""",
-                (display_id, nama, pendidikan, no_hp, upline, user_field,
-                 posisi, interview_at, h2_date,
-                 session.get('user_name', '')))
+                f"INSERT INTO applicants ({', '.join(columns)}) "
+                f"VALUES ({', '.join(['%s'] * len(columns))})",
+                tuple(values))
             appt_id = cursor.lastrowid
             # v2.42.0: bila diisi jabatan, pelamar langsung dijadikan karyawan —
             # baris in-out aktif (source='registrasi', terkunci) dibuat sekarang.
@@ -996,6 +1088,21 @@ def register_receptionist_routes(app):
             conn.commit()
             cursor.close()
             conn.close()
+
+            actor = session.get('full_name', session.get('user_name', ''))
+            branch = str(session.get('branch_code') or '')
+            try:
+                record_event(case_id, nik, 'RECEPTIONIST_CREATED',
+                             branch_code=branch, actor_name=actor,
+                             source_module='applicants', source_id=display_id,
+                             event_at=interview_at)
+                if verify:
+                    record_event(case_id, nik, 'VERIFIED', branch_code=branch,
+                                 actor_name=actor, source_module='applicants',
+                                 source_id=display_id)
+            except Exception:
+                pass  # event bersifat best-effort; intake sudah sukses
+
             log_activity_async(None, 'applicant_manual_add',
                                session.get('user_role', ''),
                                session.get('full_name', session.get('user_name', '')),
