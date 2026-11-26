@@ -103,7 +103,7 @@ const MENU_GROUPS = [
       { label: 'User & Driver', path: '/users', icon: '👥', roles: ['admin'] },
       { label: 'Penugasan Driver', path: '/assignments', icon: '🚗', roles: ['ga', 'admin'], badge: 'assignments_pending' },
       { label: 'Kendaraan & Pengaturan', path: '/settings', icon: '🚙', roles: ['admin'] },
-      { label: 'In-Out Karyawan', path: '/inout', icon: '🚪', roles: ['receptionist', 'admin'] },
+      { label: 'Karyawan', path: '/employees', icon: '🧾', roles: ['receptionist', 'ga_hr', 'admin'] },
     ],
   },
   {
