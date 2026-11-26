@@ -233,8 +233,9 @@ def portal_summary(cursor, nik, known=False):
         cursor.execute(
             'SELECT step_type, status, completed_at, branch_code '
             'FROM recruitment_steps WHERE case_id=%s', (case_id,))
-        steps = [row for row in (cursor.fetchall() or [])
-                 if str(row.get('case_id') or '') == case_id]
+        # WHERE sudah membatasi ke case_id; jangan memfilter ulang di Python
+        # karena kolom case_id sengaja tidak ikut di-SELECT.
+        steps = cursor.fetchall() or []
 
     best = {}
     for step in steps:

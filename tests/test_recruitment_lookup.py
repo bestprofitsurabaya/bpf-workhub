@@ -48,9 +48,9 @@ class _FakeCursor:
             self._rows = None
             return
         if table == 'recruitment_steps' and 'CASE_ID=%S' in upper:
-            case_id = params[0] if params else ''
-            self._rows = [row for row in self.conn.tables[table]
-                          if str(row.get('case_id') or '') == str(case_id)]
+            # SQL sudah memfilter case_id; baris tiruan sengaja tanpa case_id
+            # seperti hasil SELECT produksi.
+            self._rows = list(self.conn.tables[table])
             return
         if 'NIK=%S' not in upper:
             self._rows = None
@@ -266,9 +266,9 @@ def test_lookup_menyertakan_status_tahap(client, db):
     db.tables['recruitment_cases'].append({
         'case_id': 'RC-1', 'nik': NIK, 'nama': 'Bili Darnanto Susilo'})
     db.tables['recruitment_steps'] = [
-        {'case_id': 'RC-1', 'step_type': 'CV', 'status': 'SELESAI',
+        {'step_type': 'CV', 'status': 'SELESAI',
          'completed_at': '2026-11-25 19:28:30', 'branch_code': 'SBY'},
-        {'case_id': 'RC-1', 'step_type': 'TKD', 'status': 'SELESAI',
+        {'step_type': 'TKD', 'status': 'SELESAI',
          'completed_at': '2026-11-25 19:24:47', 'branch_code': 'SBY'},
     ]
     data = _lookup(client).get_json()
@@ -296,9 +296,8 @@ def test_agregasi_status_memilih_selesai(client, db):
     db.tables['recruitment_cases'].append({'case_id': 'RC-1', 'nik': NIK,
                                            'nama': 'Budi Santoso'})
     db.tables['recruitment_steps'] = [
-        {'case_id': 'RC-1', 'step_type': 'CV', 'status': 'PENDING',
-         'completed_at': None},
-        {'case_id': 'RC-1', 'step_type': 'CV', 'status': 'SELESAI',
+        {'step_type': 'CV', 'status': 'PENDING', 'completed_at': None},
+        {'step_type': 'CV', 'status': 'SELESAI',
          'completed_at': '2026-11-25 19:28:30'},
     ]
     data = _lookup(client).get_json()

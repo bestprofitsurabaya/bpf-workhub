@@ -7,6 +7,15 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.135.3 — 26 November 2026 (Perbaikan status tahap portal)
+
+- Perbaikan bug pada `portal_summary`: baris `recruitment_steps` difilter ulang
+  di Python berdasarkan `case_id` yang tidak ikut di-SELECT, sehingga semua
+  tahap tampil `BELUM` di produksi. Filter gugur; `WHERE case_id=%s` yang jadi
+  satu-satunya pembatas.
+- Tes kini memakai baris langkah tanpa `case_id`, meniru hasil SELECT asli,
+  supaya bug ini tidak terulang.
+
 ## v2.135.2 — 26 November 2026 (Portal rekrutmen: status tahap)
 
 - `GET /api/recruitment/lookup` tetap satu kali cek NIK+DOB+token cabang,
