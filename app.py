@@ -140,6 +140,10 @@ for _attempt in range(5):
         break
     _time.sleep(3)
 
+# Master karyawan (Rilis D) — API daftar/detail/absensi/administrasi HR.
+from modules.routes_employees import register_employee_routes
+register_employee_routes(app)
+
 # Master karyawan (Rilis D): tabel employees + absensi di DB master.
 from modules.employee_schema import ensure_employee_schema
 for _attempt in range(5):

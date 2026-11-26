@@ -33,7 +33,10 @@ class _Cursor:
         elif 'FROM EMPLOYEE_ATTENDANCE_EVENTS' in text:
             rows = [r for r in conn.attendance if r['employee_id'] == p[0]
                     and not r.get('voided_at')]
-            self.rows = rows[-1:] if rows else []
+            self.rows = (rows if 'ORDER BY EVENT_AT' in text
+                         else (rows[-1:] if rows else []))
+        elif text.startswith('SELECT * FROM EMPLOYEES'):
+            self.rows = list(conn.employees)
         elif text.startswith('UPDATE EMPLOYEE_ATTENDANCE_EVENTS'):
             for row in conn.attendance:
                 if row.get('id') == p[-1]:
