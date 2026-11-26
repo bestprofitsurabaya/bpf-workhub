@@ -58,7 +58,11 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--commit', action='store_true',
                         help='Tulis event ke DB master (default: dry-run)')
+    parser.add_argument('--dry-run', action='store_true',
+                        help='Tegaskan mode baca-saja (default)')
     args = parser.parse_args(argv)
+    if args.dry_run:
+        args.commit = False
 
     master = get_master_connection()
     if master is None:

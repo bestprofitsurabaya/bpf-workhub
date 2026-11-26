@@ -85,7 +85,11 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--commit', action='store_true',
                         help='Tulis hasil tautan (default: dry-run)')
+    parser.add_argument('--dry-run', action='store_true',
+                        help='Tegaskan mode baca-saja (default)')
     args = parser.parse_args(argv)
+    if args.dry_run:
+        args.commit = False
 
     master = get_master_connection()
     if not master:
@@ -105,9 +109,11 @@ def main(argv=None):
                 cur = conn.cursor(dictionary=True)
                 cur.execute(
                     """SELECT id, display_id, nama_lengkap, no_hp, nik,
-                              link_status, branch_code FROM applicants
+                              link_status FROM applicants
                        WHERE nik IS NULL OR link_status<>'linked'""")
                 rows = cur.fetchall() or []
+                for row in rows:
+                    row['branch_code'] = code
                 cur.close()
                 part = link_applicants_nik(master, rows, commit=args.commit)
                 for key in summary:
