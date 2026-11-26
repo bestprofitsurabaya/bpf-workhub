@@ -7,6 +7,20 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.137.0 — 26 November 2026 (Master karyawan lengkap)
+
+- Tabel `employees`, `employee_attendance_events`, dan `employee_counters`
+  di DB master; skema aditif/idempoten, nomor `KRY-<CABANG>-<5 digit>`.
+- Pelamar lulus otomatis dipromosikan ke master karyawan (alias lama
+  `register-employee` tidak lagi menulis In-Out baru).
+- Resepsionis mencatat keluar/masuk; GA HR/admin mengoreksi event absensi,
+  menonaktifkan/aktifkan dengan alasan, mengubah field HR dan NIK (unik),
+  serta mengekspor CSV.
+- Seed idempoten dari FirstWork (termasuk 44 baris unitedw) dan 76 nama
+  In-Out lama sebagai arsip; baris tanpa NIK ditandai `needs_nik`.
+- NIK lengkap hanya untuk GA HR/admin; peran lain menerima NIK termasker.
+  Menu **Karyawan** menggantikan In-Out; `/inout` jadi arsip read-only.
+
 ## v2.136.0 — 26 November 2026 (Integrasi rekrutmen berbasis NIK)
 
 - **Satu tulang punggung NIK:** satu `recruitment_cases` per NIK lintas cabang;
