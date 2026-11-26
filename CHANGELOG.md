@@ -7,6 +7,20 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.135.6 — 26 November 2026 (Isolasi cabang rekrutmen)
+
+- Token portal satu cabang tidak lagi bisa membaca atau menulis data kasus
+  cabang lain. NIK yang tidak terikat ke cabang token diperlakukan sama
+  seperti NIK tidak ditemukan, sehingga identitas cabang tidak bocor.
+- Absensi training dan sesi TKD kini memeriksa kecocokan cabang kasus
+  (cabang asal, riwayat, atau langkah) sebelum menyimpan bukti.
+- Staff non-HO hanya melihat kasus yang terikat ke cabangnya; Admin Pusat
+  tetap melihat seluruh cabang.
+- Pengecualian langkah rekrutmen ikut dibatasi ke cabang staff, dan status
+  langkah cabang lain tidak lagi terbaca lewat kode galat.
+- Perbaikan ini menutup celah lintas cabang; tidak ada perubahan skema
+  database maupun data historis.
+
 ## v2.135.5 — 26 November 2026 (Pemeriksaan cukup NIK)
 
 - Portal rekrutmen, absensi training, dan buka TKD kini cukup memakai NIK

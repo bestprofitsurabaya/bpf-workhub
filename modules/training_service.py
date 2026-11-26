@@ -55,9 +55,30 @@ def _open_conn(conn):
 def _case_for(cursor, nik):
     """Baris kasus bila NIK terdaftar; selain itu None."""
     cursor.execute(
-        'SELECT case_id, nama, tanggal_lahir FROM recruitment_cases '
+        'SELECT case_id, nama, first_branch, tanggal_lahir FROM recruitment_cases '
         'WHERE nik=%s', (nik,))
     return cursor.fetchone()
+
+
+def _case_in_branch(cursor, case, branch):
+    """True bila kasus terikat ke cabang token (asal/riwayat/langkah).
+
+    NIK dikenal global, tetapi token satu cabang tidak boleh membaca atau
+    mencatat absensi kasus cabang lain. Tanpa kecocokan, pelamar diperlakukan
+    seperti tidak ditemukan agar identitas cabang tidak bocor.
+    """
+    if not case or not branch:
+        return False
+    first = str(case.get('first_branch') or '').strip().upper()[:10]
+    if first and first == branch:
+        return True
+    for table in ('case_branch_history', 'recruitment_steps'):
+        cursor.execute(
+            f'SELECT 1 FROM {table} WHERE case_id=%s AND branch_code=%s '
+            'LIMIT 1', (case.get('case_id'), branch))
+        if cursor.fetchone():
+            return True
+    return False
 
 
 def _days_for(cursor, case_id, branch_code):
@@ -99,7 +120,7 @@ def attendance_status(nik, branch_code, conn=None):
     cursor = conn.cursor(dictionary=True)
     try:
         case = _case_for(cursor, nik)
-        if not case:
+        if not case or not _case_in_branch(cursor, case, branch):
             return {'ok': False, 'error': 'not_found'}
         days = _days_for(cursor, case['case_id'], branch)
         return {
@@ -204,7 +225,7 @@ def record_attendance(nik, branch_code, day, ip='', user_agent='',
     app_cursor = app_conn.cursor(dictionary=True) if app_conn else None
     try:
         case = _case_for(cursor, nik)
-        if not case:
+        if not case or not _case_in_branch(cursor, case, branch):
             return {'ok': False, 'error': 'not_found'}
         case_id = case['case_id']
         days = _days_for(cursor, case_id, branch)

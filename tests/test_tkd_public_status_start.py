@@ -158,6 +158,30 @@ def test_start_blokir_setelah_finalisasi_juga_commit(app, monkeypatch):
     assert r.status_code == 409
     assert conn.events == ['finalize', 'commit']
 
+def test_status_token_cabang_lain_ditolak_generik(app, monkeypatch):
+    monkeypatch.setattr(svc, 'resolve_branch_token',
+                        lambda cur, tok: 'BDG' if tok == 'tok-bdg' else '')
+    client = app.test_client()
+    r = client.post('/api/recruitment/tkd/status',
+                    json={'nik': CASE['nik'], 'token': 'tok-bdg'})
+    assert r.status_code == 403
+    body = r.get_data(as_text=True)
+    assert 'Andi' not in body and 'SBY' not in body and 'BDG' not in body
+    with client.session_transaction() as s:
+        assert 'tkd_case_id' not in s
+
+def test_start_token_cabang_lain_tidak_membuat_attempt(app, monkeypatch):
+    monkeypatch.setattr(svc, 'resolve_branch_token',
+                        lambda cur, tok: 'BDG' if tok == 'tok-bdg' else '')
+    created = []
+    monkeypatch.setattr(svc, 'create_attempt',
+                        lambda *a, **k: created.append(a) or {})
+    r = _post(app, '/api/recruitment/tkd/start',
+              {'nik': CASE['nik'], 'token': 'tok-bdg', 'modal_tier': '30k'})
+    assert r.status_code == 403
+    assert created == []
+    assert 'SBY' not in r.get_data(as_text=True)
+
 def test_start_sukses_mempertahankan_kunci_sampai_attempt_dibuat(app, monkeypatch):
     conn = _CommitConn()
     monkeypatch.setattr(rt, 'get_master_connection', lambda: conn)

@@ -41,16 +41,20 @@ class _FakeCursor:
         self.conn.statements.append((upper, tuple(params)))
 
         if 'FROM RECRUITMENT_CASES' in upper:
-            idx = 0
-            nik = branch = status = None
-            if 'C.NIK=%S' in upper:
-                nik = params[idx]
-                idx += 1
-            if 'C.FIRST_BRANCH=%S' in upper or 'BRANCH_CODE=%S' in upper:
-                branch = params[idx]
-                idx += 1 + upper.count('BRANCH_CODE=%S')
-            if 'C.STATUS=%S' in upper:
-                status = params[idx]
+            # Telusuri pasangan (teks sebelum placeholder, nilai) agar filter
+            # NIK/status/cabang tetap terbaca walau urutan kondisi berubah
+            # (filter eksplisit + scope staff bisa muncul bersamaan).
+            parts = upper.split('%S')
+            nik = status = None
+            branch_filters = []
+            for idx, value in enumerate(params):
+                prefix = parts[idx][-120:] if idx < len(parts) else ''
+                if 'C.NIK=' in prefix:
+                    nik = value
+                elif 'C.STATUS=' in prefix:
+                    status = value
+                elif 'FIRST_BRANCH=' in prefix or 'BRANCH_CODE=' in prefix:
+                    branch_filters.append(value)
 
             rows = []
             for case in self.conn.cases:
@@ -58,16 +62,16 @@ class _FakeCursor:
                     continue
                 if status is not None and (case.get('status') or '') != status:
                     continue
-                if branch is not None:
-                    history = any(b['case_id'] == case['case_id']
-                                  and b['branch_code'] == branch
-                                  for b in self.conn.branches)
-                    steps = any(s['case_id'] == case['case_id']
-                                and s['branch_code'] == branch
-                                for s in self.conn.steps)
-                    if not (case.get('first_branch') == branch
-                            or history or steps):
-                        continue
+                if not all(
+                        case.get('first_branch') == branch
+                        or any(b['case_id'] == case['case_id']
+                               and b['branch_code'] == branch
+                               for b in self.conn.branches)
+                        or any(s['case_id'] == case['case_id']
+                               and s['branch_code'] == branch
+                               for s in self.conn.steps)
+                        for branch in branch_filters):
+                    continue
                 rows.append(case)
             rows.sort(key=lambda r: str(r.get('first_seen_at') or ''),
                       reverse=True)
@@ -183,6 +187,16 @@ def logs(monkeypatch):
     return captured
 
 
+@pytest.fixture(autouse=True)
+def _scope_all(monkeypatch):
+    """Tes lama menguji perilaku Admin Pusat: semua cabang terlihat."""
+    monkeypatch.setattr(rr, '_portal_scope_branch', lambda conn: None)
+
+
+def _scope(monkeypatch, code):
+    monkeypatch.setattr(rr, '_portal_scope_branch', lambda conn: code)
+
+
 def _get(app, role='traineer', name='petugas1', branch='SBY', **query):
     client = app.test_client()
     if role is not None:
@@ -249,7 +263,8 @@ class TestKontrakRespons:
         assert case['tkd_score_source'] == 'AUTO'
         assert case['tkd_passed'] == 1
 
-    def test_skor_tkd_kasus_luar_cabang_tidak_dibocorkan(self, app, db, logs):
+    def test_kasus_luar_cabang_tidak_muncul_di_daftar(self, app, db, logs,
+                                                      monkeypatch):
         db.cases.append({
             'case_id': CASE_C, 'nik': '3573010101990003', 'nama': 'Citra',
             'first_branch': 'BDG', 'status': 'AKTIF',
@@ -258,13 +273,12 @@ class TestKontrakRespons:
             'tkd_score_note': 'Koreksi BDG', 'tkd_passed': 1,
         })
 
-        sby = next(c for c in _get(app, branch='SBY').get_json()['data']
-                   if c['case_id'] == CASE_C)
-        assert sby['tkd_score'] is None
-        assert sby['tkd_score_source'] is None
-        assert sby['tkd_score_note'] is None
-        assert sby['tkd_passed'] is None
+        _scope(monkeypatch, 'SBY')
+        ids = [c['case_id'] for c in _get(app, branch='SBY').get_json()['data']]
+        assert CASE_C not in ids
+        assert ids == [CASE_A]
 
+        _scope(monkeypatch, 'BDG')
         bdg = next(c for c in _get(app, branch='BDG').get_json()['data']
                    if c['case_id'] == CASE_C)
         assert bdg['tkd_score'] == 90.5
@@ -286,13 +300,12 @@ class TestKontrakRespons:
         assert citra['tkd_score'] == 90.5
         assert citra['tkd_score_note'] == 'Koreksi BDG'
 
-    def test_tanpa_cabang_semua_skor_tkd_disembunyikan(self, app, db, logs):
+    def test_tanpa_cabang_tidak_melihat_kasus_apa_pun(self, app, db, logs,
+                                                      monkeypatch):
         # Non-HO tanpa cabang = sentinel fail-closed, bukan "semua cabang".
-        case = next(c for c in _get(app, branch='').get_json()['data']
-                    if c['case_id'] == CASE_A)
-        assert case['tkd_score'] is None
-        assert case['tkd_score_source'] is None
-        assert case['tkd_passed'] is None
+        _scope(monkeypatch, rr._NO_BRANCH)
+
+        assert _get(app, branch='').get_json()['data'] == []
 
     def test_riwayat_cabang_dan_langkah_termasuk(self, app, db, logs):
         case = next(c for c in _get(app).get_json()['data']
@@ -430,3 +443,46 @@ def test_cases_memuat_training_dua_hari_tanpa_nik(app, db, logs):
     assert [t['day'] for t in row['training']] == [1, 2]
     assert row['training'][0]['link_status'] == 'linked'
     assert NIK_A not in res.get_data(as_text=True)
+
+
+class TestScopeCabang:
+    def test_staff_hanya_melihat_kasus_cabangnya(self, app, db, logs, monkeypatch):
+        _scope(monkeypatch, 'SBY')
+
+        data = _get(app).get_json()['data']
+
+        assert [r['case_id'] for r in data] == [CASE_A]
+
+    def test_kasus_dengan_riwayat_cabang_tetap_terlihat(
+            self, app, db, logs, monkeypatch):
+        _scope(monkeypatch, 'JKT')
+
+        data = _get(app).get_json()['data']
+
+        # CASE_A punya riwayat/langkah di JKT, CASE_B asal JKT.
+        assert {r['case_id'] for r in data} == {CASE_A, CASE_B}
+
+    def test_tanpa_cabang_tidak_melihat_kasus_apa_pun(
+            self, app, db, logs, monkeypatch):
+        _scope(monkeypatch, rr._NO_BRANCH)
+
+        data = _get(app, branch='').get_json()['data']
+
+        assert data == []
+
+    def test_filter_cabang_lain_tidak_menembus_scope(
+            self, app, db, logs, monkeypatch):
+        _scope(monkeypatch, 'SBY')
+
+        data = _get(app, branch_code='JKT').get_json()['data']
+
+        # CASE_A sah terlihat (punya riwayat JKT dan asal SBY); CASE_B yang
+        # hanya milik JKT tidak boleh ikut muncul.
+        assert [r['case_id'] for r in data] == [CASE_A]
+
+    def test_admin_pusat_tetap_melihat_semua(self, app, db, logs, monkeypatch):
+        _scope(monkeypatch, None)
+
+        data = _get(app).get_json()['data']
+
+        assert {r['case_id'] for r in data} == {CASE_A, CASE_B}

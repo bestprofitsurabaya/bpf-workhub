@@ -195,6 +195,21 @@ def _session_valid():
             and 0 < time.time() - verified_at <= _SESSION_SECONDS)
 
 
+def _case_matches_branch(cursor, case, branch):
+    """True bila kasus terikat ke cabang token (asal/riwayat/langkah).
+
+    NIK dikenal secara global, tetapi token cabang tidak boleh membaca atau
+    menulis data kasus cabang lain. Pemeriksaan ini fail-closed: tanpa
+    kecocokan, pelamar diperlakukan seperti tidak ditemukan.
+    """
+    if not case or not branch:
+        return False
+    first = str(case.get('first_branch') or '').strip().upper()[:10]
+    if first and first == branch:
+        return True
+    return _case_in_scope(cursor, case.get('case_id'), branch)
+
+
 def _verified_context(cursor, verified):
     """Cocokkan token + identitas, lalu siapkan sesi terbatas dua jam."""
     if not _session_valid():
@@ -206,6 +221,8 @@ def _verified_context(cursor, verified):
         return None, ('error', 400, _MSG_BAD_LINK)
     case = svc.verify_identity(cursor, verified['nik'])
     if not case:
+        return None, ('error', 403, _MSG_IDENTITY)
+    if not _case_matches_branch(cursor, case, branch):
         return None, ('error', 403, _MSG_IDENTITY)
     session['tkd_case_id'] = str(case.get('case_id') or '')
     session['tkd_verified_at'] = int(time.time())

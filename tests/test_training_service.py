@@ -39,6 +39,9 @@ class _FakeCursor:
             row = next((r for r in self.conn.cv
                         if str(r['nik']) == str(params[0])), None)
             self._rows = [row] if row else []
+        elif 'FROM CASE_BRANCH_HISTORY' in q:
+            key = (params[0], params[1])
+            self._rows = [{'ok': 1}] if key in self.conn.branch_history else []
         elif 'FROM APPLICANTS' in q:
             if 'WHERE ID=' in q:
                 row = next((r for r in self.conn.applicants
@@ -96,8 +99,9 @@ class _FakeConn:
     def __init__(self, cases=None, attendance=None, cv=None, applicants=None):
         self.cases = cases if cases is not None else [
             {'nik': NIK, 'case_id': CASE, 'nama': NAMA,
-             'tanggal_lahir': date(1996, 2, 1)}]
+             'first_branch': 'SBY', 'tanggal_lahir': date(1996, 2, 1)}]
         self.attendance = attendance or []
+        self.branch_history = set()
         self.cv = cv if cv is not None else [
             {'nik': NIK, 'nama': NAMA, 'no_hp_norm': HP}]
         self.applicants = applicants or []
@@ -135,10 +139,33 @@ def test_nik_unknown_selalu_not_found():
     assert attendance_status(NIK, 'SBY', conn=_FakeConn(cases=[]))['error'] == 'not_found'
 
 
+def test_status_cabang_lain_tidak_ditemukan():
+    from modules.training_service import attendance_status
+    data = attendance_status(NIK, 'BDG', conn=_FakeConn())
+    assert data == {'ok': False, 'error': 'not_found'}
+
+
+def test_absensi_cabang_lain_tidak_menulis():
+    from modules.training_service import record_attendance
+    conn = _FakeConn()
+    data = record_attendance(NIK, 'BDG', 1, conn=conn)
+    assert data == {'ok': False, 'error': 'not_found'}
+    assert conn.attendance == [] and conn.steps == [] and _writes(conn) == []
+
+
+def test_absensi_cabang_di_riwayat_diizinkan():
+    from modules.training_service import record_attendance
+    conn = _FakeConn()
+    conn.branch_history.add((CASE, 'BDG'))
+    data = record_attendance(NIK, 'BDG', 1, conn=conn)
+    assert data['ok'] is True and data['day'] == 1
+    assert conn.attendance[0]['branch_code'] == 'BDG'
+
+
 def test_tanggal_lahir_kosong_tetap_ditemukan_lewat_nik():
     from modules.training_service import attendance_status
     conn = _FakeConn(cases=[{'nik': NIK, 'case_id': CASE, 'nama': NAMA,
-                             'tanggal_lahir': None}])
+                             'first_branch': 'SBY', 'tanggal_lahir': None}])
     data = attendance_status(NIK, 'SBY', conn=conn)
     assert data['ok'] is True
     assert data['nama'] == NAMA
@@ -292,6 +319,7 @@ def test_submit_ulang_hari_1_tidak_menurunkan_langkah_selesai():
 def test_pelamar_dicari_di_db_cabang_bukan_master():
     from modules.training_service import record_attendance
     master = _FakeConn()                       # tanpa Pelamar
+    master.branch_history.add((CASE, 'BDG'))
     cabang = _FakeConn(applicants=[_pelamar(77)])
     data = record_attendance(NIK, 'BDG', 1, conn=master, app_conn=cabang)
     assert data['link_status'] == 'linked'
@@ -311,6 +339,7 @@ def test_gagal_tulis_db_cabang_jadi_unlinked_tanpa_menipu():
             raise RuntimeError('db cabang mati')
 
     master = _FakeConn()
+    master.branch_history.add((CASE, 'BDG'))
     cabang = _Broken(applicants=[_pelamar(77)])
     data = record_attendance(NIK, 'BDG', 1, conn=master, app_conn=cabang)
     assert data['link_status'] == 'unlinked'

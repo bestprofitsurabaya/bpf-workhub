@@ -430,6 +430,17 @@ def register_recruitment_routes(app):
                     if status:
                         conditions.append('c.status=%s')
                         params.append(status)
+                    # Non-HO hanya melihat kasus yang terikat ke cabangnya
+                    # (asal, riwayat, atau langkah). HO admin tetap global.
+                    if scope is not None:
+                        conditions.append(
+                            '(c.first_branch=%s OR EXISTS ('
+                            'SELECT 1 FROM case_branch_history h '
+                            'WHERE h.case_id=c.case_id AND h.branch_code=%s) '
+                            'OR EXISTS ('
+                            'SELECT 1 FROM recruitment_steps s '
+                            'WHERE s.case_id=c.case_id AND s.branch_code=%s))')
+                        params.extend([scope] * 3)
 
                     sql = ('SELECT c.case_id, c.nik, c.nama, c.first_branch, '
                            'c.status, c.tkd_score, c.tkd_score_source, '
@@ -562,12 +573,18 @@ def register_recruitment_routes(app):
             cursor = conn.cursor(dictionary=True)
             try:
                 cursor.execute(
-                    'SELECT id, status FROM recruitment_steps WHERE id=%s',
-                    (step_id,))
+                    'SELECT id, status, case_id FROM recruitment_steps '
+                    'WHERE id=%s', (step_id,))
                 row = cursor.fetchone()
                 if not row:
                     return jsonify({'status': 'error',
                                     'msg': 'Langkah tidak ditemukan'}), 404
+                # Scope cabang diperiksa sebelum status: langkah cabang lain
+                # tidak boleh terbaca statusnya lewat kode 409.
+                scope = _portal_scope_branch(conn)
+                if not _case_scope_ok(cursor, row.get('case_id'), scope):
+                    return jsonify({'status': 'error',
+                                    'msg': 'Langkah tidak ditemukan'}), 403
                 if row.get('status') not in _EXCEPTION_ALLOWED:
                     return jsonify({'status': 'error',
                                     'msg': 'Status langkah tidak mendukung '

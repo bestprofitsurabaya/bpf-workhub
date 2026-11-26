@@ -116,6 +116,13 @@ def logs(monkeypatch):
     return captured
 
 
+@pytest.fixture(autouse=True)
+def _scope_allowed(monkeypatch):
+    """Default tes lama: langkah dianggap dalam cabang petugas."""
+    monkeypatch.setattr(rr, '_case_scope_ok',
+                        lambda cursor, case_id, scope: True)
+
+
 def _post(app, reason='Tidak hadir', step_id=7, role='traineer', name='petugas1'):
     client = app.test_client()
     if role is not None:
@@ -247,3 +254,29 @@ class TestRoleGate:
         assert response.status_code == 401
         assert db.updates == []
         assert logs == []
+
+
+class TestScopeCabang:
+    def test_langkah_cabang_lain_ditolak_403(self, app, db, logs, monkeypatch):
+        monkeypatch.setattr(rr, '_case_scope_ok',
+                            lambda cursor, case_id, scope: False)
+
+        response = _post(app, reason='Alasan apa pun')
+
+        assert response.status_code == 403
+        assert db.steps[7]['status'] == 'BELUM'
+        assert db.updates == []
+        assert db.commits == 0
+        assert logs == []
+
+    def test_scope_diperiksa_sebelum_status_tidak_membocorkan_409(
+            self, app, db, logs, monkeypatch):
+        monkeypatch.setattr(rr, '_case_scope_ok',
+                            lambda cursor, case_id, scope: False)
+        db.steps[7]['status'] = 'SELESAI'
+
+        response = _post(app, reason='Alasan apa pun')
+
+        # Status langkah cabang lain tidak boleh terbaca lewat kode 409.
+        assert response.status_code == 403
+        assert db.steps[7]['status'] == 'SELESAI'
