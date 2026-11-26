@@ -143,6 +143,36 @@ cur.execute(
                100000, 10, 10000, 78000, 'non_rekanan', 'pending', 'CLAIM', 0, 0, NOW())""",
     (SEED_CLAIM,),
 )
+# Data uji rekrutmen (Rilis C) — NIK khusus, tidak dipakai produksi.
+for i, nik in enumerate(('3573019900000001', '3573019900000002',
+                         '3573019900000003', '3573019900000004'), start=1):
+    case_id = f'RC-E2E-{i:04d}'
+    cur.execute(
+        """INSERT INTO recruitment_cases
+           (case_id, nik, nama, first_seen_at, first_branch)
+           VALUES (%s,%s,%s,NOW(),'SBY')
+           ON DUPLICATE KEY UPDATE nama=VALUES(nama)""",
+        (case_id, nik, f'Peserta Uji {i}'))
+    cur.execute(
+        """INSERT INTO recruitment_steps
+           (case_id, step_type, status, branch_code, evidence_type,
+            evidence_id, completed_at)
+           VALUES (%s,'CV','SELESAI','SBY','cv_online_submission',%s,NOW())
+           ON DUPLICATE KEY UPDATE status='SELESAI'""",
+        (case_id, f'CV-E2E-{i}'))
+    cur.execute(
+        """INSERT INTO cv_online_submissions
+           (registration_no, source, submitted_at, nama, nik, nik_raw,
+            branch_code, consent_at)
+           VALUES (%s,'e2e',NOW(),%s,%s,%s,'SBY',NOW())""",
+        (f'CV-E2E-{i}', f'Peserta Uji {i}', nik, nik))
+
+cur.execute(
+    """INSERT INTO applicants
+       (display_id, nama_lengkap, no_hp, interview_at, status)
+       VALUES ('PLM-E2E-0001','Pelamar Lama Uji','081299990001',NOW(),'interview')
+       ON DUPLICATE KEY UPDATE nama_lengkap=VALUES(nama_lengkap)""")
+
 cur.close()
 conn.close()
 print('[e2e] Seed selesai.')
@@ -180,3 +210,25 @@ echo "[e2e] /api/health 200 — jalankan Playwright."
 
 # --- 4. Jalankan E2E (argumen diteruskan, mis. --grep) --------------------
 (cd "$ROOT/frontend" && npm run e2e -- "$@")
+
+# --- 5. Bersihkan data uji rekrutmen -------------------------------------
+"$PYTHON" - "$ROOT" <<'PY'
+import sys
+import mysql.connector
+root = sys.argv[1]
+sys.path.insert(0, root)
+from modules import config
+conn = mysql.connector.connect(**config.DB_CONFIG)
+cur = conn.cursor()
+for nik in ('3573019900000001', '3573019900000002',
+            '3573019900000003', '3573019900000004'):
+    for table in ('recruitment_events', 'training_attendance',
+                  'first_work_submissions', 'cv_online_submissions',
+                  'recruitment_steps', 'recruitment_cases'):
+        cur.execute(f'DELETE FROM {table} WHERE nik=%s', (nik,))
+cur.execute("DELETE FROM applicants WHERE display_id='PLM-E2E-0001'")
+conn.commit()
+cur.close()
+conn.close()
+print('[e2e] Data uji rekrutmen dibersihkan.')
+PY
