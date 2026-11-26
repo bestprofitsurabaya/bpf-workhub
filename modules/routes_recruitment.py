@@ -37,12 +37,16 @@ from modules.config import get_master_connection
 from modules.helpers import (client_ip, log_activity_async, normalize_nik,
                              redis_rate_hit, role_required)
 from modules.tkd_service import load_settings, set_manual_score
+from modules.portal_token import (issue_card_token, issue_session_token,
+                                  verify_session_token)
 
-# 10 pengecekan / menit / IP. Endpoint ini menjawab keberadaan NIK, jadi
-# kuota longgar = alat enumerasi data pribadi (lihat check-nik FirstWork).
+# 10 pengecekan / 10 menit / IP. Endpoint ini menjawab keberadaan NIK dan
+# menerbitkan token sesi, jadi kuota longgar = alat enumerasi data pribadi.
 _LOOKUP_MAX = 10
-_LOOKUP_WINDOW = 60
+_LOOKUP_WINDOW = 600
 _LOOKUP_PREFIX = 'recruitment'
+_SUMMARY_MAX = 20
+_SUMMARY_WINDOW = 600
 
 # Sumber keberadaan NIK — DB master, tanpa filter cabang.
 _NIK_TABLES = ('recruitment_cases', 'cv_online_submissions',
@@ -210,21 +214,106 @@ def _nik_known(cursor, nik):
     return False
 
 
+def _branch_from_token(cursor, form_token):
+    """Cabang berasal dari token tautan, bukan dari input pengguna."""
+    cursor.execute(
+        'SELECT branch_code, form_token, active FROM cv_online_branch_forms '
+        'WHERE form_token=%s', (form_token,))
+    row = cursor.fetchone() or {}
+    if int(row.get('active') or 0) != 1:
+        return ''
+    return str(row.get('branch_code') or '').strip().upper()
+
+
+def _nama_masked(nama):
+    """Nama depan + inisial kata kedua; NIK tidak pernah disertakan."""
+    parts = str(nama or '').split()
+    if not parts:
+        return ''
+    if len(parts) == 1:
+        return parts[0]
+    return f'{parts[0]} {parts[1][0]}.'
+
+
+def _portal_summary(cursor, verified):
+    nik = verified['nik']
+    branch = verified['branch']
+
+    cursor.execute('SELECT * FROM recruitment_cases WHERE nik=%s', (nik,))
+    case = cursor.fetchone() or {}
+    case_id = case.get('case_id') or ''
+    steps = []
+    if case_id:
+        cursor.execute('SELECT * FROM recruitment_steps WHERE case_id=%s',
+                       (case_id,))
+        steps = cursor.fetchall() or []
+
+    rank = {'BELUM': 1, 'PENDING': 2, 'DIKECUALIKAN': 3, 'SELESAI': 4}
+    best = {}
+    for step in steps:
+        kind = str(step.get('step_type') or '')
+        status = str(step.get('status') or 'BELUM')
+        previous = best.get(kind)
+        if not previous or rank.get(status, 0) > rank.get(previous['status'], 0):
+            best[kind] = {'status': status,
+                          'completed_at': step.get('completed_at')}
+    cv_done = best.get('CV', {}).get('status') == 'SELESAI'
+
+    stages = []
+    for kind in ('CV', 'TRAINING', 'TKD', 'FIRSTWORK'):
+        info = best.get(kind, {})
+        stages.append({
+            'type': kind,
+            'status': info.get('status', 'BELUM'),
+            'completed_at': info.get('completed_at'),
+            'can_start': True if kind == 'CV' else cv_done,
+        })
+
+    if not cv_done:
+        next_action = 'CV'
+    else:
+        next_action = 'DONE'
+        for kind in ('TRAINING', 'TKD', 'FIRSTWORK'):
+            if best.get(kind, {}).get('status') != 'SELESAI':
+                next_action = kind
+                break
+
+    cursor.execute('SELECT id FROM first_work_submissions WHERE nik=%s '
+                   'ORDER BY submitted_at DESC LIMIT 1', (nik,))
+    first_work = cursor.fetchone() or {}
+    cursor.execute('SELECT name FROM branches WHERE code=%s', (branch,))
+    branch_name = (cursor.fetchone() or {}).get('name') or branch
+
+    return {
+        'known': bool(case),
+        'nama_masked': _nama_masked(case.get('nama')),
+        'branch_code': branch,
+        'branch_name': branch_name,
+        'stages': stages,
+        'next_action': next_action,
+        'card_token': (issue_card_token(first_work['id'])
+                       if first_work.get('id') else None),
+    }
+
+
 def register_recruitment_routes(app):
     @app.route('/api/recruitment/lookup', methods=['GET'])
     def api_recruitment_lookup():
-        """Cek keberadaan NIK tanpa membocorkan cabang/langkah/data pribadi."""
+        """Cek NIK sekali, tanpa DOB; cabang selalu berasal dari token tautan."""
         ip = client_ip() or '?'
         if not _lookup_ok(ip):
             return _response({'status': 'error',
                               'msg': 'Terlalu banyak pengecekan. Coba lagi sebentar.'},
                              429)
 
+        branch_token = str(request.args.get('token') or '').strip()
+        if not branch_token:
+            return _response({'status': 'error',
+                              'msg': 'Tautan portal cabang tidak valid.'}, 403)
+
         nik, _raw = normalize_nik(request.args.get('nik'))
-        if len(nik) != 16 or not _valid_dob(request.args.get('dob')):
-            # Kontrak 3 kunci dipertahankan juga untuk input invalid: tidak
-            # ada field `valid` atau petunjuk lain. TIDAK membuka koneksi DB
-            # sama sekali pada jalur ini.
+        if len(nik) != 16:
+            # NIK invalid: kontrak tiga kunci, tanpa token dan tanpa DB.
             return _response({'status': 'success', 'known': False,
                               'can_continue': False})
 
@@ -235,13 +324,51 @@ def register_recruitment_routes(app):
                 return _response({'status': 'error', 'msg': 'DB error'}, 500)
             cursor = conn.cursor(dictionary=True)
             try:
+                branch = _branch_from_token(cursor, branch_token)
+                if not branch:
+                    return _response({'status': 'error',
+                                      'msg': 'Tautan portal cabang tidak valid.'}, 403)
                 known = _nik_known(cursor, nik)
             finally:
                 cursor.close()
-            return _response({'status': 'success',
-                              'known': known, 'can_continue': known})
+            return _response({
+                'status': 'success', 'known': known, 'can_continue': known,
+                'session_token': issue_session_token(nik, branch),
+            })
         except Exception:
             # Jangan kembalikan str(e): detail DB bisa membocorkan skema/PII.
+            return _response({'status': 'error', 'msg': 'DB error'}, 500)
+        finally:
+            if conn:
+                conn.close()
+
+    @app.route('/api/recruitment/portal/summary', methods=['GET'])
+    def api_recruitment_portal_summary():
+        """Ringkasan empat tahap untuk satu sesi portal (tanpa NIK lengkap)."""
+        ip = client_ip() or '?'
+        if not redis_rate_hit(f'portal-summary|{ip}', _SUMMARY_MAX,
+                              _SUMMARY_WINDOW, prefix=_LOOKUP_PREFIX):
+            return _response({'status': 'error',
+                              'msg': 'Terlalu banyak pengecekan. Coba lagi sebentar.'},
+                             429)
+        token = str(request.args.get('token') or '').strip()
+        verified = verify_session_token(token)
+        if not verified:
+            return _response({'status': 'error',
+                              'msg': 'Sesi portal tidak valid atau kedaluwarsa.'}, 403)
+
+        conn = None
+        try:
+            conn = get_master_connection()
+            if not conn:
+                return _response({'status': 'error', 'msg': 'DB error'}, 500)
+            cursor = conn.cursor(dictionary=True)
+            try:
+                data = _portal_summary(cursor, verified)
+            finally:
+                cursor.close()
+            return _response({'status': 'success', 'data': data})
+        except Exception:
             return _response({'status': 'error', 'msg': 'DB error'}, 500)
         finally:
             if conn:
