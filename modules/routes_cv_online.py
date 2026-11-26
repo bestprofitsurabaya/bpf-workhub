@@ -28,6 +28,7 @@ from modules.helpers import (role_required, log_activity_async, client_ip,
                              redis_rate_hit, normalize_nik)
 # Rilis A: kasus/langkah rekrutmen ditulis di transaksi submit yang sama.
 from modules.recruitment_service import upsert_case_step
+from modules.recruitment_events import record_event
 
 # ================================================================
 # KONSTANTA
@@ -502,13 +503,24 @@ def register_cv_online_routes(app):
                 # Rilis A: satu kasus per NIK + langkah CV di cabang token.
                 # Memakai koneksi yang sama SEBELUM commit — bila gagal,
                 # except di bawah membatalkan submit beserta kasus/langkahnya.
-                upsert_case_step(data['nik'], data['nama'], birth,
-                                 branch_code, 'CV', registration_no,
-                                 evidence_type='cv_online_submission',
-                                 conn=conn)
+                case_id = upsert_case_step(
+                    data['nik'], data['nama'], birth,
+                    branch_code, 'CV', registration_no,
+                    evidence_type='cv_online_submission',
+                    conn=conn)
                 conn.commit()
             finally:
                 cursor.close()
+
+            # Event ditulis setelah commit transaksi sumber (best-effort).
+            try:
+                record_event(case_id, data['nik'], 'CV_SUBMITTED',
+                             branch_code=branch_code,
+                             source_module='cv', source_id=registration_no,
+                             event_at=submitted_at,
+                             metadata={'branch_code': branch_code})
+            except Exception:
+                pass
 
             log_activity_async(None, 'cv_online_submit', 'public', data['nama'],
                                new_data={'registration_no': registration_no}, ip=ip)

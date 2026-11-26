@@ -12,6 +12,7 @@ from modules.helpers import (client_ip, log_activity_async, normalize_nik,
                              redis_rate_hit)
 from modules.training_service import (attendance_status, mask_nik,
                                       record_attendance)
+from modules.recruitment_events import record_event
 
 _MAX = 20
 _WINDOW = 600
@@ -156,6 +157,16 @@ def register_training_routes(app):
                 return jsonify({'status': 'error', 'msg': _NOT_FOUND}), 404
             return jsonify({'status': 'error', 'msg': 'DB error'}), 500
 
+        try:
+            record_event(result.get('case_id') or '', nik,
+                         'TRAINING_PORTAL_D1' if result.get('day') == 1
+                         else 'TRAINING_PORTAL_D2',
+                         branch_code=branch,
+                         source_module='training',
+                         source_id=str(result.get('attendance_id') or ''),
+                         metadata={'day': result.get('day')})
+        except Exception:
+            pass
         _audit('training_attendance_portal', result.get('day'), branch, nik,
                result.get('link_status'), ip)
         return jsonify({'status': 'success', 'data': {

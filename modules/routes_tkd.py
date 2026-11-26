@@ -23,6 +23,7 @@ from datetime import datetime, timedelta
 from flask import Response, jsonify, request, session
 
 from modules import tkd_service as svc
+from modules.recruitment_events import record_event
 from modules.admin_scope import is_ho_admin
 # Sumber tunggal masker NIK — routes_recruitment tidak mengimpor routes_tkd,
 # jadi import ini tidak membentuk siklus.
@@ -756,6 +757,15 @@ def register_tkd_routes(app):
                 attempt = (created or {}).get('attempt') or {}
                 items = (created or {}).get('items') or []
                 conn.commit()
+                try:
+                    record_event(case.get('case_id') or '',
+                                 verified.get('nik') or '', 'TKD_STARTED',
+                                 branch_code=context['branch'],
+                                 source_module='tkd',
+                                 source_id=str(attempt.get('id') or ''),
+                                 metadata={'attempt_no': attempt.get('attempt_no')})
+                except Exception:
+                    pass
                 _audit_start(attempt.get('id'), case.get('case_id'),
                              context['branch'])
                 return _public({'status': 'success',
@@ -920,6 +930,19 @@ def register_tkd_routes(app):
                 attempt = svc.finalize_attempt(
                     cursor, attempt, final_status) or attempt
                 conn.commit()
+                try:
+                    common = dict(
+                        case_id=attempt.get('case_id') or '',
+                        nik='',
+                        branch_code=str(attempt.get('branch_code') or ''),
+                        source_module='tkd',
+                        source_id=str(attempt.get('id') or ''),
+                        metadata={'attempt_no': attempt.get('attempt_no'),
+                                  'score': attempt.get('score')})
+                    record_event(**common, event_type='TKD_SUBMITTED')
+                    record_event(**common, event_type='TKD_SCORED')
+                except Exception:
+                    pass
                 _audit_submit(attempt, attempt.get('case_id'))
                 return _public({'status': 'success',
                                 'data': svc.attempt_result(

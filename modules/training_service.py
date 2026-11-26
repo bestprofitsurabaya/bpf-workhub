@@ -301,6 +301,8 @@ def record_attendance(nik, dob, branch_code, day, ip='', user_agent='',
             'day': day,
             'link_status': link_status,
             'applicant_id': applicant_id,
+            'case_id': case_id,
+            'attendance_id': evidence_id,
             'days': days,
         }
     except Exception:
