@@ -55,17 +55,12 @@ def _open_conn(conn):
     return conn, own
 
 
-def _case_for(cursor, nik, dob):
-    """Baris kasus bila NIK ada dan tanggal lahir cocok; selain itu None."""
+def _case_for(cursor, nik):
+    """Baris kasus berdasarkan NIK; DOB bukan lagi bukti identitas (Rilis C)."""
     cursor.execute(
         'SELECT case_id, nama, tanggal_lahir FROM recruitment_cases '
         'WHERE nik=%s', (nik,))
-    row = cursor.fetchone()
-    if not row:
-        return None
-    if _dob_text(row.get('tanggal_lahir')) != _dob_text(dob):
-        return None
-    return row
+    return cursor.fetchone()
 
 
 def _days_for(cursor, case_id, branch_code):
@@ -95,7 +90,7 @@ def _next_day(days):
     return None
 
 
-def attendance_status(nik, dob, branch_code, conn=None):
+def attendance_status(nik, branch_code, conn=None):
     """Status kehadiran training untuk satu identitas di satu cabang."""
     nik, _raw = normalize_nik(nik)
     if not nik:
@@ -106,7 +101,7 @@ def attendance_status(nik, dob, branch_code, conn=None):
         return {'ok': False, 'error': 'db'}
     cursor = conn.cursor(dictionary=True)
     try:
-        case = _case_for(cursor, nik, dob)
+        case = _case_for(cursor, nik)
         if not case:
             return {'ok': False, 'error': 'not_found'}
         days = _days_for(cursor, case['case_id'], branch)
@@ -191,7 +186,7 @@ def _applicant_conn(branch, master_conn, app_conn=None):
         return None, False
 
 
-def record_attendance(nik, dob, branch_code, day, ip='', user_agent='',
+def record_attendance(nik, branch_code, day, ip='', user_agent='',
                       conn=None, app_conn=None):
     """Catat satu hari absensi; kunci Hari 2 sampai Hari 1 tercatat."""
     try:
@@ -211,7 +206,7 @@ def record_attendance(nik, dob, branch_code, day, ip='', user_agent='',
     app_conn, own_app = _applicant_conn(branch, conn, app_conn)
     app_cursor = app_conn.cursor(dictionary=True) if app_conn else None
     try:
-        case = _case_for(cursor, nik, dob)
+        case = _case_for(cursor, nik)
         if not case:
             return {'ok': False, 'error': 'not_found'}
         case_id = case['case_id']

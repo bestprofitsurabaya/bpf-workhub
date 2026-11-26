@@ -65,21 +65,19 @@ def test_load_settings_parse_kuota_dan_default():
     s = svc.load_settings(cur)
     assert s['question_count'] == 20 and s['pass_score'] == 70
 
-def test_identitas_tanggal_eksplisit_harus_sama():
+def test_identitas_ditekan_berdasarkan_nik_saja():
     conn = _Conn(); cur = conn.cursor(dictionary=True)
-    assert svc.verify_identity(cur, '3573010101990001', '1999-01-01')['case_id'] == 'RC-1'
-    assert svc.verify_identity(cur, '3573010101990001', '2000-01-01') is None
+    assert svc.verify_identity(cur, '3573010101990001')['case_id'] == 'RC-1'
 
 def test_identitas_null_memakai_turunan_nik():
     conn = _Conn(); cur = conn.cursor(dictionary=True)
     # NIK perempuan: 41 -> 01, YY 99 -> 1999
-    assert svc.verify_identity(cur, '3573014101990002', '1999-01-01')['case_id'] == 'RC-2'
-    assert svc.verify_identity(cur, '3573014101990002', '1999-01-02') is None
+    assert svc.verify_identity(cur, '3573014101990002')['case_id'] == 'RC-2'
 
 def test_identitas_nik_tidak_dikenal_atau_nik_invalid():
     conn = _Conn(); cur = conn.cursor(dictionary=True)
-    assert svc.verify_identity(cur, '3573010101999999', '1999-01-01') is None
-    assert svc.verify_identity(cur, '123', '1999-01-01') is None
+    assert svc.verify_identity(cur, '3573010101999999') is None
+    assert svc.verify_identity(cur, '123') is None
 
 
 # Tambahan cakupan kontrak Task 5 (pembacaan attempt & helper konversi).

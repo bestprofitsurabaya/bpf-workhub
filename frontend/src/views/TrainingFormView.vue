@@ -6,12 +6,13 @@
  * Hari 2 sengaja dikunci sampai Hari 1 tercatat; server juga menolaknya, jadi
  * UI ini hanya kenyamanan, bukan satu-satunya penjaga.
  */
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { api } from '../api'
 
 const brandIcon = '/static/icon-192.png'
 const params = new URLSearchParams(window.location.search)
 const token = (params.get('token') || params.get('t') || '').trim()
+const session = (params.get('s') || '').trim()
 
 const nik = ref('')
 const dob = ref('')
@@ -32,6 +33,10 @@ function onNik(event) {
   nik.value = String(event.target.value || '').replace(/\D/g, '').slice(0, 16)
 }
 
+function identitas() {
+  return session ? { s: session } : { nik: nik.value }
+}
+
 function validDate(value) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
   const parsed = new Date(`${value}T00:00:00Z`)
@@ -44,22 +49,20 @@ function formatTime(value) {
   return String(value).slice(0, 16).replace('T', ' ')
 }
 
+onMounted(() => { if (session) checkStatus() })
+
 async function checkStatus() {
   error.value = ''
   success.value = ''
   status.value = null
-  if (nik.value.length !== 16) {
+  if (!session && nik.value.length !== 16) {
     error.value = 'NIK wajib 16 digit angka.'
-    return
-  }
-  if (!validDate(dob.value)) {
-    error.value = 'Tanggal lahir wajib diisi.'
     return
   }
   checking.value = true
   try {
     const result = await api('/api/recruitment/training/status', {
-      params: { token, nik: nik.value, dob: dob.value },
+      params: { token, ...identitas() },
     })
     status.value = result.data || null
     day.value = status.value?.next_day === 2 ? 2 : 1
@@ -87,8 +90,7 @@ async function submit() {
       method: 'POST',
       body: {
         token,
-        nik: nik.value,
-        dob: dob.value,
+        ...identitas(),
         day: Number(day.value),
         consent: true,
       },
@@ -117,7 +119,8 @@ async function submit() {
       <p>Catat kehadiran Hari 1 dan Hari 2 training rekrutmen.</p>
     </header>
 
-    <form class="rp-check" @submit.prevent="checkStatus">
+    <p v-if="session" class="rp-session-note">Identitas terbaca dari portal. Pilih hari absensi di bawah.</p>
+    <form v-else class="rp-check" @submit.prevent="checkStatus">
       <label class="rp-label" for="tr-nik">NIK (16 digit)</label>
       <input
         id="tr-nik"
@@ -130,15 +133,6 @@ async function submit() {
         placeholder="16 digit angka"
         :value="nik"
         @input="onNik"
-      />
-
-      <label class="rp-label" for="tr-dob">Tanggal lahir</label>
-      <input
-        id="tr-dob"
-        class="rp-input"
-        type="date"
-        aria-label="Tanggal lahir"
-        v-model="dob"
       />
 
       <button class="rp-button" type="submit" :disabled="checking">

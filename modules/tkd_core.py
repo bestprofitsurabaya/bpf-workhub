@@ -25,28 +25,14 @@ CATEGORIES = ('REGULASI', 'PERUSAHAAN', 'PRODUK', 'HITUNG', 'PROFIL')
 
 
 def derive_dob_from_nik(nik, today=None):
-    """Turunkan tanggal lahir dari 16 digit NIK; None bila tidak valid.
+    """Tanggal lahir (`date`) dari NIK — delegasi ke util NIK bersama.
 
-    Digit ke-7 sampai ke-12 ber-DDMMYY. DD > 40 menandakan perempuan,
-    jadi dikurangi 40. Pivot abad memakai tahun `today` (bukan tahun lahir
-    yang diketahui): YY di atas dua digit tahun berjalan → 1900+YY,
-    selain itu 2000+YY. Tanggal imajiner ditolak oleh `date()`.
+    Kompatibel dengan pemanggil lama yang mengirim `today`; satu-satunya
+    aturan pivot abad kini ada di `modules.nik_utils`.
     """
-    text = str(nik or '').strip()
-    # isdigit() menerima digit Unicode (mis. '²') yang gagal saat int(); NIK ASCII.
-    if len(text) != 16 or not (text.isascii() and text.isdigit()):
-        return None
-    day = int(text[6:8])
-    month = int(text[8:10])
-    year_2digit = int(text[10:12])
-    if day > 40:
-        day -= 40  # bit pertanda jenis kelamin perempuan
-    today = today or date.today()
-    year = 1900 + year_2digit if year_2digit > today.year % 100 else 2000 + year_2digit
-    try:
-        return date(year, month, day)
-    except ValueError:
-        return None
+    from modules.nik_utils import birth_date_from_nik
+    text = birth_date_from_nik(nik, today=today)
+    return date.fromisoformat(text) if text else None
 
 
 def parse_numeric(value):

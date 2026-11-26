@@ -24,6 +24,7 @@ from flask import Response, jsonify, request, session
 
 from modules import tkd_service as svc
 from modules.recruitment_events import record_event
+from modules.portal_token import verify_session_token
 from modules.admin_scope import is_ho_admin
 # Sumber tunggal masker NIK — routes_recruitment tidak mengimpor routes_tkd,
 # jadi import ini tidak membentuk siklus.
@@ -119,14 +120,22 @@ def _valid_date(value):
 
 
 def _verify_body(body):
-    """Validasi isian publik; kembalikan `(data, None)` atau `(None, error)`."""
+    """Validasi isian publik: token sesi+token cabang, atau NIK+token cabang."""
     body = body if isinstance(body, dict) else {}
-    nik, _raw = normalize_nik(body.get('nik'))
-    dob = str(body.get('dob') or '').strip()
     token = str(body.get('token') or '').strip()
-    if len(nik) != 16 or not _valid_date(dob) or not token:
+    session_token = str(body.get('s') or '').strip()
+    if not token:
         return None, ('error', 400, _MSG_INCOMPLETE)
-    return {'nik': nik, 'dob': dob, 'token': token}, None
+    if session_token:
+        session = verify_session_token(session_token)
+        if not session:
+            return None, ('error', 403, 'Sesi portal tidak valid atau kedaluwarsa.')
+        return {'nik': session['nik'], 'branch': session['branch'],
+                'token': token}, None
+    nik, _raw = normalize_nik(body.get('nik'))
+    if len(nik) != 16:
+        return None, ('error', 400, _MSG_INCOMPLETE)
+    return {'nik': nik, 'branch': '', 'token': token}, None
 
 
 def _as_datetime(value):
@@ -205,7 +214,9 @@ def _verified_context(cursor, verified):
     branch = svc.resolve_branch_token(cursor, verified['token'])
     if not branch:
         return None, ('error', 400, _MSG_BAD_LINK)
-    case = svc.verify_identity(cursor, verified['nik'], verified['dob'])
+    if verified.get('branch') and verified['branch'] != branch:
+        return None, ('error', 403, 'Sesi portal tidak cocok dengan cabang tautan.')
+    case = svc.verify_identity(cursor, verified['nik'])
     if not case:
         return None, ('error', 403, _MSG_IDENTITY)
     session['tkd_case_id'] = str(case.get('case_id') or '')

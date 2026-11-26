@@ -27,9 +27,8 @@ function mountForm() {
   return mount(TrainingFormView)
 }
 
-async function isiIdentitas(w, nik = NIK, dob = DOB) {
+async function isiIdentitas(w, nik = NIK) {
   await w.find('input[aria-label="NIK 16 digit"]').setValue(nik)
-  await w.find('input[aria-label="Tanggal lahir"]').setValue(dob)
   await w.find('form.rp-check').trigger('submit')
   await flushPromises()
 }
@@ -84,7 +83,7 @@ describe('TrainingFormView — absensi training 2 hari', () => {
       '/api/recruitment/training/attendance',
       expect.objectContaining({ method: 'POST' }))
     const body = apiMock.mock.calls.at(-1)[1].body
-    expect(body).toMatchObject({ token: TOKEN, nik: NIK, dob: DOB, day: 1,
+    expect(body).toMatchObject({ token: TOKEN, nik: NIK, day: 1,
                                  consent: true })
   })
 
@@ -92,9 +91,23 @@ describe('TrainingFormView — absensi training 2 hari', () => {
     apiMock.mockRejectedValue(new Error(
       'Data peserta tidak ditemukan. Periksa NIK dan tanggal lahir.'))
     const w = mountForm()
-    await isiIdentitas(w, NIK, '1990-01-01')
+    await isiIdentitas(w)
 
     expect(w.find('[role="alert"]').text()).toContain('Periksa NIK')
     expect(w.find('.rp-status').exists()).toBe(false)
+  })
+
+  it('dengan sesi portal: status dicek otomatis tanpa input NIK/DOB', async () => {
+    window.history.replaceState({}, '', `/app/training-form?token=${TOKEN}&s=ses-1`)
+    apiMock.mockResolvedValue(STATUS_DAY1_EMPTY)
+    const w = mount(TrainingFormView)
+    await flushPromises()
+
+    expect(w.find('input[aria-label="NIK 16 digit"]').exists()).toBe(false)
+    expect(w.find('input[type="date"]').exists()).toBe(false)
+    expect(apiMock).toHaveBeenCalledWith('/api/recruitment/training/status', {
+      params: { token: TOKEN, s: 'ses-1' },
+    })
+    expect(w.text()).toContain(NAMA)
   })
 })
