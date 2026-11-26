@@ -485,13 +485,19 @@ CREATE TABLE IF NOT EXISTS applicants (
     verified_by VARCHAR(100) DEFAULT '',
     verified_at DATETIME DEFAULT NULL,
     notes VARCHAR(500) DEFAULT '',
+    nik CHAR(16) NULL,
+    nik_source VARCHAR(20) NOT NULL DEFAULT '',
+    linked_at DATETIME NULL,
+    link_status ENUM('linked','unlinked','ambiguous') NOT NULL DEFAULT 'unlinked',
     created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
     UNIQUE KEY display_id (display_id),
+    UNIQUE KEY uq_applicants_nik (nik),
     KEY idx_status (status),
     KEY idx_upline (upline),
-    KEY idx_interview_at (interview_at)
+    KEY idx_interview_at (interview_at),
+    KEY idx_applicants_link_status (link_status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS applicant_attendance (
@@ -1068,6 +1074,29 @@ CREATE TABLE IF NOT EXISTS case_branch_history (
     last_seen_at DATETIME NULL,
     UNIQUE KEY uq_cbh_case_branch (case_id, branch_code),
     KEY idx_cbh_case (case_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Linimasa kejadian rekrutmen (Rilis C). Sumber kebenaran tetap tabel modul;
+-- event ditulis best-effort setelah transaksi sumber commit. Sama dengan DDL
+-- di modules/recruitment_events_schema.py (drift check CI).
+CREATE TABLE IF NOT EXISTS recruitment_events (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    case_id VARCHAR(40) NOT NULL DEFAULT '',
+    nik CHAR(16) NULL,
+    event_type VARCHAR(40) NOT NULL,
+    event_at DATETIME NOT NULL,
+    branch_code VARCHAR(10) NOT NULL DEFAULT '',
+    actor_role VARCHAR(50) NOT NULL DEFAULT '',
+    actor_name VARCHAR(150) NOT NULL DEFAULT '',
+    source_module VARCHAR(30) NOT NULL DEFAULT '',
+    source_id VARCHAR(64) NOT NULL DEFAULT '',
+    note VARCHAR(500) NOT NULL DEFAULT '',
+    metadata_json TEXT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_re_event (source_module, branch_code, source_id, event_type),
+    KEY idx_re_case_event (case_id, event_at),
+    KEY idx_re_nik_event (nik, event_at),
+    KEY idx_re_branch_event (branch_code, event_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Absensi training portal (2 hari): bukti kehadiran dari form publik.
