@@ -140,13 +140,15 @@ describe('RecruitmentPortalView — portal per cabang 4 kartu (Rilis A)', () => 
     ],
   }
 
-  it('kartu selesai menampilkan centang, waktu, redup, dan tidak bisa dibuka', async () => {
+  it('kartu selesai menampilkan centang, waktu, dan ringkasan ringkas', async () => {
     const w = await mountPortal(`?token=${TOKEN}`, LOOKUP_DONE)
     await cek(w, '3509190102960003', '1996-02-01')
     const cv = card(w, 'CV')
     expect(cv.text()).toContain('✓ Selesai')
     expect(cv.text()).toContain('2026-11-25 19:28:30')
-    expect(cv.text()).toContain('tidak perlu diulang')
+    expect(cv.text()).toContain('Data tersimpan pada')
+    expect(cv.text()).toContain('Lihat keterangan')
+    expect(cv.find('[data-expand]').attributes('open')).toBeUndefined()
     expect(cv.classes()).toContain('rp-card--done')
     expect(cv.element.tagName).toBe('DIV')
     expect(cv.attributes('href')).toBeUndefined()
@@ -158,6 +160,27 @@ describe('RecruitmentPortalView — portal per cabang 4 kartu (Rilis A)', () => 
     const w = await mountPortal(`?token=${TOKEN}`, LOOKUP_DONE)
     await cek(w, '3509190102960003', '1996-02-01')
     expect(w.text()).toContain('Langkah berikutnya: Training Absensi')
+  })
+
+  it('keterangan dibuka dan kartu selesai tetap tidak bisa dibuka', async () => {
+    const w = await mountPortal(`?token=${TOKEN}`, LOOKUP_DONE)
+    await cek(w, '3509190102960003', '1996-02-01')
+    const cv = card(w, 'CV')
+    expect(cv.find('[data-expand]').attributes('open')).toBeUndefined()
+    await cv.find('[data-expand] summary').trigger('click')
+    await flushPromises()
+    expect(cv.find('[data-expand]').attributes('open')).toBe('')
+    expect(cv.text()).toContain('Data diri dan pendidikan Anda tersimpan')
+    expect(cv.text()).toContain('tidak perlu diulang')
+    expect(cv.element.tagName).toBe('DIV')
+    expect(cv.attributes('href')).toBeUndefined()
+  })
+
+  it('urutan kartu tetap CV, Training, TKD, FirstWork', async () => {
+    const w = await mountPortal(`?token=${TOKEN}`, LOOKUP_DONE)
+    await cek(w, '3509190102960003', '1996-02-01')
+    expect(w.findAll('.rp-card').map((c) => c.attributes('data-step')))
+      .toEqual(['CV', 'TRAINING', 'TKD', 'FIRSTWORK'])
   })
 
   it('lookup hanya GET dan tidak menampilkan cabang/langkah/data pribadi dari respons', async () => {
