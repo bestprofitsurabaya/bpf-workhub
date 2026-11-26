@@ -190,6 +190,8 @@ describe('FirstWorkFormView — 13 field demografi (Rilis B Task 2)', () => {
       return Promise.resolve({ ok: false, json: () => Promise.resolve({}) })
     }))
     const w = await mountForm()
+    await flushPromises()
+    expect(w.find('input[type="date"]').exists()).toBe(false)
     await w.vm.submit()
     await flushPromises()
 

@@ -1040,7 +1040,7 @@ onBeforeUnmount(() => {
                    placeholder="cth: Surabaya" />
           </div>
 
-          <div class="fw-field">
+          <div v-if="!portalSession" class="fw-field">
             <label for="fw-tanggal-lahir">Tanggal Lahir</label>
             <input id="fw-tanggal-lahir" class="input" v-model="form.tanggal_lahir"
                    aria-label="Tanggal Lahir" type="date" maxlength="10"
