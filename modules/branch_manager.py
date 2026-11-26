@@ -118,6 +118,53 @@ def seed_main_branch(conn=None):
             conn.close()
 
 
+def sync_version_stamps(conn=None):
+    """Samakan stamp versi di DB master dengan versi kode (idempoten).
+
+    `write_branch_identity()` sudah menulis versi kode ke `system_config` DB
+    cabang, tetapi cabang utama (master) dan kolom `branches.system_version`
+    tidak pernah ikut diperbarui. Akibatnya kop/footer PDF bisa menampilkan
+    versi lama walau kode sudah baru (audit v2.135.10: master tertinggal di
+    v2.135.4). Best-effort: kegagalan tidak boleh menggagalkan startup.
+    """
+    from modules.company_identity import IDENTITY_DEFAULTS
+    version = str(IDENTITY_DEFAULTS.get('system_version') or '').strip()
+    if not version:
+        return False
+    own = conn is None
+    conn = conn or get_master_connection()
+    if not conn:
+        return False
+    cursor = None
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO system_config (config_key, config_value) "
+            "VALUES ('system_version', %s) "
+            "ON DUPLICATE KEY UPDATE config_value=VALUES(config_value)",
+            (version,))
+        cursor.execute("UPDATE branches SET system_version=%s", (version,))
+        conn.commit()
+        return True
+    except Exception:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        return False
+    finally:
+        if cursor:
+            try:
+                cursor.close()
+            except Exception:
+                pass
+        if own and conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+
 def get_branch(code, conn=None):
     own = conn is None
     conn = conn or get_master_connection()

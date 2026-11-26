@@ -148,3 +148,43 @@ def test_check_db_stamps_menolak_cabang_tidak_seragam(monkeypatch):
     db = check_db_stamps()
     assert not all(d['ok'] for d in db), db
 
+
+
+def test_sync_version_stamps_menulis_master_dan_cabang(monkeypatch):
+    """Titik DB master & branches ikut diperbarui saat startup (v2.135.11)."""
+    from modules import branch_manager as bm
+    from modules.company_identity import IDENTITY_DEFAULTS
+    ver = IDENTITY_DEFAULTS['system_version']
+    calls = []
+
+    class _Conn:
+        committed = False
+
+        def cursor(self):
+            return self
+
+        def execute(self, sql, params=None):
+            calls.append((sql, params))
+
+        def commit(self):
+            self.committed = True
+
+        def rollback(self):
+            pass
+
+        def close(self):
+            pass
+
+    conn = _Conn()
+    assert bm.sync_version_stamps(conn=conn) is True
+    assert conn.committed is True
+    assert any('INSERT INTO system_config' in sql and params == (ver,)
+               for sql, params in calls)
+    assert any('UPDATE branches' in sql and params == (ver,)
+               for sql, params in calls)
+
+
+def test_sync_version_stamps_aman_tanpa_koneksi(monkeypatch):
+    from modules import branch_manager as bm
+    monkeypatch.setattr(bm, 'get_master_connection', lambda: None)
+    assert bm.sync_version_stamps() is False

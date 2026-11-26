@@ -201,6 +201,9 @@ from modules import branch_manager as bm
 bm.ensure_branches_table()
 bm.ensure_users_branch_column()
 bm.seed_main_branch()
+# v2.135.11: master + kolom branches ikut mengikuti versi kode, bukan hanya
+# system_config DB cabang. Tanpa ini kop/footer PDF bisa menampilkan versi lama.
+bm.sync_version_stamps()
 
 # Penomoran dokumen v2.29.10: tabel doc_sequences (master + tiap cabang)
 from modules.helpers import ensure_doc_sequences

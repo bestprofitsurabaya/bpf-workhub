@@ -7,6 +7,16 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.135.11 — 26 November 2026 (Stamp versi PDF kembali seragam)
+
+- Audit rilis menemukan `system_config` master dan kolom
+  `branches.system_version` masih di v2.135.4, sehingga footer PDF
+  menampilkan versi lama walau kode sudah baru.
+- Startup kini menyinkronkan kedua stamp itu ke versi kode lewat
+  `sync_version_stamps()`; DB cabang tetap memakai `write_branch_identity()`.
+- Idempoten dan best-effort: kegagalan DB tidak menggagalkan startup.
+- Tidak ada perubahan tampilan portal maupun isi kartu.
+
 ## v2.135.10 — 26 November 2026 (Kartu First Work selaras portal)
 
 - Kartu BPF First Work menampilkan blok **Status Rekrutmen**: empat simpul
