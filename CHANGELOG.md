@@ -7,6 +7,17 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.135.8 — 26 November 2026 (Tampilan portal rekrutmen)
+
+- Portal rekrutmen memakai tampilan resmi PT Bestprofit Futures: logo dan nama
+  perusahaan, latar terang, warna navy tenang, serta aksen merah tipis pada
+  langkah berikutnya.
+- Empat tahap tampil sebagai daftar vertikal; status selesai, terkunci, dan
+  berikutnya mudah dibedakan.
+- Nama tetap disamarkan; NIK lengkap, cabang, dan token tidak pernah
+  ditampilkan.
+- Alur, token, dan aturan tahap tidak berubah.
+
 ## v2.135.7 — 26 November 2026 (Form FirstWork dari portal)
 
 - Kartu **FirstWork Absensi** di portal rekrutmen kini bisa dibuka langsung.

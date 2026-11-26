@@ -233,3 +233,56 @@ describe('RecruitmentPortalView — portal per cabang 4 kartu (Rilis A)', () => 
     expect(card(w, 'FIRSTWORK').attributes('data-locked')).toBe('true')
   })
 })
+
+describe('RecruitmentPortalView — tampilan institusi (v2.135.8)', () => {
+  beforeEach(() => { vi.clearAllMocks() })
+  afterEach(() => {
+    window.history.replaceState({}, '', '/app/recruitment-portal')
+  })
+
+  it('memakai logo resmi dan nama perusahaan di bilah merek', async () => {
+    const w = await mountPortal()
+
+    const bar = w.find('.rp-brandbar')
+    expect(bar.exists()).toBe(true)
+    expect(bar.find('img.rp-logo').attributes('src')).toBe('/static/bpf-logo.png')
+    expect(bar.text()).toContain('PT Bestprofit Futures')
+    expect(bar.text()).toContain('Portal Rekrutmen')
+  })
+
+  it('menampilkan penanda kepercayaan dan catatan privasi NIK', async () => {
+    const w = await mountPortal()
+
+    const trust = w.find('.rp-trust')
+    expect(trust.exists()).toBe(true)
+    expect(trust.text()).toContain('Data pribadi dilindungi')
+    expect(trust.text()).toContain('Cukup NIK 16 digit')
+    expect(w.find('.rp-privacy').text()).toContain('NIK lengkap tidak ditampilkan')
+  })
+
+  it('memakai daftar langkah vertikal, bukan grid kartu', async () => {
+    const w = await mountPortal()
+    const list = w.find('.rp-steps')
+    expect(list.exists()).toBe(true)
+    expect(list.findAll('.rp-card')).toHaveLength(4)
+    expect(w.find('.rp-card').find('.rp-node').exists()).toBe(true)
+  })
+
+  it('menandai baris langkah berikutnya setelah NIK dikenal', async () => {
+    const w = await mountPortal(`?token=${TOKEN}`, {
+      status: 'success', known: true, can_continue: true,
+      nama_masked: 'Bili D.', next_action: 'TRAINING',
+      stages: [
+        { type: 'CV', status: 'SELESAI', completed_at: '2026-11-25 19:28:30' },
+        { type: 'TRAINING', status: 'BELUM', completed_at: null },
+        { type: 'TKD', status: 'BELUM', completed_at: null },
+        { type: 'FIRSTWORK', status: 'BELUM', completed_at: null },
+      ],
+    })
+    await cek(w, '3509190102960003')
+
+    expect(card(w, 'TRAINING').classes()).toContain('rp-card--next')
+    expect(card(w, 'CV').classes()).not.toContain('rp-card--next')
+    expect(card(w, 'CV').find('.rp-node').text()).toContain('✓')
+  })
+})

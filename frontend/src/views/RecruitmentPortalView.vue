@@ -12,7 +12,7 @@ import { ref } from 'vue'
 import { api } from '../api'
 import RecruitmentTkdPanel from '../components/RecruitmentTkdPanel.vue'
 
-const brandIcon = '/static/icon-192.png'
+const brandLogo = '/static/bpf-logo.png'
 
 const linkParams = new URLSearchParams(window.location.search)
 const branchToken = (linkParams.get('token') || linkParams.get('t') || '').trim()
@@ -177,202 +177,471 @@ async function check() {
 
 <template>
   <main class="rp-page">
-    <header class="rp-header">
-      <div class="rp-brand-line">
-        <img class="rp-brand" :src="brandIcon" alt="" />
-        <h1>Portal Rekrutmen</h1>
-      </div>
-      <p>Masukkan NIK untuk melihat rangkuman dan melanjutkan proses rekrutmen.</p>
-    </header>
-
-    <form class="rp-check" @submit.prevent="check">
-      <label class="rp-label" for="rp-nik">NIK (16 digit)</label>
-      <input
-        id="rp-nik"
-        class="rp-input"
-        type="text"
-        inputmode="numeric"
-        autocomplete="off"
-        maxlength="16"
-        aria-label="NIK 16 digit"
-        placeholder="16 digit angka"
-        :value="nik"
-        @input="onNik"
-      />
-
-      <button class="rp-button" type="submit" :disabled="checking">
-        {{ checking ? 'Mengecek…' : 'Cek Status' }}
-      </button>
-      <p v-if="error" class="rp-error" role="alert">{{ error }}</p>
-      <p class="rp-privacy">NIK hanya dipakai untuk mencocokkan data Anda. NIK lengkap tidak ditampilkan di halaman ini.</p>
-    </form>
-
-    <section v-if="summary && known && summary.nama_masked" class="rp-greeting" aria-live="polite">
-      <p>Data Anda sudah cocok. Halo, {{ greetingName() }}. Berikut rangkuman rekrutmen di cabang ini.</p>
-      <p v-if="summary.next_action && summary.next_action !== 'DONE'" class="rp-next">
-        Langkah berikutnya: {{ STEP_LABELS[summary.next_action] || summary.next_action }}. Ikuti jadwal dari cabang.
-      </p>
-      <p v-else class="rp-next">Semua tahap sudah tercatat. Hubungi cabang bila perlu cetak ulang kartu atau koreksi data.</p>
-    </section>
-
-    <section class="rp-cards" aria-label="Langkah rekrutmen">
-      <component
-        v-for="(step, index) in STEPS"
-        :key="step.type"
-        :is="cardTag(step)"
-        class="rp-card"
-        :class="{ 'rp-card--locked': isLocked(step), 'rp-card--done': isDone(step), 'rp-card--next': summary?.next_action === step.type }"
-        :data-step="step.type"
-        :data-locked="isLocked(step) ? 'true' : 'false'"
-        :data-status="stageInfo(step.type).status || 'BELUM'"
-        :aria-disabled="isLocked(step) ? 'true' : undefined"
-        v-bind="cardAttrs(step)"
-        @click="onCardClick(step)"
-      >
-        <div class="rp-card-head">
-          <span class="rp-step-no">{{ index + 1 }}</span>
-          <h2 class="rp-card-title">{{ step.label }}</h2>
-          <span class="rp-status" :class="{ 'rp-status--done': isDone(step) }">
-            {{ isDone(step) ? '✓ Selesai' : 'Belum' }}
-          </span>
+    <div class="rp-shell">
+      <header class="rp-brandbar">
+        <img class="rp-logo" :src="brandLogo" alt="" />
+        <div class="rp-brand-text">
+          <b>PT Bestprofit Futures</b>
+          <span>Portal Rekrutmen</span>
         </div>
-        <p class="rp-card-desc">{{ step.desc }}</p>
-        <p v-if="isLocked(step)" class="rp-lock-hint">Lengkapi CV Online terlebih dahulu.</p>
-        <template v-else>
-          <p class="rp-summary">{{ summaryText(step) }}</p>
-          <p v-if="!isDone(step)" class="rp-open">{{ tkdCardOpen(step) ? 'Buka tes →' : 'Buka langkah →' }}</p>
-          <details v-if="stepNote(step)" class="rp-details" data-expand>
+        <span class="rp-brand-tag">Situs Resmi</span>
+      </header>
+
+      <section class="rp-hero">
+        <p class="rp-eyebrow">Rekrutmen Karyawan</p>
+        <h1>Pantau proses rekrutmen Anda</h1>
+        <p class="rp-lede">
+          Masukkan NIK untuk melihat rangkuman dan melanjutkan proses rekrutmen
+          di cabang Anda.
+        </p>
+        <ul class="rp-trust">
+          <li>
+            <svg class="rp-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 3l7 3v6c0 4.2-2.9 7.6-7 9-4.1-1.4-7-4.8-7-9V6l7-3z" />
+              <path d="M9 12l2 2 4-4" />
+            </svg>
+            <span>Data pribadi dilindungi</span>
+          </li>
+          <li>
+            <svg class="rp-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="4" y="10" width="16" height="10" rx="2" />
+              <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+            </svg>
+            <span>Cukup NIK 16 digit</span>
+          </li>
+        </ul>
+      </section>
+
+      <form class="rp-check" @submit.prevent="check">
+        <label class="rp-label" for="rp-nik">NIK (16 digit)</label>
+        <div class="rp-field">
+          <input
+            id="rp-nik"
+            class="rp-input"
+            type="text"
+            inputmode="numeric"
+            autocomplete="off"
+            maxlength="16"
+            aria-label="NIK 16 digit"
+            placeholder="16 digit angka"
+            :value="nik"
+            @input="onNik"
+          />
+          <button class="rp-button" type="submit" :disabled="checking">
+            {{ checking ? 'Mengecek…' : 'Cek Status' }}
+          </button>
+        </div>
+        <p v-if="error" class="rp-error" role="alert">{{ error }}</p>
+        <p class="rp-privacy">
+          <svg class="rp-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <rect x="4" y="10" width="16" height="10" rx="2" />
+            <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+          </svg>
+          <span>NIK hanya dipakai untuk mencocokkan data Anda. NIK lengkap tidak ditampilkan di halaman ini.</span>
+        </p>
+      </form>
+
+      <section v-if="summary && known && summary.nama_masked" class="rp-greeting" aria-live="polite">
+        <p class="rp-hello">Data Anda sudah cocok. Halo, <b>{{ greetingName() }}</b>. Berikut rangkuman rekrutmen di cabang ini.</p>
+        <p v-if="summary.next_action && summary.next_action !== 'DONE'" class="rp-next">
+          <span class="rp-next-label">Langkah berikutnya:</span> {{ STEP_LABELS[summary.next_action] || summary.next_action }}. Ikuti jadwal dari cabang.
+        </p>
+        <p v-else class="rp-next">Semua tahap sudah tercatat. Hubungi cabang bila perlu cetak ulang kartu atau koreksi data.</p>
+      </section>
+
+      <div class="rp-steps-head">
+        <h2>Tahap rekrutmen</h2>
+        <span>4 tahap</span>
+      </div>
+      <section class="rp-steps" aria-label="Langkah rekrutmen">
+        <template v-for="(step, index) in STEPS" :key="step.type">
+          <component
+            :is="cardTag(step)"
+            class="rp-card"
+            :class="{ 'rp-card--locked': isLocked(step), 'rp-card--done': isDone(step), 'rp-card--next': summary?.next_action === step.type }"
+            :data-step="step.type"
+            :data-locked="isLocked(step) ? 'true' : 'false'"
+            :data-status="stageInfo(step.type).status || 'BELUM'"
+            :aria-disabled="isLocked(step) ? 'true' : undefined"
+            v-bind="cardAttrs(step)"
+            @click="onCardClick(step)"
+          >
+            <span
+              class="rp-node"
+              :class="{ 'rp-node--done': isDone(step), 'rp-node--locked': isLocked(step) }"
+              aria-hidden="true"
+            >{{ isDone(step) ? '✓' : index + 1 }}</span>
+            <span class="rp-card-body">
+              <span class="rp-card-head">
+                <span class="rp-card-title">{{ step.label }}</span>
+                <span
+                  class="rp-status"
+                  :class="{ 'rp-status--done': isDone(step), 'rp-status--locked': isLocked(step) }"
+                >{{ isDone(step) ? '✓ Selesai' : (isLocked(step) ? 'Terkunci' : 'Belum') }}</span>
+              </span>
+              <span class="rp-card-desc">{{ step.desc }}</span>
+              <template v-if="isLocked(step)">
+                <span class="rp-lock-hint">Lengkapi CV Online terlebih dahulu.</span>
+              </template>
+              <template v-else>
+                <span class="rp-summary">{{ summaryText(step) }}</span>
+                <span v-if="!isDone(step)" class="rp-open">{{ tkdCardOpen(step) ? 'Buka tes →' : 'Buka langkah →' }}</span>
+              </template>
+            </span>
+            <details v-if="isDone(step) && stepNote(step)" class="rp-details" data-expand>
+              <summary>Lihat keterangan</summary>
+              <p class="rp-full-note">{{ stepNote(step) }}</p>
+            </details>
+          </component>
+          <details v-if="!isDone(step) && stepNote(step)" class="rp-details" data-expand>
             <summary>Lihat keterangan</summary>
             <p class="rp-full-note">{{ stepNote(step) }}</p>
           </details>
         </template>
-      </component>
-    </section>
+      </section>
 
-    <RecruitmentTkdPanel
-      v-if="tkdOpen"
-      :token="branchToken"
-      :nik="tkdNik"
-      @close="tkdOpen = false"
-    />
+      <RecruitmentTkdPanel
+        v-if="tkdOpen"
+        :token="branchToken"
+        :nik="tkdNik"
+        @close="tkdOpen = false"
+      />
+    </div>
   </main>
 </template>
 
 <style scoped>
 .rp-page {
-  max-width: 720px;
-  margin: 0 auto;
-  padding: 24px 16px 48px;
-  font-family: system-ui, -apple-system, sans-serif;
-  color: #1f2937;
+  --rp-ink: #0b1f3a;
+  --rp-ink-2: #334155;
+  --rp-muted: #5c6b7f;
+  --rp-bg: #f4f6f8;
+  --rp-paper: #ffffff;
+  --rp-line: #dce3ea;
+  --rp-accent: #b3122e;
+  --rp-accent-soft: #fbeaec;
+  --rp-success: #166534;
+  --rp-focus: #1e4e8c;
+
+  min-height: 100vh;
+  background: var(--rp-bg);
+  color: var(--rp-ink-2);
+  font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-size: 16px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
 }
-.rp-header { text-align: center; margin-bottom: 16px; }
-.rp-brand-line { display: flex; align-items: center; justify-content: center; gap: 8px; }
-.rp-brand { width: 32px; height: 32px; object-fit: contain; }
-.rp-header h1 { font-size: 1.3rem; margin: 0; }
-.rp-header p { color: #6b7280; margin: 4px 0 0; font-size: 0.85rem; }
+.rp-shell {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 0 24px 64px;
+}
+
+/* Bilah merek — putih, garis rambut, logo resmi. */
+.rp-brandbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 18px 0;
+  border-bottom: 1px solid var(--rp-line);
+}
+.rp-logo { height: 30px; width: auto; object-fit: contain; }
+.rp-brand-text { display: flex; flex-direction: column; line-height: 1.25; }
+.rp-brand-text b {
+  color: var(--rp-ink);
+  font-size: 0.95rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+.rp-brand-text span { color: var(--rp-muted); font-size: 0.75rem; }
+.rp-brand-tag {
+  margin-left: auto;
+  color: var(--rp-muted);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* Kepala halaman */
+.rp-hero { padding: 40px 0 28px; }
+.rp-eyebrow {
+  margin: 0;
+  color: var(--rp-muted);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.rp-hero h1 {
+  margin: 8px 0 0;
+  color: var(--rp-ink);
+  font-size: 1.9rem;
+  font-weight: 650;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+.rp-lede {
+  margin: 10px 0 0;
+  max-width: 54ch;
+  color: var(--rp-ink-2);
+  font-size: 0.95rem;
+}
+.rp-trust {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  margin: 18px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.rp-trust li {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--rp-ink-2);
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+.rp-icon {
+  flex: none;
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.rp-trust .rp-icon { color: var(--rp-success); }
+
+/* Panel pemeriksaan NIK */
 .rp-check {
   display: grid;
-  gap: 8px;
-  background: #fff;
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
-  padding: 16px;
-  margin-bottom: 24px;
+  gap: 10px;
+  padding: 22px;
+  background: var(--rp-paper);
+  border: 1px solid var(--rp-line);
+  border-radius: 8px;
+  box-shadow: 0 1px 2px rgba(11, 31, 58, 0.04);
 }
-.rp-label { font-weight: 600; font-size: 0.9rem; }
+.rp-label {
+  color: var(--rp-ink);
+  font-size: 0.8rem;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+}
+.rp-field { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; }
 .rp-input {
   width: 100%;
-  padding: 12px;
-  border: 1px solid #d1d5db;
-  border-radius: 8px;
+  min-height: 48px;
+  padding: 0 14px;
+  border: 1px solid #c7d1dc;
+  border-radius: 6px;
+  background: #fff;
+  color: var(--rp-ink);
+  font: inherit;
   font-size: 1rem;
-  box-sizing: border-box;
+  letter-spacing: 0.04em;
+  transition: border-color 160ms ease-out, box-shadow 160ms ease-out;
+}
+.rp-input::placeholder { color: #6b7a8c; letter-spacing: 0; }
+.rp-input:focus {
+  outline: none;
+  border-color: var(--rp-focus);
+  box-shadow: 0 0 0 3px rgba(30, 78, 140, 0.16);
 }
 .rp-button {
-  padding: 12px 20px;
+  min-height: 48px;
+  padding: 0 24px;
   border: 0;
-  border-radius: 8px;
-  background: #1d4ed8;
+  border-radius: 6px;
+  background: var(--rp-ink);
   color: #fff;
+  font: inherit;
+  font-size: 0.95rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 160ms ease-out;
+}
+.rp-button:hover:not(:disabled) { background: #132c4e; }
+.rp-button:disabled { opacity: 0.6; cursor: default; }
+.rp-button:focus-visible,
+.rp-card:focus-visible,
+.rp-details summary:focus-visible {
+  outline: 2px solid var(--rp-focus);
+  outline-offset: 2px;
+}
+.rp-error { margin: 0; color: #a4161a; font-size: 0.85rem; font-weight: 500; }
+.rp-privacy {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin: 0;
+  color: var(--rp-muted);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+.rp-privacy .rp-icon { width: 14px; height: 14px; margin-top: 2px; }
+
+/* Ringkasan setelah NIK dikenal */
+.rp-greeting {
+  margin-top: 20px;
+  padding: 18px 20px;
+  background: var(--rp-paper);
+  border: 1px solid var(--rp-line);
+  border-radius: 8px;
+}
+.rp-hello { margin: 0; color: var(--rp-ink-2); font-size: 0.9rem; }
+.rp-hello b { color: var(--rp-ink); }
+.rp-next {
+  margin: 12px 0 0;
+  padding: 10px 14px;
+  background: var(--rp-accent-soft);
+  border-left: 3px solid var(--rp-accent);
+  border-radius: 0 4px 4px 0;
+  color: var(--rp-ink);
+  font-size: 0.88rem;
+  font-weight: 500;
+}
+.rp-next-label { font-weight: 700; }
+
+/* Daftar tahap vertikal */
+.rp-steps-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 30px 0 12px;
+}
+.rp-steps-head h2 {
+  margin: 0;
+  color: var(--rp-ink);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.rp-steps-head span { color: var(--rp-muted); font-size: 0.75rem; }
+.rp-steps { display: grid; gap: 10px; }
+
+.rp-card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 14px;
+  width: 100%;
+  padding: 16px 18px;
+  background: var(--rp-paper);
+  border: 1px solid var(--rp-line);
+  border-radius: 8px;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  transition: border-color 160ms ease-out, background-color 160ms ease-out,
+    box-shadow 160ms ease-out;
+}
+.rp-card:hover { border-color: #b7c4d2; box-shadow: 0 2px 6px rgba(11, 31, 58, 0.05); }
+.rp-card--next {
+  background: var(--rp-accent-soft);
+  border-color: #e6c4ca;
+  box-shadow: inset 3px 0 0 var(--rp-accent);
+}
+.rp-card--next:hover { border-color: var(--rp-accent); }
+.rp-card--locked { background: #f7f9fb; cursor: not-allowed; }
+.rp-card--locked:hover { border-color: var(--rp-line); box-shadow: none; }
+.rp-card--done { background: #fbfcfd; }
+
+.rp-node {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid #d6dfe9;
+  border-radius: 50%;
+  background: #eef2f7;
+  color: var(--rp-ink-2);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+.rp-node--done { background: #e8f3ec; border-color: #bfdccb; color: var(--rp-success); }
+.rp-node--locked { color: #5c6b7f; }
+
+.rp-card-body { display: flex; flex: 1; flex-direction: column; gap: 3px; min-width: 0; }
+.rp-card-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.rp-card-title {
+  color: var(--rp-ink);
   font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.rp-status {
+  margin-left: auto;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: #eef2f7;
+  color: #4a5a6d;
+  font-size: 0.7rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.rp-status--done { background: #e8f3ec; color: var(--rp-success); }
+.rp-status--locked { color: #6b7a8c; }
+.rp-card-desc { color: var(--rp-muted); font-size: 0.8rem; line-height: 1.45; }
+.rp-lock-hint { color: #6b7a8c; font-size: 0.8rem; }
+.rp-summary { color: var(--rp-ink-2); font-size: 0.8rem; line-height: 1.45; }
+.rp-card--done .rp-summary { color: #4a5a6d; }
+.rp-open { color: var(--rp-ink); font-size: 0.8rem; font-weight: 600; }
+.rp-card--next .rp-open { color: var(--rp-accent); }
+
+.rp-details { margin: -2px 0 2px; padding: 0 18px 0 62px; }
+.rp-card > .rp-details { flex-basis: 100%; margin: 6px 0 0 44px; padding: 0; }
+.rp-details summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--rp-ink-2);
+  font-size: 0.78rem;
   font-weight: 600;
   cursor: pointer;
 }
-.rp-button:disabled { opacity: 0.6; cursor: default; }
-.rp-error { color: #b91c1c; margin: 4px 0 0; font-size: 0.9rem; }
-.rp-privacy { color: #6b7280; font-size: 0.8rem; margin: 2px 0 0; }
-.rp-greeting { margin-bottom: 20px; padding: 14px 16px; border-left: 3px solid #1d4ed8; background: #f8fafc; }
-.rp-greeting p { margin: 0; font-size: 0.9rem; }
-.rp-next { margin-top: 8px !important; color: #1d4ed8; font-weight: 600; }
-.rp-card--done { opacity: 0.68; }
-.rp-card--done .rp-status { background: #dcfce7; color: #166534; }
-.rp-card--next { border-color: #1d4ed8; box-shadow: 0 0 0 1px #1d4ed8 inset; }
-.rp-card-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.rp-status {
-  margin-left: auto; padding: 2px 8px; border-radius: 999px;
-  background: #f1f5f9; color: #475569; font-size: 0.75rem; font-weight: 600;
-  white-space: nowrap;
+.rp-details summary:hover { color: var(--rp-ink); }
+.rp-full-note {
+  margin: 0 0 10px;
+  color: var(--rp-muted);
+  font-size: 0.78rem;
+  line-height: 1.55;
 }
-.rp-summary { color: #374151; font-size: 0.85rem; margin: 8px 0 0; }
-.rp-details { margin-top: 6px; }
-.rp-details summary {
-  min-height: 44px; display: flex; align-items: center;
-  color: #1d4ed8; font-size: 0.85rem; font-weight: 600; cursor: pointer;
-}
-.rp-full-note { color: #374151; font-size: 0.82rem; margin: 0 0 8px; }
-.rp-cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 12px;
-}
-.rp-card {
-  display: block;
-  padding: 16px;
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
-  background: #fff;
-  overflow: hidden;
-  text-decoration: none;
-  color: inherit;
-  min-height: 140px;
-  box-sizing: border-box;
-  width: 100%;
-  text-align: left;
-  font: inherit;
-  cursor: pointer;
-}
-.rp-card--locked { background: #f9fafb; border-color: #e5e7eb; opacity: 0.65; }
-.rp-step-no {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  background: #dbeafe;
-  color: #1d4ed8;
-  font-weight: 700;
-}
-.rp-card-title { font-size: 1.05rem; margin: 12px 0 4px; }
-.rp-card-desc { color: #6b7280; font-size: 0.85rem; margin: 0 0 12px; }
-.rp-lock-hint { color: #6b7280; font-size: 0.85rem; margin: 0; }
-.rp-soon { color: #92400e; font-size: 0.85rem; margin: 0; }
-.rp-open { color: #1d4ed8; font-size: 0.85rem; margin: 0; font-weight: 600; }
 
 @media (max-width: 639px) {
-  .rp-page { padding: 16px 12px calc(24px + env(safe-area-inset-bottom)); }
-  .rp-check { margin-bottom: 16px; padding: 12px; }
-  .rp-input, .rp-button { min-height: 44px; }
-  .rp-cards { grid-template-columns: 1fr; gap: 8px; }
-  .rp-card { padding: 12px; min-height: auto; }
+  .rp-shell { padding: 0 16px calc(40px + env(safe-area-inset-bottom)); }
+  .rp-brandbar { padding: 14px 0; }
+  .rp-brand-tag { display: none; }
+  .rp-hero { padding: 28px 0 22px; }
+  .rp-hero h1 { font-size: 1.55rem; }
+  .rp-lede { font-size: 0.9rem; }
+  .rp-check { padding: 16px; }
+  .rp-field { grid-template-columns: 1fr; }
+  .rp-greeting { padding: 16px; }
+  .rp-card { padding: 14px; gap: 12px; }
+  .rp-node { width: 28px; height: 28px; }
   .rp-card-desc { display: none; }
-  .rp-summary {
-    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  }
-  .rp-full-note { white-space: normal; }
-  .rp-details summary { min-height: 44px; padding: 8px 0; }
-  .rp-step-no { width: 24px; height: 24px; font-size: 0.8rem; }
-  .rp-card-title { margin: 0; font-size: 1rem; }
+  .rp-details { padding-left: 54px; }
+  .rp-card > .rp-details { margin-left: 40px; }
+}
+
+@media (max-width: 380px) {
+  .rp-brand-text b { font-size: 0.85rem; }
+  .rp-hero h1 { font-size: 1.4rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rp-card, .rp-input, .rp-button { transition: none; }
 }
 </style>
