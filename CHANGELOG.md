@@ -7,6 +7,28 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.136.0 — 26 November 2026 (Integrasi rekrutmen berbasis NIK)
+
+- **Satu tulang punggung NIK:** satu `recruitment_cases` per NIK lintas cabang;
+  `recruitment_events` mencatat linimasa `RECEPTIONIST_CREATED`, `VERIFIED`,
+  `INTERVIEW`, H1–H4, `PASSED`, `RESIGNED`, `CV_SUBMITTED`, training portal,
+  TKD, FirstWork, dan `NIK_LINKED`. Penulisan event best-effort + rebuild
+  idempoten (`scripts/rebuild_recruitment_events.py`).
+- **Portal satu kali cek NIK:** tanpa tanggal lahir, token cabang dari tautan,
+  token sesi 30 menit, ringkasan empat tahap, dan "Langkah berikutnya". CV
+  adalah gerbang tingkat kasus; tahap boleh dikerjakan urutan apa pun (Hari 2
+  training tetap terkunci sampai Hari 1).
+- **Form tanpa DOB:** CV Online dan FirstWork mengambil NIK dari token sesi;
+  tanggal lahir/jenis kelamin diturunkan dari NIK. FirstWork cukup KTP, submit
+  ulang idempoten, kartu **Business Consultant** A6 landscape bertoken.
+- **Data Rekrutment:** menu tiga tab (Data Rekrutment, Soal TKD, Tautan
+  Portal), daftar orang + detail linimasa, finance read-only via `view=firstwork`.
+- Form publik lama `/apply` dan `POST /api/applicants` dipensiunkan (410).
+- NIK lengkap hanya untuk GA HR/admin; publik dan peran lain menerima NIK
+  termasker. `resigned` selalu mensyaratkan alasan.
+- Skema aditif/idempoten untuk `applicants` (semua DB cabang) dan master;
+  E2E tiga alur rekrutmen, skrip penautan NIK lama dan impor unitedw.
+
 ## v2.135.1 — 26 November 2026 (Absensi training: H1/H2 di DB cabang)
 
 - Perbaikan hasil audit setelah uji langsung di NAS: bila data Pelamar sebuah
