@@ -64,7 +64,6 @@ class _Conn:
 def client(monkeypatch):
     monkeypatch.setattr(fw, 'get_master_connection', lambda: _Conn())
     monkeypatch.setattr(fw, 'log_activity_async', lambda *a, **k: None)
-    monkeypatch.setattr(fw, '_row_allowed', lambda row, conn: True)
     app = Flask(__name__)
     app.secret_key = 'card-test'
     fw.register_first_work_routes(app)

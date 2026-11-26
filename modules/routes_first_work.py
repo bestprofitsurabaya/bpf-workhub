@@ -3015,7 +3015,9 @@ def register_first_work_routes(app):
                 cursor.close()
             if not row:
                 return jsonify({'error': 'Data tidak ditemukan'}), 404
-            if not _row_allowed(row, conn):
+            # Unduhan publik bertoken tidak punya sesi cabang, jadi scope
+            # cabang hanya diperiksa untuk akses staff.
+            if not via_link and not _row_allowed(row, conn):
                 return jsonify({'error': 'Data di luar cabang Anda'}), 403
 
             from modules.pdf_generator import BusinessConsultantCardPDF
