@@ -10,8 +10,7 @@ vi.mock('../api', () => ({ api: apiMock }))
 vi.mock('../stores/auth', () => ({ useAuthStore: () => authMock }))
 
 const STUBS = {
-  ReceptionistView: true, RecruitmentCasesView: true, CvOnlineView: true,
-  FirstWorkView: true, TkdView: true, RecruitmentLinksView: true,
+  RecruitmentPeopleView: true, TkdView: true, RecruitmentLinksView: true,
 }
 
 async function mountAt(path, role = 'traineer', badges = {}) {
@@ -31,40 +30,34 @@ async function mountAt(path, role = 'traineer', badges = {}) {
   return w
 }
 
-describe('RecruitmentHubView', () => {
+describe('RecruitmentHubView — tiga tab', () => {
   beforeEach(() => vi.clearAllMocks())
 
-  it('traineer melihat enam tab dengan Tautan aktif sesuai query', async () => {
-    const w = await mountAt('/recruitment?tab=tautan', 'traineer')
+  it('admin melihat tepat tiga tab', async () => {
+    const w = await mountAt('/recruitment?tab=pelamar', 'admin')
+    const ids = w.findAll('[data-tab]').map((b) => b.attributes('data-tab'))
+    expect(ids).toEqual(['pelamar', 'tkd', 'tautan'])
     const labels = w.findAll('[data-tab]').map((b) => b.text())
-    expect(labels).toEqual(expect.arrayContaining(
-      ['Pelamar', 'Kasus', 'CV Online', 'FirstWork', 'TKD', 'Tautan']))
-    expect(w.find('[data-tab="tautan"]').attributes('data-active')).toBe('true')
+    expect(labels).toEqual(['Data Rekrutment', 'Soal TKD', 'Tautan Portal'])
   })
 
-  it('receptionist hanya melihat Pelamar dan Tautan', async () => {
+  it('receptionist melihat Pelamar dan Tautan', async () => {
     const w = await mountAt('/recruitment?tab=tkd', 'receptionist')
     const ids = w.findAll('[data-tab]').map((b) => b.attributes('data-tab'))
     expect(ids).toEqual(['pelamar', 'tautan'])
     expect(w.find('[data-tab="pelamar"]').attributes('data-active')).toBe('true')
   })
 
-  it('finance hanya melihat FirstWork', async () => {
+  it('finance hanya melihat Data Rekrutment', async () => {
     const w = await mountAt('/recruitment', 'finance')
     const ids = w.findAll('[data-tab]').map((b) => b.attributes('data-tab'))
-    expect(ids).toEqual(['firstwork'])
+    expect(ids).toEqual(['pelamar'])
   })
 
-  it('badge antrean tampil di tab CV dan FirstWork', async () => {
-    const w = await mountAt('/recruitment?tab=cv', 'admin',
-      { cv_online_pending: 3, first_work_pending: 2 })
-    expect(w.find('[data-tab="cv"]').text()).toContain('3')
-    expect(w.find('[data-tab="firstwork"]').text()).toContain('2')
-  })
-
-  it('tab yang tidak dikenal jatuh ke tab pertama yang diizinkan', async () => {
-    const w = await mountAt('/recruitment?tab=rahasia', 'finance')
-    expect(w.find('[data-tab="firstwork"]').attributes('data-active')).toBe('true')
-    expect(w.text()).toContain('🪪 Rekrutmen')
+  it('query lama kasus/cv/firstwork dipetakan ke pelamar', async () => {
+    for (const tab of ['kasus', 'cv', 'firstwork']) {
+      const w = await mountAt(`/recruitment?tab=${tab}`, 'admin')
+      expect(w.find('[data-tab="pelamar"]').attributes('data-active')).toBe('true')
+    }
   })
 })

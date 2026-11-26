@@ -144,7 +144,7 @@ router.beforeEach(async (to) => {
   // bookmark lama terbuka. Setelah login, arahkan ke tab FirstWork di hub dan
   // bawa query yang ada (mis. filter/cabang dari tautan lama).
   if (to.name === 'first-work') {
-    return { path: '/recruitment', query: { ...to.query, tab: 'firstwork' } }
+    return { path: '/recruitment', query: { ...to.query, tab: 'pelamar', view: 'firstwork' } }
   }
   const roles = to.meta.roles
   if (roles && !roles.includes(auth.role)) {

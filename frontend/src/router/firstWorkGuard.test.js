@@ -30,7 +30,7 @@ describe('guard /first-work', () => {
   it('user terautentikasi diarahkan ke tab FirstWork dengan query dibawa', async () => {
     await router.push('/403') // pastikan rute sebelumnya bukan /first-work
     await router.push('/first-work?branch=SBY')
-    expect(router.currentRoute.value.fullPath).toBe('/recruitment?branch=SBY&tab=firstwork')
+    expect(router.currentRoute.value.fullPath).toBe('/recruitment?branch=SBY&tab=pelamar&view=firstwork')
   })
 
   it('pendaftar tanpa login tetap masuk ke form publik', async () => {
@@ -49,7 +49,7 @@ describe('guard /first-work', () => {
     expect(router.currentRoute.value.path).toBe('/403')
   })
 
-  it('finance membuka /cv-online dan mendarat di tab FirstWork di hub', async () => {
+  it('finance membuka /cv-online dan mendarat di Data Rekrutment (FirstWork)', async () => {
     await router.push('/403') // reset navigasi sebelumnya
     authMock.role = 'finance'
     apiMock.mockResolvedValue({ badges: {} })
@@ -57,13 +57,13 @@ describe('guard /first-work', () => {
     expect(router.currentRoute.value.path).toBe('/recruitment')
     expect(router.currentRoute.value.name).toBe('recruitment')
 
-    // Hub yang terpasang menormalkan ?tab=cv ke tab firstwork yang diizinkan finance.
+    // Hub kini memetakan tab lama ke `pelamar` dan finance memakai view=firstwork.
     const w = mount(RecruitmentHubView, {
       global: { plugins: [router], stubs: STUBS },
     })
     await flushPromises()
-    expect(router.currentRoute.value.query.tab).toBe('firstwork')
-    expect(w.find('[data-tab="firstwork"]').attributes('data-active')).toBe('true')
+    expect(router.currentRoute.value.query.tab).toBe('pelamar')
+    expect(w.find('[data-tab="pelamar"]').attributes('data-active')).toBe('true')
     w.unmount()
   })
 })

@@ -3,10 +3,7 @@ import { computed, onMounted, ref, watchEffect } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api } from '../api'
 import { useAuthStore } from '../stores/auth'
-import ReceptionistView from './dashboard/ReceptionistView.vue'
-import RecruitmentCasesView from './RecruitmentCasesView.vue'
-import CvOnlineView from './CvOnlineView.vue'
-import FirstWorkView from './FirstWorkView.vue'
+import RecruitmentPeopleView from './RecruitmentPeopleView.vue'
 import TkdView from './TkdView.vue'
 import RecruitmentLinksView from './RecruitmentLinksView.vue'
 
@@ -17,19 +14,17 @@ const router = useRouter()
 // Satu pintu masuk rekrutmen. Setiap tab mempertahankan batas peran lama
 // (lihat router/index.js); tab yang tidak diizinkan tidak dirender sama sekali.
 const TABS = [
-  { id: 'pelamar', label: 'Pelamar', roles: ['receptionist', 'traineer', 'admin'], component: ReceptionistView },
-  { id: 'kasus', label: 'Kasus', roles: ['traineer', 'ga_hr', 'admin'], component: RecruitmentCasesView },
-  { id: 'cv', label: 'CV Online', roles: ['traineer', 'ga_hr', 'admin'], component: CvOnlineView, badge: 'cv_online_pending' },
-  { id: 'firstwork', label: 'FirstWork', roles: ['traineer', 'finance', 'ga_hr', 'admin'], component: FirstWorkView, badge: 'first_work_pending' },
-  { id: 'tkd', label: 'TKD', roles: ['traineer', 'ga_hr', 'admin'], component: TkdView },
-  { id: 'tautan', label: 'Tautan', roles: ['receptionist', 'traineer', 'ga_hr', 'admin'], component: RecruitmentLinksView },
+  { id: 'pelamar', label: 'Data Rekrutment', roles: ['receptionist', 'traineer', 'finance', 'ga_hr', 'admin'], component: RecruitmentPeopleView },
+  { id: 'tkd', label: 'Soal TKD', roles: ['traineer', 'ga_hr', 'admin'], component: TkdView },
+  { id: 'tautan', label: 'Tautan Portal', roles: ['receptionist', 'traineer', 'ga_hr', 'admin'], component: RecruitmentLinksView },
 ]
 
 const availableTabs = computed(() => TABS.filter((t) => t.roles.includes(auth.role)))
 const currentTab = computed(() => {
   const asked = String(route.query.tab || '')
-  return availableTabs.value.some((t) => t.id === asked)
-    ? asked
+  const mapped = ({ kasus: 'pelamar', cv: 'pelamar', firstwork: 'pelamar' })[asked] || asked
+  return availableTabs.value.some((t) => t.id === mapped)
+    ? mapped
     : (availableTabs.value[0]?.id || '')
 })
 const activeComponent = computed(() =>
@@ -66,7 +61,7 @@ function selectTab(tab) {
     <div class="card card-pad hub-header">
       <h2 class="hub-title">🪪 Rekrutmen</h2>
       <div class="muted hub-sub">
-        Pelamar, kasus, CV Online, FirstWork, TKD, dan tautan form dalam satu halaman.
+        Data rekrutmen, soal TKD, dan tautan portal dalam satu halaman.
       </div>
     </div>
 
@@ -82,7 +77,8 @@ function selectTab(tab) {
     </nav>
     <div v-else class="card card-pad">Tidak ada modul rekrutmen untuk peran ini.</div>
 
-    <component :is="activeComponent" embedded />
+    <component :is="activeComponent" embedded
+               :view="currentTab === 'pelamar' && auth.role === 'finance' ? 'firstwork' : undefined" />
   </div>
 </template>
 

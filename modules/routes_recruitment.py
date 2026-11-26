@@ -33,12 +33,13 @@ from datetime import date, datetime
 
 from flask import jsonify, request, session
 
-from modules.config import get_master_connection
+from modules.config import get_db_connection, get_master_connection
 from modules.helpers import (client_ip, log_activity_async, normalize_nik,
                              redis_rate_hit, role_required)
 from modules.tkd_service import load_settings, set_manual_score
 from modules.portal_token import (issue_card_token, issue_session_token,
                                   verify_session_token)
+from modules.recruitment_events import fetch_timeline
 
 # 10 pengecekan / 10 menit / IP. Endpoint ini menjawab keberadaan NIK dan
 # menerbitkan token sesi, jadi kuota longgar = alat enumerasi data pribadi.
@@ -294,6 +295,139 @@ def _portal_summary(cursor, verified):
         'card_token': (issue_card_token(first_work['id'])
                        if first_work.get('id') else None),
     }
+
+
+
+_PEOPLE_ROLES = ['receptionist', 'traineer', 'finance', 'ga_hr', 'admin']
+_STAGE_ORDER = ('CV', 'TRAINING', 'TKD', 'FIRSTWORK')
+
+
+def _active_branch_codes(cursor):
+    cursor.execute('SELECT code FROM branches WHERE is_active=1')
+    return [str(r.get('code') or '').strip().upper()[:10]
+            for r in (cursor.fetchall() or []) if r.get('code')]
+
+
+def _case_map(cursor, nik='', q='', branch_code='', stage='', status='',
+              link='', view='', scope=''):
+    """Kasus master + cabang + langkah + kejadian terakhir (NIK tidak dipublish)."""
+    cursor.execute(
+        'SELECT case_id, nik, nama, first_branch, status, first_seen_at '
+        'FROM recruitment_cases ORDER BY first_seen_at DESC LIMIT 200')
+    cases = cursor.fetchall() or []
+    cursor.execute('SELECT * FROM recruitment_steps')
+    steps = cursor.fetchall() or []
+    cursor.execute('SELECT * FROM case_branch_history')
+    history = cursor.fetchall() or []
+
+    rows = []
+    for case in cases:
+        case_id = str(case.get('case_id') or '')
+        case_nik = str(case.get('nik') or '')
+        if nik and case_nik != nik:
+            continue
+        if q and q.lower() not in str(case.get('nama') or '').lower():
+            continue
+        if status and str(case.get('status') or '') != status:
+            continue
+        branches = {str(case.get('first_branch') or '')}
+        branches.update(str(s.get('branch_code') or '') for s in steps
+                        if s.get('case_id') == case_id)
+        branches.update(str(h.get('branch_code') or '') for h in history
+                        if h.get('case_id') == case_id)
+        branches.discard('')
+        if branch_code and branch_code not in branches:
+            continue
+        if scope and scope != _NO_BRANCH and branch_code != scope:
+            branches = {b for b in branches if b == scope}
+            if not branches:
+                continue
+        case_steps = [s for s in steps if s.get('case_id') == case_id]
+        done = [str(s.get('step_type') or '') for s in case_steps
+                if str(s.get('status') or '').upper() == 'SELESAI']
+        current_stage = next((s for s in reversed(_STAGE_ORDER) if s in done), 'BELUM')
+        if stage and current_stage != stage:
+            continue
+        timeline = fetch_timeline(cursor, case_id, limit=1)
+        last_event = timeline[0]['event_type'] if timeline else ''
+        for code in sorted(branches):
+            rows.append({
+                'case_id': case_id, 'nik': case_nik,
+                'nama': str(case.get('nama') or ''),
+                'branch_code': code, 'stage': current_stage,
+                'status': str(case.get('status') or ''),
+                'last_event': last_event, 'link_status': 'linked',
+                'display_id': '', 'source': 'case',
+            })
+    return rows
+
+
+def _unlinked_applicants(scope, q='', link=''):
+    """Baris pelamar tanpa NIK dari DB cabang dalam scope."""
+    rows = []
+    if scope == _NO_BRANCH:
+        return rows
+    codes = [scope] if scope else []
+    if not codes and scope is None:
+        conn = get_master_connection()
+        if conn:
+            try:
+                codes = _active_branch_codes(conn.cursor(dictionary=True))
+            finally:
+                conn.close()
+    for code in codes:
+        conn = get_db_connection(branch_code=code)
+        if not conn:
+            continue
+        try:
+            cursor = conn.cursor(dictionary=True)
+            try:
+                cursor.execute(
+                    'SELECT id, display_id, nama_lengkap, nik, link_status, '
+                    'status, interview_at FROM applicants '
+                    "WHERE nik IS NULL OR link_status<>'linked' LIMIT 200")
+                for row in cursor.fetchall() or []:
+                    name = str(row.get('nama_lengkap') or '')
+                    if q and q.lower() not in name.lower():
+                        continue
+                    rows.append({
+                        'case_id': None, 'nik': str(row.get('nik') or ''),
+                        'nama': name, 'branch_code': code,
+                        'stage': str(row.get('status') or 'BELUM'),
+                        'status': str(row.get('status') or ''),
+                        'last_event': '', 'link_status':
+                            str(row.get('link_status') or 'unlinked'),
+                        'display_id': str(row.get('display_id') or ''),
+                        'source': 'applicants',
+                    })
+            finally:
+                cursor.close()
+        finally:
+            conn.close()
+    return rows
+
+
+def _person_detail(cursor, case_id):
+    cursor.execute('SELECT * FROM recruitment_cases WHERE case_id=%s', (case_id,))
+    case = cursor.fetchone() or {}
+    cursor.execute('SELECT * FROM recruitment_steps WHERE case_id=%s', (case_id,))
+    steps = cursor.fetchall() or []
+    cursor.execute('SELECT * FROM case_branch_history WHERE case_id=%s', (case_id,))
+    branches = cursor.fetchall() or []
+    timeline = fetch_timeline(cursor, case_id, limit=50)
+    nik = str(case.get('nik') or '')
+    cursor.execute('SELECT * FROM cv_online_submissions WHERE nik=%s '
+                   'ORDER BY submitted_at DESC LIMIT 1', (nik,))
+    cv = cursor.fetchone() or {}
+    cursor.execute('SELECT * FROM first_work_submissions WHERE nik=%s '
+                   'ORDER BY submitted_at DESC LIMIT 1', (nik,))
+    fw = cursor.fetchone() or {}
+    cursor.execute('SELECT * FROM training_attendance WHERE case_id=%s', (case_id,))
+    training = cursor.fetchall() or []
+    card_token = issue_card_token(fw['id']) if fw.get('id') else None
+    return {'case': case, 'steps': steps, 'branches': branches,
+            'timeline': timeline, 'cv': cv, 'first_work': fw,
+            'training': training, 'card_token': card_token}
 
 
 def register_recruitment_routes(app):
@@ -596,6 +730,121 @@ def register_recruitment_routes(app):
         except Exception:
             pass  # Audit gagal tidak boleh menggagalkan pembacaan dashboard.
         return jsonify({'data': data})
+
+    @app.route('/api/recruitment/people', methods=['GET'])
+    @role_required(_PEOPLE_ROLES)
+    def api_recruitment_people():
+        """Data Rekrutment: kasus + pelamar belum tertaut, satu baris per cabang."""
+        role = session.get('user_role') or ''
+        view = (request.args.get('view') or '').strip()
+        if role == 'finance' and view != 'firstwork':
+            return jsonify({'status': 'error',
+                            'msg': 'Finance hanya melihat ringkasan FirstWork.'}), 403
+        q = (request.args.get('q') or '').strip()[:100]
+        nik, _raw = normalize_nik(request.args.get('nik'))
+        args = dict(
+            nik=nik, q=q,
+            branch_code=(request.args.get('branch_code') or '').strip().upper()[:10],
+            stage=(request.args.get('stage') or '').strip().upper()[:20],
+            status=(request.args.get('status') or '').strip()[:30],
+            link=(request.args.get('link') or '').strip()[:20],
+            view=view)
+        conn = None
+        try:
+            conn = get_master_connection()
+            if not conn:
+                return jsonify({'status': 'error', 'msg': 'DB error'}), 500
+            scope = (None if role in ('ga_hr', 'admin', 'finance')
+                     else _portal_scope_branch(conn))
+            cursor = conn.cursor(dictionary=True)
+            try:
+                data = _case_map(cursor, scope=scope or '', **args)
+            finally:
+                cursor.close()
+            if args['link'] != 'linked':
+                data += _unlinked_applicants(scope, q=q, link=args['link'])
+        except Exception:
+            return jsonify({'status': 'error', 'msg': 'DB error'}), 500
+        finally:
+            if conn:
+                conn.close()
+
+        full_nik = role in ('ga_hr', 'admin')
+        for row in data[:200]:
+            raw = str(row.get('nik') or '')
+            row['nik_masked'] = _mask_nik(raw) if raw else ''
+            if not full_nik:
+                row.pop('nik', None)
+            if not full_nik and view != 'firstwork':
+                row.pop('display_id', None)
+        data = data[:200]
+        try:
+            log_activity_async(None, 'recruitment_people_view', role,
+                               session.get('user_name') or 'system',
+                               new_data={'count': len(data)})
+        except Exception:
+            pass
+        return jsonify({'data': data})
+
+    @app.route('/api/recruitment/people/<case_id>', methods=['GET'])
+    @role_required(_PEOPLE_ROLES)
+    def api_recruitment_person_detail(case_id):
+        role = session.get('user_role') or ''
+        conn = None
+        try:
+            conn = get_master_connection()
+            if not conn:
+                return jsonify({'status': 'error', 'msg': 'DB error'}), 500
+            scope = (None if role in ('ga_hr', 'admin', 'finance')
+                     else _portal_scope_branch(conn))
+            cursor = conn.cursor(dictionary=True)
+            try:
+                detail = _person_detail(cursor, case_id)
+            finally:
+                cursor.close()
+        except Exception:
+            return jsonify({'status': 'error', 'msg': 'DB error'}), 500
+        finally:
+            if conn:
+                conn.close()
+        if not detail['case']:
+            return jsonify({'status': 'error', 'msg': 'Kasus tidak ditemukan'}), 404
+        if scope and scope != _NO_BRANCH:
+            codes = {str(detail['case'].get('first_branch') or '')}
+            codes.update(str(s.get('branch_code') or '') for s in detail['steps'])
+            if scope not in codes:
+                return jsonify({'status': 'error',
+                                'msg': 'Kasus di luar cabang Anda'}), 403
+        if role not in ('ga_hr', 'admin'):
+            for key in ('case', 'cv', 'first_work'):
+                if isinstance(detail[key], dict):
+                    detail[key].pop('nik', None)
+        return jsonify({'data': detail})
+
+    @app.route('/api/recruitment/people/<case_id>/timeline', methods=['GET'])
+    @app.route('/api/recruitment/cases/<case_id>/timeline', methods=['GET'])
+    @role_required(_PEOPLE_ROLES)
+    def api_recruitment_person_timeline(case_id):
+        role = session.get('user_role') or ''
+        conn = None
+        try:
+            conn = get_master_connection()
+            if not conn:
+                return jsonify({'status': 'error', 'msg': 'DB error'}), 500
+            cursor = conn.cursor(dictionary=True)
+            try:
+                rows = fetch_timeline(cursor, case_id, limit=50)
+            finally:
+                cursor.close()
+        except Exception:
+            return jsonify({'status': 'error', 'msg': 'DB error'}), 500
+        finally:
+            if conn:
+                conn.close()
+        if role not in ('ga_hr', 'admin'):
+            for row in rows:
+                row.pop('nik', None)
+        return jsonify({'data': rows})
 
     @app.route('/api/recruitment/steps/<int:step_id>/exception', methods=['POST'])
     @role_required(_STAFF_ROLES)
