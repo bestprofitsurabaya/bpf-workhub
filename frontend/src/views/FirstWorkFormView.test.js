@@ -170,4 +170,31 @@ describe('FirstWorkFormView — 13 field demografi (Rilis B Task 2)', () => {
     expect(w.vm.form.alamat).toBe(DEMO.alamat)
     expect(w.vm.form.nik).toBe(NIK)
   })
+
+  it('dengan sesi portal mengirim s dan menampilkan unduhan kartu', async () => {
+    window.history.replaceState({}, '', '/app/first-work-form?token=tok&s=ses-1')
+    vi.stubGlobal('fetch', vi.fn((url, init) => {
+      if (String(url).includes('/api/first-work/referrers')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({
+          branch: 'SBY', branch_name: 'Surabaya', referrers: [],
+        }) })
+      }
+      if (String(url).includes('/api/first-work/public')) {
+        submittedBody = init.body
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({
+          status: 'success', registration_no: 'FW-SBY-1', nama: 'Budi',
+          submitted_at: '2026-11-26 10:00:00',
+          card_url: '/api/first-work/card/9.pdf?t=x',
+        }) })
+      }
+      return Promise.resolve({ ok: false, json: () => Promise.resolve({}) })
+    }))
+    const w = await mountForm()
+    await w.vm.submit()
+    await flushPromises()
+
+    expect(submittedBody.get('s')).toBe('ses-1')
+    expect(submittedBody.get('nik')).toBe(null)
+    expect(w.text()).toContain('Unduh Kartu')
+  })
 })

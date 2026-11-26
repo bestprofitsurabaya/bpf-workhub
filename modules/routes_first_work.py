@@ -35,6 +35,9 @@ from flask import (request, jsonify, session, send_file, make_response)
 from modules.config import get_master_connection
 # Rilis A: kasus/langkah rekrutmen ditulis di transaksi submit yang sama.
 from modules.recruitment_service import upsert_case_step
+from modules.recruitment_events import record_event
+from modules.portal_token import issue_card_token, verify_session_token
+from modules.nik_utils import birth_date_from_nik, gender_from_nik
 # v2.85.0: import counter Redis (lihat helpers.redis_rate_hit — kini memakai
 # helper ini untuk limit submit & cek NIK).
 from modules.helpers import (role_required, log_activity_async, client_ip,
@@ -913,6 +916,29 @@ def _nik_for_export(row, allow_full):
     return raw if allow_full else _mask_nik(raw)
 
 
+def _cv_profile(cursor, nik):
+    """Profil standar dari CV Online terbaru untuk satu NIK."""
+    cursor.execute(
+        'SELECT * FROM cv_online_submissions WHERE nik=%s '
+        'ORDER BY submitted_at DESC LIMIT 1', (nik,))
+    row = cursor.fetchone() or {}
+    dob = str(row.get('tanggal_lahir') or '')[:10] or birth_date_from_nik(nik) or ''
+    gender = str(row.get('jenis_kelamin') or '')
+    if not gender:
+        derived = gender_from_nik(nik)
+        gender = ('Wanita' if derived == 'P' else 'Pria' if derived == 'L' else '')
+    return {
+        'nama': str(row.get('nama') or ''),
+        'pendidikan': str(row.get('pendidikan_terakhir') or ''),
+        'no_hp': str(row.get('no_hp') or ''),
+        'tempat_lahir': str(row.get('tempat_lahir') or ''),
+        'tanggal_lahir': dob,
+        'jenis_kelamin': gender,
+        'alamat': str(row.get('alamat') or ''),
+        'domisili': str(row.get('domisili') or ''),
+    }
+
+
 # ================================================================
 # REFERRER
 # ================================================================
@@ -1563,26 +1589,45 @@ def register_first_work_routes(app):
                                 'msg': 'Terlalu banyak pengiriman dari perangkat ini. '
                                        'Coba lagi beberapa saat.'}), 429
 
-            nik, nik_raw = normalize_nik(request.form.get('nik') or request.form.get('nik_raw'))
-            nama = _clean(request.form.get('nama'), 150)
-            pendidikan = _clean(request.form.get('pendidikan'), 100)
-            no_hp_raw = _clean(request.form.get('no_hp'), 30)
+            session_token = str(request.form.get('s') or request.args.get('s') or '').strip()
+            session = verify_session_token(session_token) if session_token else None
+            case_id = ''
+            if session_token and not session:
+                return jsonify({'status': 'error',
+                                'msg': 'Sesi portal tidak valid atau kedaluwarsa.'}), 403
+
+            if session:
+                # Rilis C: FirstWork hanya butuh KTP. Identitas standar diambil
+                # dari CV Online yang sudah SELESAI, bukan dari form.
+                nik = str(session.get('nik') or '')
+                nik_raw = nik
+                nama = _clean(request.form.get('nama'), 150)
+                pendidikan = _clean(request.form.get('pendidikan'), 100)
+                no_hp_raw = _clean(request.form.get('no_hp'), 30)
+                referrer_id_raw = _clean(request.form.get('referrer_id'), 20)
+                referensi_text = _clean(request.form.get('referensi_text'), 150) or 'CV Online'
+            else:
+                nik, nik_raw = normalize_nik(request.form.get('nik') or request.form.get('nik_raw'))
+                nama = _clean(request.form.get('nama'), 150)
+                pendidikan = _clean(request.form.get('pendidikan'), 100)
+                no_hp_raw = _clean(request.form.get('no_hp'), 30)
+                referrer_id_raw = _clean(request.form.get('referrer_id'), 20)
+                referensi_text = _clean(request.form.get('referensi_text'), 150)
             no_hp = normalize_hp(no_hp_raw)
-            referrer_id_raw = _clean(request.form.get('referrer_id'), 20)
-            referensi_text = _clean(request.form.get('referensi_text'), 150)
 
             if len(nik) != 16:
                 return jsonify({'status': 'error',
                                 'msg': 'NIK sesuai KTP wajib 16 digit angka'}), 400
-            if len(nama) < 3:
-                return jsonify({'status': 'error',
-                                'msg': 'Nama Lengkap sesuai KTP wajib diisi (min. 3 karakter)'}), 400
-            if not pendidikan:
-                return jsonify({'status': 'error',
-                                'msg': 'Pendidikan Terakhir wajib diisi'}), 400
-            if not no_hp:
-                return jsonify({'status': 'error',
-                                'msg': 'Nomor Handphone tidak valid'}), 400
+            if not session:
+                if len(nama) < 3:
+                    return jsonify({'status': 'error',
+                                    'msg': 'Nama Lengkap sesuai KTP wajib diisi (min. 3 karakter)'}), 400
+                if not pendidikan:
+                    return jsonify({'status': 'error',
+                                    'msg': 'Pendidikan Terakhir wajib diisi'}), 400
+                if not no_hp:
+                    return jsonify({'status': 'error',
+                                    'msg': 'Nomor Handphone tidak valid'}), 400
 
             # v2.85.0 (UU PDP): persetujuan pemrosesan data pribadi wajib
             # eksplisit dan tercatat — tidak ada pengiriman tanpa consent.
@@ -1609,16 +1654,55 @@ def register_first_work_routes(app):
             token_error = _enforce_branch_token(conn, branch_code)
             if token_error:
                 return jsonify({'status': 'error', 'msg': token_error}), 403
+            if session and str(session.get('branch') or '') != branch_code:
+                return jsonify({'status': 'error',
+                                'msg': 'Sesi portal tidak cocok dengan cabang tautan.'}), 403
 
-            # Duplikat NIK: tolak dengan pesan tanpa membocorkan data orang lain.
             cursor = conn.cursor(dictionary=True)
             try:
+                # Gerbang CV bersifat tingkat kasus (cabang mana pun).
+                profile = {}
+                if session:
+                    cursor.execute('SELECT case_id FROM recruitment_cases WHERE nik=%s',
+                                   (nik,))
+                    case_row = cursor.fetchone()
+                    case_id = str((case_row or {}).get('case_id') or '')
+                    if not case_id:
+                        return jsonify({'status': 'error',
+                                        'msg': 'Lengkapi CV Online sebelum FirstWork.'}), 409
+                    cursor.execute(
+                        """SELECT id FROM recruitment_steps
+                           WHERE case_id=%s AND step_type='CV' AND status='SELESAI'
+                           LIMIT 1""", (case_id,))
+                    if not cursor.fetchone():
+                        return jsonify({'status': 'error',
+                                        'msg': 'Lengkapi CV Online sebelum FirstWork.'}), 409
+                    profile = _cv_profile(cursor, nik)
+                    nama = profile['nama'] or nama
+                    pendidikan = profile['pendidikan'] or pendidikan
+                    no_hp_raw = profile['no_hp'] or no_hp_raw
+                    no_hp = normalize_hp(no_hp_raw)
+                    if len(nama) < 3 or not pendidikan or not no_hp:
+                        return jsonify({'status': 'error',
+                                        'msg': 'Data CV belum lengkap. Lengkapi CV Online dulu.'}), 409
+
+                # Submit ulang mengembalikan kartu yang sama, bukan baris baru.
                 cursor.execute(
-                    "SELECT id FROM first_work_submissions WHERE nik=%s LIMIT 1", (nik,))
-                if cursor.fetchone():
-                    return jsonify({'status': 'error',
-                                    'msg': 'NIK ini sudah terdaftar. Hubungi Traineer '
-                                           'bila perlu koreksi data.'}), 409
+                    """SELECT id, registration_no FROM first_work_submissions
+                       WHERE nik=%s LIMIT 1""", (nik,))
+                existing = cursor.fetchone()
+                if existing:
+                    card_id = int(existing.get('id') or 0)
+                    card_token = issue_card_token(card_id)
+                    return jsonify({
+                        'status': 'success',
+                        'msg': 'Data FirstWork sudah tercatat.',
+                        'registration_no': existing.get('registration_no') or '',
+                        'card_token': card_token,
+                        'card_url': (f'/api/first-work/card/{card_id}.pdf'
+                                     f'?t={card_token}'),
+                        'already_exists': True,
+                    })
             finally:
                 cursor.close()
 
@@ -1682,6 +1766,13 @@ def register_first_work_routes(app):
             # Rilis B Task 2: field demografi opsional. NIK/nama tetap berasal
             # dari input `nik`/`nama` (hasil OCR di form) — tidak dari sini.
             demo = _demographic_values(request.form)
+            if session and profile:
+                # Data CV menang; OCR/demografi form hanya mengisi yang kosong.
+                for key in ('tempat_lahir', 'tanggal_lahir', 'jenis_kelamin',
+                            'alamat', 'domisili'):
+                    if key in demo and profile.get(key):
+                        demo[key] = profile[key]
+            ocr_confidence = str(request.form.get('ocr_confidence') or '')[:30]
             demo_columns = ', '.join(DEMOGRAPHIC_FIELDS)
             demo_marks = ', '.join(['%s'] * len(DEMOGRAPHIC_FIELDS))
             cursor = conn.cursor()
@@ -1725,13 +1816,31 @@ def register_first_work_routes(app):
                 # except di bawah membatalkan submit beserta kasus/langkahnya.
                 # Field tanggal_lahir sudah tersedia (Rilis B Task 2), tetapi
                 # penyalurannya ke kasus rekrutmen bukan cakupan Task 2.
-                upsert_case_step(nik, nama, None, branch_code, 'FIRSTWORK',
-                                 registration_no,
-                                 evidence_type='first_work_submission',
-                                 conn=conn)
+                case_id = upsert_case_step(
+                    nik, nama, None, branch_code, 'FIRSTWORK',
+                    registration_no, evidence_type='first_work_submission',
+                    conn=conn) or case_id
                 conn.commit()
             finally:
                 cursor.close()
+
+            card_id = int(submission_id or 0)
+            card_token = issue_card_token(card_id)
+            card_url = f'/api/first-work/card/{card_id}.pdf?t={card_token}'
+            try:
+                meta = {'registration_no': registration_no,
+                        'ocr_confidence': ocr_confidence}
+                record_event(case_id, nik, 'FIRSTWORK_SUBMITTED',
+                             branch_code=branch_code, source_module='first_work',
+                             source_id=str(submission_id),
+                             event_at=submitted_at, metadata=meta,
+                             note=f'OCR confidence: {ocr_confidence or "n/a"}')
+                record_event(case_id, nik, 'CARD_ISSUED',
+                             branch_code=branch_code, source_module='first_work',
+                             source_id=str(submission_id), event_at=submitted_at,
+                             metadata={'registration_no': registration_no})
+            except Exception:
+                pass
 
             # v2.88.0: siapkan versi scan (watermark + SHA-256) sejak awal —
             # best-effort: kegagalan normalisasi tidak membatalkan pengiriman.
@@ -1759,6 +1868,9 @@ def register_first_work_routes(app):
                 # fingerprint bersama Traineer cabang.
                 'fingerprint_no': fingerprint_no,
                 'bpf_no': bpf_no,
+                'card_token': card_token,
+                'card_url': card_url,
+                'already_exists': False,
             })
         except Exception as e:
             if conn:
