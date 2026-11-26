@@ -119,29 +119,36 @@ git commit -m "feat(schema): NIK pelamar dan linimasa event rekrutmen"
 - Test: `tests/test_nik_utils.py`
 
 **Interfaces:**
-- `normalize_nik(value) -> str` → 16 digit atau `''`.
-- `parse_nik(nik) -> dict` → `{valid, tanggal_lahir: 'YYYY-MM-DD'|None, jenis_kelamin: 'L'|'P'|None, kode_wilayah, urut}`.
-- `birth_date_from_nik(nik) -> 'YYYY-MM-DD'|None`, `gender_from_nik(nik) -> 'L'|'P'|None`.
+- `normalize_nik(value) -> str` → 16 digit atau `''`; delegasi ke `modules.helpers.normalize_nik` (satu parser bersama, notasi ilmiah/koma tetap ditolak).
+- `parse_nik(nik, today=None) -> dict` → `{valid, tanggal_lahir: 'YYYY-MM-DD'|None, jenis_kelamin: 'L'|'P'|None, kode_wilayah, urut}`.
+- `birth_date_from_nik(nik, today=None) -> 'YYYY-MM-DD'|None`, `gender_from_nik(nik) -> 'L'|'P'|None`.
 
 - [ ] **Step 1: Tulis tes**
 
 ```python
+from datetime import date
+
 def test_parse_nik_laki_laki():
-    data = parse_nik('3573010101900001')
+    data = parse_nik('3573010101900001', today=date(2026, 11, 26))
     assert data['tanggal_lahir'] == '1990-01-01'
     assert data['jenis_kelamin'] == 'L'
 
 def test_parse_nik_perempuan_tanggal_plus_40():
-    data = parse_nik('3573014101900001')
+    data = parse_nik('3573014101900001', today=date(2026, 11, 26))
     assert data['tanggal_lahir'] == '1990-01-01'
     assert data['jenis_kelamin'] == 'P'
+
+def test_pivot_abad_mengikuti_tahun_berjalan():
+    # 2026: yy 27 mustahil sebagai kelahiran 2027 -> 1927
+    assert parse_nik('3573010101270001', today=date(2026, 11, 26))['tanggal_lahir'] == '1927-01-01'
+    assert parse_nik('3573010101260001', today=date(2026, 11, 26))['tanggal_lahir'] == '2026-01-01'
 
 def test_parse_nik_tidak_valid():
     assert parse_nik('123')['valid'] is False
     assert birth_date_from_nik('3573019999990001') is None
 ```
 
-Validasi tanggal harus menolak tanggal mustahil (mis. `99`), dan tahun 2 digit dipetakan dengan ambang 30: `yy <= 30` → 2000+yy, selain itu 1900+yy.
+Validasi tanggal harus menolak tanggal mustahil (mis. `99`), dan tahun 2 digit dipetakan dengan pivot tahun berjalan yang sama dengan `tkd_core.derive_dob_from_nik`: `yy > (tahun berjalan % 100)` → `1900+yy`, selain itu `2000+yy`. Parameter `today` opsional hanya untuk tes deterministik.
 
 - [ ] **Step 2: Implementasikan**
 
@@ -603,6 +610,7 @@ git commit -m "feat(portal): cek NIK sekali, token sesi CV, dan ringkasan langka
 - Modify: `modules/training_service.py`
 - Modify: `modules/routes_training.py`
 - Modify: `modules/tkd_service.py:124-153`
+- Modify: `modules/tkd_core.py` (`derive_dob_from_nik` menjadi delegasi tipis ke `nik_utils.birth_date_from_nik`)
 - Modify: `modules/routes_tkd.py:120-135,198-213`
 - Modify: `frontend/src/views/TrainingFormView.vue` + test
 - Test: `tests/test_training_token.py`
