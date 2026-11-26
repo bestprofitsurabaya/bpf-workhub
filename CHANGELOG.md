@@ -7,6 +7,16 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.137.1 — 26 November 2026 (Detail Data Rekrutment lengkap)
+
+- Data Rekrutment tidak lagi hanya menampilkan nama/NIK/cabang/tahap/status/
+  kejadian terakhir. Tabel kini memuat status CV, Training, TKD, dan
+  FirstWork serta aksi cepat; klik baris membuka panel detail lengkap:
+  identitas & kasus, riwayat cabang, CV Online, absensi H1/H2, TKD,
+  FirstWork + kartu, linimasa, dan aksi verifikasi/H1–H4/pulang/lulus/taut NIK.
+- Traineer dan GA HR mendapat seluruh bagian rekrutmen; NIK lengkap tetap
+  hanya untuk GA HR/admin. Finance tetap read-only (FirstWork saja).
+
 ## v2.137.0 — 26 November 2026 (Master karyawan lengkap)
 
 - Tabel `employees`, `employee_attendance_events`, dan `employee_counters`
