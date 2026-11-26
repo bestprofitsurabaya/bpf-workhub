@@ -135,3 +135,84 @@ class TestNikMinimisation:
 
     def test_invalid_nik_is_not_invented(self):
         assert fw._mask_nik('123') == '123'
+
+
+class _TokenCursor:
+    """Cursor palsu: dua tabel token cabang dengan isi berbeda."""
+
+    def __init__(self, sql=''):
+        self.sql = sql
+
+    def execute(self, sql, params=None):
+        self.sql = ' '.join(str(sql).split())
+
+    def fetchall(self):
+        if 'cv_online_branch_forms' in self.sql:
+            return [
+                {'branch_code': 'SBY', 'form_token': 'portal-sby', 'active': 1},
+                {'branch_code': 'MLG', 'form_token': 'portal-mlg', 'active': 1},
+            ]
+        if 'first_work_branch_forms' in self.sql:
+            return [
+                {'branch_code': 'SBY', 'form_token': 'fw-sby', 'active': 1},
+                {'branch_code': 'MLG', 'form_token': 'fw-mlg', 'active': 1},
+            ]
+        return []
+
+    def close(self):
+        pass
+
+
+class _TokenConn:
+    def cursor(self, dictionary=False):
+        return _TokenCursor()
+
+
+def _enforce(query):
+    with APP.test_request_context('/form' + query):
+        return fw._enforce_branch_token(_TokenConn(), 'SBY', branches=BRANCHES)
+
+
+class TestPortalTokenDariTautanRekrutmen:
+    """Portal rekrutmen hanya membawa satu token cabang (token CV Online).
+
+    Klik kartu FirstWork dari portal harus tetap membuka form yang sama,
+    tanpa melemahkan isolasi cabang.
+    """
+
+    def test_token_portal_cabang_sama_diterima(self):
+        assert _enforce('?cabang=SBY&t=portal-sby') == ''
+
+    def test_token_portal_cabang_lain_ditolak(self):
+        assert _enforce('?cabang=SBY&t=portal-mlg')
+
+    def test_token_firstwork_lama_tetap_diterima(self):
+        assert _enforce('?cabang=SBY&t=fw-sby') == ''
+
+    def test_token_asing_tetap_ditolak(self):
+        assert _enforce('?cabang=SBY&t=token-ngawur')
+
+
+class TestCabangDariTokenPortal:
+    """Tautan portal hanya membawa token, tanpa parameter cabang.
+
+    Server harus mengenali cabang dari token portal yang sah, bukan jatuh
+    diam-diam ke cabang default.
+    """
+
+    def _resolve(self, query):
+        with APP.test_request_context('/form' + query):
+            return fw._resolve_form_branch(_TokenConn(), branches=BRANCHES)
+
+    def test_token_portal_menentukan_cabang(self):
+        assert self._resolve('?t=portal-mlg') == ('MLG', '')
+
+    def test_token_firstwork_lama_tetap_menentukan_cabang(self):
+        assert self._resolve('?t=fw-mlg') == ('MLG', '')
+
+    def test_cabang_eksplisit_tetap_dihormati(self):
+        assert self._resolve('?cabang=SBY&t=portal-sby') == ('SBY', '')
+
+    def test_token_asing_tetap_jatuh_ke_default_lalu_ditolak(self):
+        code, error = self._resolve('?t=token-ngawur')
+        assert code == 'SBY' and error == ''

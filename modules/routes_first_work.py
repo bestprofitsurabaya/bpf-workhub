@@ -822,6 +822,17 @@ def _resolve_form_branch(conn, branches=None, value=None):
             return None, (f'Cabang "{explicit}" tidak dikenal atau tidak aktif. '
                           'Minta tautan form yang benar ke Traineer/Admin.')
         return explicit, ''
+    # Tautan portal rekrutmen hanya membawa token (tanpa ?cabang=). Kenali
+    # cabang dari token yang sah agar tidak jatuh diam-diam ke cabang default.
+    token = _form_token_from_request()
+    if token and conn is not None:
+        token_branch = _token_branch(conn, token)
+        if token_branch:
+            if token_branch not in codes:
+                return None, (f'Cabang "{token_branch}" tidak dikenal atau '
+                              'tidak aktif. Minta tautan form yang benar ke '
+                              'Traineer/Admin.')
+            return token_branch, ''
     return _default_branch_code(rows), ''
 
 
@@ -844,6 +855,45 @@ def _branch_form_tokens(conn):
             cursor.close()
     except Exception:
         return {}
+
+
+def _recruitment_form_tokens(conn):
+    """Token portal rekrutmen per cabang (tabel boleh belum ada).
+
+    Portal rekrutmen memakai satu tautan per cabang untuk empat tahap; token
+    itu tersimpan di `cv_online_branch_forms`. FirstWork tetap punya token
+    sendiri, tetapi token portal cabang yang sama boleh dipakai agar kartu
+    FirstWork di portal tidak ditolak.
+    """
+    try:
+        cursor = conn.cursor(dictionary=True)
+        try:
+            cursor.execute(
+                'SELECT branch_code, form_token, active FROM cv_online_branch_forms')
+            return {str(r.get('branch_code') or '').upper(): r
+                    for r in (cursor.fetchall() or [])}
+        finally:
+            cursor.close()
+    except Exception:
+        return {}
+
+
+def _token_matches(supplied, token_row):
+    """True bila token aktif milik baris cabang itu cocok persis."""
+    if not token_row or not token_row.get('active'):
+        return False
+    stored = str(token_row.get('form_token') or '')
+    return bool(supplied and stored
+                and secrets.compare_digest(str(supplied), stored))
+
+
+def _token_branch(conn, token):
+    """Kode cabang pemilik token (FirstWork atau portal), '' bila tak dikenal."""
+    for loader in (_branch_form_tokens, _recruitment_form_tokens):
+        for code, row in (loader(conn) or {}).items():
+            if _token_matches(token, row):
+                return str(code or '').strip().upper()
+    return ''
 
 
 def _form_token_from_request():
@@ -876,8 +926,20 @@ def _token_error(branch_code, supplied, token_row, default_code='SBY'):
 
 def _enforce_branch_token(conn, branch_code, branches=None):
     rows = branches if branches is not None else _branches(conn)
-    return _token_error(branch_code, _form_token_from_request(),
-                        _branch_form_tokens(conn).get(branch_code),
+    supplied = _form_token_from_request()
+    token_row = _branch_form_tokens(conn).get(branch_code)
+    # Kebijakan lama: baris token FirstWork yang tidak ada/nonaktif tidak
+    # memblokir (dipertahankan agar tidak mengubah perilaku cabang lama).
+    if not token_row or not token_row.get('active'):
+        return ''
+    if _token_matches(supplied, token_row):
+        return ''
+    # Token portal rekrutmen cabang yang sama juga sah (satu tautan per cabang
+    # untuk CV, training, TKD, dan FirstWork).
+    portal_row = _recruitment_form_tokens(conn).get(branch_code)
+    if _token_matches(supplied, portal_row):
+        return ''
+    return _token_error(branch_code, supplied, token_row,
                         _default_branch_code(rows))
 
 

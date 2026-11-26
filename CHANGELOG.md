@@ -7,6 +7,16 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.135.7 — 26 November 2026 (Form FirstWork dari portal)
+
+- Kartu **FirstWork Absensi** di portal rekrutmen kini bisa dibuka langsung.
+  Sebelumnya form menolak tautan karena portal membawa token CV Online,
+  sedangkan FirstWork hanya menerima tokennya sendiri.
+- Server mengenali cabang dari token portal yang sah, sehingga tautan satu
+  cabang tetap membuka cabang yang benar tanpa parameter tambahan.
+- Token cabang lain dan token asing tetap ditolak; isolasi cabang tidak
+  dilonggarkan.
+
 ## v2.135.6 — 26 November 2026 (Isolasi cabang rekrutmen)
 
 - Token portal satu cabang tidak lagi bisa membaca atau menulis data kasus
