@@ -4,9 +4,9 @@ Semua fungsi di sini menerima cursor yang sudah dibuka pemanggil dan
 TIDAK commit/rollback/close: pemanggil mengatur transaksi. NIK dipakai hanya
 sebagai kunci pencarian identitas, tidak pernah ditulis ke tabel TKD.
 
-Identitas pelamar = NIK + tanggal lahir. Tanggal lahir yang tersimpan lebih
-diutamakan; bila kosong, tanggal diturunkan dari 16 digit NIK. Kegagalan
-identitas selalu dilaporkan sebagai `None` tanpa detail.
+Identitas pelamar = NIK 16 digit. Tanggal lahir tidak lagi diminta karena
+sudah terenkode di NIK dan tidak menambah keamanan. Kegagalan identitas selalu
+dilaporkan sebagai `None` tanpa detail.
 """
 import json
 import math
@@ -17,7 +17,7 @@ from decimal import Decimal
 
 from modules.helpers import normalize_nik
 from modules.tkd_core import (DEFAULT_QUOTA, MAX_ATTEMPTS, as_json,
-                              compute_score, derive_dob_from_nik, grade_answer,
+                              compute_score, grade_answer,
                               public_state, select_questions)
 
 # Mengikuti nilai DEFAULT pada tkd_settings (skema) bila baris belum ada.
@@ -121,8 +121,8 @@ def fetch_case_by_nik(cursor, nik: str, for_update: bool = False) -> dict | None
     return cursor.fetchone()
 
 
-def verify_identity(cursor, nik: str, dob: str) -> dict | None:
-    """Verifikasi NIK + tanggal lahir; kembalikan kasus tanpa detail bila gagal."""
+def verify_identity(cursor, nik: str) -> dict | None:
+    """Verifikasi NIK 16 digit; kembalikan kasus tanpa detail bila gagal."""
     nik, _raw = normalize_nik(nik)
     if len(nik) != 16:
         return None
@@ -131,24 +131,8 @@ def verify_identity(cursor, nik: str, dob: str) -> dict | None:
     if not case:
         return None
 
-    stored = case.get('tanggal_lahir')
-    given = _as_iso(dob)
-    if stored is not None:
-        if _as_iso(stored) != given:
-            return None
-    else:
-        derived = derive_dob_from_nik(nik)
-        if derived is None or given is None:
-            return None
-        try:
-            supplied = date.fromisoformat(given)
-        except ValueError:
-            return None
-        if supplied != derived:
-            return None
-
     result = dict(case)
-    result['tanggal_lahir'] = _as_iso(stored)
+    result['tanggal_lahir'] = _as_iso(case.get('tanggal_lahir'))
     result['tkd_score'] = _as_float(case.get('tkd_score'))
     return result
 

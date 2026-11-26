@@ -51,13 +51,11 @@ const STEPS = [
 ]
 
 const nik = ref('')
-const dob = ref('')
 const error = ref('')
 const checking = ref(false)
 const known = ref(false)
 const tkdOpen = ref(false)
 const tkdNik = ref('')
-const tkdDob = ref('')
 const summary = ref(null)
 
 const STEP_LABELS = {
@@ -83,12 +81,6 @@ function summaryText(step) {
 
 function onNik(event) {
   nik.value = String(event.target.value || '').replace(/\D/g, '').slice(0, 16)
-}
-
-function validDate(value) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
-  const parsed = new Date(`${value}T00:00:00Z`)
-  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value
 }
 
 // Sebelum dikenal hanya CV yang bisa diisi; tiga kartu lain sengaja dikunci.
@@ -152,21 +144,16 @@ async function check() {
     error.value = 'NIK wajib 16 digit angka.'
     return
   }
-  if (!validDate(dob.value)) {
-    error.value = 'Tanggal lahir wajib berformat YYYY-MM-DD.'
-    return
-  }
 
   // Cek ulang dengan NIK lain tidak boleh mewarisi status kartu sebelumnya.
   known.value = false
   summary.value = null
   tkdOpen.value = false
   tkdNik.value = ''
-  tkdDob.value = ''
   checking.value = true
   try {
     const result = await api('/api/recruitment/lookup', {
-      params: { nik: nik.value, dob: dob.value },
+      params: { nik: nik.value },
     })
     known.value = Boolean(result && result.known === true)
     summary.value = {
@@ -176,7 +163,6 @@ async function check() {
     }
     if (known.value) {
       tkdNik.value = nik.value
-      tkdDob.value = dob.value
     }
     if (!known.value) {
       error.value = 'NIK ini belum kami temukan. Mulai dari CV Online agar data Anda tercatat.'
@@ -196,7 +182,7 @@ async function check() {
         <img class="rp-brand" :src="brandIcon" alt="" />
         <h1>Portal Rekrutmen</h1>
       </div>
-      <p>Masukkan NIK dan tanggal lahir untuk melanjutkan proses rekrutmen.</p>
+      <p>Masukkan NIK untuk melihat rangkuman dan melanjutkan proses rekrutmen.</p>
     </header>
 
     <form class="rp-check" @submit.prevent="check">
@@ -214,20 +200,11 @@ async function check() {
         @input="onNik"
       />
 
-      <label class="rp-label" for="rp-dob">Tanggal lahir</label>
-      <input
-        id="rp-dob"
-        class="rp-input"
-        type="date"
-        aria-label="Tanggal lahir"
-        v-model="dob"
-      />
-
       <button class="rp-button" type="submit" :disabled="checking">
-        {{ checking ? 'Mengecek…' : 'Cek' }}
+        {{ checking ? 'Mengecek…' : 'Cek Status' }}
       </button>
       <p v-if="error" class="rp-error" role="alert">{{ error }}</p>
-      <p class="rp-privacy">NIK hanya dipakai untuk mencocokkan data dan tidak ditampilkan lengkap di halaman ini.</p>
+      <p class="rp-privacy">NIK hanya dipakai untuk mencocokkan data Anda. NIK lengkap tidak ditampilkan di halaman ini.</p>
     </form>
 
     <section v-if="summary && known && summary.nama_masked" class="rp-greeting" aria-live="polite">
@@ -260,7 +237,7 @@ async function check() {
           </span>
         </div>
         <p class="rp-card-desc">{{ step.desc }}</p>
-        <p v-if="isLocked(step)" class="rp-lock-hint">lengkapi CV Online dulu</p>
+        <p v-if="isLocked(step)" class="rp-lock-hint">Lengkapi CV Online terlebih dahulu.</p>
         <template v-else>
           <p class="rp-summary">{{ summaryText(step) }}</p>
           <p v-if="!isDone(step)" class="rp-open">{{ tkdCardOpen(step) ? 'Buka tes →' : 'Buka langkah →' }}</p>
@@ -276,7 +253,6 @@ async function check() {
       v-if="tkdOpen"
       :token="branchToken"
       :nik="tkdNik"
-      :dob="tkdDob"
       @close="tkdOpen = false"
     />
   </main>

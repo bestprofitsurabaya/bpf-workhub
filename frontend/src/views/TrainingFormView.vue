@@ -2,9 +2,9 @@
 /**
  * Absensi Training portal (2 hari).
  *
- * Identitas diverifikasi ke server (NIK + tanggal lahir) sebelum hari dipilih.
- * Hari 2 sengaja dikunci sampai Hari 1 tercatat; server juga menolaknya, jadi
- * UI ini hanya kenyamanan, bukan satu-satunya penjaga.
+ * Identitas cukup NIK 16 digit; tanggal lahir sudah terenkode di NIK dan tidak
+ * lagi diminta. Hari 2 sengaja dikunci sampai Hari 1 tercatat; server juga
+ * menolaknya, jadi UI ini hanya kenyamanan, bukan satu-satunya penjaga.
  */
 import { computed, ref } from 'vue'
 import { api } from '../api'
@@ -14,7 +14,6 @@ const params = new URLSearchParams(window.location.search)
 const token = (params.get('token') || params.get('t') || '').trim()
 
 const nik = ref('')
-const dob = ref('')
 const status = ref(null)
 const day = ref(1)
 const consent = ref(false)
@@ -32,13 +31,6 @@ function onNik(event) {
   nik.value = String(event.target.value || '').replace(/\D/g, '').slice(0, 16)
 }
 
-function validDate(value) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
-  const parsed = new Date(`${value}T00:00:00Z`)
-  return !Number.isNaN(parsed.getTime())
-    && parsed.toISOString().slice(0, 10) === value
-}
-
 function formatTime(value) {
   if (!value) return ''
   return String(value).slice(0, 16).replace('T', ' ')
@@ -52,14 +44,10 @@ async function checkStatus() {
     error.value = 'NIK wajib 16 digit angka.'
     return
   }
-  if (!validDate(dob.value)) {
-    error.value = 'Tanggal lahir wajib diisi.'
-    return
-  }
   checking.value = true
   try {
     const result = await api('/api/recruitment/training/status', {
-      params: { token, nik: nik.value, dob: dob.value },
+      params: { token, nik: nik.value },
     })
     status.value = result.data || null
     day.value = status.value?.next_day === 2 ? 2 : 1
@@ -78,7 +66,7 @@ async function submit() {
     return
   }
   if (!consent.value) {
-    error.value = 'Centang pernyataan kebenaran data dulu.'
+    error.value = 'Mohon centang pernyataan kebenaran data.'
     return
   }
   saving.value = true
@@ -88,7 +76,6 @@ async function submit() {
       body: {
         token,
         nik: nik.value,
-        dob: dob.value,
         day: Number(day.value),
         consent: true,
       },
@@ -99,7 +86,7 @@ async function submit() {
       days: data.days || status.value?.days || {},
       next_day: null,
     }
-    success.value = `Absensi Hari ${data.day} tercatat`
+    success.value = `Absensi Hari ${data.day} sudah tercatat. Terima kasih.`
     consent.value = false
   } catch (e) {
     error.value = e?.message || 'Absensi gagal disimpan. Coba lagi.'
@@ -114,7 +101,7 @@ async function submit() {
     <header class="rp-header">
       <img class="rp-brand" :src="brandIcon" alt="" />
       <h1>Absensi Training</h1>
-      <p>Catat kehadiran Hari 1 dan Hari 2 training rekrutmen.</p>
+      <p>Masukkan NIK untuk melihat dan mencatat kehadiran Hari 1 dan Hari 2.</p>
     </header>
 
     <form class="rp-check" @submit.prevent="checkStatus">
@@ -130,15 +117,6 @@ async function submit() {
         placeholder="16 digit angka"
         :value="nik"
         @input="onNik"
-      />
-
-      <label class="rp-label" for="tr-dob">Tanggal lahir</label>
-      <input
-        id="tr-dob"
-        class="rp-input"
-        type="date"
-        aria-label="Tanggal lahir"
-        v-model="dob"
       />
 
       <button class="rp-button" type="submit" :disabled="checking">
@@ -183,7 +161,7 @@ async function submit() {
 
         <label class="rp-consent">
           <input v-model="consent" type="checkbox" />
-          Saya menyatakan benar menghadiri training pada hari yang dipilih.
+          Saya menyatakan benar-benar menghadiri training pada hari yang dipilih.
         </label>
 
         <button class="rp-button" type="submit" :disabled="saving">

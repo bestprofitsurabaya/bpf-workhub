@@ -1,6 +1,6 @@
 """Regresi endpoint lookup publik rekrutmen (Rilis A — Task 3).
 
-Kontrak: `GET /api/recruitment/lookup?nik=<16 digit>&dob=YYYY-MM-DD`
+Kontrak: `GET /api/recruitment/lookup?nik=<16 digit>`
 hanya mengembalikan boolean (`known`, `can_continue`) — tidak ada cabang,
 tahap, nama, atau data pribadi lain. Lookup adalah operasi baca murni:
 tidak boleh ada INSERT/UPDATE, walaupun NIK belum dikenal.
@@ -23,7 +23,6 @@ from modules import routes_recruitment as rr  # noqa: E402
 ROOT = Path(__file__).resolve().parents[1]
 NIK = '3573010101990001'
 NIK_LAIN = '3573010101990002'
-DOB = '1999-01-01'
 TABLES = ('recruitment_cases', 'cv_online_submissions', 'first_work_submissions',
           'recruitment_steps')
 
@@ -114,10 +113,10 @@ def db(monkeypatch):
     return conn
 
 
-def _lookup(client, nik=NIK, dob=DOB, ip=None, **extra):
+def _lookup(client, nik=NIK, ip=None, **extra):
     headers = {'X-Real-IP': ip} if ip else {}
     return client.get('/api/recruitment/lookup',
-                      query_string={'nik': nik, 'dob': dob, **extra},
+                      query_string={'nik': nik, **extra},
                       headers=headers)
 
 
@@ -224,19 +223,15 @@ class TestLookupBacaSaja:
         }
         assert response.headers['Cache-Control'] == 'no-store'
 
-    @pytest.mark.parametrize('dob', ['', '01-01-1999', '1999-02-30', '1999/01/01'])
-    def test_dob_invalid_sukses_tanpa_menyentuh_db(self, client, monkeypatch, dob):
-        def _tidak_boleh_db():
-            raise AssertionError('DB tidak boleh disentuh untuk DOB invalid')
+    def test_nik_valid_tanpa_tanggal_lahir_tetap_dicek(self, client, db):
+        db.tables['recruitment_cases'].append(db.baris(NIK, 'SBY'))
 
-        monkeypatch.setattr(rr, 'get_master_connection', _tidak_boleh_db)
-
-        response = _lookup(client, dob=dob)
+        response = _lookup(client)
 
         assert response.status_code == 200
-        assert response.get_json() == {
-            'status': 'success', 'known': False, 'can_continue': False,
-        }
+        data = response.get_json()
+        assert data['known'] is True
+        assert data['can_continue'] is True
 
 
 class TestRateLimit:

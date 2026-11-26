@@ -12,7 +12,6 @@ import { api } from '../api'
 const props = defineProps({
   token: { type: String, default: '' },
   nik: { type: String, default: '' },
-  dob: { type: String, default: '' },
 })
 const emit = defineEmits(['close'])
 
@@ -57,6 +56,11 @@ const rules = computed(() => {
     pass_score: s.pass_score ?? 70,
     max_attempts: s.max_attempts ?? 2,
   }
+})
+// Satu soal profil selalu ikut di akhir, jadi total soal yang tampil = dinilai + 1.
+const totalQuestions = computed(() => {
+  const valued = Number(rules.value.question_count)
+  return Number.isFinite(valued) ? valued + 1 : null
 })
 
 const question = computed(() => questions.value[index.value] || null)
@@ -119,7 +123,7 @@ function messageOf(e, fallback) {
 }
 
 function identity() {
-  return { nik: props.nik, dob: props.dob, token: props.token }
+  return { nik: props.nik, token: props.token }
 }
 
 function stopTicker() {
@@ -464,7 +468,7 @@ onBeforeUnmount(() => {
     <div v-else-if="mode === 'intro'">
       <p v-if="msg" class="tkd-msg" role="alert">{{ msg }}</p>
       <ul class="tkd-rules">
-        <li>{{ fmt(rules.question_count) }} soal</li>
+        <li>{{ fmt(totalQuestions) }} soal ({{ fmt(rules.question_count) }} dinilai)</li>
         <li>{{ fmt(rules.duration_minutes) }} menit</li>
         <li>lulus {{ fmt(rules.pass_score) }}</li>
         <li>{{ fmt(rules.max_attempts) }} kesempatan</li>
@@ -485,7 +489,7 @@ onBeforeUnmount(() => {
           <option v-for="item in TIERS" :key="item.value" :value="item.value">{{ item.label }}</option>
         </select>
         <button type="button" data-action="start" :disabled="starting" @click="start">
-          {{ starting ? 'Menyiapkan…' : 'Mulai tes' }}
+          {{ starting ? 'Menyiapkan…' : 'Mulai Tes' }}
         </button>
       </div>
       <button v-else-if="status?.state === 'BERLANGSUNG'" type="button" data-action="resume"
@@ -493,7 +497,7 @@ onBeforeUnmount(() => {
         {{ resuming ? 'Membuka…' : 'Lanjutkan' }}
       </button>
       <p v-else-if="status?.state === 'HABIS'">Hubungi Traineer cabang.</p>
-      <p v-else-if="status?.state === 'DIKECUALIKAN'">Dikecualikan staff; hubungi Traineer.</p>
+      <p v-else-if="status?.state === 'DIKECUALIKAN'">TKD Anda dikecualikan oleh staff. Hubungi Traineer cabang bila perlu bantuan.</p>
     </div>
 
     <div v-else-if="mode === 'exam' && question" class="tkd-exam">

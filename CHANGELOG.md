@@ -7,6 +7,20 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.135.5 — 26 November 2026 (Pemeriksaan cukup NIK)
+
+- Portal rekrutmen, absensi training, dan buka TKD kini cukup memakai NIK
+  16 digit. Tanggal lahir tidak lagi diminta pada alur pemeriksaan karena
+  sudah terenkode di NIK dan tidak menambah keamanan.
+- Tanggal lahir tetap dikumpulkan sebagai data diri di CV Online dan
+  FirstWork; skema database tidak berubah.
+- Copy bahasa Indonesia dirapikan agar lebih ramah: pesan NIK tidak ditemukan,
+  tautan tidak berlaku, pernyataan absensi, dan ajakan mengisi CV Online.
+- Hitungan soal TKD diselaraskan: intro menyebut "21 soal (20 dinilai)",
+  sama dengan "Soal 1 dari 21" saat ujian berlangsung.
+- Rate limit, penyamaran NIK, token cabang, dan larangan membocorkan kunci
+  jawaban tetap dipertahankan.
+
 ## v2.135.4 — 26 November 2026 (Portal rekrutmen ramah HP)
 
 - Kartu tahap jadi ringkas: badge status, ringkasan satu baris, dan tombol

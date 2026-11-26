@@ -1,7 +1,8 @@
 """Endpoint publik absensi training portal (2 hari).
 
-Cabang selalu berasal dari token `cv_online_branch_forms` — tidak pernah dari
-input pengguna. NIK penuh tidak pernah dikirim balik ke browser maupun ke log.
+Identitas cukup NIK 16 digit; tanggal lahir tidak lagi diminta. Cabang selalu
+berasal dari token `cv_online_branch_forms` — tidak pernah dari input pengguna.
+NIK penuh tidak pernah dikirim balik ke browser maupun ke log.
 """
 import secrets
 
@@ -10,13 +11,14 @@ from flask import request, jsonify
 from modules.config import get_master_connection
 from modules.helpers import (client_ip, log_activity_async, normalize_nik,
                              redis_rate_hit)
+from modules.routes_recruitment import _masked_name
 from modules.training_service import (attendance_status, mask_nik,
                                       record_attendance)
 
 _MAX = 20
 _WINDOW = 600
-_NOT_FOUND = ('Data peserta tidak ditemukan. Periksa NIK dan tanggal lahir, '
-              'lalu coba lagi.')
+_NOT_FOUND = ('Data peserta belum kami temukan. Mohon periksa kembali NIK '
+              'Anda, lalu coba lagi.')
 _TOKEN_MSG = ('Tautan form tidak valid atau sudah tidak aktif. '
               'Minta tautan terbaru ke Traineer/Admin.')
 
@@ -102,19 +104,18 @@ def register_training_routes(app):
             return jsonify({'status': 'error', 'msg': _TOKEN_MSG}), 403
 
         nik, _raw = normalize_nik(request.args.get('nik'))
-        dob = str(request.args.get('dob') or '').strip()[:10]
-        if not nik or not dob:
+        if not nik:
             return jsonify({'status': 'error',
-                            'msg': 'NIK 16 digit dan tanggal lahir wajib diisi.'}), 400
+                            'msg': 'NIK 16 digit wajib diisi.'}), 400
 
-        result = attendance_status(nik, dob, branch)
+        result = attendance_status(nik, branch)
         if not result.get('ok'):
             if result.get('error') == 'db':
                 return jsonify({'status': 'error', 'msg': 'DB error'}), 500
             return jsonify({'status': 'error', 'msg': _NOT_FOUND}), 404
 
         return jsonify({'status': 'success', 'data': {
-            'nama': result.get('nama') or '',
+            'nama': _masked_name(result.get('nama') or ''),
             'days': _days_json(result.get('days')),
             'next_day': result.get('next_day'),
         }})
@@ -133,16 +134,15 @@ def register_training_routes(app):
 
         if body.get('consent') is not True:
             return jsonify({'status': 'error',
-                            'msg': 'Centang pernyataan kebenaran data dulu.'}), 400
+                            'msg': 'Mohon centang pernyataan kebenaran data.'}), 400
 
         nik, _raw = normalize_nik(body.get('nik'))
-        dob = str(body.get('dob') or '').strip()[:10]
-        if not nik or not dob:
+        if not nik:
             return jsonify({'status': 'error',
-                            'msg': 'NIK 16 digit dan tanggal lahir wajib diisi.'}), 400
+                            'msg': 'NIK 16 digit wajib diisi.'}), 400
 
         result = record_attendance(
-            nik, dob, branch, body.get('day'), ip=ip,
+            nik, branch, body.get('day'), ip=ip,
             user_agent=str(request.headers.get('User-Agent') or ''))
         if not result.get('ok'):
             error = result.get('error')

@@ -1,6 +1,6 @@
 """Rekrutmen — lookup publik & exception langkah staff (Rilis A).
 
-`GET /api/recruitment/lookup?nik=<16 digit>&dob=YYYY-MM-DD` menjawab satu
+`GET /api/recruitment/lookup?nik=<16 digit>` menjawab satu
 pertanyaan saja: "NIK ini sudah dikenal sistem rekrutmen atau belum?"
 Jawabannya HANYA boolean (`known`, `can_continue`) — tidak ada cabang, tahap,
 nama, atau data pribadi lain, dan tidak ada baris yang ditulis.
@@ -285,7 +285,7 @@ def register_recruitment_routes(app):
                              429)
 
         nik, _raw = normalize_nik(request.args.get('nik'))
-        if len(nik) != 16 or not _valid_dob(request.args.get('dob')):
+        if len(nik) != 16:
             # Kontrak 3 kunci dipertahankan juga untuk input invalid: tidak
             # ada field `valid` atau petunjuk lain. TIDAK membuka koneksi DB
             # sama sekali pada jalur ini.

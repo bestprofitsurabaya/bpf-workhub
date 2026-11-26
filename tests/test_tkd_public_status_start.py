@@ -42,7 +42,7 @@ def app(monkeypatch):
     monkeypatch.setattr(svc, 'load_settings', lambda cur: dict(SETTINGS))
     monkeypatch.setattr(svc, 'fetch_active_questions', lambda cur: [{'id': 1}] * 31)
     monkeypatch.setattr(rt, 'readiness', lambda q, s: {'ready': True, 'reasons': []})
-    monkeypatch.setattr(svc, 'verify_identity', lambda cur, nik, dob: dict(CASE) if (nik, dob) == (CASE['nik'], CASE['tanggal_lahir']) else None)
+    monkeypatch.setattr(svc, 'verify_identity', lambda cur, nik: dict(CASE) if nik == CASE['nik'] else None)
     monkeypatch.setattr(svc, 'fetch_case_by_nik', lambda cur, nik, for_update=False: dict(CASE))
     monkeypatch.setattr(svc, 'finalize_expired', lambda cur, cid: [])
     monkeypatch.setattr(svc, 'fetch_attempts', lambda cur, cid: [])
@@ -56,7 +56,7 @@ def _post(app, path, body):
 def test_status_sukses_menyimpan_sesi_tanpa_nik(app):
     client = app.test_client()
     r = client.post('/api/recruitment/tkd/status',
-                    json={'nik': CASE['nik'], 'dob': CASE['tanggal_lahir'], 'token': 'tok'})
+                    json={'nik': CASE['nik'], 'token': 'tok'})
     assert r.status_code == 200
     data = r.get_json()['data']
     assert data['state'] == 'BELUM' and data['can_start'] is True
@@ -64,9 +64,9 @@ def test_status_sukses_menyimpan_sesi_tanpa_nik(app):
     with client.session_transaction() as s:
         assert s['tkd_case_id'] == 'RC-1' and 'nik' not in s and s['tkd_branch'] == 'SBY'
 
-def test_status_dob_salah_ditolak_generik_tanpa_data(app):
+def test_status_nik_tidak_dikenal_ditolak_generik_tanpa_data(app):
     r = _post(app, '/api/recruitment/tkd/status',
-              {'nik': CASE['nik'], 'dob': '2000-01-01', 'token': 'tok'})
+              {'nik': '3573010101999999', 'token': 'tok'})
     assert r.status_code == 403
     body = r.get_json()
     assert body['status'] == 'error'
@@ -75,18 +75,18 @@ def test_status_dob_salah_ditolak_generik_tanpa_data(app):
 
 def test_token_salah_dan_input_invalid(app):
     assert _post(app, '/api/recruitment/tkd/status',
-                 {'nik': CASE['nik'], 'dob': '1999-01-01', 'token': 'x'}).status_code == 400
+                 {'nik': CASE['nik'], 'token': 'x'}).status_code == 400
     assert _post(app, '/api/recruitment/tkd/status',
-                 {'nik': '123', 'dob': '1999-01-01', 'token': 'tok'}).status_code == 400
+                 {'nik': '123', 'token': 'tok'}).status_code == 400
 
 def test_start_menolak_tier_tidak_dikenal_dan_bank_belum_aktif(app, monkeypatch):
     bad = _post(app, '/api/recruitment/tkd/start',
-                {'nik': CASE['nik'], 'dob': '1999-01-01', 'token': 'tok', 'modal_tier': '20k'})
+                {'nik': CASE['nik'], 'token': 'tok', 'modal_tier': '20k'})
     assert bad.status_code == 400
 
     monkeypatch.setattr(svc, 'load_settings', lambda cur: dict(SETTINGS, active=0))
     off = _post(app, '/api/recruitment/tkd/start',
-                {'nik': CASE['nik'], 'dob': '1999-01-01', 'token': 'tok', 'modal_tier': '30k'})
+                {'nik': CASE['nik'], 'token': 'tok', 'modal_tier': '30k'})
     assert off.status_code == 409
 
 def test_start_mengembalikan_soal_tanpa_kunci(app, monkeypatch):
@@ -96,7 +96,7 @@ def test_start_mengembalikan_soal_tanpa_kunci(app, monkeypatch):
                     'options': [{'id': 'a', 'text': 'A'}], 'answer': {'option': 'a'},
                     'points': 1, 'category': 'REGULASI'}, 'answer': None}]})
     r = _post(app, '/api/recruitment/tkd/start',
-              {'nik': CASE['nik'], 'dob': '1999-01-01', 'token': 'tok', 'modal_tier': '30k'})
+              {'nik': CASE['nik'], 'token': 'tok', 'modal_tier': '30k'})
     assert r.status_code == 200
     body = r.get_json()['data']
     q = body['questions'][0]
@@ -114,7 +114,7 @@ def test_status_commit_setelah_finalisasi_attempt_kedaluwarsa(app, monkeypatch):
     monkeypatch.setattr(rt, 'get_master_connection', lambda: conn)
     monkeypatch.setattr(svc, 'finalize_expired', _track_finalize(conn))
     r = _post(app, '/api/recruitment/tkd/status',
-              {'nik': CASE['nik'], 'dob': CASE['tanggal_lahir'], 'token': 'tok'})
+              {'nik': CASE['nik'], 'token': 'tok'})
     assert r.status_code == 200
     # Tanpa commit, UPDATE finalisasi dirollback saat koneksi ditutup.
     assert conn.events == ['finalize', 'commit']
@@ -135,8 +135,7 @@ def test_start_resume_commit_setelah_finalisasi(app, monkeypatch):
     monkeypatch.setattr(svc, 'create_attempt', _must_not_create)
 
     r = _post(app, '/api/recruitment/tkd/start',
-              {'nik': CASE['nik'], 'dob': CASE['tanggal_lahir'],
-               'token': 'tok', 'modal_tier': '30k'})
+              {'nik': CASE['nik'], 'token': 'tok', 'modal_tier': '30k'})
     assert r.status_code == 200
     assert r.get_json()['data']['attempt_id'] == 'TKD-aktif'
     assert conn.events == ['finalize', 'commit']
@@ -155,8 +154,7 @@ def test_start_blokir_setelah_finalisasi_juga_commit(app, monkeypatch):
     monkeypatch.setattr(svc, 'create_attempt', _must_not_create)
 
     r = _post(app, '/api/recruitment/tkd/start',
-              {'nik': CASE['nik'], 'dob': CASE['tanggal_lahir'],
-               'token': 'tok', 'modal_tier': '30k'})
+              {'nik': CASE['nik'], 'token': 'tok', 'modal_tier': '30k'})
     assert r.status_code == 409
     assert conn.events == ['finalize', 'commit']
 
@@ -173,8 +171,7 @@ def test_start_sukses_mempertahankan_kunci_sampai_attempt_dibuat(app, monkeypatc
     monkeypatch.setattr(svc, 'create_attempt', _create)
 
     r = _post(app, '/api/recruitment/tkd/start',
-              {'nik': CASE['nik'], 'dob': CASE['tanggal_lahir'],
-               'token': 'tok', 'modal_tier': '30k'})
+              {'nik': CASE['nik'], 'token': 'tok', 'modal_tier': '30k'})
     assert r.status_code == 200
     assert r.get_json()['data']['attempt_id'] == 'TKD-baru'
     # SELECT ... FOR UPDATE harus masih mengunci baris kasus saat create dihitung.

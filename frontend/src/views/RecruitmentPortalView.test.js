@@ -9,7 +9,6 @@ vi.mock('../api', () => ({ api: apiMock }))
 
 const TOKEN = 'tok_sby_9f3a'
 const NIK = '3573010101990001'
-const DOB = '1999-01-01'
 const STEPS = ['CV', 'TRAINING', 'TKD', 'FIRSTWORK']
 const KNOWN = { status: 'success', known: true, can_continue: true }
 const UNKNOWN = { status: 'success', known: false, can_continue: false }
@@ -30,9 +29,8 @@ async function mountPortal(search = `?token=${TOKEN}`, response = UNKNOWN) {
   return w
 }
 
-async function cek(w, nik = NIK, dob = DOB) {
+async function cek(w, nik = NIK) {
   await w.find('input[aria-label="NIK 16 digit"]').setValue(nik)
-  await w.find('input[aria-label="Tanggal lahir"]').setValue(dob)
   await w.find('form.rp-check').trigger('submit')
   await flushPromises()
 }
@@ -58,7 +56,7 @@ describe('RecruitmentPortalView — portal per cabang 4 kartu (Rilis A)', () => 
 
     for (const step of ['TRAINING', 'TKD', 'FIRSTWORK']) {
       expect(card(w, step).attributes('data-locked')).toBe('true')
-      expect(card(w, step).text()).toContain('lengkapi CV Online dulu')
+      expect(card(w, step).text()).toContain('Lengkapi CV Online terlebih dahulu.')
       expect(card(w, step).attributes('href')).toBeUndefined()
     }
     expect(apiMock).not.toHaveBeenCalled()
@@ -70,7 +68,7 @@ describe('RecruitmentPortalView — portal per cabang 4 kartu (Rilis A)', () => 
     await cek(w)
 
     expect(apiMock).toHaveBeenCalledWith('/api/recruitment/lookup', {
-      params: { nik: NIK, dob: DOB },
+      params: { nik: NIK },
     })
     for (const step of STEPS) {
       expect(card(w, step).attributes('data-locked')).toBe('false')
@@ -80,7 +78,7 @@ describe('RecruitmentPortalView — portal per cabang 4 kartu (Rilis A)', () => 
     expect(card(w, 'TRAINING').attributes('href')).toBe(`/app/training-form?token=${TOKEN}`)
     expect(card(w, 'TRAINING').text()).not.toContain('Segera tersedia')
     expect(card(w, 'TKD').text()).toContain('Buka tes →')
-    expect(w.text()).not.toContain('lengkapi CV Online dulu')
+    expect(w.text()).not.toContain('Lengkapi CV Online terlebih dahulu.')
   })
 
   it('klik kartu TKD setelah dikenal membuka panel dan mengecek status TKD', async () => {
@@ -93,12 +91,12 @@ describe('RecruitmentPortalView — portal per cabang 4 kartu (Rilis A)', () => 
 
     expect(card(w, 'TKD').element.tagName).toBe('BUTTON')
     expect(apiMock).toHaveBeenLastCalledWith('/api/recruitment/tkd/status', {
-      method: 'POST', body: { nik: NIK, dob: DOB, token: TOKEN },
+      method: 'POST', body: { nik: NIK, token: TOKEN },
     })
     const panel = w.findComponent(RecruitmentTkdPanel)
     expect(panel.exists()).toBe(true)
-    expect(panel.props()).toMatchObject({ token: TOKEN, nik: NIK, dob: DOB })
-    expect(panel.text()).toContain('20 soal')
+    expect(panel.props()).toMatchObject({ token: TOKEN, nik: NIK })
+    expect(panel.text()).toContain('21 soal (20 dinilai)')
     expect(panel.text()).toContain('30.000')
   })
 
@@ -110,21 +108,20 @@ describe('RecruitmentPortalView — portal per cabang 4 kartu (Rilis A)', () => 
     expect(card(w, 'CV').attributes('data-locked')).toBe('false')
     for (const step of ['TRAINING', 'TKD', 'FIRSTWORK']) {
       expect(card(w, step).attributes('data-locked')).toBe('true')
-      expect(card(w, step).text()).toContain('lengkapi CV Online dulu')
+      expect(card(w, step).text()).toContain('Lengkapi CV Online terlebih dahulu.')
     }
     expect(card(w, 'TKD').element.tagName).toBe('DIV')
     await card(w, 'TKD').trigger('click')
     expect(w.findComponent(RecruitmentTkdPanel).exists()).toBe(false)
   })
 
-  it('NIK bukan 16 digit atau tanggal lahir invalid tidak memanggil lookup', async () => {
+  it('NIK bukan 16 digit tidak memanggil lookup dan isian tanggal lahir tidak ada', async () => {
     const w = await mountPortal()
 
-    await cek(w, '12345', DOB)
-    expect(w.text()).toContain('NIK wajib 16 digit angka.')
+    expect(w.find('input[aria-label="Tanggal lahir"]').exists()).toBe(false)
 
-    await cek(w, NIK, '31-01-1999')
-    expect(w.text()).toContain('Tanggal lahir wajib berformat YYYY-MM-DD.')
+    await cek(w, '12345')
+    expect(w.text()).toContain('NIK wajib 16 digit angka.')
 
     expect(apiMock).not.toHaveBeenCalled()
   })
@@ -142,7 +139,7 @@ describe('RecruitmentPortalView — portal per cabang 4 kartu (Rilis A)', () => 
 
   it('kartu selesai menampilkan centang, waktu, dan ringkasan ringkas', async () => {
     const w = await mountPortal(`?token=${TOKEN}`, LOOKUP_DONE)
-    await cek(w, '3509190102960003', '1996-02-01')
+    await cek(w, '3509190102960003')
     const cv = card(w, 'CV')
     expect(cv.text()).toContain('✓ Selesai')
     expect(cv.text()).toContain('2026-11-25 19:28:30')
@@ -158,13 +155,13 @@ describe('RecruitmentPortalView — portal per cabang 4 kartu (Rilis A)', () => 
 
   it('langkah berikutnya tampil dari respons lookup', async () => {
     const w = await mountPortal(`?token=${TOKEN}`, LOOKUP_DONE)
-    await cek(w, '3509190102960003', '1996-02-01')
+    await cek(w, '3509190102960003')
     expect(w.text()).toContain('Langkah berikutnya: Training Absensi')
   })
 
   it('keterangan dibuka dan kartu selesai tetap tidak bisa dibuka', async () => {
     const w = await mountPortal(`?token=${TOKEN}`, LOOKUP_DONE)
-    await cek(w, '3509190102960003', '1996-02-01')
+    await cek(w, '3509190102960003')
     const cv = card(w, 'CV')
     expect(cv.find('[data-expand]').attributes('open')).toBeUndefined()
     await cv.find('[data-expand] summary').trigger('click')
@@ -178,7 +175,7 @@ describe('RecruitmentPortalView — portal per cabang 4 kartu (Rilis A)', () => 
 
   it('urutan kartu tetap CV, Training, TKD, FirstWork', async () => {
     const w = await mountPortal(`?token=${TOKEN}`, LOOKUP_DONE)
-    await cek(w, '3509190102960003', '1996-02-01')
+    await cek(w, '3509190102960003')
     expect(w.findAll('.rp-card').map((c) => c.attributes('data-step')))
       .toEqual(['CV', 'TRAINING', 'TKD', 'FIRSTWORK'])
   })
@@ -198,7 +195,7 @@ describe('RecruitmentPortalView — portal per cabang 4 kartu (Rilis A)', () => 
     await cek(w)
 
     expect(apiMock).toHaveBeenCalledTimes(1)
-    expect(apiMock.mock.calls[0][1]).toEqual({ params: { nik: NIK, dob: DOB } })
+    expect(apiMock.mock.calls[0][1]).toEqual({ params: { nik: NIK } })
     const txt = w.text()
     for (const rahasia of ['CABANG_RAHASIA', 'KODE_RAHASIA', 'LANGKAH_RAHASIA',
       'NAMA_RAHASIA', 'CASE_RAHASIA', '9999999999999999']) {
@@ -215,7 +212,7 @@ describe('RecruitmentPortalView — portal per cabang 4 kartu (Rilis A)', () => 
     await cek(w, '1111111111111111')
 
     expect(card(w, 'FIRSTWORK').attributes('data-locked')).toBe('true')
-    expect(card(w, 'TRAINING').text()).toContain('lengkapi CV Online dulu')
+    expect(card(w, 'TRAINING').text()).toContain('Lengkapi CV Online terlebih dahulu.')
   })
 
   it('token juga diterima lewat parameter t dan tetap diteruskan ke form', async () => {

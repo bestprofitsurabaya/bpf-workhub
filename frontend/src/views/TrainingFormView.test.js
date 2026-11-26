@@ -8,7 +8,6 @@ vi.mock('../api', () => ({ api: apiMock }))
 
 const TOKEN = 'tok_sby_9f3a'
 const NIK = '3509190102960003'
-const DOB = '1996-02-01'
 const NAMA = 'Bili Darnanto Susilo'
 
 const STATUS_DAY1_EMPTY = { status: 'success', data: {
@@ -27,9 +26,8 @@ function mountForm() {
   return mount(TrainingFormView)
 }
 
-async function isiIdentitas(w, nik = NIK, dob = DOB) {
+async function isiIdentitas(w, nik = NIK) {
   await w.find('input[aria-label="NIK 16 digit"]').setValue(nik)
-  await w.find('input[aria-label="Tanggal lahir"]').setValue(dob)
   await w.find('form.rp-check').trigger('submit')
   await flushPromises()
 }
@@ -78,23 +76,24 @@ describe('TrainingFormView — absensi training 2 hari', () => {
     await w.find('form.rp-submit').trigger('submit')
     await flushPromises()
 
-    expect(w.text()).toContain('Absensi Hari 1 tercatat')
+    expect(w.text()).toContain('Absensi Hari 1 sudah tercatat')
     expect(w.find('.rp-success').exists()).toBe(true)
     expect(apiMock).toHaveBeenLastCalledWith(
       '/api/recruitment/training/attendance',
       expect.objectContaining({ method: 'POST' }))
     const body = apiMock.mock.calls.at(-1)[1].body
-    expect(body).toMatchObject({ token: TOKEN, nik: NIK, dob: DOB, day: 1,
+    expect(body).toMatchObject({ token: TOKEN, nik: NIK, day: 1,
                                  consent: true })
   })
 
-  it('menampilkan pesan ramah saat NIK/tanggal lahir tidak cocok', async () => {
+  it('hanya meminta NIK dan menampilkan pesan ramah saat NIK tidak cocok', async () => {
     apiMock.mockRejectedValue(new Error(
-      'Data peserta tidak ditemukan. Periksa NIK dan tanggal lahir.'))
+      'Data peserta belum kami temukan. Mohon periksa kembali NIK Anda.'))
     const w = mountForm()
-    await isiIdentitas(w, NIK, '1990-01-01')
+    expect(w.find('input[aria-label="Tanggal lahir"]').exists()).toBe(false)
+    await isiIdentitas(w, NIK)
 
-    expect(w.find('[role="alert"]').text()).toContain('Periksa NIK')
+    expect(w.find('[role="alert"]').text()).toContain('periksa kembali NIK')
     expect(w.find('.rp-status').exists()).toBe(false)
   })
 })

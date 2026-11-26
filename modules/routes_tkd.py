@@ -1,7 +1,8 @@
 """TKD online — endpoint publik status/mulai dan endpoint staff (Rilis C).
 
-Alur publik memakai NIK + tanggal lahir + token cabang hanya untuk verifikasi;
-NIK tidak pernah ditulis ke sesi, respons, atau audit. Sesi menyimpan
+Alur publik memakai NIK 16 digit + token cabang hanya untuk verifikasi;
+tanggal lahir tidak lagi diminta karena sudah terenkode di NIK. NIK tidak
+pernah ditulis ke sesi, respons, atau audit. Sesi menyimpan
 `tkd_case_id`, `tkd_verified_at` (epoch), dan `tkd_branch` selama maksimal
 dua jam. Semua jawaban route publik bersifat `no-store` dan kunci jawaban
 tidak pernah dikirim ke pelamar.
@@ -51,9 +52,9 @@ _RATE_WINDOW = 60
 _RATE_PREFIX = 'tkd'
 
 # Pesan kegagalan sengaja generik: tidak menyebut nama, skor, cabang, atau attempt.
-_MSG_INCOMPLETE = 'Data belum lengkap.'
-_MSG_BAD_LINK = 'Tautan tidak valid atau sudah dirotasi.'
-_MSG_IDENTITY = 'Data belum lengkap, hubungi Traineer.'
+_MSG_INCOMPLETE = 'Data belum lengkap. Periksa NIK dan tautan Anda.'
+_MSG_BAD_LINK = 'Tautan tidak berlaku atau sudah diperbarui. Minta tautan terbaru ke Traineer/Admin.'
+_MSG_IDENTITY = 'Data belum cocok. Periksa kembali NIK Anda atau hubungi Traineer cabang.'
 _MSG_CLOSED = 'TKD belum dibuka. Hubungi Traineer cabang.'
 _MSG_RATE = 'Terlalu banyak permintaan. Coba lagi sebentar.'
 _MSG_DB = 'DB error'
@@ -76,7 +77,7 @@ _SETTINGS_KEYS = ('question_count', 'duration_minutes', 'pass_score',
                   'max_attempts', 'quota', 'shuffle_options', 'active')
 
 _START_BLOCK_MESSAGES = {
-    'DIKECUALIKAN': 'TKD dikecualikan staff. Hubungi Traineer cabang.',
+    'DIKECUALIKAN': 'TKD Anda dikecualikan oleh staff. Hubungi Traineer cabang bila perlu bantuan.',
     'LULUS': 'Selamat, Anda lulus TKD.',
     'HABIS': 'Kesempatan habis. Hubungi Traineer cabang.',
     'SKOR_BELUM_TERCATAT': 'Skor belum tercatat. Hubungi Traineer cabang.',
@@ -121,11 +122,10 @@ def _verify_body(body):
     """Validasi isian publik; kembalikan `(data, None)` atau `(None, error)`."""
     body = body if isinstance(body, dict) else {}
     nik, _raw = normalize_nik(body.get('nik'))
-    dob = str(body.get('dob') or '').strip()
     token = str(body.get('token') or '').strip()
-    if len(nik) != 16 or not _valid_date(dob) or not token:
+    if len(nik) != 16 or not token:
         return None, ('error', 400, _MSG_INCOMPLETE)
-    return {'nik': nik, 'dob': dob, 'token': token}, None
+    return {'nik': nik, 'token': token}, None
 
 
 def _as_datetime(value):
@@ -204,7 +204,7 @@ def _verified_context(cursor, verified):
     branch = svc.resolve_branch_token(cursor, verified['token'])
     if not branch:
         return None, ('error', 400, _MSG_BAD_LINK)
-    case = svc.verify_identity(cursor, verified['nik'], verified['dob'])
+    case = svc.verify_identity(cursor, verified['nik'])
     if not case:
         return None, ('error', 403, _MSG_IDENTITY)
     session['tkd_case_id'] = str(case.get('case_id') or '')
