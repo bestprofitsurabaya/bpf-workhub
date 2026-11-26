@@ -96,6 +96,21 @@ function isDone(step) {
   return stageInfo(step.type).status === 'SELESAI'
 }
 
+function isNext(step) {
+  return !isDone(step) && summary.value?.next_action === step.type
+}
+
+function doneCount() {
+  return STEPS.filter((step) => isDone(step)).length
+}
+
+function statusText(step) {
+  if (isDone(step)) return 'Selesai'
+  if (isLocked(step)) return 'Terkunci'
+  if (isNext(step)) return 'Berikutnya'
+  return 'Belum'
+}
+
 function stepNote(step) {
   const time = stageInfo(step.type).completed_at || ''
   if (isDone(step)) {
@@ -251,18 +266,23 @@ async function check() {
 
       <div class="rp-steps-head">
         <h2>Tahap rekrutmen</h2>
-        <span>4 tahap</span>
+        <span>{{ summary && known ? `${doneCount()} dari 4 tahap selesai` : '4 tahap' }}</span>
       </div>
       <section class="rp-steps" aria-label="Langkah rekrutmen">
-        <template v-for="(step, index) in STEPS" :key="step.type">
+        <div
+          v-for="(step, index) in STEPS"
+          :key="step.type"
+          class="rp-card"
+          :class="{ 'rp-card--locked': isLocked(step), 'rp-card--done': isDone(step), 'rp-card--next': isNext(step) }"
+          :data-step="step.type"
+          :data-locked="isLocked(step) ? 'true' : 'false'"
+          :data-status="stageInfo(step.type).status || 'BELUM'"
+        >
           <component
             :is="cardTag(step)"
-            class="rp-card"
-            :class="{ 'rp-card--locked': isLocked(step), 'rp-card--done': isDone(step), 'rp-card--next': summary?.next_action === step.type }"
-            :data-step="step.type"
-            :data-locked="isLocked(step) ? 'true' : 'false'"
-            :data-status="stageInfo(step.type).status || 'BELUM'"
+            class="rp-card-main"
             :aria-disabled="isLocked(step) ? 'true' : undefined"
+            :aria-current="isNext(step) ? 'step' : undefined"
             v-bind="cardAttrs(step)"
             @click="onCardClick(step)"
           >
@@ -276,28 +296,21 @@ async function check() {
                 <span class="rp-card-title">{{ step.label }}</span>
                 <span
                   class="rp-status"
-                  :class="{ 'rp-status--done': isDone(step), 'rp-status--locked': isLocked(step) }"
-                >{{ isDone(step) ? '✓ Selesai' : (isLocked(step) ? 'Terkunci' : 'Belum') }}</span>
+                  :class="{ 'rp-status--done': isDone(step), 'rp-status--next': isNext(step), 'rp-status--locked': isLocked(step) }"
+                >{{ statusText(step) }}</span>
               </span>
               <span class="rp-card-desc">{{ step.desc }}</span>
-              <template v-if="isLocked(step)">
-                <span class="rp-lock-hint">Lengkapi CV Online terlebih dahulu.</span>
-              </template>
-              <template v-else>
-                <span class="rp-summary">{{ summaryText(step) }}</span>
-                <span v-if="!isDone(step)" class="rp-open">{{ tkdCardOpen(step) ? 'Buka tes →' : 'Buka langkah →' }}</span>
-              </template>
+              <span class="rp-card-line">
+                <span class="rp-summary">{{ isLocked(step) ? 'Lengkapi CV Online terlebih dahulu.' : summaryText(step) }}</span>
+                <span v-if="!isLocked(step) && !isDone(step)" class="rp-action">Buka <span aria-hidden="true">→</span></span>
+              </span>
             </span>
-            <details v-if="isDone(step) && stepNote(step)" class="rp-details" data-expand>
-              <summary>Lihat keterangan</summary>
-              <p class="rp-full-note">{{ stepNote(step) }}</p>
-            </details>
           </component>
-          <details v-if="!isDone(step) && stepNote(step)" class="rp-details" data-expand>
+          <details v-if="stepNote(step)" class="rp-details" data-expand>
             <summary>Lihat keterangan</summary>
             <p class="rp-full-note">{{ stepNote(step) }}</p>
           </details>
-        </template>
+        </div>
       </section>
 
       <RecruitmentTkdPanel
@@ -528,23 +541,25 @@ async function check() {
 .rp-steps { display: grid; gap: 10px; }
 
 .rp-card {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  gap: 14px;
+  position: relative;
   width: 100%;
-  padding: 16px 18px;
   background: var(--rp-paper);
   border: 1px solid var(--rp-line);
   border-radius: 8px;
-  color: inherit;
-  font: inherit;
-  text-align: left;
-  text-decoration: none;
-  cursor: pointer;
   transition: border-color 160ms ease-out, background-color 160ms ease-out,
     box-shadow 160ms ease-out;
 }
+/* Garis timeline menyambung simpul satu ke simpul berikutnya. */
+.rp-card:not(:last-child)::before {
+  content: '';
+  position: absolute;
+  left: 33px;
+  top: 48px;
+  bottom: -11px;
+  width: 1px;
+  background: var(--rp-line);
+}
+.rp-card--done:not(:last-child)::before { background: #bfdccb; }
 .rp-card:hover { border-color: #b7c4d2; box-shadow: 0 2px 6px rgba(11, 31, 58, 0.05); }
 .rp-card--next {
   background: var(--rp-accent-soft);
@@ -552,9 +567,28 @@ async function check() {
   box-shadow: inset 3px 0 0 var(--rp-accent);
 }
 .rp-card--next:hover { border-color: var(--rp-accent); }
-.rp-card--locked { background: #f7f9fb; cursor: not-allowed; }
+.rp-card--locked { background: #f7f9fb; }
 .rp-card--locked:hover { border-color: var(--rp-line); box-shadow: none; }
 .rp-card--done { background: #fbfcfd; }
+
+.rp-card-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  width: 100%;
+  margin: 0;
+  padding: 16px 18px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+.rp-card-main:focus-visible { outline: 2px solid var(--rp-focus); outline-offset: -2px; }
+.rp-card--locked .rp-card-main { cursor: not-allowed; }
 
 .rp-node {
   display: inline-flex;
@@ -583,29 +617,55 @@ async function check() {
 }
 .rp-status {
   margin-left: auto;
+  min-width: 88px;
   padding: 2px 9px;
   border-radius: 999px;
   background: #eef2f7;
   color: #4a5a6d;
   font-size: 0.7rem;
   font-weight: 600;
+  text-align: center;
   white-space: nowrap;
 }
 .rp-status--done { background: #e8f3ec; color: var(--rp-success); }
+.rp-status--next {
+  background: #fff;
+  color: var(--rp-accent);
+  box-shadow: inset 0 0 0 1px #e6c4ca;
+}
 .rp-status--locked { color: #6b7a8c; }
 .rp-card-desc { color: var(--rp-muted); font-size: 0.8rem; line-height: 1.45; }
-.rp-lock-hint { color: #6b7a8c; font-size: 0.8rem; }
-.rp-summary { color: var(--rp-ink-2); font-size: 0.8rem; line-height: 1.45; }
+.rp-card-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.rp-summary {
+  flex: 1;
+  min-width: 0;
+  color: var(--rp-ink-2);
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
 .rp-card--done .rp-summary { color: #4a5a6d; }
-.rp-open { color: var(--rp-ink); font-size: 0.8rem; font-weight: 600; }
-.rp-card--next .rp-open { color: var(--rp-accent); }
+.rp-action {
+  color: var(--rp-ink);
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.rp-card--next .rp-action { color: var(--rp-accent); }
 
-.rp-details { margin: -2px 0 2px; padding: 0 18px 0 62px; }
-.rp-card > .rp-details { flex-basis: 100%; margin: 6px 0 0 44px; padding: 0; }
+.rp-details {
+  margin: 0;
+  padding: 0 18px 8px 62px;
+  border-top: 1px solid var(--rp-line);
+}
 .rp-details summary {
   display: inline-flex;
   align-items: center;
-  min-height: 44px;
+  min-height: 40px;
   color: var(--rp-ink-2);
   font-size: 0.78rem;
   font-weight: 600;
@@ -613,7 +673,7 @@ async function check() {
 }
 .rp-details summary:hover { color: var(--rp-ink); }
 .rp-full-note {
-  margin: 0 0 10px;
+  margin: 0 0 8px;
   color: var(--rp-muted);
   font-size: 0.78rem;
   line-height: 1.55;
@@ -629,11 +689,11 @@ async function check() {
   .rp-check { padding: 16px; }
   .rp-field { grid-template-columns: 1fr; }
   .rp-greeting { padding: 16px; }
-  .rp-card { padding: 14px; gap: 12px; }
+  .rp-card-main { padding: 14px; gap: 12px; }
+  .rp-card:not(:last-child)::before { left: 28px; top: 44px; }
   .rp-node { width: 28px; height: 28px; }
   .rp-card-desc { display: none; }
-  .rp-details { padding-left: 54px; }
-  .rp-card > .rp-details { margin-left: 40px; }
+  .rp-details { padding: 0 14px 6px 54px; }
 }
 
 @media (max-width: 380px) {

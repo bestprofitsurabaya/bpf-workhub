@@ -17,8 +17,23 @@ const TKD_STATUS = { status: 'success', data: {
   active_attempt: null, can_start: true, pass_score: 70,
   question_count: 20, duration_minutes: 25, bank_ready: true } }
 
+const INSTITUSI = {
+  status: 'success', known: true, can_continue: true,
+  nama_masked: 'Bili D.', next_action: 'TRAINING',
+  stages: [
+    { type: 'CV', status: 'SELESAI', completed_at: '2026-11-25 19:28:30' },
+    { type: 'TRAINING', status: 'BELUM', completed_at: null },
+    { type: 'TKD', status: 'BELUM', completed_at: null },
+    { type: 'FIRSTWORK', status: 'BELUM', completed_at: null },
+  ],
+}
+
 function card(w, step) {
   return w.find(`.rp-card[data-step="${step}"]`)
+}
+
+function main(w, step) {
+  return card(w, step).find('.rp-card-main')
 }
 
 async function mountPortal(search = `?token=${TOKEN}`, response = UNKNOWN) {
@@ -52,12 +67,12 @@ describe('RecruitmentPortalView — portal per cabang 4 kartu (Rilis A)', () => 
 
     for (const step of STEPS) expect(card(w, step).exists()).toBe(true)
     expect(card(w, 'CV').attributes('data-locked')).toBe('false')
-    expect(card(w, 'CV').attributes('href')).toBe(`/app/cv-online-form?token=${TOKEN}`)
+    expect(main(w, 'CV').attributes('href')).toBe(`/app/cv-online-form?token=${TOKEN}`)
 
     for (const step of ['TRAINING', 'TKD', 'FIRSTWORK']) {
       expect(card(w, step).attributes('data-locked')).toBe('true')
       expect(card(w, step).text()).toContain('Lengkapi CV Online terlebih dahulu.')
-      expect(card(w, step).attributes('href')).toBeUndefined()
+      expect(main(w, step).attributes('href')).toBeUndefined()
     }
     expect(apiMock).not.toHaveBeenCalled()
   })
@@ -73,11 +88,11 @@ describe('RecruitmentPortalView — portal per cabang 4 kartu (Rilis A)', () => 
     for (const step of STEPS) {
       expect(card(w, step).attributes('data-locked')).toBe('false')
     }
-    expect(card(w, 'CV').attributes('href')).toBe(`/app/cv-online-form?token=${TOKEN}`)
-    expect(card(w, 'FIRSTWORK').attributes('href')).toBe(`/app/first-work-form?token=${TOKEN}`)
-    expect(card(w, 'TRAINING').attributes('href')).toBe(`/app/training-form?token=${TOKEN}`)
+    expect(main(w, 'CV').attributes('href')).toBe(`/app/cv-online-form?token=${TOKEN}`)
+    expect(main(w, 'FIRSTWORK').attributes('href')).toBe(`/app/first-work-form?token=${TOKEN}`)
+    expect(main(w, 'TRAINING').attributes('href')).toBe(`/app/training-form?token=${TOKEN}`)
     expect(card(w, 'TRAINING').text()).not.toContain('Segera tersedia')
-    expect(card(w, 'TKD').text()).toContain('Buka tes →')
+    expect(card(w, 'TKD').text()).toContain('Buka →')
     expect(w.text()).not.toContain('Lengkapi CV Online terlebih dahulu.')
   })
 
@@ -86,10 +101,10 @@ describe('RecruitmentPortalView — portal per cabang 4 kartu (Rilis A)', () => 
     await cek(w)
 
     apiMock.mockResolvedValueOnce(TKD_STATUS)
-    await card(w, 'TKD').trigger('click')
+    await main(w, 'TKD').trigger('click')
     await flushPromises()
 
-    expect(card(w, 'TKD').element.tagName).toBe('BUTTON')
+    expect(main(w, 'TKD').element.tagName).toBe('BUTTON')
     expect(apiMock).toHaveBeenLastCalledWith('/api/recruitment/tkd/status', {
       method: 'POST', body: { nik: NIK, token: TOKEN },
     })
@@ -110,8 +125,8 @@ describe('RecruitmentPortalView — portal per cabang 4 kartu (Rilis A)', () => 
       expect(card(w, step).attributes('data-locked')).toBe('true')
       expect(card(w, step).text()).toContain('Lengkapi CV Online terlebih dahulu.')
     }
-    expect(card(w, 'TKD').element.tagName).toBe('DIV')
-    await card(w, 'TKD').trigger('click')
+    expect(main(w, 'TKD').element.tagName).toBe('DIV')
+    await main(w, 'TKD').trigger('click')
     expect(w.findComponent(RecruitmentTkdPanel).exists()).toBe(false)
   })
 
@@ -141,16 +156,17 @@ describe('RecruitmentPortalView — portal per cabang 4 kartu (Rilis A)', () => 
     const w = await mountPortal(`?token=${TOKEN}`, LOOKUP_DONE)
     await cek(w, '3509190102960003')
     const cv = card(w, 'CV')
-    expect(cv.text()).toContain('✓ Selesai')
+    expect(cv.find('.rp-status').text()).toBe('Selesai')
+    expect(cv.find('.rp-node').text()).toBe('✓')
     expect(cv.text()).toContain('2026-11-25 19:28:30')
     expect(cv.text()).toContain('Data tersimpan pada')
     expect(cv.text()).toContain('Lihat keterangan')
     expect(cv.find('[data-expand]').attributes('open')).toBeUndefined()
     expect(cv.classes()).toContain('rp-card--done')
-    expect(cv.element.tagName).toBe('DIV')
-    expect(cv.attributes('href')).toBeUndefined()
+    expect(main(w, 'CV').element.tagName).toBe('DIV')
+    expect(main(w, 'CV').attributes('href')).toBeUndefined()
     expect(card(w, 'TRAINING').classes()).not.toContain('rp-card--done')
-    expect(card(w, 'TRAINING').attributes('href')).toBeTruthy()
+    expect(main(w, 'TRAINING').attributes('href')).toBeTruthy()
   })
 
   it('langkah berikutnya tampil dari respons lookup', async () => {
@@ -169,8 +185,8 @@ describe('RecruitmentPortalView — portal per cabang 4 kartu (Rilis A)', () => 
     expect(cv.find('[data-expand]').attributes('open')).toBe('')
     expect(cv.text()).toContain('Data diri dan pendidikan Anda tersimpan')
     expect(cv.text()).toContain('tidak perlu diulang')
-    expect(cv.element.tagName).toBe('DIV')
-    expect(cv.attributes('href')).toBeUndefined()
+    expect(main(w, 'CV').element.tagName).toBe('DIV')
+    expect(main(w, 'CV').attributes('href')).toBeUndefined()
   })
 
   it('urutan kartu tetap CV, Training, TKD, FirstWork', async () => {
@@ -218,9 +234,9 @@ describe('RecruitmentPortalView — portal per cabang 4 kartu (Rilis A)', () => 
   it('token juga diterima lewat parameter t dan tetap diteruskan ke form', async () => {
     const w = await mountPortal('?t=tok_alt_1', KNOWN)
 
-    expect(card(w, 'CV').attributes('href')).toBe('/app/cv-online-form?token=tok_alt_1')
+    expect(main(w, 'CV').attributes('href')).toBe('/app/cv-online-form?token=tok_alt_1')
     await cek(w)
-    expect(card(w, 'FIRSTWORK').attributes('href')).toBe('/app/first-work-form?token=tok_alt_1')
+    expect(main(w, 'FIRSTWORK').attributes('href')).toBe('/app/first-work-form?token=tok_alt_1')
   })
 
   it('gagal lookup menampilkan pesan error dan tidak membuka kartu', async () => {
@@ -284,5 +300,27 @@ describe('RecruitmentPortalView — tampilan institusi (v2.135.8)', () => {
     expect(card(w, 'TRAINING').classes()).toContain('rp-card--next')
     expect(card(w, 'CV').classes()).not.toContain('rp-card--next')
     expect(card(w, 'CV').find('.rp-node').text()).toContain('✓')
+  })
+
+  it('badge satu kata, simpul centang, dan header progres dinamis', async () => {
+    const w = await mountPortal(`?token=${TOKEN}`, INSTITUSI)
+    await cek(w, '3509190102960003')
+
+    expect(card(w, 'CV').find('.rp-status').text()).toBe('Selesai')
+    expect(card(w, 'CV').find('.rp-node').text()).toBe('✓')
+    expect(card(w, 'TRAINING').find('.rp-status').text()).toBe('Berikutnya')
+    expect(card(w, 'TKD').find('.rp-status').text()).toBe('Belum')
+    expect(w.find('.rp-steps-head').text()).toContain('1 dari 4 tahap selesai')
+  })
+
+  it('aksi dan kaki keterangan seragam untuk semua tahap aktif', async () => {
+    const w = await mountPortal(`?token=${TOKEN}`, INSTITUSI)
+    await cek(w, '3509190102960003')
+
+    for (const step of ['TRAINING', 'TKD', 'FIRSTWORK']) {
+      expect(card(w, step).text()).toContain('Buka →')
+      expect(card(w, step).find('[data-expand]').exists()).toBe(true)
+    }
+    expect(main(w, 'CV').element.tagName).toBe('DIV')
   })
 })

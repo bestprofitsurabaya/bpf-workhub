@@ -7,6 +7,19 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.135.9 — 26 November 2026 (Empat tahap portal seragam)
+
+- Empat tahap memakai satu anatomi: simpul, judul + badge, baris status,
+  aksi di kanan, dan kaki keterangan yang sama.
+- Garis timeline menyambung simpul 1–4; ruas setelah tahap selesai berwarna
+  hijau redup.
+- Badge satu kata: **Selesai**, **Berikutnya**, **Belum**, **Terkunci**.
+  Centang hanya di simpul.
+- Header menampilkan “N dari 4 tahap selesai” setelah NIK dikenal.
+- Aksi seragam “Buka →” untuk semua tahap; “Lihat keterangan” selalu di kaki
+  kartu sehingga tidak pernah ikut bernavigasi.
+- Alur, token, backend, dan aturan tahap tidak berubah.
+
 ## v2.135.8 — 26 November 2026 (Tampilan portal rekrutmen)
 
 - Portal rekrutmen memakai tampilan resmi PT Bestprofit Futures: logo dan nama
