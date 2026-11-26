@@ -23,8 +23,6 @@ from datetime import datetime, timedelta
 from flask import Response, jsonify, request, session
 
 from modules import tkd_service as svc
-from modules.recruitment_events import record_event
-from modules.portal_token import verify_session_token
 from modules.admin_scope import is_ho_admin
 # Sumber tunggal masker NIK — routes_recruitment tidak mengimpor routes_tkd,
 # jadi import ini tidak membentuk siklus.
@@ -120,22 +118,14 @@ def _valid_date(value):
 
 
 def _verify_body(body):
-    """Validasi isian publik: token sesi+token cabang, atau NIK+token cabang."""
+    """Validasi isian publik; kembalikan `(data, None)` atau `(None, error)`."""
     body = body if isinstance(body, dict) else {}
-    token = str(body.get('token') or '').strip()
-    session_token = str(body.get('s') or '').strip()
-    if not token:
-        return None, ('error', 400, _MSG_INCOMPLETE)
-    if session_token:
-        session = verify_session_token(session_token)
-        if not session:
-            return None, ('error', 403, 'Sesi portal tidak valid atau kedaluwarsa.')
-        return {'nik': session['nik'], 'branch': session['branch'],
-                'token': token}, None
     nik, _raw = normalize_nik(body.get('nik'))
-    if len(nik) != 16:
+    dob = str(body.get('dob') or '').strip()
+    token = str(body.get('token') or '').strip()
+    if len(nik) != 16 or not _valid_date(dob) or not token:
         return None, ('error', 400, _MSG_INCOMPLETE)
-    return {'nik': nik, 'branch': '', 'token': token}, None
+    return {'nik': nik, 'dob': dob, 'token': token}, None
 
 
 def _as_datetime(value):
@@ -214,9 +204,7 @@ def _verified_context(cursor, verified):
     branch = svc.resolve_branch_token(cursor, verified['token'])
     if not branch:
         return None, ('error', 400, _MSG_BAD_LINK)
-    if verified.get('branch') and verified['branch'] != branch:
-        return None, ('error', 403, 'Sesi portal tidak cocok dengan cabang tautan.')
-    case = svc.verify_identity(cursor, verified['nik'])
+    case = svc.verify_identity(cursor, verified['nik'], verified['dob'])
     if not case:
         return None, ('error', 403, _MSG_IDENTITY)
     session['tkd_case_id'] = str(case.get('case_id') or '')
@@ -768,15 +756,6 @@ def register_tkd_routes(app):
                 attempt = (created or {}).get('attempt') or {}
                 items = (created or {}).get('items') or []
                 conn.commit()
-                try:
-                    record_event(case.get('case_id') or '',
-                                 verified.get('nik') or '', 'TKD_STARTED',
-                                 branch_code=context['branch'],
-                                 source_module='tkd',
-                                 source_id=str(attempt.get('id') or ''),
-                                 metadata={'attempt_no': attempt.get('attempt_no')})
-                except Exception:
-                    pass
                 _audit_start(attempt.get('id'), case.get('case_id'),
                              context['branch'])
                 return _public({'status': 'success',
@@ -941,19 +920,6 @@ def register_tkd_routes(app):
                 attempt = svc.finalize_attempt(
                     cursor, attempt, final_status) or attempt
                 conn.commit()
-                try:
-                    common = dict(
-                        case_id=attempt.get('case_id') or '',
-                        nik='',
-                        branch_code=str(attempt.get('branch_code') or ''),
-                        source_module='tkd',
-                        source_id=str(attempt.get('id') or ''),
-                        metadata={'attempt_no': attempt.get('attempt_no'),
-                                  'score': attempt.get('score')})
-                    record_event(**common, event_type='TKD_SUBMITTED')
-                    record_event(**common, event_type='TKD_SCORED')
-                except Exception:
-                    pass
                 _audit_submit(attempt, attempt.get('case_id'))
                 return _public({'status': 'success',
                                 'data': svc.attempt_result(

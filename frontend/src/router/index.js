@@ -22,8 +22,7 @@ const routes = [
   { path: '/mfa', name: 'mfa', component: () => import('../views/MfaView.vue'), meta: { public: true, mfa: true } },
   { path: '/403', name: 'forbidden', component: () => import('../views/ForbiddenView.vue'), meta: { public: true } },
   // Form publik pelamar kerja (v2.16) — tanpa login
-  // Rilis C: form publik lama dipensiunkan; bookmark /apply masuk ke portal cabang.
-  { path: '/apply', redirect: { name: 'recruitment-portal' }, meta: { public: true } },
+  { path: '/apply', name: 'apply', component: () => import('../views/ApplyView.vue'), meta: { public: true } },
   // Form publik overtime OB/Security (v2.22) — tanpa login
   { path: '/overtime-form', name: 'overtime-form', component: () => import('../views/OvertimeFormView.vue'), meta: { public: true } },
   // Form publik Absensi FirstWork (v2.80.0) — tanpa login, mobile-first.
@@ -145,7 +144,7 @@ router.beforeEach(async (to) => {
   // bookmark lama terbuka. Setelah login, arahkan ke tab FirstWork di hub dan
   // bawa query yang ada (mis. filter/cabang dari tautan lama).
   if (to.name === 'first-work') {
-    return { path: '/recruitment', query: { ...to.query, tab: 'pelamar', view: 'firstwork' } }
+    return { path: '/recruitment', query: { ...to.query, tab: 'firstwork' } }
   }
   const roles = to.meta.roles
   if (roles && !roles.includes(auth.role)) {

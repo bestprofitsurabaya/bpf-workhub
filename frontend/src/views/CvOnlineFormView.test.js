@@ -128,32 +128,4 @@ describe('CvOnlineFormView — NIK (Rilis A)', () => {
     await fillStepSumberDanUndangan(w)
     expect(w.find('.cv-consent').text()).toContain('NIK')
   })
-
-  it('dengan sesi portal: NIK dan tanggal lahir tidak diminta dan s dikirim', async () => {
-    window.history.replaceState({}, '', '/app/cv-online-form?cabang=JKT&t=tok&s=ses-1')
-    const metaUrl = []
-    fetchMock = vi.fn((url, init) => {
-      const path = String(url)
-      if (path.includes('/api/cv-online/form-meta')) {
-        metaUrl.push(path)
-        return Promise.resolve({ ok: true, json: () => Promise.resolve({
-          ...META, nik_masked: '****0001', nama: 'Budi Santoso' }) })
-      }
-      if (path.includes('/api/cv-online/public')) {
-        submittedBody = init && init.body
-        return Promise.resolve({ ok: true, json: () => Promise.resolve({
-          status: 'success', registration_no: 'CV-SBY-260102-002' }) })
-      }
-      return Promise.resolve({ ok: false, json: () => Promise.resolve({}) })
-    })
-    vi.stubGlobal('fetch', fetchMock)
-
-    const w = await mountForm()
-    await flushPromises()
-    expect(metaUrl[0]).toContain('s=ses-1')
-    await fillStepSumberDanUndangan(w)
-    expect(w.find('input[aria-label="NIK sesuai KTP"]').exists()).toBe(false)
-    expect(w.find('input[type="date"]').exists()).toBe(false)
-    expect(w.text()).toContain('****0001')
-  })
 })

@@ -371,7 +371,7 @@ onMounted(() => {
       <b>👁 Mode lihat saja.</b>
       Data pelamar dikelola Receptionist. Anda bisa mencari dan memfilter, tetapi tidak
       mengubah, memverifikasi, mencatat kehadiran, atau menghapus data. Verifikasi
-      kehadiran calon karyawan ada di <router-link to="/recruitment?tab=pelamar">Data Rekrutment</router-link>.
+      kehadiran calon karyawan ada di tab <router-link to="/recruitment?tab=firstwork">FirstWork pada menu Rekrutmen</router-link>.
     </div>
 
     <div class="card card-pad" style="margin-bottom:16px;">

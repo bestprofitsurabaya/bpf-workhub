@@ -1,11 +1,14 @@
 <script setup>
 /**
- * Rilis C — portal satu tautan per cabang: cek NIK sekali (tanpa tanggal
- * lahir), lalu tampilkan ringkasan empat langkah dan langkah berikutnya.
- * Cabang selalu berasal dari token tautan; NIK lengkap tidak disimpan di
- * komponen ini setelah sesi diterbitkan.
+ * Rilis A (Task 7) — portal satu tautan per cabang dengan empat kartu langkah.
+ *
+ * Token cabang diambil dari query (?token=..., alias ?t=...) dan diteruskan apa
+ * adanya ke form publik. Endpoint lookup sengaja boolean-only: komponen ini
+ * membaca SATU field (`known`) dan tidak pernah menyimpan/merender cabang,
+ * tahap, atau data pribadi lain dari respons. Tidak ada POST di halaman ini —
+ * lookup hanya pertanyaan "sudah dikenal atau belum", bukan pembuatan kasus.
  */
-import { computed, ref } from 'vue'
+import { ref } from 'vue'
 import { api } from '../api'
 import RecruitmentTkdPanel from '../components/RecruitmentTkdPanel.vue'
 
@@ -13,65 +16,77 @@ const brandIcon = '/static/icon-192.png'
 
 const linkParams = new URLSearchParams(window.location.search)
 const branchToken = (linkParams.get('token') || linkParams.get('t') || '').trim()
-
-const nik = ref('')
-const error = ref('')
-const checking = ref(false)
-const sessionToken = ref('')
-const summary = ref(null)
-const tkdOpen = ref(false)
-
-const stageByType = computed(() => {
-  const stages = summary.value?.stages || []
-  return Object.fromEntries(stages.map((stage) => [stage.type, stage]))
-})
-
-const formHref = (path) => {
-  const query = new URLSearchParams({ token: branchToken })
-  if (sessionToken.value) query.set('s', sessionToken.value)
-  return `/app/${path}?${query.toString()}`
-}
+const formHref = (path) => `/app/${path}?token=${encodeURIComponent(branchToken)}`
 
 const STEPS = [
-  { type: 'CV', label: 'CV Online', desc: 'Registrasi data diri, pendidikan, dan pengalaman.', path: 'cv-online-form' },
-  { type: 'TRAINING', label: 'Training Absensi', desc: 'Absensi Hari 1 dan Hari 2 training.', path: 'training-form' },
-  { type: 'TKD', label: 'Test Kemampuan Dasar', desc: 'Penilaian kemampuan dasar peserta.', path: '' },
-  { type: 'FIRSTWORK', label: 'FirstWork Absensi', desc: 'Absensi peserta dan cetak kartu.', path: 'first-work-form' },
+  {
+    type: 'CV',
+    label: 'CV Online',
+    desc: 'Registrasi data diri, pendidikan, dan pengalaman.',
+    href: formHref('cv-online-form'),
+    future: false,
+  },
+  {
+    type: 'TRAINING',
+    label: 'Training Absensi',
+    desc: 'Absensi Hari 1 dan Hari 2 training.',
+    href: formHref('training-form'),
+    future: false,
+  },
+  {
+    type: 'TKD',
+    label: 'Test Kemampuan Dasar',
+    desc: 'Penilaian kemampuan dasar peserta.',
+    href: '',
+    future: false,
+    action: 'tkd',
+  },
+  {
+    type: 'FIRSTWORK',
+    label: 'FirstWork Absensi',
+    desc: 'Absensi peserta dan cetak kartu.',
+    href: formHref('first-work-form'),
+    future: false,
+  },
 ]
+
+const nik = ref('')
+const dob = ref('')
+const error = ref('')
+const checking = ref(false)
+const known = ref(false)
+const tkdOpen = ref(false)
+const tkdNik = ref('')
+const tkdDob = ref('')
 
 function onNik(event) {
   nik.value = String(event.target.value || '').replace(/\D/g, '').slice(0, 16)
 }
 
-function stepStatus(step) {
-  const stage = stageByType.value[step.type]
-  if (!stage) return 'BELUM'
-  return stage.status || 'BELUM'
+function validDate(value) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
+  const parsed = new Date(`${value}T00:00:00Z`)
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value
 }
 
+// Sebelum dikenal hanya CV yang bisa diisi; tiga kartu lain sengaja dikunci.
 function isLocked(step) {
-  if (!sessionToken.value) return step.type !== 'CV'
-  if (step.type === 'CV') return false
-  const stage = stageByType.value[step.type]
-  return stage ? stage.can_start === false : false
+  return step.type !== 'CV' && !known.value
 }
 
-function isDone(step) {
-  return stepStatus(step) === 'SELESAI'
-}
-
+// TKD terbuka setelah lookup, tetapi bukan tautan: ia membuka panel ujian.
 function tkdCardOpen(step) {
-  return step.type === 'TKD' && !isLocked(step)
+  return step.action === 'tkd' && !isLocked(step)
 }
 
 function cardTag(step) {
   if (tkdCardOpen(step)) return 'button'
-  return step.path && !isLocked(step) ? 'a' : 'div'
+  return step.href && !isLocked(step) ? 'a' : 'div'
 }
 
 function cardAttrs(step) {
   if (tkdCardOpen(step)) return { type: 'button' }
-  return step.path && !isLocked(step) ? { href: formHref(step.path) } : {}
+  return step.href && !isLocked(step) ? { href: step.href } : {}
 }
 
 function onCardClick(step) {
@@ -84,30 +99,30 @@ async function check() {
     error.value = 'NIK wajib 16 digit angka.'
     return
   }
-  if (!branchToken) {
-    error.value = 'Tautan portal cabang tidak valid. Minta tautan terbaru ke resepsionis.'
+  if (!validDate(dob.value)) {
+    error.value = 'Tanggal lahir wajib berformat YYYY-MM-DD.'
     return
   }
 
-  summary.value = null
-  sessionToken.value = ''
+  // Cek ulang dengan NIK lain tidak boleh mewarisi status kartu sebelumnya.
+  known.value = false
   tkdOpen.value = false
+  tkdNik.value = ''
+  tkdDob.value = ''
   checking.value = true
   try {
     const result = await api('/api/recruitment/lookup', {
-      params: { nik: nik.value, token: branchToken },
+      params: { nik: nik.value, dob: dob.value },
     })
-    if (!result || !result.session_token) {
-      error.value = 'NIK tidak dapat diverifikasi. Periksa kembali atau minta tautan cabang.'
-      return
+    // Hanya boolean yang dipakai. Field lain (bola-bali response) diabaikan
+    // dan tidak pernah masuk ke state/render.
+    known.value = Boolean(result && result.known === true)
+    if (known.value) {
+      tkdNik.value = nik.value
+      tkdDob.value = dob.value
     }
-    sessionToken.value = result.session_token
-    const response = await api('/api/recruitment/portal/summary', {
-      params: { token: sessionToken.value },
-    })
-    summary.value = response?.data || null
-    if (!result.known) {
-      error.value = 'NIK belum dikenal. Mulai dari CV Online.'
+    if (!known.value) {
+      error.value = 'NIK belum dikenal. Lengkapi CV Online terlebih dahulu.'
     }
   } catch (e) {
     error.value = e?.message || 'Pengecekan gagal. Coba lagi sebentar.'
@@ -122,7 +137,7 @@ async function check() {
     <header class="rp-header">
       <img class="rp-brand" :src="brandIcon" alt="" />
       <h1>Portal Rekrutmen</h1>
-      <p>Masukkan NIK untuk melihat langkah rekrutmen Anda.</p>
+      <p>Masukkan NIK dan tanggal lahir untuk melanjutkan proses rekrutmen.</p>
     </header>
 
     <form class="rp-check" @submit.prevent="check">
@@ -140,17 +155,20 @@ async function check() {
         @input="onNik"
       />
 
+      <label class="rp-label" for="rp-dob">Tanggal lahir</label>
+      <input
+        id="rp-dob"
+        class="rp-input"
+        type="date"
+        aria-label="Tanggal lahir"
+        v-model="dob"
+      />
+
       <button class="rp-button" type="submit" :disabled="checking">
         {{ checking ? 'Mengecek…' : 'Cek' }}
       </button>
       <p v-if="error" class="rp-error" role="alert">{{ error }}</p>
     </form>
-
-    <section v-if="summary" class="rp-greeting" aria-live="polite">
-      <p class="rp-hello">Halo, {{ summary.nama_masked || 'Peserta' }}</p>
-      <p class="rp-branch">{{ summary.branch_name || summary.branch_code }}</p>
-      <p class="rp-next">Langkah berikutnya: {{ summary.next_action }}</p>
-    </section>
 
     <section class="rp-cards" aria-label="Langkah rekrutmen">
       <component
@@ -158,10 +176,9 @@ async function check() {
         :key="step.type"
         :is="cardTag(step)"
         class="rp-card"
-        :class="{ 'rp-card--locked': isLocked(step), 'rp-card--done': isDone(step) }"
+        :class="{ 'rp-card--locked': isLocked(step) }"
         :data-step="step.type"
         :data-locked="isLocked(step) ? 'true' : 'false'"
-        :data-status="stepStatus(step)"
         :aria-disabled="isLocked(step) ? 'true' : undefined"
         v-bind="cardAttrs(step)"
         @click="onCardClick(step)"
@@ -170,16 +187,17 @@ async function check() {
         <h2 class="rp-card-title">{{ step.label }}</h2>
         <p class="rp-card-desc">{{ step.desc }}</p>
         <p v-if="isLocked(step)" class="rp-lock-hint">lengkapi CV Online dulu</p>
-        <p v-else-if="isDone(step)" class="rp-open">Selesai — boleh dibuka kembali</p>
-        <p v-else-if="tkdCardOpen(step)" class="rp-open">Buka tes</p>
-        <p v-else class="rp-open">Buka langkah</p>
+        <p v-else-if="step.future" class="rp-soon">Segera tersedia</p>
+        <p v-else-if="tkdCardOpen(step)" class="rp-open">Buka tes →</p>
+        <p v-else class="rp-open">Buka langkah →</p>
       </component>
     </section>
 
     <RecruitmentTkdPanel
       v-if="tkdOpen"
       :token="branchToken"
-      :session="sessionToken"
+      :nik="tkdNik"
+      :dob="tkdDob"
       @close="tkdOpen = false"
     />
   </main>
@@ -227,10 +245,6 @@ async function check() {
 }
 .rp-button:disabled { opacity: 0.6; cursor: default; }
 .rp-error { color: #b91c1c; margin: 4px 0 0; font-size: 0.9rem; }
-.rp-greeting { margin-bottom: 20px; padding: 16px; border-left: 3px solid #1d4ed8; background: #f8fafc; }
-.rp-hello { font-size: 1.1rem; font-weight: 600; margin: 0; }
-.rp-branch { color: #6b7280; margin: 4px 0; }
-.rp-next { margin: 8px 0 0; color: #1d4ed8; font-weight: 600; }
 .rp-cards {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
@@ -253,7 +267,6 @@ async function check() {
   cursor: pointer;
 }
 .rp-card--locked { background: #f9fafb; border-color: #e5e7eb; opacity: 0.65; }
-.rp-card--done { opacity: 0.78; }
 .rp-step-no {
   display: inline-flex;
   align-items: center;
@@ -268,5 +281,6 @@ async function check() {
 .rp-card-title { font-size: 1.05rem; margin: 12px 0 4px; }
 .rp-card-desc { color: #6b7280; font-size: 0.85rem; margin: 0 0 12px; }
 .rp-lock-hint { color: #6b7280; font-size: 0.85rem; margin: 0; }
+.rp-soon { color: #92400e; font-size: 0.85rem; margin: 0; }
 .rp-open { color: #1d4ed8; font-size: 0.85rem; margin: 0; font-weight: 600; }
 </style>

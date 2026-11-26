@@ -20,16 +20,6 @@ describe('path Absensi FirstWork', () => {
 // v2.113.0 — Registrasi CV Online: halaman data kini menjadi tab di hub;
 // tautan lama tetap terdaftar sebagai redirect ke tab CV. Form publik di path
 // terpisah dan tanpa login.
-describe('form publik lama', () => {
-  it('/apply dialihkan ke portal rekrutmen', async () => {
-    const { setActivePinia, createPinia } = await import('pinia')
-    setActivePinia(createPinia())
-    await router.push('/apply')
-    expect(router.currentRoute.value.name).toBe('recruitment-portal')
-    expect(router.currentRoute.value.meta.public).toBe(true)
-  })
-})
-
 describe('path Registrasi CV Online', () => {
   it('/cv-online tetap terdaftar dan mengarah ke tab CV di hub', () => {
     const route = router.resolve('/cv-online')

@@ -132,25 +132,6 @@ for _attempt in range(5):
         break
     _time.sleep(3)
 
-# Linimasa event rekrutmen (Rilis C): tabel recruitment_events di DB master.
-# Aman diulang tiap startup, sama seperti ensure_recruitment_schema().
-from modules.recruitment_events_schema import ensure_recruitment_events_schema
-for _attempt in range(5):
-    if ensure_recruitment_events_schema():
-        break
-    _time.sleep(3)
-
-# Kolom NIK pelamar (Rilis C): applicants di setiap DB cabang. Kegagalan satu
-# cabang dicatat ke stdout dan diulang pada startup berikutnya (idempoten).
-from modules.applicant_nik_schema import ensure_applicant_nik_schema_all
-try:
-    _nik_results = ensure_applicant_nik_schema_all()
-    _nik_failed = [code for code, ok in _nik_results.items() if not ok]
-    if _nik_failed:
-        print(f"[applicant-nik-schema] cabang tertunda: {', '.join(_nik_failed)}")
-except Exception as _nik_err:
-    print(f"[applicant-nik-schema] startup: {_nik_err}")
-
 # Absensi training portal (2 hari): bukti kehadiran dari form publik.
 from modules.training_schema import ensure_training_attendance_schema
 for _attempt in range(5):

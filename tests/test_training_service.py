@@ -133,20 +133,19 @@ def _pelamar(pid=77, nama=NAMA, hp=HP, status='interview'):
 
 def test_nik_unknown_selalu_not_found():
     from modules.training_service import attendance_status
-    assert attendance_status(NIK, 'SBY', conn=_FakeConn(cases=[]))['error'] == 'not_found'
+    assert attendance_status(NIK, DOB, 'SBY', conn=_FakeConn(cases=[]))['error'] == 'not_found'
 
 
-def test_tanggal_lahir_tidak_dipakai_sebagai_bukti():
+def test_tanggal_lahir_beda_selalu_not_found():
     from modules.training_service import attendance_status
     conn = _FakeConn()
-    data = attendance_status(NIK, 'SBY', conn=conn)
-    assert data['ok'] is True
+    assert attendance_status(NIK, '1990-01-01', 'SBY', conn=conn)['error'] == 'not_found'
     assert _writes(conn) == []
 
 
 def test_next_day_1_saat_belum_ada_absensi():
     from modules.training_service import attendance_status
-    data = attendance_status(NIK, 'SBY', conn=_FakeConn())
+    data = attendance_status(NIK, DOB, 'SBY', conn=_FakeConn())
     assert data['ok'] is True
     assert data['nama'] == NAMA
     assert data['next_day'] == 1
@@ -159,7 +158,7 @@ def test_next_day_2_setelah_hari_1():
         'case_id': CASE, 'branch_code': 'SBY', 'day': 1,
         'attended_at': datetime(2026, 11, 25, 9, 12),
         'link_status': 'unlinked'}])
-    data = attendance_status(NIK, 'SBY', conn=conn)
+    data = attendance_status(NIK, DOB, 'SBY', conn=conn)
     assert data['next_day'] == 2
     assert data['days'][1]['attended_at'] == '2026-11-25 09:12:00'
     assert data['days'][2] is None
@@ -173,7 +172,7 @@ def test_next_day_none_setelah_dua_hari():
         {'case_id': CASE, 'branch_code': 'SBY', 'day': 2,
          'attended_at': datetime(2026, 11, 26, 9, 0), 'link_status': 'linked'},
     ])
-    assert attendance_status(NIK, 'SBY', conn=conn)['next_day'] is None
+    assert attendance_status(NIK, DOB, 'SBY', conn=conn)['next_day'] is None
 
 
 def test_absensi_cabang_lain_tidak_dihitung():
@@ -181,7 +180,7 @@ def test_absensi_cabang_lain_tidak_dihitung():
     conn = _FakeConn(attendance=[{
         'case_id': CASE, 'branch_code': 'BDG', 'day': 1,
         'attended_at': datetime(2026, 11, 25, 9, 0), 'link_status': 'linked'}])
-    assert attendance_status(NIK, 'SBY', conn=conn)['next_day'] == 1
+    assert attendance_status(NIK, DOB, 'SBY', conn=conn)['next_day'] == 1
 
 
 # ------------------------------------------------------------------
@@ -191,22 +190,22 @@ def test_absensi_cabang_lain_tidak_dihitung():
 def test_hari_tidak_valid_ditolak_tanpa_tulis():
     from modules.training_service import record_attendance
     conn = _FakeConn()
-    assert record_attendance(NIK, 'SBY', 3, conn=conn)['error'] == 'invalid_day'
+    assert record_attendance(NIK, DOB, 'SBY', 3, conn=conn)['error'] == 'invalid_day'
     assert _writes(conn) == []
 
 
 def test_hari_2_ditolak_sebelum_hari_1():
     from modules.training_service import record_attendance
     conn = _FakeConn()
-    assert record_attendance(NIK, 'SBY', 2, conn=conn)['error'] == 'day2_locked'
+    assert record_attendance(NIK, DOB, 'SBY', 2, conn=conn)['error'] == 'day2_locked'
     assert _writes(conn) == []
 
 
 def test_submit_ganda_idempoten():
     from modules.training_service import record_attendance
     conn = _FakeConn()
-    first = record_attendance(NIK, 'SBY', 1, conn=conn)
-    second = record_attendance(NIK, 'SBY', 1, conn=conn)
+    first = record_attendance(NIK, DOB, 'SBY', 1, conn=conn)
+    second = record_attendance(NIK, DOB, 'SBY', 1, conn=conn)
     assert first['ok'] and second['ok']
     assert len(conn.attendance) == 1
     assert conn.attendance[0]['attended_at'].strftime('%Y-%m-%d %H:%M:%S') \
@@ -216,7 +215,7 @@ def test_submit_ganda_idempoten():
 def test_nama_sama_hp_beda_tidak_tertaut():
     from modules.training_service import record_attendance
     conn = _FakeConn(applicants=[_pelamar(hp='081111111111')])
-    data = record_attendance(NIK, 'SBY', 1, conn=conn)
+    data = record_attendance(NIK, DOB, 'SBY', 1, conn=conn)
     assert data['link_status'] == 'unlinked'
     assert data['applicant_id'] is None
     assert conn.applicant_attendance == []
@@ -226,7 +225,7 @@ def test_nama_sama_hp_beda_tidak_tertaut():
 def test_dua_kandidat_jadi_ambiguous():
     from modules.training_service import record_attendance
     conn = _FakeConn(applicants=[_pelamar(77), _pelamar(78)])
-    data = record_attendance(NIK, 'SBY', 1, conn=conn)
+    data = record_attendance(NIK, DOB, 'SBY', 1, conn=conn)
     assert data['link_status'] == 'ambiguous'
     assert data['applicant_id'] is None
     assert conn.applicant_attendance == []
@@ -235,7 +234,7 @@ def test_dua_kandidat_jadi_ambiguous():
 def test_tertaut_mengisi_attendance_dan_menaikkan_status():
     from modules.training_service import record_attendance
     conn = _FakeConn(applicants=[_pelamar(77)])
-    data = record_attendance(NIK, 'SBY', 1, conn=conn)
+    data = record_attendance(NIK, DOB, 'SBY', 1, conn=conn)
     assert data['link_status'] == 'linked'
     assert data['applicant_id'] == 77
     assert conn.applicant_attendance[0]['stage'] == 'training_1'
@@ -250,7 +249,7 @@ def test_hari_2_mengisi_training_2():
                                   'day': 1,
                                   'attended_at': datetime(2026, 11, 25, 9, 0),
                                   'link_status': 'linked'}])
-    data = record_attendance(NIK, 'SBY', 2, conn=conn)
+    data = record_attendance(NIK, DOB, 'SBY', 2, conn=conn)
     assert data['ok'] is True
     assert conn.applicant_attendance[-1]['stage'] == 'training_2'
     assert conn.status_updates == [('training_2', 77)]
@@ -259,7 +258,7 @@ def test_hari_2_mengisi_training_2():
 def test_status_terminal_tidak_diubah():
     from modules.training_service import record_attendance
     conn = _FakeConn(applicants=[_pelamar(77, status='lulus')])
-    data = record_attendance(NIK, 'SBY', 1, conn=conn)
+    data = record_attendance(NIK, DOB, 'SBY', 1, conn=conn)
     assert data['link_status'] == 'unlinked'
     assert conn.applicant_attendance == []
     assert conn.status_updates == []
@@ -268,20 +267,20 @@ def test_status_terminal_tidak_diubah():
 def test_langkah_training_pending_lalu_selesai():
     from modules.training_service import record_attendance
     conn = _FakeConn()
-    record_attendance(NIK, 'SBY', 1, conn=conn)
+    record_attendance(NIK, DOB, 'SBY', 1, conn=conn)
     day1 = [s for s in conn.statements if 'INSERT INTO RECRUITMENT_STEPS' in s]
     assert day1
     conn.attendance[0]['day'] = 1
-    record_attendance(NIK, 'SBY', 2, conn=conn)
+    record_attendance(NIK, DOB, 'SBY', 2, conn=conn)
     assert [row[1] for row in conn.steps] == ['PENDING', 'SELESAI']
 
 
 def test_submit_ulang_hari_1_tidak_menurunkan_langkah_selesai():
     from modules.training_service import record_attendance
     conn = _FakeConn()
-    record_attendance(NIK, 'SBY', 1, conn=conn)
-    record_attendance(NIK, 'SBY', 2, conn=conn)
-    record_attendance(NIK, 'SBY', 1, conn=conn)
+    record_attendance(NIK, DOB, 'SBY', 1, conn=conn)
+    record_attendance(NIK, DOB, 'SBY', 2, conn=conn)
+    record_attendance(NIK, DOB, 'SBY', 1, conn=conn)
     assert conn.steps[-1][1] == 'SELESAI'
 
 
@@ -293,7 +292,7 @@ def test_pelamar_dicari_di_db_cabang_bukan_master():
     from modules.training_service import record_attendance
     master = _FakeConn()                       # tanpa Pelamar
     cabang = _FakeConn(applicants=[_pelamar(77)])
-    data = record_attendance(NIK, 'BDG', 1, conn=master, app_conn=cabang)
+    data = record_attendance(NIK, DOB, 'BDG', 1, conn=master, app_conn=cabang)
     assert data['link_status'] == 'linked'
     assert data['applicant_id'] == 77
     assert master.attendance[0]['link_status'] == 'linked'
@@ -312,7 +311,7 @@ def test_gagal_tulis_db_cabang_jadi_unlinked_tanpa_menipu():
 
     master = _FakeConn()
     cabang = _Broken(applicants=[_pelamar(77)])
-    data = record_attendance(NIK, 'BDG', 1, conn=master, app_conn=cabang)
+    data = record_attendance(NIK, DOB, 'BDG', 1, conn=master, app_conn=cabang)
     assert data['link_status'] == 'unlinked'
     assert data['applicant_id'] is None
     assert master.attendance[0]['link_status'] == 'unlinked'

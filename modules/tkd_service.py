@@ -121,12 +121,8 @@ def fetch_case_by_nik(cursor, nik: str, for_update: bool = False) -> dict | None
     return cursor.fetchone()
 
 
-def verify_identity(cursor, nik: str) -> dict | None:
-    """Verifikasi identitas berdasarkan NIK saja (Rilis C).
-
-    Tanggal lahir bukan lagi bukti: ia diturunkan dari NIK bila kasus belum
-    memilikinya, sehingga tautan portal cukup sekali memeriksa NIK.
-    """
+def verify_identity(cursor, nik: str, dob: str) -> dict | None:
+    """Verifikasi NIK + tanggal lahir; kembalikan kasus tanpa detail bila gagal."""
     nik, _raw = normalize_nik(nik)
     if len(nik) != 16:
         return None
@@ -136,8 +132,21 @@ def verify_identity(cursor, nik: str) -> dict | None:
         return None
 
     stored = case.get('tanggal_lahir')
-    if stored is None:
-        stored = derive_dob_from_nik(nik)
+    given = _as_iso(dob)
+    if stored is not None:
+        if _as_iso(stored) != given:
+            return None
+    else:
+        derived = derive_dob_from_nik(nik)
+        if derived is None or given is None:
+            return None
+        try:
+            supplied = date.fromisoformat(given)
+        except ValueError:
+            return None
+        if supplied != derived:
+            return None
+
     result = dict(case)
     result['tanggal_lahir'] = _as_iso(stored)
     result['tkd_score'] = _as_float(case.get('tkd_score'))

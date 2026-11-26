@@ -33,7 +33,6 @@ const linkBranch = (linkParams.get('cabang') || linkParams.get('branch') || '').
 // v2.82.0: token form milik cabang. Tanpa token yang cocok, isian tidak bisa
 // dikirim atas nama cabang tersebut (anti tukar/mix antar cabang).
 const linkToken = (linkParams.get('t') || linkParams.get('token') || '').trim()
-const portalSession = (linkParams.get('s') || '').trim()
 const branchLabel = ref('')
 const resolvedBranch = ref(linkBranch)
 // v2.86.0: status keabsahan tautan. 'loading' → 'ok' (tautan sah) atau
@@ -750,30 +749,18 @@ async function submit() {
     error.value = 'Tautan form tidak valid. Minta tautan resmi dari Traineer/Admin.'
     return
   }
-  // Dengan sesi portal, identitas berasal dari CV — tidak ada yang diketik ulang.
-  if (!portalSession) {
-    for (let i = 0; i < STEPS.length; i += 1) {
-      const message = stepError(i)
-      if (message) { step.value = i; error.value = message; return }
-    }
+  for (let i = 0; i < STEPS.length; i += 1) {
+    const message = stepError(i)
+    if (message) { step.value = i; error.value = message; return }
   }
   error.value = ''
   const payload = new FormData()
-  if (portalSession) {
-    payload.append('s', portalSession)
-  } else {
-    payload.append('nik', form.nik)
-    payload.append('nama', form.nama.trim())
-    payload.append('pendidikan', form.pendidikan.trim())
-    payload.append('no_hp', hpInfo.value.hp)
-  }
-  if (portalSession) {
-    payload.append('referensi_text', 'CV Online')
-  } else if (manualRef.value) {
-    payload.append('referensi_text', form.referensi_text.trim())
-  } else {
-    payload.append('referrer_id', form.referrer_id)
-  }
+  payload.append('nik', form.nik)
+  payload.append('nama', form.nama.trim())
+  payload.append('pendidikan', form.pendidikan.trim())
+  payload.append('no_hp', hpInfo.value.hp)
+  if (manualRef.value) payload.append('referensi_text', form.referensi_text.trim())
+  else payload.append('referrer_id', form.referrer_id)
   payload.append('branch', resolvedBranch.value)
   if (linkToken) payload.append('t', linkToken)
   payload.append('consent', '1')
@@ -917,8 +904,6 @@ onBeforeUnmount(() => {
           <div><span>Status</span><b>Menunggu verifikasi Traineer</b></div>
         </div>
 
-        <a v-if="done.card_url" class="btn fw-wide" :href="done.card_url">Unduh Kartu</a>
-
         <div class="fw-next-steps">
           <h3>Langkah selanjutnya</h3>
           <ol>
@@ -1040,7 +1025,7 @@ onBeforeUnmount(() => {
                    placeholder="cth: Surabaya" />
           </div>
 
-          <div v-if="!portalSession" class="fw-field">
+          <div class="fw-field">
             <label for="fw-tanggal-lahir">Tanggal Lahir</label>
             <input id="fw-tanggal-lahir" class="input" v-model="form.tanggal_lahir"
                    aria-label="Tanggal Lahir" type="date" maxlength="10"

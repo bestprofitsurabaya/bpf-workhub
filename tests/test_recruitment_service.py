@@ -450,37 +450,3 @@ def test_service_memakai_helper_normalisasi_nik_yang_sama():
     source = (ROOT / 'modules' / 'recruitment_service.py').read_text(encoding='utf-8')
     assert 'from modules.helpers import normalize_nik' in source
     assert re.search(r'def\s+normalize_nik', source) is None
-
-
-class TestEnsureCase:
-    """Rilis C: satu kasus per NIK, dipakai ulang oleh cabang lain."""
-
-    def test_ensure_case_memakai_kasus_yang_sama_untuk_nik_sama(self, db):
-        from modules.recruitment_service import ensure_case
-        first = ensure_case(NIK, 'Budi', 'SBY', conn=db)
-        second = ensure_case(NIK, 'Budi Lain', 'JKT', conn=db)
-        assert first == second
-        assert len(db.tables['recruitment_cases']) == 1
-        assert db.tables['recruitment_cases'][0]['nama'] == 'Budi'
-        assert {r['branch_code'] for r in db.tables['case_branch_history']} == {'SBY', 'JKT'}
-
-    def test_ensure_case_menolak_nik_kurang_dari_16_digit(self, db):
-        from modules.recruitment_service import ensure_case
-        with pytest.raises(ValueError, match='NIK'):
-            ensure_case('123', 'Budi', 'SBY', conn=db)
-        assert db.tables['recruitment_cases'] == []
-
-    def test_standalone_commit_dan_tutup_koneksi_sendiri(self, db, monkeypatch):
-        import modules.recruitment_service as rs
-        monkeypatch.setattr(rs, 'get_master_connection', lambda: db)
-        from modules.recruitment_service import ensure_case
-        case_id = ensure_case(NIK, 'Budi', 'SBY')
-        assert case_id == db.tables['recruitment_cases'][0]['case_id']
-        assert db.commits == 1
-        assert db.closed is True
-
-    def test_upsert_masih_memanggil_ensure_case_dalam_transaksi_sama(self, db):
-        from modules.recruitment_service import ensure_case
-        case_id = _upsert(conn=db)
-        assert ensure_case(NIK, 'Lain', 'JKT', conn=db) == case_id
-        assert db.commits == 0
