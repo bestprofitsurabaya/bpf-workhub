@@ -1,15 +1,19 @@
 """Regresi endpoint lookup publik rekrutmen (Rilis A — Task 3).
 
-Kontrak: `GET /api/recruitment/lookup?nik=<16 digit>`
-hanya mengembalikan boolean (`known`, `can_continue`) — tidak ada cabang,
-tahap, nama, atau data pribadi lain. Lookup adalah operasi baca murni:
-tidak boleh ada INSERT/UPDATE, walaupun NIK belum dikenal.
+Kontrak dasar: `GET /api/recruitment/lookup?nik=<16 digit>` mengembalikan
+`known`/`can_continue` plus ringkasan tahap yang sudah disanitasi. Sejak
+v2.135.12, bila tautan membawa token cabang yang sah dan NIK punya riwayat di
+cabang lain, respons boleh memuat `branch_history` (nama cabang + tanggal
+pertama) sebagai informasi saja — tanpa NIK, case_id, atau kode cabang.
+Lookup tetap operasi baca murni: tidak boleh ada INSERT/UPDATE, walaupun NIK
+belum dikenal.
 
 Semua pengujian memakai DB master palsu dan rate limit memori (tanpa Redis
 atau MySQL), mengikuti pola `tests/test_cv_online_nik.py`.
 """
 import os
 import sys
+from datetime import datetime
 from pathlib import Path
 
 import pytest
@@ -24,7 +28,8 @@ ROOT = Path(__file__).resolve().parents[1]
 NIK = '3573010101990001'
 NIK_LAIN = '3573010101990002'
 TABLES = ('recruitment_cases', 'cv_online_submissions', 'first_work_submissions',
-          'recruitment_steps')
+          'recruitment_steps', 'case_branch_history', 'cv_online_branch_forms',
+          'branches')
 
 
 @pytest.fixture(autouse=True)
@@ -51,6 +56,25 @@ class _FakeCursor:
             # seperti hasil SELECT produksi.
             self._rows = list(self.conn.tables[table])
             return
+        if table == 'case_branch_history' and 'CASE_ID=%S' in upper:
+            case_id = params[0] if params else ''
+            self._rows = [row for row in self.conn.tables[table]
+                          if str(row.get('case_id') or '') == str(case_id)]
+            return
+        if table == 'cv_online_branch_forms' and 'FORM_TOKEN=%S' in upper:
+            token = params[0] if params else ''
+            self._rows = next(
+                (row for row in self.conn.tables[table]
+                 if str(row.get('form_token') or '') == str(token)), None)
+            return
+        if table == 'branches':
+            if 'CODE IN' in upper:
+                codes = {str(code).upper() for code in params}
+                self._rows = [row for row in self.conn.tables[table]
+                              if str(row.get('code') or '').upper() in codes]
+            else:
+                self._rows = list(self.conn.tables[table])
+            return
         if 'NIK=%S' not in upper:
             self._rows = None
             return
@@ -59,6 +83,9 @@ class _FakeCursor:
                    if str(row.get('nik') or '') == str(nik)]
         if 'COUNT(*)' in upper:
             self._rows = {'n': len(matches)}
+        elif table in ('cv_online_submissions', 'first_work_submissions'):
+            # Fallback riwayat butuh SEMUA baris NIK, bukan baris pertama.
+            self._rows = matches
         else:
             self._rows = matches[0] if matches else None
 
@@ -303,3 +330,120 @@ def test_agregasi_status_memilih_selesai(client, db):
 def test_lookup_invalid_tetap_kontrak_lama(client, db):
     data = _lookup(client, nik='12345').get_json()
     assert set(data) == {'status', 'known', 'can_continue'}
+
+
+class TestRiwayatCabangLain:
+    """Info "pernah tercatat di cabang lain" — hanya lewat token cabang sah."""
+
+    TOKEN = 'tok_portal_sby_uji'
+
+    def _token(self, db, code='SBY', token=TOKEN):
+        db.tables['cv_online_branch_forms'].append(
+            {'branch_code': code, 'form_token': token, 'active': 1})
+
+    def _kasus(self, db, first_branch='SBY', case_id='RC-uji123'):
+        db.tables['recruitment_cases'].append({
+            'nik': NIK, 'case_id': case_id, 'first_branch': first_branch,
+            'first_seen_at': datetime(2026, 10, 1, 8, 30),
+        })
+        db.tables['branches'] += [
+            {'code': 'SBY', 'name': 'Cabang Surabaya'},
+            {'code': 'MLG', 'name': 'Cabang Malang'},
+            {'code': 'JKT', 'name': 'Cabang Jakarta'},
+        ]
+        return case_id
+
+    def _jejak(self, db, case_id, code, when):
+        db.tables['case_branch_history'].append({
+            'case_id': case_id, 'branch_code': code, 'first_seen_at': when,
+            'last_seen_at': when,
+        })
+
+    def test_cabang_lain_dilaporkan_tanpa_kode_nik_atau_case_id(self, client, db):
+        self._token(db)
+        case_id = self._kasus(db)
+        self._jejak(db, case_id, 'SBY', datetime(2026, 10, 1, 8, 30))
+        self._jejak(db, case_id, 'MLG', datetime(2026, 10, 12, 9, 15))
+
+        data = _lookup(client, token=self.TOKEN).get_json()
+
+        assert data['branch_history'] == {
+            'other_branch_count': 1,
+            'first_seen_at': '2026-10-12',
+            'branch_names': ['Cabang Malang'],
+        }
+        import json
+        teks = json.dumps(data)
+        for rahasia in (NIK, case_id, 'MLG'):
+            assert rahasia not in teks
+
+    def test_beberapa_cabang_lain_dihitung_dengan_tanggal_terawal(self, client, db):
+        self._token(db)
+        case_id = self._kasus(db)
+        self._jejak(db, case_id, 'SBY', datetime(2026, 10, 1, 8, 30))
+        self._jejak(db, case_id, 'MLG', datetime(2026, 10, 20, 14, 0))
+        self._jejak(db, case_id, 'JKT', datetime(2026, 10, 5, 10, 0))
+
+        data = _lookup(client, token=self.TOKEN).get_json()
+
+        assert data['branch_history'] == {
+            'other_branch_count': 2,
+            'first_seen_at': '2026-10-05',
+            'branch_names': ['Cabang Jakarta', 'Cabang Malang'],
+        }
+
+    def test_riwayat_cabang_sendiri_tidak_memicu_info(self, client, db):
+        self._token(db)
+        case_id = self._kasus(db)
+        self._jejak(db, case_id, 'SBY', datetime(2026, 10, 1, 8, 30))
+
+        data = _lookup(client, token=self.TOKEN).get_json()
+
+        assert data['known'] is True
+        assert 'branch_history' not in data
+
+    def test_cabang_asal_dipakai_bila_jejak_belum_ada(self, client, db):
+        self._token(db)
+        self._kasus(db, first_branch='MLG')
+
+        data = _lookup(client, token=self.TOKEN).get_json()
+
+        assert data['branch_history'] == {
+            'other_branch_count': 1,
+            'first_seen_at': '2026-10-01',
+            'branch_names': ['Cabang Malang'],
+        }
+
+    def test_data_lama_tanpa_kasus_tetap_terbaca(self, client, db):
+        self._token(db)
+        db.tables['cv_online_submissions'].append({
+            'nik': NIK, 'branch_code': 'MLG',
+            'submitted_at': datetime(2026, 9, 3, 11, 0),
+        })
+        db.tables['branches'].append({'code': 'MLG', 'name': 'Cabang Malang'})
+
+        data = _lookup(client, token=self.TOKEN).get_json()
+
+        assert data['branch_history'] == {
+            'other_branch_count': 1,
+            'first_seen_at': '2026-09-03',
+            'branch_names': ['Cabang Malang'],
+        }
+
+    def test_tanpa_token_tidak_membuka_riwayat(self, client, db):
+        case_id = self._kasus(db)
+        self._jejak(db, case_id, 'MLG', datetime(2026, 10, 12, 9, 15))
+
+        data = _lookup(client).get_json()
+
+        assert data['known'] is True
+        assert 'branch_history' not in data
+
+    def test_token_tidak_sah_tidak_membuka_riwayat(self, client, db):
+        case_id = self._kasus(db)
+        self._jejak(db, case_id, 'MLG', datetime(2026, 10, 12, 9, 15))
+
+        data = _lookup(client, token='token-palsu').get_json()
+
+        assert data['known'] is True
+        assert 'branch_history' not in data

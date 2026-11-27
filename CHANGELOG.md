@@ -7,6 +7,19 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.135.12 — 27 November 2026 (Info riwayat cabang lain di portal)
+
+- Setelah NIK dicocokkan lewat tautan portal cabang, pelamar melihat satu
+  catatan tenang bila datanya pernah tercatat di cabang lain: nama cabang,
+  jumlah cabang, dan tanggal pertama tercatat.
+- Catatan bersifat informasi saja. Empat tahap tetap dapat dibuka dan
+  dilanjutkan seperti biasa; tidak ada tahap yang dikunci.
+- Riwayat hanya dihitung bila token portal cabang sah. Tanpa token atau
+  token palsu, lookup tetap menjawab seperti sebelumnya tanpa info riwayat.
+- Respons hanya memuat nama tampilan cabang dan tanggal; NIK, `case_id`, dan
+  kode cabang tidak pernah dikirim ke halaman publik.
+- Data lama tanpa baris kasus tetap terbaca dari CV Online/FirstWork.
+
 ## v2.135.11 — 26 November 2026 (Stamp versi PDF kembali seragam)
 
 - Audit rilis menemukan `system_config` master dan kolom

@@ -36,7 +36,8 @@ from flask import jsonify, request, session
 from modules.config import get_master_connection
 from modules.helpers import (client_ip, log_activity_async, normalize_nik,
                              redis_rate_hit, role_required)
-from modules.tkd_service import load_settings, set_manual_score
+from modules.tkd_service import (load_settings, resolve_branch_token,
+                                 set_manual_score)
 
 # 10 pengecekan / menit / IP. Endpoint ini menjawab keberadaan NIK, jadi
 # kuota longgar = alat enumerasi data pribadi (lihat check-nik FirstWork).
@@ -222,6 +223,89 @@ def _masked_name(value):
     return f'{parts[0]} {parts[1][0]}.'
 
 
+def _iso_date(value):
+    """Tanggal ISO dari DATETIME/date/teks; '' bila tidak bisa dipakai."""
+    if isinstance(value, datetime):
+        return value.date().isoformat()
+    if isinstance(value, date):
+        return value.isoformat()
+    text = str(value or '').strip()
+    return text[:10] if _DATE_RE.match(text[:10]) else ''
+
+
+def portal_branch_history(cursor, nik, current_branch):
+    """Info "pernah tercatat di cabang lain" — tanpa NIK/kode/case_id.
+
+    Hanya dihitung bila cabang portal diketahui dari token aktif. Cabang yang
+    sama dengan `current_branch` tidak dihitung. Hasil berisi jumlah cabang
+    lain, tanggal pertama (paling awal), dan nama tampilan cabang; kode cabang
+    tidak pernah dikirim ke halaman publik.
+
+    Sumber: `case_branch_history` + `recruitment_cases.first_branch`. Untuk
+    data lama yang belum punya baris kasus, dipakai `cv_online_submissions`
+    dan `first_work_submissions`. Semua operasi baca saja.
+    """
+    current = str(current_branch or '').strip().upper()
+    if not current:
+        return None
+
+    cursor.execute(
+        'SELECT case_id, first_branch, first_seen_at '
+        'FROM recruitment_cases WHERE nik=%s', (nik,))
+    case = cursor.fetchone() or {}
+    case_id = str(case.get('case_id') or '')
+    seen = {}
+
+    def _note(code, when):
+        code = str(code or '').strip().upper()
+        when = _iso_date(when)
+        if not code or not when:
+            return
+        if code not in seen or when < seen[code]:
+            seen[code] = when
+
+    if case_id:
+        cursor.execute(
+            'SELECT branch_code, first_seen_at FROM case_branch_history '
+            'WHERE case_id=%s', (case_id,))
+        for row in cursor.fetchall() or []:
+            _note(row.get('branch_code'), row.get('first_seen_at'))
+        _note(case.get('first_branch'), case.get('first_seen_at'))
+    else:
+        for table in ('cv_online_submissions', 'first_work_submissions'):
+            # Nama tabel konstan, bukan input pengguna — aman dari injeksi.
+            cursor.execute(
+                f'SELECT branch_code, submitted_at FROM {table} WHERE nik=%s',
+                (nik,))
+            for row in cursor.fetchall() or []:
+                _note(row.get('branch_code'), row.get('submitted_at'))
+
+    others = {code: when for code, when in seen.items() if code != current}
+    if not others:
+        return None
+
+    codes = sorted(others)
+    name_map = {}
+    try:
+        placeholders = ','.join(['%s'] * len(codes))
+        cursor.execute(
+            f'SELECT code, name FROM branches WHERE code IN ({placeholders})',
+            tuple(codes))
+        name_map = {
+            str(row.get('code') or '').strip().upper():
+            str(row.get('name') or '').strip()
+            for row in cursor.fetchall() or []
+        }
+    except Exception:
+        name_map = {}
+    names = [name_map.get(code) or 'cabang lain' for code in codes[:5]]
+    return {
+        'other_branch_count': len(codes),
+        'first_seen_at': min(others.values()),
+        'branch_names': names,
+    }
+
+
 def portal_summary(cursor, nik, known=False, branch_code=None):
     """Ringkasan empat tahap untuk satu NIK — tanpa data pribadi lengkap.
 
@@ -308,18 +392,29 @@ def register_recruitment_routes(app):
                 return _response({'status': 'error', 'msg': 'DB error'}, 500)
             cursor = conn.cursor(dictionary=True)
             payload = None
+            history = None
             try:
                 known = _nik_known(cursor, nik)
                 try:
                     payload = portal_summary(cursor, nik, known)
                 except Exception:
                     payload = None  # best-effort: kontrak lama tetap dipakai
+                try:
+                    token = (request.args.get('token')
+                             or request.args.get('t') or '').strip()[:200]
+                    branch = resolve_branch_token(cursor, token) if token else ''
+                    if branch and known:
+                        history = portal_branch_history(cursor, nik, branch)
+                except Exception:
+                    history = None  # info tambahan tidak boleh menggagalkan lookup
             finally:
                 cursor.close()
             result = {'status': 'success', 'known': known,
                       'can_continue': known}
             if payload:
                 result.update(payload)
+            if history:
+                result['branch_history'] = history
             return _response(result)
         except Exception:
             # Jangan kembalikan str(e): detail DB bisa membocorkan skema/PII.

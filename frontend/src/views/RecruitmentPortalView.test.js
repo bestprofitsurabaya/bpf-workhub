@@ -28,6 +28,23 @@ const INSTITUSI = {
   ],
 }
 
+const HISTORY_ONE = {
+  ...INSTITUSI,
+  branch_history: {
+    other_branch_count: 1,
+    first_seen_at: '2026-10-12',
+    branch_names: ['Cabang Malang'],
+  },
+}
+const HISTORY_MANY = {
+  ...INSTITUSI,
+  branch_history: {
+    other_branch_count: 3,
+    first_seen_at: '2026-10-05',
+    branch_names: ['Cabang Jakarta', 'Cabang Malang'],
+  },
+}
+
 function card(w, step) {
   return w.find(`.rp-card[data-step="${step}"]`)
 }
@@ -83,7 +100,7 @@ describe('RecruitmentPortalView — portal per cabang 4 kartu (Rilis A)', () => 
     await cek(w)
 
     expect(apiMock).toHaveBeenCalledWith('/api/recruitment/lookup', {
-      params: { nik: NIK },
+      params: { nik: NIK, token: TOKEN },
     })
     for (const step of STEPS) {
       expect(card(w, step).attributes('data-locked')).toBe('false')
@@ -196,7 +213,7 @@ describe('RecruitmentPortalView — portal per cabang 4 kartu (Rilis A)', () => 
       .toEqual(['CV', 'TRAINING', 'TKD', 'FIRSTWORK'])
   })
 
-  it('lookup hanya GET dan tidak menampilkan cabang/langkah/data pribadi dari respons', async () => {
+  it('lookup hanya GET dan tidak merender field mentah di luar ringkasan', async () => {
     const bocor = {
       ...KNOWN,
       first_branch: 'CABANG_RAHASIA',
@@ -211,7 +228,9 @@ describe('RecruitmentPortalView — portal per cabang 4 kartu (Rilis A)', () => 
     await cek(w)
 
     expect(apiMock).toHaveBeenCalledTimes(1)
-    expect(apiMock.mock.calls[0][1]).toEqual({ params: { nik: NIK } })
+    expect(apiMock.mock.calls[0][1]).toEqual({
+      params: { nik: NIK, token: TOKEN },
+    })
     const txt = w.text()
     for (const rahasia of ['CABANG_RAHASIA', 'KODE_RAHASIA', 'LANGKAH_RAHASIA',
       'NAMA_RAHASIA', 'CASE_RAHASIA', '9999999999999999']) {
@@ -322,5 +341,69 @@ describe('RecruitmentPortalView — tampilan institusi (v2.135.8)', () => {
       expect(card(w, step).find('[data-expand]').exists()).toBe(true)
     }
     expect(main(w, 'CV').element.tagName).toBe('DIV')
+  })
+
+  it('info riwayat cabang lain tampil sebagai informasi dan tidak mengunci tahap', async () => {
+    const w = await mountPortal(`?token=${TOKEN}`, HISTORY_ONE)
+    await cek(w, '3509190102960003')
+
+    const info = w.find('[data-history]')
+    expect(info.exists()).toBe(true)
+    expect(info.text()).toContain('Cabang Malang')
+    expect(info.text()).toContain('12 Oktober 2026')
+    expect(info.text()).toContain('tetap dapat melanjutkan')
+
+    for (const step of STEPS) {
+      expect(card(w, step).attributes('data-locked')).toBe('false')
+    }
+  })
+
+  it('info beberapa cabang menyebut jumlah dan tanggal pertama', async () => {
+    const w = await mountPortal(`?token=${TOKEN}`, HISTORY_MANY)
+    await cek(w, '3509190102960003')
+
+    const teks = w.find('[data-history]').text()
+    expect(teks).toContain('3 cabang lain')
+    expect(teks).toContain('Cabang Jakarta')
+    expect(teks).toContain('Cabang Malang')
+    expect(teks).toContain('1 cabang lain')
+    expect(teks).toContain('5 Oktober 2026')
+  })
+
+  it('tanpa branch_history tidak ada info riwayat', async () => {
+    const w = await mountPortal(`?token=${TOKEN}`, INSTITUSI)
+    await cek(w, '3509190102960003')
+
+    expect(w.find('[data-history]').exists()).toBe(false)
+  })
+
+  it('field mentah di branch_history tidak ikut dirender', async () => {
+    const bocor = {
+      ...HISTORY_ONE,
+      branch_history: {
+        ...HISTORY_ONE.branch_history,
+        branch_codes: ['MLG'],
+        nik: '9999999999999999',
+        case_id: 'CASE_RAHASIA',
+      },
+    }
+    const w = await mountPortal(`?token=${TOKEN}`, bocor)
+    await cek(w, '3509190102960003')
+
+    const teks = w.text()
+    for (const rahasia of ['MLG', '9999999999999999', 'CASE_RAHASIA']) {
+      expect(teks).not.toContain(rahasia)
+    }
+  })
+
+  it('info riwayat hilang saat cek ulang NIK yang belum dikenal', async () => {
+    const w = await mountPortal(`?token=${TOKEN}`, HISTORY_ONE)
+    await cek(w, '3509190102960003')
+    expect(w.find('[data-history]').exists()).toBe(true)
+
+    apiMock.mockImplementationOnce(() => Promise.resolve(UNKNOWN))
+    await cek(w, '1111111111111111')
+
+    expect(w.find('[data-history]').exists()).toBe(false)
   })
 })

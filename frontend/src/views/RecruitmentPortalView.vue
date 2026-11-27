@@ -64,8 +64,51 @@ const STEP_LABELS = {
   TKD: 'Test Kemampuan Dasar',
   FIRSTWORK: 'FirstWork Absensi',
 }
+const BULAN = [
+  'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli',
+  'Agustus', 'September', 'Oktober', 'November', 'Desember',
+]
+
 function greetingName() {
   return (summary.value?.nama_masked || '').replace(/\.$/, '')
+}
+
+// Tanggal ISO dari server (YYYY-MM-DD) → "12 Oktober 2026".
+function tanggalPanjang(value) {
+  const cocok = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(value || ''))
+  if (!cocok) return ''
+  const bulan = BULAN[Number(cocok[2]) - 1]
+  if (!bulan) return ''
+  return `${Number(cocok[3])} ${bulan} ${cocok[1]}`
+}
+
+function daftarCabang(names) {
+  const bersih = (names || []).filter((n) => typeof n === 'string' && n.trim())
+  if (bersih.length <= 1) return bersih[0] || ''
+  if (bersih.length === 2) return `${bersih[0]} dan ${bersih[1]}`
+  return `${bersih.slice(0, -1).join(', ')}, dan ${bersih[bersih.length - 1]}`
+}
+
+// Informasi saja: tidak pernah mengubah status kartu atau tombol lanjut.
+function riwayatText() {
+  const info = summary.value?.branch_history
+  if (!info) return ''
+  const jumlah = Number(info.other_branch_count) || 0
+  if (jumlah < 1) return ''
+  const nama = (info.branch_names || [])
+    .filter((n) => typeof n === 'string' && n.trim())
+  const sisa = Math.max(0, jumlah - nama.length)
+  const tanggal = tanggalPanjang(info.first_seen_at)
+  const lanjut = 'Anda tetap dapat melanjutkan proses rekrutmen di cabang ini.'
+  if (jumlah === 1) {
+    const di = nama[0] || 'cabang lain'
+    return `Data Anda pernah tercatat di ${di}${tanggal ? ` pada ${tanggal}` : ''}. ${lanjut}`
+  }
+  const daftar = [...nama]
+  if (sisa > 0) daftar.push(`${sisa} cabang lain`)
+  const rincian = daftar.length ? `, yaitu ${daftarCabang(daftar)}` : ''
+  return `Data Anda pernah tercatat di ${jumlah} cabang lain${rincian}.` +
+    (tanggal ? ` Pertama tercatat pada ${tanggal}.` : '') + ` ${lanjut}`
 }
 
 function summaryText(step) {
@@ -167,14 +210,29 @@ async function check() {
   tkdNik.value = ''
   checking.value = true
   try {
-    const result = await api('/api/recruitment/lookup', {
-      params: { nik: nik.value },
-    })
+    // Token ikut dikirim agar server tahu cabang portal yang sedang dibuka;
+    // tanpa token, info riwayat cabang lain sengaja tidak dihitung.
+    const params = { nik: nik.value }
+    if (branchToken) params.token = branchToken
+    const result = await api('/api/recruitment/lookup', { params })
     known.value = Boolean(result && result.known === true)
+    const riwayat = result?.branch_history
     summary.value = {
       nama_masked: result?.nama_masked || '',
       stages: result?.stages || [],
       next_action: result?.next_action || '',
+      // Ambil field yang dikenal saja; kode cabang/NIK/case_id tidak pernah
+      // disimpan walaupun ikut terkirim di respons.
+      branch_history: riwayat && typeof riwayat === 'object'
+        ? {
+            other_branch_count: Number(riwayat.other_branch_count) || 0,
+            first_seen_at: typeof riwayat.first_seen_at === 'string'
+              ? riwayat.first_seen_at : '',
+            branch_names: Array.isArray(riwayat.branch_names)
+              ? riwayat.branch_names.filter((n) => typeof n === 'string').slice(0, 5)
+              : [],
+          }
+        : null,
     }
     if (known.value) {
       tkdNik.value = nik.value
@@ -262,6 +320,14 @@ async function check() {
           <span class="rp-next-label">Langkah berikutnya:</span> {{ STEP_LABELS[summary.next_action] || summary.next_action }}. Ikuti jadwal dari cabang.
         </p>
         <p v-else class="rp-next">Semua tahap sudah tercatat. Hubungi cabang bila perlu cetak ulang kartu atau koreksi data.</p>
+      </section>
+
+      <section v-if="riwayatText()" class="rp-history" data-history role="status">
+        <svg class="rp-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="12" cy="12" r="9" />
+          <path d="M12 8h.01M11 12h1v4h1" />
+        </svg>
+        <p>{{ riwayatText() }}</p>
       </section>
 
       <div class="rp-steps-head">
@@ -520,6 +586,28 @@ async function check() {
   font-weight: 500;
 }
 .rp-next-label { font-weight: 700; }
+
+/* Info riwayat cabang lain — tenang, informatif, tidak menghalangi. */
+.rp-history {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin-top: 12px;
+  padding: 13px 16px;
+  background: #f2f6fc;
+  border: 1px solid #cfdcee;
+  border-left: 3px solid var(--rp-focus);
+  border-radius: 0 6px 6px 0;
+}
+.rp-history .rp-icon {
+  margin-top: 3px;
+  color: var(--rp-focus);
+}
+.rp-history p {
+  margin: 0;
+  color: var(--rp-ink-2);
+  font-size: 0.86rem;
+}
 
 /* Daftar tahap vertikal */
 .rp-steps-head {
