@@ -175,8 +175,11 @@ describe('RecruitmentPortalView — portal per cabang 4 kartu (Rilis A)', () => 
     const cv = card(w, 'CV')
     expect(cv.find('.rp-status').text()).toBe('Selesai')
     expect(cv.find('.rp-node').text()).toBe('✓')
-    expect(cv.text()).toContain('2026-11-25 19:28:30')
-    expect(cv.text()).toContain('Data tersimpan pada')
+    expect(cv.text()).toContain('Data tersimpan pada 25 November 2026, 19.28.')
+    expect(cv.text()).not.toContain('GMT')
+    expect(cv.text()).not.toContain('2026-11-25')
+    expect(card(w, 'TKD').text()).toContain(
+      'Data tersimpan pada 25 November 2026, 19.24.')
     expect(cv.text()).toContain('Lihat keterangan')
     expect(cv.find('[data-expand]').attributes('open')).toBeUndefined()
     expect(cv.classes()).toContain('rp-card--done')

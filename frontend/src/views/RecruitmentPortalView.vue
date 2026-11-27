@@ -82,6 +82,16 @@ function tanggalPanjang(value) {
   return `${Number(cocok[3])} ${bulan} ${cocok[1]}`
 }
 
+// "2026-11-25 19:28:30" → "25 November 2026, 19.28".
+function tanggalWaktu(value) {
+  const cocok = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/
+    .exec(String(value || ''))
+  if (!cocok) return ''
+  const bulan = BULAN[Number(cocok[2]) - 1]
+  if (!bulan) return ''
+  return `${Number(cocok[3])} ${bulan} ${cocok[1]}, ${cocok[4]}.${cocok[5]}`
+}
+
 function daftarCabang(names) {
   const bersih = (names || []).filter((n) => typeof n === 'string' && n.trim())
   if (bersih.length <= 1) return bersih[0] || ''
@@ -113,8 +123,8 @@ function riwayatText() {
 
 function summaryText(step) {
   if (isDone(step)) {
-    const time = stageInfo(step.type).completed_at || ''
-    return time ? `Data tersimpan pada ${time}` : 'Data tersimpan.'
+    const waktu = tanggalWaktu(stageInfo(step.type).completed_at)
+    return waktu ? `Data tersimpan pada ${waktu}.` : 'Data tersimpan.'
   }
   const note = stepNote(step)
   if (!note) return ''
@@ -155,13 +165,14 @@ function statusText(step) {
 }
 
 function stepNote(step) {
-  const time = stageInfo(step.type).completed_at || ''
+  const waktu = tanggalWaktu(stageInfo(step.type).completed_at)
   if (isDone(step)) {
+    const kapan = waktu ? ` pada ${waktu}` : ''
     const notes = {
-      CV: `✓ Selesai — CV Online diterima ${time}. Data diri dan pendidikan Anda tersimpan. Tahap ini tidak perlu diulang.`,
-      TRAINING: `✓ Selesai — Absensi training tercatat ${time}. Tahap ini tidak perlu diulang.`,
-      TKD: `✓ Selesai — TKD tercatat ${time}. Bukti penilaian tersimpan; tidak perlu diulang.`,
-      FIRSTWORK: `✓ Selesai — KTP dan kartu peserta sudah tercatat ${time}. Tahap ini tidak perlu diulang; hubungi cabang bila kartu perlu dicetak ulang.`,
+      CV: `✓ Selesai — CV Online sudah diterima${kapan}. Data diri dan pendidikan Anda tersimpan. Tahap ini tidak perlu diulang.`,
+      TRAINING: `✓ Selesai — Absensi training tercatat${kapan}. Tahap ini tidak perlu diulang.`,
+      TKD: `✓ Selesai — TKD tercatat${kapan}. Bukti penilaian tersimpan; tidak perlu diulang.`,
+      FIRSTWORK: `✓ Selesai — KTP dan kartu peserta sudah tercatat${kapan}. Tahap ini tidak perlu diulang; hubungi cabang bila kartu perlu dicetak ulang.`,
     }
     return notes[step.type]
   }

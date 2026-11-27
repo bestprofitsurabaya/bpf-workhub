@@ -7,6 +7,14 @@ Riwayat perubahan BPF WorkHub. Ditulis untuk manusia, bukan untuk robot.
 > `git log` yang tetap utuh. Lihat `git log --oneline` untuk rincian
 ---
 
+## v2.135.13 — 27 November 2026 (Tanggal tahap portal dalam bahasa Indonesia)
+
+- Waktu penyelesaian tahap di portal tidak lagi tampil sebagai
+  "Wed, 25 Nov 2026 19:28:30 GMT". Backend kini mengirim tanggal ISO dan
+  halaman menampilkannya sebagai "25 November 2026, 19.28".
+- Berlaku untuk ringkasan kartu dan keterangan "Lihat keterangan"; tidak
+  mengubah status, alur, token, atau skema DB.
+
 ## v2.135.12 — 27 November 2026 (Info riwayat cabang lain di portal)
 
 - Setelah NIK dicocokkan lewat tautan portal cabang, pelamar melihat satu

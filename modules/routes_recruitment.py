@@ -352,7 +352,9 @@ def portal_summary(cursor, nik, known=False, branch_code=None):
         stages.append({
             'type': kind,
             'status': status,
-            'completed_at': info.get('completed_at'),
+            # Kirim ISO, bukan datetime mentah: Flask akan meng-encode
+            # datetime menjadi RFC 822 Inggris ("Wed, 25 Nov ... GMT").
+            'completed_at': _as_text(info.get('completed_at')),
             'can_open': (False if status == 'SELESAI' else
                          True if kind == 'CV' else bool(known)),
         })

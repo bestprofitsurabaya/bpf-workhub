@@ -306,6 +306,19 @@ def test_lookup_menyertakan_status_tahap(client, db):
     assert data['nama_masked'] == 'Bili D.'
 
 
+def test_lookup_menormalkan_tanggal_tahap_ke_iso(client, db):
+    """Datetime dari DB tidak boleh keluar sebagai RFC 822 Inggris/GMT."""
+    db.tables['recruitment_cases'].append({
+        'case_id': 'RC-1', 'nik': NIK, 'nama': 'Bili Darnanto Susilo'})
+    db.tables['recruitment_steps'] = [
+        {'step_type': 'CV', 'status': 'SELESAI',
+         'completed_at': datetime(2026, 11, 25, 19, 28, 30),
+         'branch_code': 'SBY'},
+    ]
+    data = _lookup(client).get_json()
+    assert data['stages'][0]['completed_at'] == '2026-11-25 19:28:30'
+
+
 def test_lookup_nik_terkenal_tanpa_kasus(client, db):
     db.tables['cv_online_submissions'].append(db.baris(NIK))
     data = _lookup(client).get_json()
